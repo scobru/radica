@@ -1,5 +1,5 @@
 // FreeHole integration (github.com/scobru/freehole) for Radica.
-// Sovereign P2P and Freenet chunk file transfers (formerly Wormhole).
+// Sovereign Freenet chunk file transfers (formerly Wormhole).
 // Detects mnemonic sync codes (e.g. 82-gentle-bird, wh:82-gentle-bird, fh:82-gentle-bird) and FreeHole web links,
 // rendering rich transfer cards in feed posts and chat.
 
@@ -19,9 +19,9 @@ export const WORMHOLE_PATH = FREEHOLE_PATH;
 /** Mnemonic sync code pattern: number-word-word (e.g. 82-gentle-bird, 14-calm-wave). */
 const MNEMONIC_RE = /\b(\d{1,4}-[a-z]{3,16}-[a-z]{3,16})\b/i;
 
-/** Prefixed code: freehole:<code>, fh:<code>, wh:<code>, wormhole:<code>, #fh/<code>, #wh/<code>, wh receive <code>, freehole receive <code> */
+/** Prefixed code: freehole:<code>, fh:<code>, wh:<code>, wormhole:<code>, #fh/<code>, #fh=<code>, #wh/<code>, #wh=<code>, fh receive <code>, freehole receive <code>, wh receive <code> */
 const PREFIXED_CODE_RE =
-  /(?:freehole:|fh:|wh:|wormhole:|#\/?freehole\/|#\/?freehole=|#\/?fh\/|#\/?fh=|#\/?wh\/|#\/?wh=|#\/?wormhole\/|#\/?wormhole=|(?:freehole|wh)\s+receive\s+)(\d{1,4}-[a-z]{3,16}-[a-z]{3,16})/i;
+  /(?:freehole:|fh:|wh:|wormhole:|#\/?freehole\/|#\/?freehole=|#\/?fh\/|#\/?fh=|#\/?wh\/|#\/?wh=|#\/?wormhole\/|#\/?wormhole=|(?:freehole|fh|wh)\s+receive\s+)(\d{1,4}-[a-z]{3,16}-[a-z]{3,16})/i;
 
 /** URL pointing to the FreeHole web contract on Freenet. */
 const FREEHOLE_URL_RE = new RegExp(
@@ -99,9 +99,9 @@ export function freeholeCard(caption: string, origin = defaultNodeOrigin()): str
       `<code class="wormhole-code-val">${esc(ref.code)}</code>` +
       `<button type="button" class="wormhole-copy-btn btn-secondary btn-xs" data-copy-code="${esc(ref.code)}" title="Copy transfer code">Copy</button>` +
       `</div>` +
-      `<p class="blog-embed-excerpt">Direct P2P WebRTC &amp; decentralized Freenet chunk contract transfer. Sovereign and serverless.</p>` +
+      `<p class="blog-embed-excerpt">Decentralized Freenet chunk contract file transfer with Reed-Solomon redundancy. Sovereign and serverless.</p>` +
       `<div class="wormhole-cli-snippet">` +
-      `<code>wh receive ${esc(ref.code)} --freenet</code>` +
+      `<code>fh receive ${esc(ref.code)} --freenet</code>` +
       `</div>` +
       `<div class="blog-embed-footer">` +
       `<a class="blog-embed-read" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Receive on FreeHole \u2197</a>` +
@@ -116,10 +116,10 @@ export function freeholeCard(caption: string, origin = defaultNodeOrigin()): str
     `<div class="blog-embed-card">` +
     `<div class="blog-embed-head">` +
     `<span class="blog-badge wormhole-badge">&#x1F300; FreeHole</span>` +
-    `<span class="blog-embed-sitename">Freenet &amp; WebRTC</span>` +
+    `<span class="blog-embed-sitename">Freenet</span>` +
     `</div>` +
     `<a class="blog-embed-title" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Decentralized P2P File Transfer</a>` +
-    `<p class="blog-embed-excerpt">High-performance sovereign file streaming using WebRTC DataChannels and Freenet chunk contracts.</p>` +
+    `<p class="blog-embed-excerpt">High-performance sovereign file transfer using Freenet chunk contracts with Reed-Solomon redundancy.</p>` +
     `<div class="blog-embed-footer">` +
     `<a class="blog-embed-read" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open FreeHole \u2197</a>` +
     `</div>` +

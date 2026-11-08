@@ -13,7 +13,7 @@ import {
 } from "../src/wormhole.ts";
 
 test("freehole: detects prefixed mnemonic transfer codes", () => {
-  const ref1 = freeholeLink("Download file via wh:82-gentle-bird now");
+  const ref1 = freeholeLink("Download file via fh:82-gentle-bird now");
   assert.ok(ref1);
   assert.equal(ref1.code, "82-gentle-bird");
 
@@ -21,7 +21,7 @@ test("freehole: detects prefixed mnemonic transfer codes", () => {
   assert.ok(ref2);
   assert.equal(ref2.code, "14-calm-wave");
 
-  const ref3 = freeholeLink("run `wh receive 92-brave-wave`");
+  const ref3 = freeholeLink("run `fh receive 92-brave-wave`");
   assert.ok(ref3);
   assert.equal(ref3.code, "92-brave-wave");
 
@@ -29,7 +29,7 @@ test("freehole: detects prefixed mnemonic transfer codes", () => {
   assert.ok(ref4);
   assert.equal(ref4.code, "42-brave-fire");
 
-  const ref5 = wormholeLink("Sync code: wormhole:10-cool-stone");
+  const ref5 = wormholeLink("Sync code: wh:10-cool-stone");
   assert.ok(ref5);
   assert.equal(ref5.code, "10-cool-stone");
 });
@@ -45,10 +45,10 @@ test("freehole: detects web contract URLs", () => {
 });
 
 test("freehole: generates valid card HTML with copy button and CLI instructions", () => {
-  const cardHtml = freeholeCard("Sharing via wh:82-gentle-bird", "http://127.0.0.1:7509");
+  const cardHtml = freeholeCard("Sharing via fh:82-gentle-bird", "http://127.0.0.1:7509");
   assert.ok(cardHtml.includes("FreeHole P2P"));
   assert.ok(cardHtml.includes("82-gentle-bird"));
-  assert.ok(cardHtml.includes("wh receive 82-gentle-bird --freenet"));
+  assert.ok(cardHtml.includes("fh receive 82-gentle-bird --freenet"));
   assert.ok(cardHtml.includes(FREEHOLE_SITE));
   assert.ok(cardHtml.includes("data-copy-code=\"82-gentle-bird\""));
   assert.ok(cardHtml.includes("Receive on FreeHole"));

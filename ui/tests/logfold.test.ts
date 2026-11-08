@@ -467,6 +467,11 @@ test("logfold: the report queue counts different reporters, skips resolved and w
   const queue = foldReportQueue(log, new Set([p3]));
   assert.deepEqual(queue.map((q) => [q.target, q.reporters]), [[p1, 2], [p2, 1]]);
   assert.deepEqual(queue[0].reasons, ["spam again", "spam"]);
+  assert.deepEqual(queue[0].reporterKeys, [user, mallory]);
+  assert.deepEqual(queue[0].reports, [
+    { reporter: mallory, reason: "spam", ts: 3 },
+    { reporter: user, reason: "spam again", ts: 2 },
+  ]);
 });
 
 test("logfold: the report queue weighs reporters, so a swarm of fresh keys does not outrank one trusted person", () => {

@@ -318,6 +318,10 @@ export interface ReportedItem {
   trusted: number;
   reasons: string[];
   ts: number;
+  /** Public keys of the reporters who reported this item. */
+  reporterKeys?: string[];
+  /** Detailed list of reports (reporter pubkey, reason, timestamp). */
+  reports?: { reporter: string; reason: string; ts: number }[];
 }
 
 /**
@@ -336,7 +340,7 @@ export function foldReportQueue(entries: LogEntry[], resolved: ReadonlySet<strin
   const items = new Map<string, ReportedItem>();
   for (const { e, b } of latest.values()) {
     if (b.on === false || resolved.has(b.target)) continue;
-    const item: ReportedItem = items.get(b.target) ?? { target: b.target, reporters: 0, score: 0, trusted: 0, reasons: [], ts: 0 };
+    const item: ReportedItem = items.get(b.target) ?? { target: b.target, reporters: 0, score: 0, trusted: 0, reasons: [], ts: 0, reporterKeys: [], reports: [] };
     const w = weigh(e.author);
     item.reporters++;
     item.score += w;
@@ -344,7 +348,12 @@ export function foldReportQueue(entries: LogEntry[], resolved: ReadonlySet<strin
     item.ts = Math.max(item.ts, e.ts);
     const reason = typeof b.reason === "string" ? b.reason.trim().slice(0, 200) : "";
     if (reason && !item.reasons.includes(reason) && item.reasons.length < 3) item.reasons.push(reason);
+    if (!item.reporterKeys!.includes(e.author)) item.reporterKeys!.push(e.author);
+    item.reports!.push({ reporter: e.author, reason, ts: e.ts });
     items.set(b.target, item);
+  }
+  for (const item of items.values()) {
+    item.reports?.sort((a, b) => b.ts - a.ts);
   }
   return [...items.values()].sort((a, b) => b.score - a.score || b.reporters - a.reporters || b.ts - a.ts).slice(0, max);
 }

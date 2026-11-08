@@ -11,6 +11,8 @@ import { deltaPrefixOf, pageHref, deltaCard, fillDelta } from "./delta.ts";
 import { ortoCard, fillOrto, ortoPostHref, ORTO_SITE } from "./orto.ts";
 import { asocialCard, fillAsocial, asocialPersonOf, asocialProfileCard } from "./asocial.ts";
 import { fhCard, fillFh, fhProfileCard } from "./fh.ts";
+import { wormholeCard, fillWormhole } from "./wormhole.ts";
+import { freetreeCard, freetreeProfileCard, parseFreetreeInput } from "./freetree.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
 import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
@@ -268,6 +270,7 @@ const modalOrtoInput = document.getElementById("modal-orto-input") as HTMLInputE
 const modalAsocialInput = document.getElementById("modal-asocial-input") as HTMLInputElement;
 const modalFreetunesInput = document.getElementById("modal-freetunes-input") as HTMLInputElement;
 const modalFhInput = document.getElementById("modal-fh-input") as HTMLInputElement;
+const modalFreetreeInput = document.getElementById("modal-freetree-input") as HTMLInputElement;
 const modalAvatarInput = document.getElementById("modal-avatar-input") as HTMLInputElement;
 const modalCancelBtn = document.getElementById("modal-cancel-btn") as HTMLButtonElement;
 const modalSaveBtn = document.getElementById("modal-save-btn") as HTMLButtonElement;
@@ -434,7 +437,7 @@ function refreshTrustedBlocklists(seen = new Set<string>()): void {
         blocklistFlushTimer = 0;
         paintModButton();
         if (amGlobalMod()) {
-          void freenet.refreshLog("reports");
+          void freenet.refreshLog("reports").then(() => updateBlocklistsBadge());
           if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
         }
         renderTimeline();
@@ -1063,7 +1066,8 @@ function renderBlocklists() {
 document.getElementById("blocklists-open-btn")!.addEventListener("click", () => {
   if (!currentIdentity) return;
   paintModButton();
-  showBlocklistTab("blocklists");
+  const hasReports = amGlobalMod() && freenet.reportQueue().length > 0;
+  showBlocklistTab(hasReports ? "moderation" : "blocklists");
   blocklistsModal.style.display = "flex";
   refreshTrustedBlocklists();
 });
@@ -1075,6 +1079,11 @@ blocklistsModal.addEventListener("click", async (e) => {
   if (act === "profile") {
     const pk = author || btn.dataset.pk;
     if (pk) openUserProfile(pk);
+    return;
+  }
+  if (act === "view-post") {
+    blocklistsModal.style.display = "none";
+    if (postId && author) void showMyPost(postId, author);
     return;
   }
   if (act === "unhide-user") {
@@ -1144,6 +1153,33 @@ const tabBtnModeration = document.getElementById("tab-btn-moderation") as HTMLEl
 const paneBlocklists = document.getElementById("pane-blocklists") as HTMLElement | null;
 const paneModeration = document.getElementById("pane-moderation") as HTMLElement | null;
 const blocklistsModalTitle = document.getElementById("blocklists-modal-title") as HTMLElement | null;
+const blocklistsBadge = document.getElementById("blocklists-badge") as HTMLElement | null;
+let prevReportQueueCount = -1;
+const warmedModPeers = new Set<string>();
+
+function updateBlocklistsBadge(): void {
+  if (!blocklistsBadge) return;
+  if (!amGlobalMod()) {
+    blocklistsBadge.style.display = "none";
+    if (tabBtnModeration) tabBtnModeration.textContent = "🛡️ Moderation";
+    return;
+  }
+  const queue = freenet.reportQueue();
+  const count = queue.length;
+  if (count > 0) {
+    blocklistsBadge.textContent = count > 99 ? "99+" : String(count);
+    blocklistsBadge.style.display = "inline-block";
+  } else {
+    blocklistsBadge.style.display = "none";
+  }
+  if (tabBtnModeration) {
+    tabBtnModeration.textContent = count > 0 ? `🛡️ Moderation (${count})` : "🛡️ Moderation";
+  }
+  if (prevReportQueueCount !== -1 && count > prevReportQueueCount) {
+    playPopSound();
+  }
+  prevReportQueueCount = count;
+}
 
 const paintModButton = () => {
   if (modOpenBtn) modOpenBtn.style.display = "none";
@@ -1151,6 +1187,7 @@ const paintModButton = () => {
   if (blocklistsTabs) blocklistsTabs.style.display = isMod ? "flex" : "none";
   if (tabBtnModeration) tabBtnModeration.style.display = isMod ? "" : "none";
   if (blocklistsModalTitle) blocklistsModalTitle.textContent = isMod ? "Blocklists & Moderation" : "Blocklists";
+  updateBlocklistsBadge();
 };
 
 function showBlocklistTab(tab: "blocklists" | "moderation") {
@@ -1184,6 +1221,21 @@ function renderModDashboard() {
   const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : wot.dislikeWeight(pk)));
   const [heard, strangers] = [queue.filter((it) => it.score > 0), queue.filter((it) => it.score === 0)];
   document.getElementById("mod-queue-count")!.textContent = queue.length ? `(${queue.length})` : "";
+  updateBlocklistsBadge();
+
+  // Warm peers for all reporters and authors so display names and avatars resolve (only warm unseen peers to prevent infinite re-render loops)
+  const peersToWarm = [
+    ...queue.map((it) => it.target.slice(0, it.target.indexOf(":"))),
+    ...queue.flatMap((it) => it.reporterKeys ?? []),
+  ].filter((pk) => pk && !warmedModPeers.has(pk));
+
+  if (peersToWarm.length) {
+    for (const pk of peersToWarm) warmedModPeers.add(pk);
+    void freenet.warmPeers(peersToWarm).then(() => {
+      if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
+    });
+  }
+
   const itemHtml = (items: typeof queue) =>
     items
       .map((it) => {
@@ -1195,12 +1247,30 @@ function renderModDashboard() {
         const postCaption = post ? (freenet.postEdit(author, postId)?.caption ?? post.caption) : "";
         const preview = post ? `${post.media_uri ? "🖼 " : ""}${postCaption.slice(0, 200)}` : "(post not loaded here)";
         const attrs = `data-author="${escapeHtml(author)}" data-post-id="${escapeHtml(postId)}" data-media="${escapeHtml(media ?? "")}"`;
+
+        const reportersHtml = (it.reports && it.reports.length)
+          ? `<div style="font-size: 0.8rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Reported by:</span>
+              ${it.reports.map((r) => {
+                const repName = getAuthorDisplayName(r.reporter);
+                const isTrusted = wot.isTrusted(r.reporter);
+                const timeStr = r.ts ? formatTimeAgo(r.ts) : "";
+                return `<div style="display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;">
+                  <a href="#" data-act="profile" data-author="${escapeHtml(r.reporter)}" style="font-weight: 600; text-decoration: none; color: var(--primary);">@${escapeHtml(repName)}</a>
+                  ${isTrusted ? `<span title="In your trust network" style="font-size: 0.75rem;">🌿</span>` : `<span title="Outside network" style="font-size: 0.75rem; color: var(--text-muted);">(newcomer)</span>`}
+                  ${r.reason ? `<span style="color: var(--text-main);">“${escapeHtml(r.reason)}”</span>` : `<span style="color: var(--text-muted);">(no reason given)</span>`}
+                  ${timeStr ? `<small style="color: var(--text-muted); margin-left: auto;">${escapeHtml(timeStr)}</small>` : ""}
+                </div>`;
+              }).join("")}
+            </div>`
+          : (it.reasons.length ? `<small style="color: var(--text-muted);">${it.reasons.map((r) => `“${escapeHtml(r)}”`).join(" · ")}</small>` : "");
+
         return `<div style="border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
           <div style="font-size: 0.8rem;"><a href="#" data-act="profile" data-author="${escapeHtml(author)}"><b>${escapeHtml(getAuthorDisplayName(author))}</b></a>
             <small style="color: var(--text-muted);">· ${it.reporters} report${it.reporters === 1 ? "" : "s"}${it.trusted ? `, ${it.trusted} from people you trust` : ""}${postId.startsWith("comm_") ? " · comment" : ""}</small></div>
           <div style="font-size: 0.85rem; white-space: pre-wrap; overflow-wrap: anywhere;">${escapeHtml(preview)}</div>
-          ${it.reasons.length ? `<small style="color: var(--text-muted);">${it.reasons.map((r) => `“${escapeHtml(r)}”`).join(" · ")}</small>` : ""}
-          <div style="display: flex; gap: 6px;">${btn("remove", "Remove", attrs, "btn-primary")}${btn("ban", "Ban author", attrs)}${btn("dismiss", "Dismiss", `data-target="${escapeHtml(it.target)}"`)}</div>
+          ${reportersHtml}
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">${btn("remove", "Remove", attrs, "btn-primary")}${btn("ban", "Ban author", attrs)}${btn("dismiss", "Dismiss", `data-target="${escapeHtml(it.target)}"`)}${btn("view-post", "View post", attrs)}</div>
         </div>`;
       })
       .join("");
@@ -2027,7 +2097,7 @@ function renderTimeline() {
             ${edit ? `<span class="gram-edited" title="Edited ${formatTimeAgo(edit.ts)}">edited</span>` : ""}
             ${
               globalMod && !isMyPost
-                ? `<button type="button" class="global-remove-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Radica moderator: remove this post for everyone who follows Radica's moderation">${renderIcon("shield", { className: "icon-xs" })} <span>Remove</span></button>`
+                ? `${freenet.reportQueue().some((r) => r.target === `${post.author}:${post.id}`) ? `<button type="button" class="btn-sm btn-icon-text mod-report-flag" data-act="open-moderation" title="This post was reported - click to view in Moderation" style="background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">⚠️ Reported</button>` : ""}<button type="button" class="global-remove-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Radica moderator: remove this post for everyone who follows Radica's moderation">${renderIcon("shield", { className: "icon-xs" })} <span>Remove</span></button>`
                 : ""
             }
             ${
@@ -2080,7 +2150,7 @@ function renderTimeline() {
               ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
                 (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
               : "";
-            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin());
+            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin());
           })()}
 
           ${
@@ -2263,6 +2333,7 @@ function renderTimeline() {
   fillOrto(postsContainer);
   fillAsocial(postsContainer);
   fillFh(postsContainer, freenet, nodeOrigin());
+  fillWormhole(postsContainer);
 
   if (anchor) {
     restoreScrollAnchor(anchor);
@@ -2593,6 +2664,11 @@ function initCardListeners() {
       setUserHidden(author, true);
       renderTimeline();
       if (blocklistsModal.style.display === "flex") renderBlocklists();
+    } else if ((el = hit(".mod-report-flag"))) {
+      paintModButton();
+      showBlocklistTab("moderation");
+      blocklistsModal.style.display = "flex";
+      renderModDashboard();
     } else if ((el = hit(".report-post-btn"))) {
       void reportPostFromCard(el);
     } else if ((el = hit(".share-post-btn"))) {
@@ -2984,9 +3060,11 @@ async function reportPostFromCard(el: HTMLElement) {
   if (reason === null) return;
   try {
     await freenet.reportPost(author, postId, reason.trim(), post ? postMediaHash(post) : null, !post?.community_id); // public posts also go to Radica's moderators
+    const postAuthorName = getAuthorDisplayName(author);
+    const targetLabel = author === currentIdentity?.pubkey ? "your" : `@${postAuthorName}'s`;
     const text = comm
-      ? `reported a post in r/${comm.slug}${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`
-      : `reported a post${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`;
+      ? `reported ${targetLabel} post in r/${comm.slug}${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`
+      : `reported ${targetLabel} post${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`;
 
     const recipients = new Set<string>();
     // Radica maintainer and global moderators
@@ -3003,12 +3081,13 @@ async function reportPostFromCard(el: HTMLElement) {
     for (const recipient of recipients) {
       void freenet.addNotification(recipient, {
         type: "report",
-        from: "",
+        from: currentIdentity?.pubkey || "",
         text,
         linkPostId: postId,
         linkPostOwner: author,
       }).catch(() => {});
     }
+    updateBlocklistsBadge();
     showToast("Post reported.");
   } catch (err: any) {
     alert(`Could not report the post: ${err?.message || err}`);
@@ -3768,6 +3847,10 @@ editProfileBtn.addEventListener("click", () => {
     modalFhInput.value = (me && freenet.fhOf(me)) || "";
     if (me) void freenet.refreshLog(`fh/${me}`).then(() => (modalFhInput.value ||= freenet.fhOf(me) ?? ""));
   }
+  if (modalFreetreeInput) {
+    modalFreetreeInput.value = (me && freenet.freetreeOf(me)) || "";
+    if (me) void freenet.refreshLog(`freetree/${me}`).then(() => (modalFreetreeInput.value ||= freenet.freetreeOf(me) ?? ""));
+  }
   modalAvatarInput.value = currentProfile?.avatar_url || "";
   const currentAvatar = currentProfile?.avatar_url || generateDefaultAvatar(currentIdentity?.pubkey || "radica");
   modalAvatarPreview.src = currentAvatar;
@@ -3853,6 +3936,13 @@ modalSaveBtn.addEventListener("click", async () => {
     }
     const fhRaw = modalFhInput?.value.trim() || "";
     if (fhRaw !== (freenet.fhOf(currentIdentity.pubkey) || "")) await freenet.setFh(fhRaw || null);
+    const freetreeRaw = modalFreetreeInput?.value.trim() || "";
+    if (freetreeRaw !== (freenet.freetreeOf(currentIdentity.pubkey) || "")) {
+      await freenet.setFreetree(freetreeRaw || null);
+      if (userProfileModal.style.display !== "none" && uviewKey.textContent === currentIdentity.pubkey) {
+        void renderFreetree(currentIdentity.pubkey);
+      }
+    }
     applyProfile(updated);
     profileModal.style.display = "none";
   } catch (err) {
@@ -3897,6 +3987,7 @@ const uviewOrtoBlog = document.getElementById("uview-orto-blog") as HTMLElement;
 const uviewAsocial = document.getElementById("uview-asocial") as HTMLElement;
 const uviewFreetunes = document.getElementById("uview-freetunes") as HTMLElement;
 const uviewFh = document.getElementById("uview-fh") as HTMLElement;
+const uviewFreetree = document.getElementById("uview-freetree") as HTMLElement;
 const uviewNames = document.getElementById("uview-names") as HTMLElement;
 const uviewSites = document.getElementById("uview-sites") as HTMLElement;
 
@@ -4044,6 +4135,27 @@ async function renderFh(pubkey: string) {
   if (stillHere()) await draw();
 }
 
+/** The Freetree profile hub of a persona. */
+async function renderFreetree(pubkey: string) {
+  if (!uviewFreetree) return;
+  const stillHere = () => uviewKey.textContent === pubkey;
+  const draw = async () => {
+    const raw = freenet.freetreeOf(pubkey);
+    const prefix = raw ? parseFreetreeInput(raw) : null;
+    if (!stillHere()) return;
+    if (!prefix) {
+      uviewFreetree.innerHTML = "";
+      return;
+    }
+    const wasCollapsed = uviewFreetree.querySelector(".blog-card")?.classList.contains("collapsed");
+    uviewFreetree.innerHTML = freetreeProfileCard(getAuthorDisplayName(pubkey), prefix, nodeOrigin());
+    if (wasCollapsed) uviewFreetree.querySelector(".blog-card")?.classList.add("collapsed");
+  };
+  await draw();
+  await freenet.refreshLog(`freetree/${pubkey}`);
+  if (stillHere()) await draw();
+}
+
 async function renderBlog(pubkey: string) {
   const stillHere = () => uviewKey.textContent === pubkey;
   const draw = async () => {
@@ -4098,6 +4210,7 @@ async function openUserProfile(pubkey: string) {
   if (uviewAsocial) uviewAsocial.innerHTML = "";
   if (uviewFreetunes) uviewFreetunes.innerHTML = "";
   if (uviewFh) uviewFh.innerHTML = "";
+  if (uviewFreetree) uviewFreetree.innerHTML = "";
 
   const uviewEcoLoader = document.getElementById("uview-ecosystem-loader");
   if (uviewEcoLoader) uviewEcoLoader.style.display = "flex";
@@ -4108,6 +4221,7 @@ async function openUserProfile(pubkey: string) {
     renderAsocial(pubkey),
     renderFreetunes(pubkey),
     renderFh(pubkey),
+    renderFreetree(pubkey),
     renderNames(pubkey),
   ]);
   void Promise.race([appLoaders, new Promise((r) => setTimeout(r, 6000))]).then(() => {
@@ -4625,6 +4739,7 @@ function paintChat(html: string | (() => string)) {
   fillOrto(chatMessagesList);
   fillAsocial(chatMessagesList);
   fillFh(chatMessagesList, freenet, nodeOrigin());
+  fillWormhole(chatMessagesList);
 }
 
 /** Draw the open conversation again, keeping the reader's place. */
@@ -5958,7 +6073,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
   const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
   const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(msg.text);
   const mediaCards = chatMediaCardsHtml(mediaItems);
-  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin());
+  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin());
   const bodyText = textWithoutMedia ? renderChatText(textWithoutMedia, getAuthorDisplayName) : "";
   return `<div class="chat-bubble ${isMine ? "mine" : "theirs"}${grouped ? " grouped" : ""}" data-msg-id="${escapeHtml(msg.id)}">${face}${head}<div class="rv-bubble">${del}${actions}${quote}${bodyText}${embeddedCards}${mediaCards}</div>${chips ? `<div class="rv-chips">${chips}</div>` : ""}</div>`;
 }
@@ -5985,6 +6100,7 @@ function appendChatMessageToView(opts: {
     fillOrto(chatMessagesList);
     fillAsocial(chatMessagesList);
     fillFh(chatMessagesList, freenet, nodeOrigin());
+    fillWormhole(chatMessagesList);
   }
 
 
@@ -7239,7 +7355,21 @@ async function openNotification(n: NotificationItem) {
   freenet.dismissNotification(currentIdentity, n.id);
   notifsModal.style.display = "none";
   void updateNotificationsBadge();
-  if (n.linkPostId) {
+  if (n.type === "report") {
+    if (amGlobalMod()) {
+      paintModButton();
+      showBlocklistTab("moderation");
+      blocklistsModal.style.display = "flex";
+      renderModDashboard();
+      void freenet.refreshLog("reports", true).then(() => {
+        if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
+      });
+    } else if (n.linkPostId) {
+      await showMyPost(n.linkPostId, n.linkPostOwner);
+      const repName = getAuthorDisplayName(n.from);
+      showToast(`Report from @${repName}: ${n.text}`, "info");
+    }
+  } else if (n.linkPostId) {
     await showMyPost(n.linkPostId, n.linkPostOwner);
   } else if (n.type === "follow") {
     await openUserProfile(n.from);
@@ -7380,6 +7510,7 @@ function updateChatBadge() {
 
 async function updateNotificationsBadge() {
   updateChatBadge();
+  updateBlocklistsBadge();
   if (!currentIdentity) return;
   const notifs = splitNotifs(await freenet.getNotifications(currentIdentity), await notifCounts()).main; // strangers' are under "Others"
   const unreadCount = notifs.filter((n) => !n.read).length;
@@ -8472,6 +8603,9 @@ async function init() {
     const roomsFresh = await freenet.syncRiverRooms(currentIdentity!, activeRoom);
     const dmsFresh = await freenet.syncRiverDms(currentIdentity!);
     const riverFresh = roomsFresh || dmsFresh;
+    if (amGlobalMod()) {
+      void freenet.refreshLog("reports").then(() => updateBlocklistsBadge());
+    }
     await updateNotificationsBadge();
     await yieldToMain();
 

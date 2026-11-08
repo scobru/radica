@@ -63,6 +63,7 @@
           <button class="rail-btn" id="blocklists-open-btn" title="Blocklists &amp; Moderation">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
             <span>Blocklists</span>
+            <span class="badge notif-badge" id="blocklists-badge" style="display: none;">0</span>
           </button>
           <button class="rail-btn" id="mod-open-btn" title="Moderation" style="display: none !important;">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
@@ -594,6 +595,7 @@
         <div id="uview-asocial" class="uview-blog"></div>
         <div id="uview-freetunes" class="uview-blog"></div>
         <div id="uview-fh" class="uview-blog"></div>
+        <div id="uview-freetree" class="uview-blog"></div>
         <div id="uview-sites" class="uview-sites"></div>
 
         <h4 style="border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 12px;">Posts</h4>
@@ -923,6 +925,8 @@
             <li><b>Fisherman's Horizon</b>: share curated Freenet bookmark lists (<code>#/u/&lt;persona&gt;</code>) directly in feed &amp; chat with clickable site pills, and show your pinned Freenet sites on your Radica profile.</li>
             <li><b>Orto &amp; Delta</b>: links to Orto blog posts (<code>#fblog=…</code>) and Delta pages show article preview cards, your public blogs appear on your profile, and Orto's Feeds tab can read the people you follow on Radica.</li>
             <li><b>Asocial</b>: links to HTML5/WASM games on Asocial (<code>#work/&lt;publisher&gt;/&lt;title&gt;</code>) open an interactive sandboxed arcade player right in the feed or chat, and creators can link their Asocial profile in Edit Profile.</li>
+            <li><b>FreeHole</b>: share and receive sovereign files over Freenet chunk contracts with mnemonic codes (<code>fh:&lt;code&gt;</code>) embedded directly in feed posts and chat.</li>
+            <li><b>Freetree</b>: link your decentralized Linktree profile (<code>#&lt;handle&gt;</code>) on your Radica profile, and share interactive link hub cards for Delta link collections.</li>
           </ul>
         </details>
 
@@ -1026,7 +1030,7 @@
           <div id="updates-support-teaser" style="margin-bottom: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
             <div style="font-size: 0.85rem;">
               <span>🌱 <b>Support Radica</b> on Base or with coffee · </span>
-              <span style="color: var(--text-muted);">Works with 9+ Freenet apps</span>
+              <span style="color: var(--text-muted);">Works with 11+ Freenet apps</span>
             </div>
             <button type="button" class="btn-secondary btn-xs" id="updates-teaser-open-eco-btn">Ecosystem &amp; Support →</button>
           </div>
@@ -1209,6 +1213,9 @@
 
         <label style="font-size: 0.85rem; font-weight: 600;">Fisherman's Horizon Bookmarks (Optional)</label>
         <input type="text" id="modal-fh-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste FH share link, persona key, or exported JSON" />
+
+        <label style="font-size: 0.85rem; font-weight: 600;">Freetree Hub (Optional)</label>
+        <input type="text" id="modal-freetree-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Freetree handle (#scobru) or Delta prefix" />
 
         <label style="font-size: 0.85rem; font-weight: 600;">Avatar Image URL or Data (Optional)</label>
         <input type="text" id="modal-avatar-input" class="composer-input" style="min-height: auto; margin-bottom: 20px; font-size: 0.8rem;" placeholder="https://... or uploaded image data" />

@@ -1327,6 +1327,24 @@ export class FreenetClient {
     return p;
   }
 
+  // ---------------- Freetree Hub integration ----------------
+
+  /** Set the user's Freetree hub prefix/link in their personal log. */
+  public setFreetree(prefix: string | null): Promise<void> {
+    return this.logAppend(`freetree/${this.me}`, { type: "hub", prefix });
+  }
+
+  /** The Freetree hub prefix configured in their profile, or null. */
+  public freetreeOf(pubkey: string): string | null {
+    const mine = this.logEntries(`freetree/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    try {
+      const prefix = mine && JSON.parse(mine.body).prefix;
+      return typeof prefix === "string" ? prefix : null;
+    } catch {
+      return null;
+    }
+  }
+
   // ---------------- Fisherman's Horizon Bookmarks integration ----------------
 
   /** Set the user's Fisherman's Horizon share link, persona, or JSON in their personal log. */

@@ -4364,6 +4364,55 @@ body {
   padding-top: 4px;
 }
 
+/* ---- Wormhole Integration (wormhole.ts) ---- */
+.wormhole-badge {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.wormhole-code-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+}
+.wormhole-code-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wormhole-code-val {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #a5b4fc;
+}
+.wormhole-cli-snippet {
+  margin: 6px 0;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+
+/* ---- Freetree Integration (freetree.ts) ---- */
+.freetree-badge {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.freetree-profile-card .link-card-icon {
+  font-size: 1.25rem;
+}
+
 /* ---- an Asocial game linked in a post, playable in place (asocial.ts) ---- */
 .asocial-card {
   display: flex;
