@@ -4197,6 +4197,7 @@ async function renderBlog(pubkey: string) {
 }
 
 async function openUserProfile(pubkey: string) {
+  markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
   // open at once with what is known; the feed (bio, posts) may take a few seconds to come from the network
   const initialBadge = getWebOfTrust().trustBadge(pubkey);
@@ -5894,6 +5895,7 @@ function filterClassicMessages(msgs: ChatMessage[]): ChatMessage[] {
 
 async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   if (!currentIdentity) return;
+  markChatSeen((n) => n.linkRoomId === room.id);
   activeChatPrivateRoom = room;
   activeChatCommunity = null;
   activeChatPeer = null;
@@ -6189,6 +6191,7 @@ async function selectCommunityRoom(comm: Community, preserveScroll = false) {
 
 async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScroll = false) {
   if (!currentIdentity) return;
+  markChatSeen((n) => n.from === peerPubkey && !!n.isSecret === isSecret && !(n.linkRoomId && !n.linkRoomId.includes(":"))); // a room id without ":" is a private room, not a DM
   activeChatPeer = peerPubkey;
   activeChatSecret = isSecret;
   activeChatCommunity = null;
@@ -7156,14 +7159,20 @@ async function renderNotifs(notifs: NotificationItem[]) {
     return label ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">on ${escapeHtml(label)}</div>` : "";
   };
 
+  const icon = (paths: string) => `<svg viewBox="0 0 24 24" class="svg-icon icon-md" aria-hidden="true">${paths}</svg>`;
   const row = (n: NotificationItem) => `
-      <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${escapeHtml(n.id)}" role="button" tabindex="0" title="Open and remove">
-        <div>
+      <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${escapeHtml(n.id)}">
+        <div class="notif-text">
           <span style="font-weight: 700;" title="${escapeHtml(n.from)}">${escapeHtml(getAuthorDisplayName(n.from))}</span>
           <span>${escapeHtml(n.text)}</span>
           ${aboutPost(n.linkPostId)}
         </div>
-        <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">${formatTimeAgo(n.timestamp)}</span>
+        <span class="notif-time">${formatTimeAgo(n.timestamp)}</span>
+        <div class="notif-actions">
+          ${notificationHasTarget(n) ? `<button type="button" class="notif-act" data-notif-act="open" title="Open" aria-label="Open">${icon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>')}</button>` : ""}
+          ${n.read ? "" : `<button type="button" class="notif-act" data-notif-act="read" title="Mark as read" aria-label="Mark as read">${icon('<path d="M20 6 9 17l-5-5"/>')}</button>`}
+          <button type="button" class="notif-act" data-notif-act="delete" title="Delete" aria-label="Delete">${icon('<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>')}</button>
+        </div>
       </div>
     `;
   const { main, others } = splitNotifs(notifs, await notifCounts());
@@ -7318,6 +7327,7 @@ window.addEventListener("hashchange", () => void checkUrlPostHash());
 
 /** Show a post in the feed: its author's posts (mine by default), no filter, the page that holds it, scrolled to and flashed. */
 async function showMyPost(postId: string, author = currentIdentity?.pubkey) {
+  markSeen((n) => n.linkPostId === postId);
   showProfilePage(false);
   chatModal.style.display = "none";
   currentFeedScope = "myposts";
@@ -7349,10 +7359,15 @@ async function showMyPost(postId: string, author = currentIdentity?.pubkey) {
   setTimeout(() => card.classList.remove("notif-flash"), 2500);
 }
 
-/** Open what a notification is about and delete the notification. */
+/** Whether a notification points anywhere: a post, a profile or a chat. */
+function notificationHasTarget(n: NotificationItem): boolean {
+  return !!(n.linkPostId || n.type === "follow" || n.type === "chat" || n.linkRoomId);
+}
+
+/** Go to what a notification is about; opening it also marks it read. */
 async function openNotification(n: NotificationItem) {
   if (!currentIdentity) return;
-  freenet.dismissNotification(currentIdentity, n.id);
+  freenet.markNotificationRead(currentIdentity, n.id);
   notifsModal.style.display = "none";
   void updateNotificationsBadge();
   if (n.type === "report") {
@@ -7398,18 +7413,19 @@ async function openNotification(n: NotificationItem) {
 }
 
 notifsList.addEventListener("click", (e) => {
-  const item = (e.target as HTMLElement).closest<HTMLElement>("[data-notif-id]");
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-notif-act]");
+  const item = button?.closest<HTMLElement>("[data-notif-id]");
   const n = item && shownNotifs.find((x) => x.id === item.dataset.notifId);
-  if (n) void openNotification(n);
-});
-notifsList.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" && e.key !== " ") return;
-  const item = (e.target as HTMLElement).closest<HTMLElement>("[data-notif-id]");
-  const n = item && shownNotifs.find((x) => x.id === item.dataset.notifId);
-  if (n) {
-    e.preventDefault();
-    void openNotification(n);
+  if (!button || !n || !currentIdentity) return;
+  const act = button.dataset.notifAct;
+  if (act === "open") return void openNotification(n);
+  if (act === "read") freenet.markNotificationRead(currentIdentity, n.id), (n.read = true);
+  if (act === "delete") {
+    freenet.dismissNotification(currentIdentity, n.id);
+    shownNotifs = shownNotifs.filter((x) => x.id !== n.id);
   }
+  void renderNotifs(shownNotifs);
+  void updateNotificationsBadge();
 });
 
 notifsCloseBtn.addEventListener("click", () => {
@@ -7425,8 +7441,10 @@ document.getElementById("notifs-clear-btn")!.addEventListener("click", async () 
 
 notifsMarkReadBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
-  notifsModal.style.display = "none"; // close first: the log write below goes over the network
-  await freenet.markNotificationsAsRead(currentIdentity);
+  const written = freenet.markNotificationsAsRead(currentIdentity); // the local copy is marked at once, the log write goes over the network
+  for (const n of shownNotifs) n.read = true;
+  void renderNotifs(shownNotifs);
+  await written;
   updateNotificationsBadge();
 });
 
@@ -7506,6 +7524,20 @@ function updateChatBadge() {
     playPopSound();
   }
   prevChatUnread = n;
+}
+
+/** Opening what a notification is about reads it: mark the unread ones that match, and redraw the bell and the list. */
+function markSeen(matches: (n: NotificationItem) => boolean): void {
+  if (!currentIdentity) return;
+  if (!freenet.markNotificationsReadWhere(currentIdentity, matches)) return;
+  void updateNotificationsBadge();
+  for (const n of shownNotifs) if (!n.read && matches(n)) n.read = true;
+  if (notifsModal.style.display !== "none") void renderNotifs(shownNotifs);
+}
+
+/** The same for a conversation, only while the chat is on screen: a background sync that reselects a room has not shown it. */
+function markChatSeen(matches: (n: NotificationItem) => boolean): void {
+  if (chatModal.style.display !== "none" && !document.hidden) markSeen((n) => n.type === "chat" && matches(n));
 }
 
 async function updateNotificationsBadge() {

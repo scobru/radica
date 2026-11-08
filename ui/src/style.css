@@ -2525,13 +2525,49 @@ body {
 }
 
 .notif-item {
+  gap: 8px;
+}
+
+.notif-item .notif-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notif-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.notif-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
-.notif-item:hover,
-.notif-item:focus-visible {
-  border-color: var(--primary);
+.notif-act:hover,
+.notif-act:focus-visible {
+  background: var(--primary-soft);
+  color: var(--primary);
   outline: none;
+}
+
+.notif-act[data-notif-act="delete"]:hover,
+.notif-act[data-notif-act="delete"]:focus-visible {
+  color: #dc2626;
 }
 
 /* the post a notification opened */

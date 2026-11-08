@@ -2991,6 +2991,22 @@ export class FreenetClient {
     localStorage.setItem(key, JSON.stringify(list.filter((n) => n.id !== id)));
   }
 
+  /** Mark one notification read (on this device); it stays in the list. */
+  public markNotificationRead(identity: UserIdentity, id: string): void {
+    this.markNotificationsReadWhere(identity, (n) => n.id === id);
+  }
+
+  /** Mark every unread notification that matches read (on this device), for opening what they are about; returns how many. */
+  public markNotificationsReadWhere(identity: UserIdentity, matches: (n: NotificationItem) => boolean): number {
+    const key = `freenet_notifs_${identity.pubkey}`;
+    const list: NotificationItem[] = JSON.parse(localStorage.getItem(key) || "[]");
+    const hit = list.filter((n) => !n.read && matches(n));
+    if (!hit.length) return 0;
+    for (const n of hit) n.read = true;
+    localStorage.setItem(key, JSON.stringify(list));
+    return hit.length;
+  }
+
   private markNotificationsReadUpTo(owner: string, upto: number): number {
     const key = `freenet_notifs_${owner}`;
     const list: NotificationItem[] = JSON.parse(localStorage.getItem(key) || "[]");
