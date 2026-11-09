@@ -145,10 +145,7 @@ pub(super) fn room_monogram_el(chat: &Chat, room: &Room, size: f32, p: &Palette)
         && let Some(peer) = room.members.iter().find(|m| m.id != room.me)
         && let Some(px) = chat.avatar_pixels(peer.id)
     {
-        return el()
-            .size(size, size)
-            .radius(size / 2.0)
-            .pixels(px);
+        return el().size(size, size).radius(size / 2.0).pixels(px);
     }
     let mono = st::room_monogram(&room.key, &room.name);
     let is_feed = room.key.starts_with("feed");
@@ -324,11 +321,16 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
             }),
         )
         .child(
-            outlined("open-feed-web", "Radica Feed (Web)", &icons::GLOBAL, 34.0, p).on_press_tx(
-                |_: &mut RadicaApp, tx: &mut rune::Tx| {
-                    let _ = tx.open_url(&format!("{RADICA_WEB_URL}#feed"));
-                },
-            ),
+            outlined(
+                "open-feed-web",
+                "Radica Feed (Web)",
+                &icons::GLOBAL,
+                34.0,
+                p,
+            )
+            .on_press_tx(|_: &mut RadicaApp, tx: &mut rune::Tx| {
+                let _ = tx.open_url(&format!("{RADICA_WEB_URL}#feed"));
+            }),
         )
         .child(
             outlined("open-web", "Open Radica Web", &icons::CHAT, 34.0, p).on_press_tx(
@@ -420,58 +422,54 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
             .grow(1.0)
             .min_w(0.0);
         column = column.child(
-            row()
-                .key("create-room-bar")
-                .px(10.0)
-                .pt(8.0)
-                .child(
-                    row()
-                        .w_full()
-                        .h(34.0)
-                        .px(8.0)
-                        .gap(6.0)
-                        .center_y()
-                        .radius(10.0)
-                        .fill(p.surface)
-                        .border(1.0, if is_priv { p.amber } else { p.accent_line })
-                        .child(
-                            row()
-                                .key("create-room-private-toggle")
-                                .role("button")
-                                .label(if is_priv { "Private E2EE" } else { "Public" })
-                                .help("Toggle between Public #Community and E2EE Private Group Room")
-                                .h(22.0)
-                                .px(6.0)
-                                .radius(6.0)
-                                .center()
-                                .fill(if is_priv { p.amber_soft } else { p.accent_soft })
-                                .border(1.0, if is_priv { p.amber } else { p.accent_line })
-                                .cursor(rune::Cursor::Pointer)
-                                .on_press(|s: &mut RadicaApp| {
-                                    s.chat.creating_private_room = !s.chat.creating_private_room;
-                                })
-                                .child(label(
-                                    if is_priv { "🔒 E2EE" } else { "🌐 Pub" },
-                                    st::TAG,
-                                    if is_priv { p.amber } else { p.accent },
-                                )),
-                        )
-                        .child(create_field)
-                        .child(
-                            row()
-                                .key("create-room-submit")
-                                .role("button")
-                                .label("Create")
-                                .h(24.0)
-                                .px(8.0)
-                                .radius(6.0)
-                                .center()
-                                .fill(p.accent)
-                                .cursor(rune::Cursor::Pointer)
-                                .on_press(|s: &mut RadicaApp| s.create_room())
-                                .child(label("Create", st::GUTTER_TIME, p.on_accent)),
-                        ),
-                ),
+            row().key("create-room-bar").px(10.0).pt(8.0).child(
+                row()
+                    .w_full()
+                    .h(34.0)
+                    .px(8.0)
+                    .gap(6.0)
+                    .center_y()
+                    .radius(10.0)
+                    .fill(p.surface)
+                    .border(1.0, if is_priv { p.amber } else { p.accent_line })
+                    .child(
+                        row()
+                            .key("create-room-private-toggle")
+                            .role("button")
+                            .label(if is_priv { "Private E2EE" } else { "Public" })
+                            .help("Toggle between Public #Community and E2EE Private Group Room")
+                            .h(22.0)
+                            .px(6.0)
+                            .radius(6.0)
+                            .center()
+                            .fill(if is_priv { p.amber_soft } else { p.accent_soft })
+                            .border(1.0, if is_priv { p.amber } else { p.accent_line })
+                            .cursor(rune::Cursor::Pointer)
+                            .on_press(|s: &mut RadicaApp| {
+                                s.chat.creating_private_room = !s.chat.creating_private_room;
+                            })
+                            .child(label(
+                                if is_priv { "🔒 E2EE" } else { "🌐 Pub" },
+                                st::TAG,
+                                if is_priv { p.amber } else { p.accent },
+                            )),
+                    )
+                    .child(create_field)
+                    .child(
+                        row()
+                            .key("create-room-submit")
+                            .role("button")
+                            .label("Create")
+                            .h(24.0)
+                            .px(8.0)
+                            .radius(6.0)
+                            .center()
+                            .fill(p.accent)
+                            .cursor(rune::Cursor::Pointer)
+                            .on_press(|s: &mut RadicaApp| s.create_room())
+                            .child(label("Create", st::GUTTER_TIME, p.on_accent)),
+                    ),
+            ),
         );
     }
     column = column
@@ -611,7 +609,7 @@ fn room_row(chat: &Chat, room: &Room, selected: bool, width: f32, p: &Palette) -
         .center_y()
         .radius(12.0)
         .cursor(rune::Cursor::Pointer)
-        .on_press(move |s: &mut RadicaApp| s.chat.select(&key))
+        .on_press(move |s: &mut RadicaApp| s.open_room(&key))
         .child(room_monogram_el(chat, room, 38.0, p))
         .child(
             col()
@@ -846,14 +844,55 @@ fn member_row(chat: &Chat, room: &Room, m: &Member, p: &Palette) -> El {
                 .radius(11.0)
                 .center()
                 .fill(if following { p.accent_soft } else { p.surface })
-                .border(1.0, if following { p.accent_line } else { p.line_strong })
+                .border(
+                    1.0,
+                    if following {
+                        p.accent_line
+                    } else {
+                        p.line_strong
+                    },
+                )
                 .hover(p.surface_hover)
                 .cursor(rune::Cursor::Pointer)
                 .on_press(move |s: &mut RadicaApp| s.toggle_follow(member_id))
                 .child(label(
-                    if following { "✓ Following" } else { "+ Follow" },
+                    if following {
+                        "✓ Following"
+                    } else {
+                        "+ Follow"
+                    },
                     st::TAG,
-                    if following { p.accent } else { p.text_secondary },
+                    if following {
+                        p.accent
+                    } else {
+                        p.text_secondary
+                    },
+                )),
+        );
+        let blocked = chat.is_blocked(member_id);
+        r = r.child(
+            row()
+                .key(format!("block-btn-{member_id}"))
+                .role("button")
+                .label(if blocked { "Unblock" } else { "Block" })
+                .help(if blocked {
+                    "Show their messages again"
+                } else {
+                    "Hide their messages everywhere, on every device (your blocklist)"
+                })
+                .h(22.0)
+                .px(7.0)
+                .radius(11.0)
+                .center()
+                .fill(if blocked { p.accent_soft } else { p.surface })
+                .border(1.0, p.line_strong)
+                .hover(p.surface_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press(move |s: &mut RadicaApp| s.toggle_block(member_id))
+                .child(label(
+                    if blocked { "Unblock" } else { "🚫" },
+                    st::TAG,
+                    p.text_secondary,
                 )),
         );
     }
@@ -933,7 +972,11 @@ fn identity_modal(chat: &Chat, p: &Palette, k: &Kit) -> El {
         ("● Local Keypair", p.amber_soft, p.amber, p.amber)
     };
     let pk_short = if id.pubkey.len() > 24 {
-        format!("{}…{}", &id.pubkey[..14], &id.pubkey[id.pubkey.len() - 10..])
+        format!(
+            "{}…{}",
+            &id.pubkey[..14],
+            &id.pubkey[id.pubkey.len() - 10..]
+        )
     } else {
         id.pubkey.clone()
     };

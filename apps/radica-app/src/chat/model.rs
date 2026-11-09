@@ -136,7 +136,11 @@ impl Room {
     /// Edit a message sent by this device.
     pub fn edit_message(&mut self, id: MessageId, new_text: &str) -> bool {
         let me = self.me;
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id && m.author == me) {
+        if let Some(m) = self
+            .messages
+            .iter_mut()
+            .find(|m| m.id == id && m.author == me)
+        {
             m.text = new_text.to_owned();
             m.edited = true;
             return true;
@@ -289,7 +293,41 @@ pub fn day_label(day: i64, today: i64) -> String {
 /// A one-line preview of a message for the room list: whitespace runs (newlines included)
 /// become one space, and past `max_chars` it is cut at a word boundary, with trailing
 /// punctuation dropped before the "…" so a cut never reads as "up.…".
+/// Text with each "@<64-hex key>" as "@Name" and River's "@[Name](rv:…)" as "@Name" (`plainMentions` in
+/// `ui/src/caption.ts`). A key `name_of` does not know shows as its first 8 characters.
+pub fn plain_mentions(text: &str, name_of: impl Fn(&str) -> Option<String>) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('@') {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + 1..];
+        let hex_len = after.bytes().take_while(u8::is_ascii_hexdigit).count();
+        if hex_len == 64 && after[..64].bytes().all(|c| !c.is_ascii_uppercase()) {
+            let pk = &after[..64];
+            out.push('@');
+            out.push_str(&name_of(pk).unwrap_or_else(|| pk[..8].to_owned()));
+            rest = &after[64..];
+        } else if let Some(inner) = after.strip_prefix('[')
+            && let Some((name, tail)) = inner.split_once("](rv:")
+            && let Some(close) = tail.find(')')
+            && !name.is_empty()
+            && name.chars().count() <= 64
+            && !name.contains('\n')
+        {
+            out.push('@');
+            out.push_str(name);
+            rest = &tail[close + 1..];
+        } else {
+            out.push('@');
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 pub fn preview(text: &str, max_chars: usize) -> String {
+    let text = &plain_mentions(&super::media::summary(text), |_| None);
     let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max_chars {
         return flat;
@@ -342,7 +380,11 @@ pub fn links(text: &str) -> Vec<std::ops::Range<usize>> {
 /// and "ßa" is "SS" (uppercasing can give more than one character, so cut after it).
 pub fn initials(name: &str) -> String {
     name.split_whitespace()
-        .filter_map(|w| w.chars().find(|c| c.is_alphanumeric()).or_else(|| w.chars().next()))
+        .filter_map(|w| {
+            w.chars()
+                .find(|c| c.is_alphanumeric())
+                .or_else(|| w.chars().next())
+        })
         .take(2)
         .flat_map(char::to_uppercase)
         .take(2)
@@ -426,6 +468,20 @@ mod tests {
             "Photos are up…"
         );
         assert_eq!(preview("short", 5), "short");
+        let pk = "ab".repeat(32);
+        assert_eq!(
+            plain_mentions(&format!("hi @{pk}!"), |k| (k == pk).then(|| "Ann".into())),
+            "hi @Ann!"
+        );
+        assert_eq!(
+            plain_mentions(&format!("@{pk}0"), |_| None),
+            format!("@{pk}0"),
+            "65 hex is not a key"
+        );
+        assert_eq!(
+            plain_mentions("ciao @[Bob](rv:9x) e @tutti", |_| None),
+            "ciao @Bob e @tutti"
+        );
         assert_eq!(preview("abcdefghij", 4), "abcd…");
         // The cut falls just before a space, so the last word is whole and stays.
         assert_eq!(preview("one two three", 7), "one two…");

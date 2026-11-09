@@ -67,4 +67,3 @@ pub static LOGOUT: Icon = Icon {
     view: 16.0,
     body: r#"<path d="M6 3H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3M10.5 11.5 14 8l-3.5-3.5M14 8H6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#,
 };
-

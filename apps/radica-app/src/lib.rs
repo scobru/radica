@@ -104,9 +104,25 @@ impl RadicaApp {
         }
     }
 
+    /// Send a file from disk as an attachment in the open room (the node seals and publishes it).
+    pub fn send_attachment(&mut self, path: std::path::PathBuf) {
+        let Some(room_key) = self.chat.room().map(|r| r.key.clone()) else {
+            return;
+        };
+        let reply_to = self.chat.replying_to.take().map(|r| r.message);
+        if let Some(ctl) = &self.ctl {
+            ctl.act(LiveAction::SendAttachment {
+                room_key,
+                path,
+                reply_to,
+            });
+        }
+    }
+
     pub fn send_chat(&mut self) {
         let key = self.chat.room().map(|r| r.key.clone());
-        let text = self.chat.composer.text.trim().to_owned();
+        let raw = self.chat.composer.text.trim().to_owned();
+        let text = self.chat.take_mentions(&raw);
         let editing = self.chat.editing_id;
         let reply_to = self.chat.replying_to.as_ref().map(|r| r.message);
         if self.chat.send()
@@ -152,6 +168,18 @@ impl RadicaApp {
         }
     }
 
+    /// Open a room from the list; on the node it counts as read up to now.
+    pub fn open_room(&mut self, room_key: &str) {
+        self.chat.select(room_key);
+        if matches!(self.chat.source, chat::Source::Live(_))
+            && let Some(ctl) = &self.ctl
+        {
+            ctl.act(LiveAction::MarkRead {
+                room_key: room_key.to_owned(),
+            });
+        }
+    }
+
     pub fn remove_room(&mut self, room_key: &str) {
         if self.chat.remove_room(room_key)
             && matches!(self.chat.source, chat::Source::Live(_))
@@ -179,6 +207,15 @@ impl RadicaApp {
             && let Some(ctl) = &self.ctl
         {
             ctl.act(LiveAction::CreateRoom { slug, name });
+        }
+    }
+
+    pub fn toggle_block(&mut self, member_id: u32) {
+        let block = self.chat.toggle_block_member(member_id);
+        if matches!(self.chat.source, chat::Source::Live(_))
+            && let Some(ctl) = &self.ctl
+        {
+            ctl.act(LiveAction::ToggleBlock { member_id, block });
         }
     }
 

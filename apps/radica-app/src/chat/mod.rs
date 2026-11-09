@@ -9,6 +9,7 @@ pub mod avatar;
 mod conversation;
 pub mod example;
 mod icons;
+pub mod media;
 pub mod model;
 pub(crate) mod style;
 #[cfg(test)]
@@ -68,6 +69,10 @@ pub struct Chat {
     pub saved_messages: std::collections::BTreeSet<(String, u32)>,
     /// Followed member IDs (`radica/following/v2`).
     pub followed_members: std::collections::BTreeSet<u32>,
+    /// Members I blocked (`blocklist/<me>`).
+    pub blocked_members: std::collections::BTreeSet<u32>,
+    /// Mentions picked in the composer: what shows ("Ann") and whose key it stands for, sent as "@<key>".
+    pub mention_picks: Vec<(String, String)>,
     /// Whether the Freenet Companion Ecosystem & Apps modal is open.
     pub ecosystem_open: bool,
     /// Active user identity (Viso Persona or Local Ed25519 Keypair) and modal state.
@@ -94,6 +99,10 @@ pub struct Chat {
     pub avatar_cache: Option<rune::image::ImageCache>,
     /// Decoded/rasterized avatar images keyed by member ID.
     pub avatar_images: HashMap<u32, rune::image::Image>,
+    /// Where the node keeps opened attachments, by hash (from the live snapshot).
+    pub media_dir: Option<std::path::PathBuf>,
+    /// Decoded image attachments, by hash.
+    pub media_images: HashMap<String, rune::image::Image>,
     /// Whether a wide window shows the members panel beside the conversation.
     pub members_open: bool,
     /// Whether a narrow window shows the members panel over the conversation. Separate from
@@ -128,6 +137,8 @@ impl Chat {
             join_input: TextEdit::new(""),
             saved_messages: std::collections::BTreeSet::new(),
             followed_members: std::collections::BTreeSet::new(),
+            blocked_members: Default::default(),
+            mention_picks: Vec::new(),
             ecosystem_open: false,
             identity: crate::node::IdentityInfo {
                 pubkey: "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b".into(),
@@ -150,6 +161,8 @@ impl Chat {
             drafts: HashMap::new(),
             avatar_cache: None,
             avatar_images: HashMap::new(),
+            media_dir: None,
+            media_images: HashMap::new(),
             members_open: true,
             members_overlay: false,
             today,
@@ -179,6 +192,8 @@ impl Chat {
         self.today = snap.today;
         self.day_zero = snap.day_zero;
         self.now = snap.now;
+        self.media_dir = snap.media_dir;
+        self.blocked_members = snap.blocked.into_iter().collect();
         if let Some(id) = snap.identity {
             if self.identity_name_input.text.is_empty()
                 || self.identity_name_input.text == self.identity.display_name
@@ -221,6 +236,7 @@ impl Chat {
             }
         }
         self.set_rooms(merged);
+        self.refresh_media_images();
     }
 
     pub fn rooms(&self) -> &[Room] {
@@ -262,10 +278,38 @@ impl Chat {
         self.refresh_avatar_images();
     }
 
+    /// Decode the image attachments the node has opened since the last look (it keeps them by hash in `media_dir`).
+    pub fn refresh_media_images(&mut self) {
+        let (Some(cache), Some(dir)) = (&self.avatar_cache, &self.media_dir) else {
+            return;
+        };
+        for room in &self.rooms {
+            for m in &room.messages {
+                for item in media::parse(&m.text).0 {
+                    if item.kind != media::MediaKind::Img
+                        || self.media_images.contains_key(&item.hash)
+                    {
+                        continue;
+                    }
+                    if let Ok(bytes) = std::fs::read(dir.join(&item.hash)) {
+                        self.media_images.insert(item.hash, cache.load(bytes));
+                    }
+                }
+            }
+        }
+    }
+
+    /// The opened attachment's file on this device, if the node has it yet.
+    pub fn media_path(&self, hash: &str) -> Option<std::path::PathBuf> {
+        let p = self.media_dir.as_ref()?.join(hash);
+        p.exists().then_some(p)
+    }
+
     /// Initialize the avatar rasterization cache with the window waker.
     pub fn init_avatar_cache(&mut self, waker: rune::Waker) {
         self.avatar_cache = Some(rune::image::ImageCache::new(waker));
         self.refresh_avatar_images();
+        self.refresh_media_images();
     }
 
     /// Get ready-to-draw avatar pixels for member `member_id`, if rasterized.
@@ -417,7 +461,11 @@ impl Chat {
             return;
         };
         let me = room.me;
-        let Some(m) = room.messages.iter().find(|m| m.id == msg_id && m.author == me) else {
+        let Some(m) = room
+            .messages
+            .iter()
+            .find(|m| m.id == msg_id && m.author == me)
+        else {
             return;
         };
         let text = m.text.clone();
@@ -433,7 +481,11 @@ impl Chat {
     }
 
     /// Toggle reaction `emoji` on `msg_id` in the open room.
-    pub fn toggle_react(&mut self, msg_id: u32, emoji: &str) -> Option<(String, u32, String, bool)> {
+    pub fn toggle_react(
+        &mut self,
+        msg_id: u32,
+        emoji: &str,
+    ) -> Option<(String, u32, String, bool)> {
         let key = self.selected.clone();
         let room = self.room_mut()?;
         let on = room.toggle_reaction(msg_id, emoji)?;
@@ -470,8 +522,7 @@ impl Chat {
     }
 
     pub fn is_bookmarked(&self, room_key: &str, msg_id: u32) -> bool {
-        self.saved_messages
-            .contains(&(room_key.to_owned(), msg_id))
+        self.saved_messages.contains(&(room_key.to_owned(), msg_id))
     }
 
     pub fn room_has_bookmarks(&self, room_key: &str) -> bool {
@@ -490,6 +541,70 @@ impl Chat {
 
     pub fn is_following(&self, member_id: u32) -> bool {
         self.followed_members.contains(&member_id)
+    }
+
+    /// Block or unblock `member_id`. Returns `true` if now blocked.
+    pub fn toggle_block_member(&mut self, member_id: u32) -> bool {
+        if self.blocked_members.remove(&member_id) {
+            false
+        } else {
+            self.blocked_members.insert(member_id);
+            true
+        }
+    }
+
+    pub fn is_blocked(&self, member_id: u32) -> bool {
+        self.blocked_members.contains(&member_id)
+    }
+
+    /// The "@name" being typed at the end of the composer, if any (`QUERY_RE` in `ui/src/mentionPicker.ts`).
+    pub fn mention_query(&self) -> Option<&str> {
+        let text = &self.composer.text;
+        let at = text.rfind('@')?;
+        let query = &text[at + 1..];
+        let starts_word = text[..at]
+            .chars()
+            .next_back()
+            .is_none_or(char::is_whitespace);
+        (starts_word && query.chars().count() <= 30 && !query.contains(char::is_whitespace))
+            .then_some(query)
+    }
+
+    /// Who the "@" being typed could mention: members of the open room with a key, but not me.
+    pub fn mention_candidates(&self) -> Vec<&Member> {
+        let (Some(q), Some(room)) = (self.mention_query(), self.room()) else {
+            return Vec::new();
+        };
+        let q = q.to_lowercase();
+        room.members
+            .iter()
+            .filter(|m| {
+                m.id != room.me && m.pubkey.is_some() && m.nickname.to_lowercase().contains(&q)
+            })
+            .take(6)
+            .collect()
+    }
+
+    /// Write the picked member as "@Name " in place of the "@…" being typed, and remember whose key it stands for.
+    pub fn pick_mention(&mut self, member_id: u32) {
+        let Some(m) = self.room().and_then(|r| r.member(member_id)).cloned() else {
+            return;
+        };
+        let (Some(pk), Some(at)) = (m.pubkey.clone(), self.composer.text.rfind('@')) else {
+            return;
+        };
+        let next = format!("{}@{} ", &self.composer.text[..at], m.nickname);
+        self.composer.replace_text(&next);
+        self.mention_picks.push((m.nickname, pk));
+    }
+
+    /// `text` with each picked "@Name" as "@<key>", longer names first (`namesToKeys`); forgets the picks.
+    pub fn take_mentions(&mut self, text: &str) -> String {
+        let mut picks = std::mem::take(&mut self.mention_picks);
+        picks.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+        picks.iter().fold(text.to_owned(), |t, (name, pk)| {
+            t.replace(&format!("@{name}"), &format!("@{pk}"))
+        })
     }
 
     /// Insert a ready-to-send interactive poll template into the composer.
@@ -531,10 +646,7 @@ impl Chat {
         let key = format!("priv:{slug}");
         let name = format!("🔒 {clean}");
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -588,10 +700,7 @@ impl Chat {
         let key = format!("c_{slug}");
         let name = clean.to_owned();
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -617,10 +726,7 @@ impl Chat {
         if raw.is_empty() {
             return None;
         }
-        let clean = raw
-            .trim_start_matches('#')
-            .trim_start_matches("r/")
-            .trim();
+        let clean = raw.trim_start_matches('#').trim_start_matches("r/").trim();
         let is_priv = clean.starts_with("priv:") || clean.starts_with("inv_") || clean.len() > 28;
         let slug: String = clean
             .trim_start_matches("c_")
@@ -642,10 +748,7 @@ impl Chat {
             slug.clone()
         };
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -666,7 +769,8 @@ impl Chat {
         self.joining_room = false;
         self.filter = RoomFilter::All;
         self.select(&key);
-        Some(key)
+        // a private room needs the whole invite (its code or keys), not the shortened key shown here
+        Some(if is_priv { raw } else { key })
     }
 
     /// Open or create a 1-on-1 E2EE Direct Message conversation with `member_id`.
@@ -675,10 +779,7 @@ impl Chat {
         if member_id == me {
             return;
         }
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         let key = format!("dm:{member_id}");
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
@@ -729,7 +830,8 @@ impl Chat {
 
     pub fn start_viso_signin(&mut self) {
         self.identity_status = Some(
-            "Opening Viso in your browser… Approve the persona connection to complete sign-in.".into(),
+            "Opening Viso in your browser… Approve the persona connection to complete sign-in."
+                .into(),
         );
     }
 
@@ -744,8 +846,9 @@ impl Chat {
     pub fn submit_import_identity(&mut self) -> Option<String> {
         let raw = self.identity_import_input.text.trim().to_owned();
         if raw.is_empty() {
-            self.identity_status =
-                Some("Paste a 64-hex private key, a Viso callback URL, or a session JSON first.".into());
+            self.identity_status = Some(
+                "Paste a 64-hex private key, a Viso callback URL, or a session JSON first.".into(),
+            );
             return None;
         }
         let hex_candidate: String = raw
@@ -796,8 +899,9 @@ impl Chat {
                 m.nickname = name.clone();
             }
         }
-        self.identity_status =
-            Some(format!("✓ Display name \"{name}\" saved & published to Freenet."));
+        self.identity_status = Some(format!(
+            "✓ Display name \"{name}\" saved & published to Freenet."
+        ));
         Some(name)
     }
 

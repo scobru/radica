@@ -251,6 +251,8 @@ fn create_room_join_invite_and_emoji_tray_work() {
         now: 600,
         status: "7 rooms".into(),
         identity: None,
+        media_dir: None,
+        blocked: Vec::new(),
     });
     assert_eq!(rt.state.chat.room().unwrap().key, "dm:2");
     assert_eq!(
@@ -264,18 +266,33 @@ fn reply_edit_react_and_delete_work_in_the_conversation() {
     let mut rt = render(connected(), WINDOW_SIZE);
     let last_id = rt.state.chat.room().unwrap().last_message().unwrap().id;
     // Toggle quick reaction on the visible newest message
-    press(&mut rt, &format!("react-🌱-{last_id}"));
+    press(&mut rt, &format!("react-🔥-{last_id}"));
     let last_msg = rt.state.chat.room().unwrap().last_message().unwrap();
     let me = rt.state.chat.room().unwrap().me;
-    assert!(last_msg.reactions.iter().any(|r| r.emoji == "🌱" && r.by.contains(&me)));
+    assert!(
+        last_msg
+            .reactions
+            .iter()
+            .any(|r| r.emoji == "🔥" && r.by.contains(&me))
+    );
 
     // Reply to the newest message
     press(&mut rt, &format!("reply-btn-{last_id}"));
     assert!(rt.find("reply-banner").is_some());
-    rt.state.chat.composer.replace_text("Replying to release notes");
+    rt.state
+        .chat
+        .composer
+        .replace_text("Replying to release notes");
     press(&mut rt, "send");
     assert!(rt.find("reply-banner").is_none());
-    let sent = rt.state.chat.room().unwrap().last_message().unwrap().clone();
+    let sent = rt
+        .state
+        .chat
+        .room()
+        .unwrap()
+        .last_message()
+        .unwrap()
+        .clone();
     assert_eq!(sent.text, "Replying to release notes");
     assert_eq!(sent.reply_to.as_ref().map(|r| r.message), Some(last_id));
 
@@ -292,7 +309,10 @@ fn reply_edit_react_and_delete_work_in_the_conversation() {
     // Delete our sent message
     let count_before = rt.state.chat.room().unwrap().messages.len();
     press(&mut rt, &format!("del-btn-{}", sent.id));
-    assert_eq!(rt.state.chat.room().unwrap().messages.len(), count_before - 1);
+    assert_eq!(
+        rt.state.chat.room().unwrap().messages.len(),
+        count_before - 1
+    );
 }
 
 #[test]
@@ -561,4 +581,67 @@ fn widening_closes_the_narrow_members_panel() {
     });
     settle(&mut rt);
     assert_eq!(rt.state.chat.composer.text, "still typing");
+}
+
+#[test]
+fn an_attachment_shows_as_a_card_not_its_token() {
+    let mut state = connected();
+    let mut file = super::media::MediaItem::new(
+        super::media::MediaKind::File,
+        "application/pdf",
+        &"a".repeat(64),
+        &"b".repeat(64),
+    );
+    file.filename = "conti.pdf".into();
+    state
+        .chat
+        .composer
+        .replace_text(&format!("{} eccoli", file.token()));
+    assert!(state.chat.send());
+    let rt = render(state, WINDOW_SIZE);
+    assert!(shows(&rt, "📎 conti.pdf"));
+    assert!(shows(&rt, "Downloading from Freenet…"));
+    assert!(shows(&rt, "eccoli"));
+    assert!(
+        !shows(&rt, "radica-cm1"),
+        "the token never shows, in the thread or the room list"
+    );
+}
+
+#[test]
+fn typing_at_lists_members_and_a_pick_is_sent_as_their_key() {
+    let mut state = connected();
+    let pk = "cd".repeat(32);
+    let room = state.chat.room().unwrap().key.clone();
+    let me = state.chat.room().unwrap().me;
+    let other = state
+        .chat
+        .room()
+        .unwrap()
+        .members
+        .iter()
+        .find(|m| m.id != me)
+        .unwrap()
+        .clone();
+    let mut rooms = state.chat.rooms().to_vec();
+    for r in rooms.iter_mut().filter(|r| r.key == room) {
+        for m in r.members.iter_mut().filter(|m| m.id == other.id) {
+            m.pubkey = Some(pk.clone());
+        }
+    }
+    state.chat.set_rooms(rooms);
+    let first: String = other.nickname.chars().take(2).collect();
+    state.chat.composer.replace_text(&format!("ciao @{first}"));
+    let mut rt = render(state, WINDOW_SIZE);
+    press(&mut rt, &format!("mention-{}", other.id));
+    let text = rt.state.chat.composer.text.clone();
+    assert_eq!(text, format!("ciao @{} ", other.nickname));
+    assert!(
+        rt.state.chat.mention_candidates().is_empty(),
+        "the picker closes after a pick"
+    );
+    assert_eq!(
+        rt.state.chat.take_mentions(text.trim()),
+        format!("ciao @{pk}")
+    );
 }
