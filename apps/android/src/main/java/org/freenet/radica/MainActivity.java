@@ -5,7 +5,10 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Insets;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -17,6 +20,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.widget.FrameLayout;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -76,7 +82,7 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(true);
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
-        setContentView(web);
+        setContentView(fitted(web));
         if (saved != null && web.restoreState(saved) != null) {
             opened = true;
         } else {
@@ -108,6 +114,35 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (opened && web.canGoBack()) web.goBack();
         else super.onBackPressed();
+    }
+
+    /**
+     * Android 15 draws apps under the status bar, the navigation bar and the keyboard: keep Radica clear of them, on
+     * the page's own background, with the bars' icons readable on it.
+     */
+    private FrameLayout fitted(WebView view) {
+        FrameLayout root = new FrameLayout(this);
+        root.addView(view);
+        boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+        root.setBackgroundColor(night ? 0xFF141310 : 0xFFF6F3EA);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            // before Android 15 the bars keep the theme's colour unless cleared; the background shows through
+            getWindow().setStatusBarColor(0);
+            getWindow().setNavigationBarColor(0);
+            int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            WindowInsetsController bars = getWindow().getInsetsController();
+            if (bars != null) bars.setSystemBarsAppearance(night ? 0 : light, light);
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets i = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime()
+                        | WindowInsets.Type.displayCutout());
+                v.setPadding(i.left, i.top, i.right, i.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        }
+        return root;
     }
 
     /** The node's client API answers with its version once its HTTP server is up. */
