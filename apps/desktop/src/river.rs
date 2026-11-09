@@ -189,6 +189,15 @@ mod tests {
     }
 
     #[test]
+    fn the_web_app_bundles_the_same_room_contract() {
+        let web = include_str!("../../../ui/src/riverPointer.ts");
+        assert!(
+            web.contains(&format!("BUNDLED_ROOM_CODE = \"{ROOM_CODE_HASH}\"")),
+            "web and desktop must write River rooms under one generation"
+        );
+    }
+
+    #[test]
     fn owner_key_matches_the_web_derivation() {
         // the web: blake3(utf8("radica/river-room-owner/v1:" + id), { key: identitySk })
         let a = owner_sk(&[7; 32], "privroom_1_abc");
