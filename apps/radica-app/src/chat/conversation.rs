@@ -31,9 +31,24 @@ pub(super) fn conversation(chat: &Chat, room: &Room, narrow: bool, p: &Palette, 
     if chat.thread_search_open {
         stage = stage.child(thread_search_bar(chat, p, k)).child(hline(p));
     }
-    stage
-        .child(history(chat, room, p))
-        .child(composer(chat, room, p, k))
+    stage = stage.child(history(chat, room, p));
+    if room.can_post() {
+        stage.child(composer(chat, room, p, k))
+    } else {
+        // as on the web: a channel's subscribers read, its owner and moderators post
+        stage.child(
+            row()
+                .key("channel-readonly")
+                .w_full()
+                .h(56.0)
+                .center()
+                .child(label(
+                    "📢 Only the channel's owner and moderators post here",
+                    st::SMALL,
+                    p.text_muted,
+                )),
+        )
+    }
 }
 
 fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
@@ -45,6 +60,8 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
     if room.private {
         let badge_txt = if room.key.starts_with("dm:") {
             "E2EE · Direct"
+        } else if room.channel {
+            "📢 CHANNEL · E2EE"
         } else {
             "PRIVATE · E2EE"
         };
@@ -88,6 +105,41 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
     } else {
         format!("{} participants · {}", room.members.len(), room.description)
     };
+    // a channel and its comments room point at each other, as the web's header pill does
+    if let Some(linked) = room
+        .linked
+        .clone()
+        .filter(|k| chat.rooms().iter().any(|r| &r.key == k))
+    {
+        title = title.child(
+            row()
+                .key("linked-room")
+                .role("button")
+                .label(if room.channel {
+                    "Open the comments"
+                } else {
+                    "Open the channel"
+                })
+                .h(20.0)
+                .px(8.0)
+                .radius(10.0)
+                .center_y()
+                .fill(p.surface)
+                .border(1.0, p.line_strong)
+                .hover(p.surface_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press(move |s: &mut RadicaApp| s.open_room(&linked))
+                .child(label(
+                    if room.channel {
+                        "💬 Comments"
+                    } else {
+                        "📢 Channel"
+                    },
+                    st::TAG,
+                    p.accent,
+                )),
+        );
+    }
     let info = col()
         .grow(1.0)
         .min_w(0.0)

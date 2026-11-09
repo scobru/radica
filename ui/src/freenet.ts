@@ -3512,6 +3512,10 @@ export class FreenetClient {
     for (const r of list)
       if (!r.river && r.creator === identity.pubkey && this.isConnected && this.logEntries(`room/${r.id}`).length && !this.movedToRiver(r))
         void this.moveToRiver(identity, r);
+    if (this.isConnected && !this.syncingAccess) {
+      this.syncingAccess = true;
+      void this.syncRoomAccess(identity, list).finally(() => (this.syncingAccess = false));
+    }
     // Only return rooms where current identity is an authorized member (and has not left: an old invite still lists me)
     return list.filter(
       (r) => !(!r.river && this.movedToRiver(r))
@@ -3522,6 +3526,38 @@ export class FreenetClient {
         !localStorage.getItem(`freenet_room_left_${identity.pubkey}_${r.id}`) &&
         !hasLeftRoom(this.logEntries(`room/${r.id}`), r.id, identity.pubkey)
     );
+  }
+
+  private syncingAccess = false;
+
+  /** What my other devices (the desktop app) need to open my River rooms, which this page keeps only in its own storage
+   *  and the node's delegate: each room's owner, my key and join, sealed to myself in my inbox (`river_access`). Rooms
+   *  I left here are marked removed there too (`room_hide`). Written once per room, again when it changes. */
+  private async syncRoomAccess(identity: UserIdentity, list: PrivateRoom[]): Promise<void> {
+    const inbox = `inbox/${identity.pubkey}`;
+    for (const r of list) {
+      if (localStorage.getItem(`freenet_room_left_${identity.pubkey}_${r.id}`)) {
+        const mark = `room_hide_sent_${r.id}`;
+        if (localStorage.getItem(mark)) continue;
+        localStorage.setItem(mark, "1");
+        await this.logAppend(inbox, { type: "room_hide", roomId: r.id }).catch(() => localStorage.removeItem(mark));
+        continue;
+      }
+      if (!r.river) continue;
+      const access = JSON.stringify({
+        owner: r.river.owner,
+        creator: r.creator,
+        k: localStorage.getItem(`river_key_${r.id}`) ?? "", // empty: my identity key (or the owner key derived from it)
+        join: this.riverJoin(r.id) ?? null,
+        is_channel: !!r.is_channel,
+        linked_room_id: r.linked_room_id ?? null,
+      });
+      const mark = `river_access_sent_${r.id}`;
+      if (localStorage.getItem(mark) === access) continue;
+      localStorage.setItem(mark, access);
+      const sealed = await encryptDirectMessage(identity.secretKey, identity.encPub, access);
+      await this.logAppend(inbox, { type: "river_access", roomId: r.id, sealed }).catch(() => localStorage.removeItem(mark));
+    }
   }
 
   public async getPrivateRoomKey(

@@ -40,6 +40,8 @@ impl Member {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
     Owner,
+    /// One of the owner's moderators (River's deputies): may post in a channel.
+    Moderator,
     Member,
 }
 
@@ -84,11 +86,20 @@ pub struct Room {
     pub me: MemberId,
     /// Messages that arrived since this device last read the room.
     pub unread: usize,
+    /// A broadcast channel: only its owner and moderators post (`is_channel` on the web).
+    pub channel: bool,
+    /// The room linked to this one: a channel's comments room, or the channel of a comments room (`linked_room_id`).
+    pub linked: Option<String>,
 }
 
 impl Room {
     pub fn member(&self, id: MemberId) -> Option<&Member> {
         self.members.iter().find(|m| m.id == id)
+    }
+
+    /// Whether I may write here: anyone in a room, only the owner and moderators in a channel.
+    pub fn can_post(&self) -> bool {
+        !self.channel || self.member(self.me).is_some_and(|m| m.role != Role::Member)
     }
 
     pub fn nickname(&self, id: MemberId) -> &str {
@@ -521,6 +532,8 @@ mod tests {
             messages: vec![msg(7, 2, 900)],
             me: 1,
             unread: 0,
+            channel: false,
+            linked: None,
         };
         let id = room.send("hi", 100);
         assert_eq!(id, 8);

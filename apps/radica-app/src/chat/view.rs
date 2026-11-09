@@ -260,7 +260,13 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
                 .child(filter_chip("All", RoomFilter::All, chat.filter, p))
                 .child(filter_chip("Unread", RoomFilter::Unread, chat.filter, p))
                 .child(filter_chip("DMs", RoomFilter::Dms, chat.filter, p))
-                .child(filter_chip("Groups", RoomFilter::Groups, chat.filter, p)),
+                .child(filter_chip("Groups", RoomFilter::Groups, chat.filter, p))
+                .child(filter_chip(
+                    "Channels",
+                    RoomFilter::Channels,
+                    chat.filter,
+                    p,
+                )),
         )
         .child(
             row()
@@ -284,7 +290,10 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
             RoomFilter::All => true,
             RoomFilter::Unread => room.unread > 0 || selected,
             RoomFilter::Dms => room.key.starts_with("dm:") || selected,
-            RoomFilter::Groups => (room.private && !room.key.starts_with("dm:")) || selected,
+            RoomFilter::Groups => {
+                (room.private && !room.channel && !room.key.starts_with("dm:")) || selected
+            }
+            RoomFilter::Channels => room.channel || selected,
             RoomFilter::Communities => (!room.private && !room.key.starts_with("dm:")) || selected,
             RoomFilter::Saved => chat.room_has_bookmarks(&room.key) || selected,
         };
@@ -819,6 +828,12 @@ fn member_row(chat: &Chat, room: &Room, m: &Member, p: &Palette) -> El {
                 .color(p.amber)
                 .label("Owner")
                 .help("Room owner"),
+        );
+    } else if m.role == Role::Moderator {
+        left = left.child(
+            label("🛡", st::TAG, p.accent)
+                .label("Moderator")
+                .help("Moderator: named by the owner"),
         );
     }
     let mut r = row()

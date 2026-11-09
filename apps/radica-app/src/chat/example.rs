@@ -162,6 +162,8 @@ fn town_square() -> Room {
         messages: b.messages,
         me: ME,
         unread: 0,
+        channel: false,
+        linked: None,
     }
 }
 
@@ -206,6 +208,8 @@ fn design_crew() -> Room {
         messages: b.messages,
         me: ME,
         unread: 2,
+        channel: false,
+        linked: None,
     }
 }
 
@@ -240,6 +244,8 @@ fn rust_help() -> Room {
         messages: b.messages,
         me: ME,
         unread: 2,
+        channel: false,
+        linked: None,
     }
 }
 
@@ -263,6 +269,8 @@ fn family() -> Room {
         messages: b.messages,
         me: ME,
         unread: 0,
+        channel: false,
+        linked: None,
     }
 }
 
@@ -276,6 +284,8 @@ fn book_club() -> Room {
         messages: Vec::new(),
         me: ME,
         unread: 0,
+        channel: false,
+        linked: None,
     }
 }
 
