@@ -207,9 +207,9 @@ Add each key to `ui/freenet-assets.json` under `"langs"` (e.g. `"langs": { "it":
 
 ---
 
-### 6. Launch Native Desktop App (Rune + Rust)
+### 6. Launch the Desktop App (Rust + Freenet node)
 
-Radica ships a native GPU-rendered desktop application under `apps/` (`apps/radica-app` and `apps/desktop`), built with [Rune](https://github.com/anomalyco/rune) in its own isolated Cargo workspace so desktop dependencies never alter WASM contract or delegate hashes. On launch it probes port `7509`, auto-starts an installed Freenet service, or downloads and Ed25519-verifies the official Freenet release:
+The desktop app under `apps/` (`apps/desktop`) is Radica web in a native window, so it does what the web does from one codebase, plus the Freenet node underneath. On launch it probes port `7509`, auto-starts an installed Freenet service, or downloads and Ed25519-verifies the official Freenet release, then opens Radica web from the node in a [wry](https://github.com/tauri-apps/wry) window (WebView2 on Windows, WebKit on macOS and Linux; Linux builds need `libwebkit2gtk-4.1-dev`). Links to other sites open in the system browser. It lives in its own Cargo workspace so desktop dependencies never alter WASM contract or delegate hashes. The earlier native [Rune](https://github.com/anomalyco/rune) UI (`apps/radica-app`) still opens with `-- --native`:
 
 ```bash
 npm run app        # cargo run --manifest-path apps/Cargo.toml -p radica-desktop
