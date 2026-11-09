@@ -81,10 +81,12 @@ fn step_text(step: &InstallStep) -> String {
     }
 }
 
-/// Get a node running: install it if missing, start it if stopped, then wait for it to answer.
+/// The longest Freenet may take to answer once started: a first start sets up its data and joins the network.
+const ANSWER_DEADLINE: Duration = Duration::from_secs(180);
+
+/// Get a node running: install it if missing, start it if stopped, then wait for it to answer, counting the seconds.
 fn bring_up(host: &DesktopHost, tell: &dyn Fn(Ui)) -> Result<(), String> {
-    let mut started = false;
-    let deadline = Instant::now() + Duration::from_secs(90);
+    let mut started: Option<Instant> = None;
     loop {
         match host.probe() {
             NodeProbe::Running { .. } => return Ok(()),
@@ -102,17 +104,50 @@ fn bring_up(host: &DesktopHost, tell: &dyn Fn(Ui)) -> Result<(), String> {
             NodeProbe::NotInstalled => {
                 host.install(&mut |s| tell(Ui::Status(step_text(&s))))?;
             }
-            NodeProbe::InstalledNotRunning if !started => {
-                tell(Ui::Status("Starting Freenet…".into()));
-                host.start()?;
-                started = true;
-            }
-            NodeProbe::InstalledNotRunning if Instant::now() > deadline => {
-                return Err("Freenet started but does not answer yet.".into());
-            }
-            NodeProbe::InstalledNotRunning => std::thread::sleep(Duration::from_secs(1)),
+            NodeProbe::InstalledNotRunning => match started {
+                None => {
+                    // `freenet service start` can take a while (on Windows it launches Freenet's wrapper)
+                    let t0 = Instant::now();
+                    std::thread::scope(|s| {
+                        let start = s.spawn(|| host.start());
+                        while !start.is_finished() {
+                            tell(Ui::Status(format!(
+                                "Starting Freenet… {} s",
+                                t0.elapsed().as_secs()
+                            )));
+                            std::thread::sleep(Duration::from_secs(1));
+                        }
+                        start
+                            .join()
+                            .unwrap_or_else(|_| Err("starting Freenet crashed".into()))
+                    })?;
+                    started = Some(Instant::now());
+                }
+                Some(t) if t.elapsed() > ANSWER_DEADLINE => return Err(not_answering()),
+                Some(t) => {
+                    tell(Ui::Status(format!(
+                        "Freenet is starting, waiting for it to answer… {} s",
+                        t.elapsed().as_secs()
+                    )));
+                    std::thread::sleep(Duration::from_secs(1));
+                }
+            },
         }
     }
+}
+
+fn not_answering() -> String {
+    let check = if cfg!(windows) {
+        "Check that Freenet's icon is in the system tray (if not, open Freenet from the Start menu)"
+    } else if cfg!(target_os = "macos") {
+        "Check that Freenet's icon is in the menu bar (if not, open Freenet from Applications)"
+    } else {
+        "Check it with `freenet service status`, or restart it with `freenet service restart`"
+    };
+    format!(
+        "Freenet was started but has not answered for {} minutes. {check}, then try again.",
+        ANSWER_DEADLINE.as_secs() / 60
+    )
 }
 
 fn spawn_bring_up(proxy: EventLoopProxy<Ui>) {
