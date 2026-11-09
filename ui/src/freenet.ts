@@ -42,7 +42,7 @@ import {
 } from "./crypto.ts";
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -859,7 +859,9 @@ export class FreenetClient {
   private async logAppend(name: string, body: object): Promise<void> {
     const me = this.identity;
     if (!me) throw new Error("No identity to sign with");
-    const e: LogEntry = { author: me.pubkey, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: Date.now(), body: JSON.stringify(body), sig: "" };
+    // state (a read mark, a hidden room…) goes under one id per subject: the log keeps only the newest
+    const id = stateSlotFor(body as Record<string, unknown>) ?? Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const e: LogEntry = { author: me.pubkey, id, ts: Date.now(), body: JSON.stringify(body), sig: "" };
     e.sig = await me.sign(formatLogEntryMessage(name, e.author, e.id, e.ts, e.body));
     if (me.cert) e.cert = me.cert;
     this.saveLog(name, [...this.logEntries(name), e]);
@@ -1607,14 +1609,18 @@ export class FreenetClient {
   /** Merge the network's entries of a log with ours, rebuild what it feeds, and send what only we have. */
   private async takeLog(name: string, remote: Record<string, LogEntry>): Promise<void> {
     const local = this.logEntries(name);
-    const missing = local.filter((e) => !remote[`${e.author}:${e.id}`]);
+    // what only we have, or a newer state entry under a key the network holds an older one of (as the contract decides)
+    const missing = local.filter((e) => {
+      const r = remote[`${e.author}:${e.id}`];
+      return !r || e.ts > r.ts || (e.ts === r.ts && e.sig > r.sig);
+    });
     const remoteCount = Object.keys(remote).length;
     if (missing.length === 0 && local.length === remoteCount) {
       this.unsentLogs.delete(name);
       return;
     }
     const before = localStorage.getItem(`freenet_log_${name}`);
-    this.saveLog(name, [...missing, ...Object.values(remote)]);
+    this.saveLog(name, [...Object.values(remote), ...missing]); // later wins: ours where it is newer
     if (localStorage.getItem(`freenet_log_${name}`) !== before) { // unchanged log: no rebuild, no redraw
       this.applyLog(name);
       this.notifyListeners();

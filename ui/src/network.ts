@@ -27,6 +27,7 @@ import { appPath } from "./whoiam.ts";
 import { VISO_IDENTITY_CODE_HASH, visoIdentityInstance } from "./viso.ts";
 import { limiter } from "./limit.ts";
 import { CURRENT, LEGACY } from "./legacy.ts";
+import { compactLog, type LogEntry } from "./logfold.ts";
 import { safeStorage } from "./storage.ts"; // the sandboxed web container has no localStorage
 import { nextDelay, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
 import { changeOf, type Change } from "./refresh.ts";
@@ -253,6 +254,9 @@ export class FreenetNetwork {
       const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, true)))); // the timeout starts when the lookup is sent, not while it waits
       this.known.add(id);
       if (r.state.length) this.live.set(id, Date.now()); // nothing published yet: no subscription to rely on
+      // a log someone else started under this generation (a contact writing to my new inbox) still gets my older
+      // entries: the merge is a union, so carrying them in later loses nothing
+      if (r.state.length && id.startsWith("log:")) void this.fromLegacy(id).catch(() => {});
       return r.state.length ? dec.decode(toU8(r.state)) : null;
     } catch (e) {
       if (/not found/i.test(String(e))) return this.fromLegacy(id).then((v) => (v === null ? null : JSON.stringify(v)));
@@ -331,7 +335,10 @@ export class FreenetNetwork {
       const key = new ContractKey(blake3(buf), hash);
       const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)))).catch(() => null);
       if (!r?.state.length) continue;
-      const state = JSON.parse(dec.decode(toU8(r.state))) as T;
+      let state = JSON.parse(dec.decode(toU8(r.state))) as T;
+      // a log moves without what no longer counts (superseded state, deleted messages): it stays small
+      const log = state as { entries?: Record<string, LogEntry> };
+      if (kind === "log" && log.entries) state = { ...log, entries: compactLog(id.slice("log:".length), log.entries) } as T;
       try {
         await this.push(id, state); // the current contract checks every record: a state it no longer accepts stays behind
         return state;

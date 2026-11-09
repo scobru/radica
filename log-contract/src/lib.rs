@@ -71,10 +71,13 @@ pub fn check(params_hex: &str, key: &str, e: &Entry) -> Result<(), ContractError
     }
 }
 
-/// Merge `inc` into `state`; fails only on a forged or oversized entry.
+/// Merge `inc` into `state`; fails only on a forged or oversized entry. An entry replaces the one under its key
+/// when it is newer (its author signs `ts`, and the key starts with the author, so only they can replace it): an
+/// author keeps one entry per key for state that only matters as of now (a read mark, a hidden room). Equal times
+/// fall back to the signature, so every peer keeps the same one.
 pub fn merge(params_hex: &str, state: &mut LogState, inc: LogState) -> Result<(), ContractError> {
     for (k, e) in inc.entries {
-        if state.entries.get(&k).map_or(true, |cur| e.sig > cur.sig) {
+        if state.entries.get(&k).map_or(true, |cur| (e.ts, &e.sig) > (cur.ts, &cur.sig)) {
             check(params_hex, &k, &e)?;
             state.entries.insert(k, e);
         }
@@ -192,6 +195,22 @@ mod tests {
         }
         let all = merged(&s);
         assert!(delta(&all, &summarize(&all)).entries.is_empty());
+    }
+
+    #[test]
+    fn an_author_s_newer_entry_replaces_the_older_under_one_key() {
+        let a = SigningKey::from_bytes(&[1; 32]);
+        let old = state(vec![entry(&a, "read:room", 1, "{\"upto\":1}", P)]);
+        let new = state(vec![entry(&a, "read:room", 2, "{\"upto\":2}", P)]);
+        for s in [merged(&[old.clone(), new.clone()]), merged(&[new.clone(), old.clone()])] {
+            assert_eq!(s.entries.len(), 1);
+            assert_eq!(s.entries.values().next().unwrap().ts, 2, "the newer one wins, whatever the order");
+        }
+        // a peer that has the old one gets the new one through the delta, and keeps one entry
+        let mut peer = merged(&[old.clone()]);
+        let d = delta(&merged(&[new.clone()]), &summarize(&peer));
+        merge(P, &mut peer, d).unwrap();
+        assert_eq!(peer, merged(&[new]));
     }
 
     #[test]

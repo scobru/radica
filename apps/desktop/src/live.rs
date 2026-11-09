@@ -336,7 +336,11 @@ pub const APP_PATH: &str = "/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbre
 pub const VISO_KEY: &str = "GzHy3jnEtj26EoGqMsBpoawcY378hK9kp91rTcNYiAac";
 
 /// Current `log-contract` (`ui/src/wasm/log.wasm`) BLAKE3 code hash (`ui/src/legacy.ts`).
-pub const LOG_CODE_HASH: &str = "4c17282a893595cb167387b785554e0bd100990d8b2a14a3fea290d65e306437";
+pub const LOG_CODE_HASH: &str = "004279a5303a2bda886df679cef284433b396ceb7e68132049d91b748d5acb6e";
+/// The generation before it (`LEGACY.log[0]` in `ui/src/legacy.ts`): a log not moved yet is read there too.
+const LEGACY_LOG_CODE_HASH: &str =
+    "4c17282a893595cb167387b785554e0bd100990d8b2a14a3fea290d65e306437";
+const LOG_CODE: &[u8] = include_bytes!("../../../ui/src/wasm/log.wasm");
 
 /// Current `feed-contract` (`ui/src/wasm/contract.wasm`) BLAKE3 code hash (`ui/src/legacy.ts`).
 pub const FEED_CODE_HASH: &str = "6eed3cbfb9e9931660dc86c13834a1e24c4e14e547cd66cd2eb1f7a59950d5b6";
@@ -416,7 +420,51 @@ pub fn log_params(log_name: &str) -> String {
 }
 
 pub fn log_contract_key(log_name: &str) -> String {
-    contract_key(LOG_CODE_HASH, log_params(log_name).as_bytes())
+    let key = contract_key(LOG_CODE_HASH, log_params(log_name).as_bytes());
+    if let Ok(mut m) = legacy_log_keys().lock() {
+        m.entry(key.clone())
+            .or_insert_with(|| contract_key(LEGACY_LOG_CODE_HASH, log_params(log_name).as_bytes()));
+    }
+    key
+}
+
+/// Each log's key under the previous log contract, by its current key (filled by `log_contract_key`).
+fn legacy_log_keys() -> &'static Mutex<HashMap<String, String>> {
+    static KEYS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    KEYS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// What a log held under the previous contract, read once per run (old clients aside, it no longer changes).
+fn legacy_log(current_key: &str) -> Option<Value> {
+    static SEEN: OnceLock<Mutex<HashMap<String, Option<Value>>>> = OnceLock::new();
+    let legacy = legacy_log_keys().lock().ok()?.get(current_key).cloned()?;
+    let seen = SEEN.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(v) = seen.lock().ok()?.get(&legacy) {
+        return v.clone();
+    }
+    let v = fetch_raw_json(&legacy);
+    seen.lock().ok()?.insert(legacy, v.clone());
+    v
+}
+
+/// The id an author writes state under (`stateSlot` in `ui/src/logfold.ts`): one per subject, so the log contract
+/// keeps only the newest read mark, hidden room… instead of one entry per write. None for any other entry.
+fn state_slot(body: &Value) -> Option<String> {
+    let kind = body["type"].as_str()?;
+    let field = match kind {
+        "chat_read" | "chat_clear" => "room",
+        "chat_remove" => "peer",
+        "notif_read" | "notif_clear" => "",
+        "room_ref" | "room_hide" | "river_access" => "roomId",
+        _ => return None,
+    };
+    let subject = if field.is_empty() {
+        ""
+    } else {
+        body[field].as_str().unwrap_or("")
+    };
+    let h = <sha2::Sha256 as sha2::Digest>::digest(format!("{kind}|{subject}").as_bytes());
+    Some(format!("{kind}:{}", hex::encode(&h[..12])))
 }
 
 pub fn feed_contract_key(pubkey_hex: &str) -> Option<String> {
@@ -470,7 +518,31 @@ pub fn find_fdev() -> PathBuf {
     PathBuf::from(bin)
 }
 
+/// A contract's JSON state; for a log, joined with what it held under the previous log contract (a log the web app
+/// has not moved yet, or one a contact started under the new contract first). Per key, the newer entry wins.
 fn fetch_contract_json(key: &str) -> Option<Value> {
+    let current = fetch_raw_json(key);
+    let Some(old) = legacy_log(key) else {
+        return current;
+    };
+    let mut merged = old;
+    if let (Some(cur), Some(map)) = (
+        current.as_ref().and_then(|c| c["entries"].as_object()),
+        merged["entries"].as_object_mut(),
+    ) {
+        for (k, e) in cur {
+            let newer = map.get(k).is_none_or(|o| {
+                (e["ts"].as_u64(), e["sig"].as_str()) > (o["ts"].as_u64(), o["sig"].as_str())
+            });
+            if newer {
+                map.insert(k.clone(), e.clone());
+            }
+        }
+    }
+    Some(merged)
+}
+
+fn fetch_raw_json(key: &str) -> Option<Value> {
     let tmp = tempfile::NamedTempFile::new().ok()?;
     let out_path = tmp.path().to_path_buf();
     let mut cmd = Command::new(find_fdev());
@@ -2169,7 +2241,7 @@ fn append_log_entry(log_name: &str, body_val: &Value) -> Result<(), String> {
         .as_millis() as u64;
     let body = serde_json::to_string(body_val).map_err(|e| e.to_string())?;
     let params_hex = hex::encode(log_params(log_name).as_bytes());
-    let entry_id = format!("dsk_{ts}");
+    let entry_id = state_slot(body_val).unwrap_or_else(|| format!("dsk_{ts}"));
     // Matches `entry_msg` in `log-contract/src/lib.rs`.
     let entry_msg = format!("radica/log/v1:{params_hex}:{pubkey}:{entry_id}:{ts}:{body}");
     let entry_sig = hex::encode(sk.sign(entry_msg.as_bytes()).to_bytes());
@@ -2207,7 +2279,22 @@ fn append_log_entry(log_name: &str, body_val: &Value) -> Result<(), String> {
         &key,
         &tmp.path().to_string_lossy(),
     ]);
-    host::run(&mut cmd)
+    host::run(&mut cmd).or_else(|update_err| {
+        // a log nobody wrote under this contract yet: publish it, with this entry as its first state
+        let code = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
+        fs::write(code.path(), LOG_CODE).map_err(|e| e.to_string())?;
+        let params = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
+        fs::write(params.path(), log_params(log_name)).map_err(|e| e.to_string())?;
+        let mut put = Command::new(find_fdev());
+        put.args(["execute", "put", "--timeout", "30", "--code"])
+            .arg(code.path())
+            .arg("--parameters")
+            .arg(params.path())
+            .args(["contract", "--state"])
+            .arg(tmp.path());
+        host::run(&mut put)
+            .map_err(|put_err| format!("{update_err}; publishing it failed too: {put_err}"))
+    })
 }
 
 fn update_feed_contract(owner_pk: &str, mut delta_val: Value) -> Result<(), String> {
@@ -3461,6 +3548,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn state_slots_match_the_web() {
+        // ui/src/logfold.ts stateSlot, run on the same inputs
+        assert_eq!(
+            state_slot(&json!({"type":"chat_read","room":"x","upto":1})).unwrap(),
+            "chat_read:b57436577a849076711eb835"
+        );
+        assert_eq!(
+            state_slot(&json!({"type":"notif_read","upto":1})).unwrap(),
+            "notif_read:ed0e79cec6bfd27d69fdac32"
+        );
+        assert_eq!(
+            state_slot(&json!({"type":"room_hide","roomId":"privroom_1_a","on":false})).unwrap(),
+            "room_hide:8e2d1b4816dc088952683599"
+        );
+        assert!(state_slot(&json!({"type":"chat","message":{}})).is_none());
+    }
+
+    #[test]
+    fn the_bundled_log_contract_is_the_current_one() {
+        assert_eq!(blake3::hash(LOG_CODE).to_hex().as_str(), LOG_CODE_HASH);
+        let web = include_str!("../../../ui/src/legacy.ts");
+        assert!(
+            web.contains(&format!("log: \"{LOG_CODE_HASH}\"")),
+            "the web app writes logs under the same contract"
+        );
+        assert!(
+            web.contains(&format!("log: [\"{LEGACY_LOG_CODE_HASH}\"")),
+            "and reads the same previous one"
+        );
+    }
+
+    #[test]
     fn a_river_identity_token_becomes_my_room() {
         let owner_sk = hex::encode([3u8; 32]);
         let owner = crate::river::vk_of(&owner_sk).unwrap();
@@ -3806,21 +3925,22 @@ mod tests {
 
     #[test]
     fn contract_keys_match_radica_web_app() {
+        // logs under the current log contract (004279a5…); the previous one put `communities` at DwwKe5Xb…
         assert_eq!(
             log_contract_key("communities"),
-            "DwwKe5XbrNLyK7F9hZDB5Q7Q6KmVcfeutTqNHAngBv2z"
+            "8M4bP5nGAGfqAhPG79R7riE9ZaN7tN2aLuf8L5BxmAsF"
         );
         assert_eq!(
             log_contract_key("directory"),
-            "3gZCWx2M24qvx9N9zJQTsWb37U6QCFgCuTFeYwpdFox1"
+            "GtromdvwUHK9YZd3C4uFJHoMeuyRQGPYjPWpKPcUKxgK"
         );
         assert_eq!(
             log_contract_key("community-chat/c_radica"),
-            "FyD4Kv4i8stPn1GUpezqZGBDtnJDyKqhos8KpH6agW2t"
+            "4ziyvdwA4iNrdEAJEqrvFszeTZ8DKtg9UF5oaRMGnU17"
         );
         assert_eq!(
             log_contract_key("community-chat/c_tech"),
-            "D8LYGThz4oARuEpoeEvt2ew1ydVukaQnGKz4BpSqiSJ3"
+            "5toDqe8JiryGeAX8SVnU61HKBhWy7gvmpNTaZve3QQbz"
         );
         assert_eq!(
             feed_contract_key(MAINTAINER_PK).as_deref(),
