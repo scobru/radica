@@ -520,3 +520,63 @@ export function foldPostEdits(entries: LogEntry[], max = 4000): Map<string, { ca
   }
   return out;
 }
+
+/** Entries that only matter as of now, and what each is about: one per author and subject is enough. */
+const STATE_SUBJECT: Record<string, (b: any) => unknown> = {
+  chat_read: (b) => b.room,
+  chat_clear: (b) => b.room,
+  chat_remove: (b) => b.peer,
+  notif_read: () => "",
+  notif_clear: () => "",
+  room_ref: (b) => b.roomId,
+  room_hide: (b) => b.roomId,
+  river_access: (b) => b.roomId,
+};
+
+/** The id an author writes state under, the same for every write about one subject: the log contract keeps the
+ *  newest entry under a key, so the log holds one per subject instead of one per write. Short enough for any subject
+ *  (a DM room id is 129 characters). */
+export function stateSlot(type: string, subject: unknown): string {
+  const h = sha256(new TextEncoder().encode(`${type}|${String(subject ?? "")}`));
+  return `${type}:${Array.from(h.slice(0, 12), (x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The fixed id a state entry is written under (`stateSlot` of its type and subject), or null for any other entry. */
+export function stateSlotFor(body: { type?: unknown } & Record<string, unknown>): string | null {
+  const subject = typeof body.type === "string" ? STATE_SUBJECT[body.type] : undefined;
+  return subject ? stateSlot(body.type as string, subject(body)) : null;
+}
+
+/** A log as it moves to a new contract generation, without what no longer counts: the newest state entry per author
+ *  and subject (read marks, hidden rooms…), and, in an inbox, no message its sender or the inbox owner deleted or
+ *  burned (the delete itself stays, so a copy that comes back is dropped again). Every kept entry is unchanged, so
+ *  its signature still holds. */
+export function compactLog(name: string, entries: Record<string, LogEntry>): Record<string, LogEntry> {
+  const owner = name.startsWith("inbox/") ? name.slice("inbox/".length) : null;
+  const newest = new Map<string, string>(); // author|type|subject -> entry key
+  const deleted = new Set<string>(); // message id|who deleted it
+  const parsed: [string, LogEntry, any][] = [];
+  for (const [k, e] of Object.entries(entries)) {
+    let b: any = null;
+    try {
+      b = JSON.parse(e.body);
+    } catch {}
+    parsed.push([k, e, b]);
+    const subject = b && STATE_SUBJECT[b.type];
+    if (subject) {
+      const g = `${e.author}|${b.type}|${String(subject(b) ?? "")}`;
+      const cur = newest.get(g);
+      if (!cur || e.ts > entries[cur].ts || (e.ts === entries[cur].ts && e.sig > entries[cur].sig)) newest.set(g, k);
+    }
+    if (owner && (b?.type === "chat_delete" || b?.type === "chat_burn") && typeof b.messageId === "string") deleted.add(`${b.messageId}|${e.author}`);
+  }
+  const keep = new Set(newest.values());
+  const out: Record<string, LogEntry> = {};
+  for (const [k, e, b] of parsed) {
+    if (b && STATE_SUBJECT[b.type] && !keep.has(k)) continue;
+    const m = b?.type === "chat" ? b.message : null;
+    if (m && typeof m.id === "string" && (deleted.has(`${m.id}|${m.sender}`) || deleted.has(`${m.id}|${owner}`))) continue;
+    out[k] = e;
+  }
+  return out;
+}

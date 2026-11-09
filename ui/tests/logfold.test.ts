@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -504,4 +504,26 @@ test("logfold: dismissals count only the moderator's own entries, newest wins", 
     entry(mallory, 4, { type: "dismiss", target: "a:p3" }), // not the moderator: ignored
   ];
   assert.deepEqual([...foldDismissed(log, owner)], ["a:p1"]);
+});
+
+test("compactLog: one state entry per author and subject, and no message deleted by its sender or the inbox owner", () => {
+  const me = "a".repeat(64), peer = "b".repeat(64), other = "c".repeat(64);
+  const e = (author: string, id: string, ts: number, body: object): [string, LogEntry] => [`${author}:${id}`, { author, id, ts, body: JSON.stringify(body), sig: id }];
+  const log = Object.fromEntries([
+    e(me, "r1", 1, { type: "chat_read", room: "x", upto: 1 }),
+    e(me, "r2", 2, { type: "chat_read", room: "x", upto: 2 }),
+    e(me, "r3", 1, { type: "chat_read", room: "y", upto: 1 }),
+    e(peer, "r4", 1, { type: "chat_read", room: "x", upto: 5 }), // another author's mark stays
+    e(peer, "m1", 1, { type: "chat", message: { id: "m1", sender: peer } }),
+    e(peer, "m2", 1, { type: "chat", message: { id: "m2", sender: peer } }),
+    e(peer, "m3", 1, { type: "chat", message: { id: "m3", sender: peer } }),
+    e(peer, "d1", 2, { type: "chat_burn", roomId: "x", messageId: "m1" }), // its sender burned it
+    e(me, "d2", 2, { type: "chat_delete", roomId: "x", messageId: "m2" }), // the inbox owner deleted it
+    e(other, "d3", 2, { type: "chat_delete", roomId: "x", messageId: "m3" }), // a stranger cannot
+  ]);
+  const out = compactLog(`inbox/${me}`, log);
+  assert.deepEqual(Object.keys(out).map((k) => k.split(":")[1]).sort(), ["d1", "d2", "d3", "m3", "r2", "r3", "r4"]);
+  assert.equal(stateSlot("chat_read", "x"), stateSlot("chat_read", "x"));
+  assert.notEqual(stateSlot("chat_read", "x"), stateSlot("chat_read", "y"));
+  assert.ok(stateSlot("chat_read", "z".repeat(200)).length <= 40);
 });
