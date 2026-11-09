@@ -869,6 +869,32 @@ fn member_row(chat: &Chat, room: &Room, m: &Member, p: &Palette) -> El {
                     },
                 )),
         );
+        let blocked = chat.is_blocked(member_id);
+        r = r.child(
+            row()
+                .key(format!("block-btn-{member_id}"))
+                .role("button")
+                .label(if blocked { "Unblock" } else { "Block" })
+                .help(if blocked {
+                    "Show their messages again"
+                } else {
+                    "Hide their messages everywhere, on every device (your blocklist)"
+                })
+                .h(22.0)
+                .px(7.0)
+                .radius(11.0)
+                .center()
+                .fill(if blocked { p.accent_soft } else { p.surface })
+                .border(1.0, p.line_strong)
+                .hover(p.surface_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press(move |s: &mut RadicaApp| s.toggle_block(member_id))
+                .child(label(
+                    if blocked { "Unblock" } else { "🚫" },
+                    st::TAG,
+                    p.text_secondary,
+                )),
+        );
     }
     r
 }

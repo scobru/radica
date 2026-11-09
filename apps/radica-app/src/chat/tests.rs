@@ -252,6 +252,7 @@ fn create_room_join_invite_and_emoji_tray_work() {
         status: "7 rooms".into(),
         identity: None,
         media_dir: None,
+        blocked: Vec::new(),
     });
     assert_eq!(rt.state.chat.room().unwrap().key, "dm:2");
     assert_eq!(
@@ -604,5 +605,43 @@ fn an_attachment_shows_as_a_card_not_its_token() {
     assert!(
         !shows(&rt, "radica-cm1"),
         "the token never shows, in the thread or the room list"
+    );
+}
+
+#[test]
+fn typing_at_lists_members_and_a_pick_is_sent_as_their_key() {
+    let mut state = connected();
+    let pk = "cd".repeat(32);
+    let room = state.chat.room().unwrap().key.clone();
+    let me = state.chat.room().unwrap().me;
+    let other = state
+        .chat
+        .room()
+        .unwrap()
+        .members
+        .iter()
+        .find(|m| m.id != me)
+        .unwrap()
+        .clone();
+    let mut rooms = state.chat.rooms().to_vec();
+    for r in rooms.iter_mut().filter(|r| r.key == room) {
+        for m in r.members.iter_mut().filter(|m| m.id == other.id) {
+            m.pubkey = Some(pk.clone());
+        }
+    }
+    state.chat.set_rooms(rooms);
+    let first: String = other.nickname.chars().take(2).collect();
+    state.chat.composer.replace_text(&format!("ciao @{first}"));
+    let mut rt = render(state, WINDOW_SIZE);
+    press(&mut rt, &format!("mention-{}", other.id));
+    let text = rt.state.chat.composer.text.clone();
+    assert_eq!(text, format!("ciao @{} ", other.nickname));
+    assert!(
+        rt.state.chat.mention_candidates().is_empty(),
+        "the picker closes after a pick"
+    );
+    assert_eq!(
+        rt.state.chat.take_mentions(text.trim()),
+        format!("ciao @{pk}")
     );
 }

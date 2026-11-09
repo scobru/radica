@@ -69,6 +69,10 @@ pub struct Chat {
     pub saved_messages: std::collections::BTreeSet<(String, u32)>,
     /// Followed member IDs (`radica/following/v2`).
     pub followed_members: std::collections::BTreeSet<u32>,
+    /// Members I blocked (`blocklist/<me>`).
+    pub blocked_members: std::collections::BTreeSet<u32>,
+    /// Mentions picked in the composer: what shows ("Ann") and whose key it stands for, sent as "@<key>".
+    pub mention_picks: Vec<(String, String)>,
     /// Whether the Freenet Companion Ecosystem & Apps modal is open.
     pub ecosystem_open: bool,
     /// Active user identity (Viso Persona or Local Ed25519 Keypair) and modal state.
@@ -133,6 +137,8 @@ impl Chat {
             join_input: TextEdit::new(""),
             saved_messages: std::collections::BTreeSet::new(),
             followed_members: std::collections::BTreeSet::new(),
+            blocked_members: Default::default(),
+            mention_picks: Vec::new(),
             ecosystem_open: false,
             identity: crate::node::IdentityInfo {
                 pubkey: "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b".into(),
@@ -187,6 +193,7 @@ impl Chat {
         self.day_zero = snap.day_zero;
         self.now = snap.now;
         self.media_dir = snap.media_dir;
+        self.blocked_members = snap.blocked.into_iter().collect();
         if let Some(id) = snap.identity {
             if self.identity_name_input.text.is_empty()
                 || self.identity_name_input.text == self.identity.display_name
@@ -534,6 +541,70 @@ impl Chat {
 
     pub fn is_following(&self, member_id: u32) -> bool {
         self.followed_members.contains(&member_id)
+    }
+
+    /// Block or unblock `member_id`. Returns `true` if now blocked.
+    pub fn toggle_block_member(&mut self, member_id: u32) -> bool {
+        if self.blocked_members.remove(&member_id) {
+            false
+        } else {
+            self.blocked_members.insert(member_id);
+            true
+        }
+    }
+
+    pub fn is_blocked(&self, member_id: u32) -> bool {
+        self.blocked_members.contains(&member_id)
+    }
+
+    /// The "@name" being typed at the end of the composer, if any (`QUERY_RE` in `ui/src/mentionPicker.ts`).
+    pub fn mention_query(&self) -> Option<&str> {
+        let text = &self.composer.text;
+        let at = text.rfind('@')?;
+        let query = &text[at + 1..];
+        let starts_word = text[..at]
+            .chars()
+            .next_back()
+            .is_none_or(char::is_whitespace);
+        (starts_word && query.chars().count() <= 30 && !query.contains(char::is_whitespace))
+            .then_some(query)
+    }
+
+    /// Who the "@" being typed could mention: members of the open room with a key, but not me.
+    pub fn mention_candidates(&self) -> Vec<&Member> {
+        let (Some(q), Some(room)) = (self.mention_query(), self.room()) else {
+            return Vec::new();
+        };
+        let q = q.to_lowercase();
+        room.members
+            .iter()
+            .filter(|m| {
+                m.id != room.me && m.pubkey.is_some() && m.nickname.to_lowercase().contains(&q)
+            })
+            .take(6)
+            .collect()
+    }
+
+    /// Write the picked member as "@Name " in place of the "@…" being typed, and remember whose key it stands for.
+    pub fn pick_mention(&mut self, member_id: u32) {
+        let Some(m) = self.room().and_then(|r| r.member(member_id)).cloned() else {
+            return;
+        };
+        let (Some(pk), Some(at)) = (m.pubkey.clone(), self.composer.text.rfind('@')) else {
+            return;
+        };
+        let next = format!("{}@{} ", &self.composer.text[..at], m.nickname);
+        self.composer.replace_text(&next);
+        self.mention_picks.push((m.nickname, pk));
+    }
+
+    /// `text` with each picked "@Name" as "@<key>", longer names first (`namesToKeys`); forgets the picks.
+    pub fn take_mentions(&mut self, text: &str) -> String {
+        let mut picks = std::mem::take(&mut self.mention_picks);
+        picks.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+        picks.iter().fold(text.to_owned(), |t, (name, pk)| {
+            t.replace(&format!("@{name}"), &format!("@{pk}"))
+        })
     }
 
     /// Insert a ready-to-send interactive poll template into the composer.

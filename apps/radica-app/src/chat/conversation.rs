@@ -536,15 +536,18 @@ fn message_el(chat: &Chat, room: &Room, m: &Message, mine: bool, p: &Palette) ->
         c = c.child(attachment_el(chat, item, p));
     }
     if items.is_empty() || !caption.is_empty() {
-        c = c.child(message_body(
-            m,
-            &if items.is_empty() {
-                m.text.clone()
-            } else {
-                caption
-            },
-            p,
-        ));
+        let shown = if items.is_empty() {
+            m.text.clone()
+        } else {
+            caption
+        };
+        let shown = model::plain_mentions(&shown, |pk| {
+            room.members
+                .iter()
+                .find(|mb| mb.pubkey.as_deref() == Some(pk))
+                .map(|mb| mb.nickname.clone())
+        });
+        c = c.child(message_body(m, &shown, p));
     }
 
     if !m.reactions.is_empty() {
@@ -932,6 +935,40 @@ fn composer(chat: &Chat, room: &Room, p: &Palette, k: &Kit) -> El {
         .pt(6.0)
         .pb(16.0)
         .gap(6.0);
+
+    let candidates = chat.mention_candidates();
+    if !candidates.is_empty() {
+        let mut chips = row()
+            .key("mention-picker")
+            .role("listbox")
+            .label("Mention")
+            .gap(6.0)
+            .flex_wrap();
+        for m in candidates {
+            let id = m.id;
+            chips = chips.child(
+                row()
+                    .key(format!("mention-{id}"))
+                    .role("option")
+                    .label(format!("Mention {}", m.nickname))
+                    .h(28.0)
+                    .px(10.0)
+                    .radius(14.0)
+                    .center_y()
+                    .fill(p.surface)
+                    .border(1.0, p.line_strong)
+                    .hover(p.surface_hover)
+                    .cursor(rune::Cursor::Pointer)
+                    .on_press(move |s: &mut RadicaApp| s.chat.pick_mention(id))
+                    .child(label(
+                        format!("@{}", m.nickname),
+                        st::SMALL_STRONG,
+                        p.accent,
+                    )),
+            );
+        }
+        outer = outer.child(chips);
+    }
 
     if let Some(reply) = &chat.replying_to {
         let who = room.nickname(reply.author).to_owned();

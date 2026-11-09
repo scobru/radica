@@ -941,11 +941,13 @@ pub fn load_live() -> Option<LiveSnapshot> {
             )
         })
         .collect();
-    let (dir_json, comms_json, inbox_json, feed_json, my_feed_json, chat_jsons) =
+    let blocklist_key = log_contract_key(&format!("blocklist/{my_pk}"));
+    let (dir_json, comms_json, inbox_json, feed_json, my_feed_json, chat_jsons, blocklist_json) =
         std::thread::scope(|s| {
             let h_dir = s.spawn(|| fetch_contract_json(&dir_key));
             let h_comms = s.spawn(|| fetch_contract_json(&comms_key));
             let h_inbox = s.spawn(|| fetch_contract_json(&inbox_key));
+            let h_blocklist = s.spawn(|| fetch_contract_json(&blocklist_key));
             let h_feed = s.spawn(|| feed_key.as_deref().and_then(fetch_contract_json));
             let h_my_feed = s.spawn(|| my_feed_key.as_deref().and_then(fetch_contract_json));
             let h_chats: Vec<_> = chat_keys
@@ -961,6 +963,7 @@ pub fn load_live() -> Option<LiveSnapshot> {
                 h_feed.join().ok().flatten(),
                 h_my_feed.join().ok().flatten(),
                 chats,
+                h_blocklist.join().ok().flatten(),
             )
         });
 
@@ -1118,6 +1121,8 @@ pub fn load_live() -> Option<LiveSnapshot> {
         &my_pk,
         day_zero,
     );
+    let blocked = fold_blocklist(&my_pk, blocklist_json.as_ref());
+    hide_blocked(&mut rooms, &blocked);
 
     // Filter out contacts and rooms hidden by the user
     rooms.retain(|r| !hidden_rooms.contains(&r.key));
@@ -1157,6 +1162,7 @@ pub fn load_live() -> Option<LiveSnapshot> {
 
     Some(LiveSnapshot {
         media_dir: crate::media::dir(),
+        blocked: blocked.iter().map(|pk| member_id_of(pk)).collect(),
         rooms,
         today,
         day_zero,
@@ -1724,6 +1730,45 @@ fn apply_inbox_marks(rooms: &mut Vec<Room>, marks: &InboxMarks, my_pk: &str, day
     }
     // a DM I removed stays gone until someone writes in it again
     rooms.retain(|r| !(r.key.starts_with("dm:") && r.messages.is_empty()));
+}
+
+/// Who I blocked, from my own `block` entries in `blocklist/<me>`; the newest word on each wins (`foldBlocklist`).
+fn fold_blocklist(my_pk: &str, log: Option<&Value>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for (author, _, b) in ordered_bodies(log) {
+        let Some(target) = b["target"]
+            .as_str()
+            .filter(|_| author == my_pk && b["type"] == "block")
+        else {
+            continue;
+        };
+        if b["on"].as_bool() == Some(false) {
+            out.remove(target);
+        } else {
+            out.insert(target.to_owned());
+        }
+    }
+    out
+}
+
+/// Leave out what blocked people wrote and their reactions, and conversations with them, as the web does.
+fn hide_blocked(rooms: &mut Vec<Room>, blocked: &BTreeSet<String>) {
+    let ids: BTreeSet<u32> = blocked.iter().map(|pk| member_id_of(pk)).collect();
+    rooms.retain(|r| {
+        !(r.key.starts_with("dm:")
+            && r.members
+                .iter()
+                .any(|m| m.id != r.me && ids.contains(&m.id)))
+    });
+    for room in rooms {
+        room.messages.retain(|m| !ids.contains(&m.author));
+        for m in &mut room.messages {
+            for r in &mut m.reactions {
+                r.by.retain(|id| !ids.contains(id));
+            }
+            m.reactions.retain(|r| !r.by.is_empty());
+        }
+    }
 }
 
 /// River private rooms as I see them. `states` holds each room's state by owner key (None: not on the node yet).
@@ -2579,6 +2624,15 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             }
             Ok(())
         }
+        LiveAction::ToggleBlock { member_id, block } => {
+            let Some(target) = lookup_peer(member_id) else {
+                return Ok(());
+            };
+            append_log_entry(
+                &format!("blocklist/{pubkey}"),
+                &json!({ "type": "block", "target": target, "on": block }),
+            )
+        }
         LiveAction::ToggleFollow { member_id, follow } => {
             let Some(peer_pk) = lookup_peer(member_id) else {
                 return Ok(());
@@ -3274,6 +3328,64 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn my_blocklist_hides_messages_reactions_and_dms() {
+        let me = "1".repeat(64);
+        let l = log(&[
+            (
+                me.as_str(),
+                1,
+                json!({ "type": "block", "target": BOB, "on": true }),
+            ),
+            (me.as_str(), 2, json!({ "type": "block", "target": ALICE })),
+            (
+                me.as_str(),
+                3,
+                json!({ "type": "block", "target": ALICE, "on": false }),
+            ),
+            (MALLORY, 4, json!({ "type": "block", "target": ALICE })),
+        ]);
+        let blocked = fold_blocklist(&me, Some(&l));
+        assert_eq!(blocked, BTreeSet::from([BOB.to_owned()]));
+        let (bob, alice) = (member_id_of(BOB), member_id_of(ALICE));
+        let msg = |id, author| Message {
+            id,
+            author,
+            time: 1,
+            text: String::new(),
+            reply_to: None,
+            reactions: vec![Reaction {
+                emoji: "🔥".into(),
+                by: vec![bob],
+            }],
+            edited: false,
+        };
+        let room = |key: &str, members: Vec<Member>| Room {
+            key: key.into(),
+            name: String::new(),
+            description: String::new(),
+            private: false,
+            members,
+            messages: vec![msg(1, bob), msg(2, alice)],
+            me: 7,
+            unread: 0,
+        };
+        let mut rooms = vec![
+            room("c_x", vec![]),
+            room(
+                "dm:1",
+                vec![
+                    Member::new(7, "me", Role::Member),
+                    Member::new(bob, "Bob", Role::Member),
+                ],
+            ),
+        ];
+        hide_blocked(&mut rooms, &blocked);
+        assert_eq!(rooms.len(), 1, "the DM with Bob goes");
+        assert_eq!(rooms[0].messages.len(), 1);
+        assert!(rooms[0].messages[0].reactions.is_empty());
+    }
 
     #[test]
     fn inbox_marks_clear_and_count_unread_like_the_web() {

@@ -121,7 +121,8 @@ impl RadicaApp {
 
     pub fn send_chat(&mut self) {
         let key = self.chat.room().map(|r| r.key.clone());
-        let text = self.chat.composer.text.trim().to_owned();
+        let raw = self.chat.composer.text.trim().to_owned();
+        let text = self.chat.take_mentions(&raw);
         let editing = self.chat.editing_id;
         let reply_to = self.chat.replying_to.as_ref().map(|r| r.message);
         if self.chat.send()
@@ -206,6 +207,15 @@ impl RadicaApp {
             && let Some(ctl) = &self.ctl
         {
             ctl.act(LiveAction::CreateRoom { slug, name });
+        }
+    }
+
+    pub fn toggle_block(&mut self, member_id: u32) {
+        let block = self.chat.toggle_block_member(member_id);
+        if matches!(self.chat.source, chat::Source::Live(_))
+            && let Some(ctl) = &self.ctl
+        {
+            ctl.act(LiveAction::ToggleBlock { member_id, block });
         }
     }
 
