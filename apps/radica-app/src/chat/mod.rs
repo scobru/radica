@@ -5,6 +5,7 @@
 //! is [`Source::Example`], the built-in example data. Selecting a room, sending a message and
 //! showing or hiding the members panel all work, in memory.
 
+pub mod audio;
 pub mod avatar;
 mod conversation;
 pub mod example;
@@ -104,6 +105,10 @@ pub struct Chat {
     pub media_dir: Option<std::path::PathBuf>,
     /// Decoded image attachments, by hash.
     pub media_images: HashMap<String, rune::image::Image>,
+    /// Plays voice notes and audio attachments; started on the first play.
+    pub audio: Option<audio::Player>,
+    /// Redraws the window from other threads (the audio player's clock).
+    pub waker: Option<rune::Waker>,
     /// Whether a wide window shows the members panel beside the conversation.
     pub members_open: bool,
     /// Whether a narrow window shows the members panel over the conversation. Separate from
@@ -164,6 +169,8 @@ impl Chat {
             avatar_images: HashMap::new(),
             media_dir: None,
             media_images: HashMap::new(),
+            audio: None,
+            waker: None,
             members_open: true,
             members_overlay: false,
             today,
@@ -300,6 +307,22 @@ impl Chat {
         }
     }
 
+    /// Play the audio attachment `hash`, or pause / resume it when it is the one playing.
+    pub fn toggle_audio(&mut self, hash: &str, path: std::path::PathBuf) {
+        let waker = self.waker.clone();
+        self.audio
+            .get_or_insert_with(|| audio::Player::new(waker))
+            .toggle(hash, path);
+    }
+
+    /// What the player is doing with the attachment `hash`, if it is the one loaded.
+    pub fn audio_status(&self, hash: &str) -> Option<audio::Status> {
+        self.audio
+            .as_ref()
+            .map(audio::Player::status)
+            .filter(|s| s.hash.as_deref() == Some(hash))
+    }
+
     /// The opened attachment's file on this device, if the node has it yet.
     pub fn media_path(&self, hash: &str) -> Option<std::path::PathBuf> {
         let p = self.media_dir.as_ref()?.join(hash);
@@ -308,6 +331,7 @@ impl Chat {
 
     /// Initialize the avatar rasterization cache with the window waker.
     pub fn init_avatar_cache(&mut self, waker: rune::Waker) {
+        self.waker = Some(waker.clone());
         self.avatar_cache = Some(rune::image::ImageCache::new(waker));
         self.refresh_avatar_images();
         self.refresh_media_images();
@@ -733,6 +757,12 @@ impl Chat {
         }
         let clean = raw.trim_start_matches('#').trim_start_matches("r/").trim();
         let is_priv = clean.starts_with("priv:") || clean.starts_with("inv_") || clean.len() > 28;
+        if is_priv {
+            // an invite or a River identity: the node opens the room (no placeholder that would linger in the list)
+            self.join_input.clear();
+            self.joining_room = false;
+            return Some(raw);
+        }
         let slug: String = clean
             .trim_start_matches("c_")
             .chars()

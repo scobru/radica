@@ -12,7 +12,7 @@ use super::media;
 use super::model::{self, Group, MINUTES_PER_DAY, Member, Message, Role, Room};
 use super::style::{self as st, Palette};
 use super::view::{HEADER_H, hline, label, room_monogram_el};
-use crate::{RADICA_WEB_URL, RadicaApp};
+use crate::RadicaApp;
 
 const AVATAR: f32 = 34.0;
 const GUTTER: f32 = 48.0;
@@ -212,26 +212,6 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
             if open { p.accent } else { p.text_secondary },
         ));
 
-    let feed_btn = row()
-        .key("header-feed-link")
-        .role("button")
-        .label("Radica Feed (Web)")
-        .help("Open social feed on Radica Web")
-        .h(34.0)
-        .px(10.0)
-        .radius(17.0)
-        .gap(4.0)
-        .center()
-        .fill(p.surface)
-        .border(1.0, p.line)
-        .hover(p.surface_hover)
-        .cursor(rune::Cursor::Pointer)
-        .on_press_tx(|_: &mut RadicaApp, tx: &mut rune::Tx| {
-            let _ = tx.open_url(&format!("{RADICA_WEB_URL}#feed"));
-        })
-        .child(icon(&icons::GLOBAL, 12.0).color(p.accent))
-        .child(label("Feed Web", st::GUTTER_TIME, p.text_secondary));
-
     row()
         .key("room-header")
         .w_full()
@@ -243,7 +223,6 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
         .fill(p.rail)
         .child(room_monogram_el(chat, room, 40.0, p))
         .child(info)
-        .child(feed_btn)
         .child(search_btn)
         .child(toggle)
 }
@@ -824,6 +803,41 @@ fn attachment_el(chat: &Chat, item: &media::MediaItem, p: &Palette) -> El {
                 .child(label(title, st::SMALL_STRONG, p.text).truncate())
                 .child(label(detail, st::GUTTER_TIME, p.text_secondary)),
         );
+    if let Some(src) = path.clone()
+        && matches!(item.kind, media::MediaKind::Voice | media::MediaKind::Audio)
+    {
+        let st = chat.audio_status(&item.hash);
+        let playing = st.as_ref().is_some_and(|s| s.playing);
+        let time = |t: f32| format!("{}:{:02}", t as u32 / 60, t as u32 % 60);
+        let clock = match &st {
+            Some(s) if s.error.is_some() => s.error.clone().unwrap_or_default(),
+            Some(s) => format!("{} / {}", time(s.position), time(s.duration)),
+            None if item.duration_sec > 0.0 => time(item.duration_sec),
+            None => String::new(),
+        };
+        let hash = item.hash.clone();
+        card = card.child(
+            row()
+                .key("play")
+                .role("button")
+                .label(if playing { "Pause" } else { "Play" })
+                .size(32.0, 32.0)
+                .radius(16.0)
+                .center()
+                .fill(p.accent)
+                .hover(p.own_row_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press(move |s: &mut RadicaApp| s.chat.toggle_audio(&hash, src.clone()))
+                .child(label(
+                    if playing { "⏸" } else { "▶" },
+                    st::SMALL_STRONG,
+                    p.on_accent,
+                )),
+        );
+        if !clock.is_empty() {
+            card = card.child(label(clock, st::GUTTER_TIME, p.text_secondary));
+        }
+    }
     if let Some(src) = path {
         let name = if item.filename.is_empty() {
             let ext = item.mime.rsplit('/').next().unwrap_or("bin");

@@ -670,3 +670,25 @@ fn a_channel_is_listed_under_channels_and_only_its_owner_posts() {
     press(&mut rt, "filter-Channels");
     assert!(rt.state.chat.rooms().iter().filter(|r| r.channel).count() == 1);
 }
+
+#[test]
+fn a_voice_note_on_this_device_has_a_play_button() {
+    let mut state = connected();
+    let hash = "c".repeat(64);
+    let dir = std::env::temp_dir().join(format!("radica-media-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(&hash), b"not played in this test").unwrap();
+    state.chat.media_dir = Some(dir);
+    let mut voice = super::media::MediaItem::new(
+        super::media::MediaKind::Voice,
+        "audio/webm",
+        &hash,
+        &"d".repeat(64),
+    );
+    voice.duration_sec = 75.0;
+    state.chat.composer.replace_text(&voice.token());
+    assert!(state.chat.send());
+    let rt = render(state, WINDOW_SIZE);
+    assert!(rt.find("play").is_some());
+    assert!(shows(&rt, "1:15"));
+}

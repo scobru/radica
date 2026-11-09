@@ -1683,7 +1683,7 @@ fn sync_rooms_from_inbox(
                 }
             }
             Some("room_ref") if author == my_pk => {
-                if let Some(rid) = id(&b["roomId"]).filter(|r| !known.contains(r)) {
+                if let Some(rid) = id(&b["roomId"]) {
                     refs.insert(rid);
                 }
             }
@@ -1695,10 +1695,26 @@ fn sync_rooms_from_inbox(
             _ => {}
         }
     }
-    for rid in refs {
-        if let Some(room) = room_descriptor(&rid) {
-            save_private_room(&room);
-        }
+    // A descriptor can change (a channel, its comments room): read each again once per run, new ones at once.
+    static READ: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+    let fresh: Vec<String> = match READ.lock() {
+        Ok(mut read) => refs
+            .into_iter()
+            .filter(|r| read.insert(r.clone()) || !known.contains(r))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    let found: Vec<StoredPrivateRoom> = std::thread::scope(|s| {
+        let hs: Vec<_> = fresh
+            .iter()
+            .map(|rid| s.spawn(move || room_descriptor(rid)))
+            .collect();
+        hs.into_iter()
+            .filter_map(|h| h.join().ok().flatten())
+            .collect()
+    });
+    for room in found {
+        save_private_room(&room);
     }
     hidden
         .into_iter()
@@ -2270,6 +2286,39 @@ fn river_write(
     }
 }
 
+/// The room a River "Export ID" token (`-----BEGIN RIVER IDENTITY-----`) gives me: my key and membership there, so I
+/// am the same member as in River (`importRiverIdentity` on the web). A room I already know by its owner keeps its id.
+fn river_room_from_identity(token: &str, my_pk: &str) -> Result<StoredPrivateRoom, String> {
+    let r = crate::river::call(json!({ "op": "import_identity", "token": token }))?;
+    let owner = r["owner_vk"]
+        .as_str()
+        .ok_or("Invalid River identity")?
+        .to_owned();
+    let sk = r["sk"].as_str().ok_or("Invalid River identity")?.to_owned();
+    let known = load_private_rooms().into_iter().find(|k| k.owner == owner);
+    // the owner's own key makes me the room's creator; otherwise its owner key stands in for a creator persona
+    let creator = if crate::river::vk_of(&sk).as_deref() == Some(owner.as_str()) {
+        my_pk.to_owned()
+    } else {
+        known
+            .as_ref()
+            .map_or_else(|| owner.clone(), |k| k.creator.clone())
+    };
+    Ok(StoredPrivateRoom {
+        id: known.as_ref().map_or_else(
+            || format!("privroom_river_{}", &owner[..16]),
+            |k| k.id.clone(),
+        ),
+        name: r["room_name"].as_str().unwrap_or_default().to_owned(),
+        creator,
+        owner,
+        key_hex: Some(sk),
+        join: Some(json!({ "member": r["member"], "chain": r["chain"], "secrets": r["secrets"] })),
+        is_channel: known.as_ref().is_some_and(|k| k.is_channel),
+        linked_room_id: known.and_then(|k| k.linked_room_id),
+    })
+}
+
 /// A River invitation code in what was pasted: a bare code, River's `?invitation=` link or Radica's `#river_invite=`
 /// (`riverCodeIn` in `ui/src/main.ts`).
 fn river_code_in(raw: &str) -> Option<&str> {
@@ -2628,7 +2677,12 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
         }
         LiveAction::JoinRoom { code } => {
             let trimmed = code.trim();
-            if let Some(room) = river_room_from_invite(trimmed)? {
+            let invited = if trimmed.contains("BEGIN RIVER IDENTITY") {
+                Some(river_room_from_identity(trimmed, &pubkey)?)
+            } else {
+                river_room_from_invite(trimmed)?
+            };
+            if let Some(room) = invited {
                 let id = room.id.clone();
                 save_private_room(&room);
                 unhide_room(&format!("priv:{id}"));
@@ -3405,6 +3459,25 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_river_identity_token_becomes_my_room() {
+        let owner_sk = hex::encode([3u8; 32]);
+        let owner = crate::river::vk_of(&owner_sk).unwrap();
+        let state = crate::river::call(json!({"op":"new_room","owner_sk":owner_sk,"name":"Italiani","nickname":"A","private":true,"time_ms":1}))
+            .unwrap()["state"].as_str().unwrap().to_owned();
+        // River's "Export ID" for the owner itself: importing it makes me the room's creator here
+        let token = crate::river::call(json!({"op":"export_identity","sk":owner_sk,"owner_vk":owner,"state":state,"nickname":"A"}))
+            .unwrap()["token"].as_str().unwrap().to_owned();
+        assert!(token.contains("BEGIN RIVER IDENTITY"));
+        let dir = tempfile::tempdir().unwrap();
+        unsafe { std::env::set_var("XDG_DATA_HOME", dir.path()) };
+        let room = river_room_from_identity(&token, "me").unwrap();
+        assert_eq!(room.owner, owner);
+        assert_eq!(room.key_hex.as_deref(), Some(owner_sk.as_str()));
+        assert_eq!(room.creator, "me");
+        assert!(room.id.starts_with("privroom_river_"));
+    }
 
     #[test]
     fn opens_the_river_access_the_web_seals_to_itself() {

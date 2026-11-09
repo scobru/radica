@@ -244,6 +244,26 @@ mod tests {
     }
 
     #[test]
+    fn the_web_s_webp_photos_decode() {
+        // the web sends chat photos as WebP; Rune finds the format from the bytes
+        let mut webp = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
+            .encode(
+                &[255, 0, 0, 255, 0, 255, 0, 255],
+                2,
+                1,
+                image::ExtendedColorType::Rgba8,
+            )
+            .unwrap();
+        let img = image::ImageReader::new(std::io::Cursor::new(&webp))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+        assert_eq!((img.width(), img.height()), (2, 1));
+    }
+
+    #[test]
     fn unsafe_or_malformed_tokens_stay_text() {
         for bad in [
             format!("[radica-cm1:img:image/svg+xml:{H}:{K}:1x1]"),
