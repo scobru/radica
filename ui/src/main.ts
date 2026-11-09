@@ -449,7 +449,7 @@ function refreshTrustedBlocklists(seen = new Set<string>()): void {
             renderCommunities();
           });
         }
-        if (blocklistsModal.style.display === "flex") renderBlocklists();
+        if (isOpen(blocklistsModal) && paneBlocklists?.style.display !== "none") renderBlocklists(); // not behind the Moderation tab
       }, 0);
     });
   }
@@ -1035,22 +1035,21 @@ function renderBlocklists() {
   const row = (pk: string, note: string, action: string) =>
     `<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;"><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;" data-act="profile" data-author="${escapeHtml(pk)}">${escapeHtml(getAuthorDisplayName(pk))} <small style="color: var(--text-muted);">${escapeHtml(note)}</small></span><button class="btn-secondary btn-sm" data-act="${action}" data-pk="${escapeHtml(pk)}">${action === "untrust" ? "Stop" : action === "unhide-user" ? "Unhide" : "Remove"}</button></div>`;
   const trusted = trustedCurators();
-  document.getElementById("blocklists-trusted")!.innerHTML =
-    trusted.map((c) => row(c, `blocks ${freenet.blockedBy(c).size}, reports ${freenet.reportedBy(c).size}${c === DEFAULT_CURATOR ? ` (Radica's default${freenet.modsOf(c).size ? `; with its moderators ${[...freenet.modsOf(c)].map(getAuthorDisplayName).join(", ")}` : ""})` : ""}`, "untrust")).join("") || "<small>None yet.</small>";
-  document.getElementById("blocklists-mine")!.innerHTML =
-    [...freenet.blockedBy(me)].map((t) => row(t, "", "unblock")).join("") || "<small>Empty.</small>";
+  setHtmlIfChanged(document.getElementById("blocklists-trusted")!,
+    trusted.map((c) => row(c, `blocks ${freenet.blockedBy(c).size}, reports ${freenet.reportedBy(c).size}${c === DEFAULT_CURATOR ? ` (Radica's default${freenet.modsOf(c).size ? `; with its moderators ${[...freenet.modsOf(c)].map(getAuthorDisplayName).join(", ")}` : ""})` : ""}`, "untrust")).join("") || "<small>None yet.</small>");
+  setHtmlIfChanged(document.getElementById("blocklists-mine")!,
+    [...freenet.blockedBy(me)].map((t) => row(t, "", "unblock")).join("") || "<small>Empty.</small>");
 
   const hiddenEl = document.getElementById("blocklists-hidden");
   if (hiddenEl) {
     const hidden = hiddenUsers();
-    hiddenEl.innerHTML =
-      hidden.map((pk) => row(pk, "", "unhide-user")).join("") || "<small>None.</small>";
+    setHtmlIfChanged(hiddenEl, hidden.map((pk) => row(pk, "", "unhide-user")).join("") || "<small>None.</small>");
   }
 
   const reportsEl = document.getElementById("blocklists-reports");
   if (reportsEl) {
     const myReports = [...freenet.reportedBy(me).entries()];
-    reportsEl.innerHTML = myReports.map(([target, reason]) => {
+    setHtmlIfChanged(reportsEl, myReports.map(([target, reason]) => {
       const colon = target.indexOf(":");
       const author = colon > 0 ? target.slice(0, colon) : target;
       const postId = colon > 0 ? target.slice(colon + 1) : "";
@@ -1060,7 +1059,7 @@ function renderBlocklists() {
         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${postId.startsWith("comm_") ? "Comment" : "Post"} by <b>${escapeHtml(authorName)}</b> <small style="color: var(--text-muted);">${escapeHtml(reasonNote)}</small></span>
         <button class="btn-secondary btn-sm" data-act="unreport" data-author="${escapeHtml(author)}" data-post-id="${escapeHtml(postId)}">Unreport</button>
       </div>`;
-    }).join("") || "<small>None yet.</small>";
+    }).join("") || "<small>None yet.</small>");
   }
 }
 document.getElementById("blocklists-open-btn")!.addEventListener("click", () => {
@@ -1274,11 +1273,12 @@ function renderModDashboard() {
         </div>`;
       })
       .join("");
-  document.getElementById("mod-queue")!.innerHTML =
+  // skipped when unchanged: a sync redraws this on every update, which would close the open <details> under the reader
+  setHtmlIfChanged(document.getElementById("mod-queue")!,
     (itemHtml(heard) || (strangers.length ? "" : "<small>Nothing reported.</small>")) +
     (strangers.length
       ? `<details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">Reported only by people outside your network (${strangers.length}): anyone can make a key, so these wait here</summary><div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">${itemHtml(strangers)}</div></details>`
-      : "");
+      : ""));
 
   const banned: string[] = [];
   for (const mod of [DEFAULT_CURATOR, ...freenet.modsOf(DEFAULT_CURATOR)]) {
@@ -1288,7 +1288,7 @@ function renderModDashboard() {
       );
     }
   }
-  document.getElementById("mod-banned")!.innerHTML = banned.join("") || "<small>Nobody.</small>";
+  setHtmlIfChanged(document.getElementById("mod-banned")!, banned.join("") || "<small>Nobody.</small>");
 
   const hiddenRows: string[] = [];
   for (const mod of [DEFAULT_CURATOR, ...freenet.modsOf(DEFAULT_CURATOR)]) {
@@ -1298,7 +1298,7 @@ function renderModDashboard() {
       );
     }
   }
-  document.getElementById("mod-comm-list")!.innerHTML = hiddenRows.join("") || "<small>None.</small>";
+  setHtmlIfChanged(document.getElementById("mod-comm-list")!, hiddenRows.join("") || "<small>None.</small>");
 }
 
 /** Hide a community for everyone who follows Radica's moderation (a moderator's act), and redraw what shows it. */
