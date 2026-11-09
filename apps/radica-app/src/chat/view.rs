@@ -609,7 +609,7 @@ fn room_row(chat: &Chat, room: &Room, selected: bool, width: f32, p: &Palette) -
         .center_y()
         .radius(12.0)
         .cursor(rune::Cursor::Pointer)
-        .on_press(move |s: &mut RadicaApp| s.chat.select(&key))
+        .on_press(move |s: &mut RadicaApp| s.open_room(&key))
         .child(room_monogram_el(chat, room, 38.0, p))
         .child(
             col()

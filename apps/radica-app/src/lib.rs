@@ -152,6 +152,18 @@ impl RadicaApp {
         }
     }
 
+    /// Open a room from the list; on the node it counts as read up to now.
+    pub fn open_room(&mut self, room_key: &str) {
+        self.chat.select(room_key);
+        if matches!(self.chat.source, chat::Source::Live(_))
+            && let Some(ctl) = &self.ctl
+        {
+            ctl.act(LiveAction::MarkRead {
+                room_key: room_key.to_owned(),
+            });
+        }
+    }
+
     pub fn remove_room(&mut self, room_key: &str) {
         if self.chat.remove_room(room_key)
             && matches!(self.chat.source, chat::Source::Live(_))

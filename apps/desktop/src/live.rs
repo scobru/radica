@@ -1112,6 +1112,13 @@ pub fn load_live() -> Option<LiveSnapshot> {
         rooms.push(dm_room);
     }
 
+    apply_inbox_marks(
+        &mut rooms,
+        &fold_inbox_marks(&my_pk, inbox_json.as_ref()),
+        &my_pk,
+        day_zero,
+    );
+
     // Filter out contacts and rooms hidden by the user
     rooms.retain(|r| !hidden_rooms.contains(&r.key));
     let total_msgs: usize = rooms.iter().map(|r| r.messages.len()).sum();
@@ -1627,6 +1634,86 @@ fn sync_rooms_from_inbox(my_pk: &str, inbox: Option<&Value>) -> BTreeSet<String>
         .filter(|(_, on)| *on)
         .map(|(id, _)| id)
         .collect()
+}
+
+/// The web's id for a desktop room key: `comm_<id>` for a community, the room id for a private room, the sorted
+/// pubkey pair for a DM. The DM peer comes along (read receipts and removals name them).
+fn web_room_id(room_key: &str, my_pk: &str) -> Option<(String, Option<String>)> {
+    if room_key.starts_with("c_") {
+        return Some((format!("comm_{room_key}"), None));
+    }
+    if let Some(id) = room_key.strip_prefix("priv:") {
+        return Some((id.to_owned(), None));
+    }
+    let peer = lookup_peer(room_key.strip_prefix("dm:")?.parse().ok()?)?;
+    let (a, b) = if my_pk <= peer.as_str() {
+        (my_pk, peer.as_str())
+    } else {
+        (peer.as_str(), my_pk)
+    };
+    Some((format!("{a}:{b}"), Some(peer)))
+}
+
+/// What my own inbox entries say about my rooms, as `foldChatRead` / `foldChatHides` in `ui/src/logfold.ts`: when I
+/// last read each room, when I cleared it, and when I removed each DM conversation. All in ms.
+#[derive(Default, Debug)]
+struct InboxMarks {
+    read: HashMap<String, u64>,
+    cleared: HashMap<String, u64>,
+    removed: HashMap<String, u64>,
+}
+
+fn fold_inbox_marks(my_pk: &str, inbox: Option<&Value>) -> InboxMarks {
+    let mut out = InboxMarks::default();
+    for (author, _, b) in ordered_bodies(inbox) {
+        let (Some(upto), true) = (b["upto"].as_u64(), author == my_pk) else {
+            continue;
+        };
+        let (map, key) = match b["type"].as_str() {
+            Some("chat_read") => (&mut out.read, &b["room"]),
+            Some("chat_clear") => (&mut out.cleared, &b["room"]),
+            Some("chat_remove") => (&mut out.removed, &b["peer"]),
+            _ => continue,
+        };
+        if let Some(k) = key.as_str() {
+            let v = map.entry(k.to_owned()).or_default();
+            *v = (*v).max(upto);
+        }
+    }
+    out
+}
+
+/// Hide what I cleared or removed, and count what others wrote since I last read each room.
+/// shortcut: compares at message-minute precision (`Message::time`), so a message in the same minute as a clear or a
+/// read mark counts as before it; carry ms on `Message` if that ever shows.
+fn apply_inbox_marks(rooms: &mut Vec<Room>, marks: &InboxMarks, my_pk: &str, day_zero: i64) {
+    for room in rooms.iter_mut() {
+        let Some((web_id, peer)) = web_room_id(&room.key, my_pk) else {
+            continue;
+        };
+        let hide_upto = [
+            marks.cleared.get(&web_id),
+            peer.as_ref().and_then(|p| marks.removed.get(p)),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+        .copied();
+        if let Some(upto) = hide_upto {
+            let upto = ms_to_minutes(upto, day_zero);
+            room.messages.retain(|m| m.time > upto);
+        }
+        if let Some(&read) = marks.read.get(&web_id) {
+            let read = ms_to_minutes(read, day_zero);
+            room.unread = room
+                .messages
+                .iter()
+                .filter(|m| m.author != room.me && m.time > read)
+                .count();
+        }
+    }
+    // a DM I removed stays gone until someone writes in it again
+    rooms.retain(|r| !(r.key.starts_with("dm:") && r.messages.is_empty()));
 }
 
 /// River private rooms as I see them. `states` holds each room's state by owner key (None: not on the node yet).
@@ -2424,7 +2511,28 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             }
             Ok(())
         }
+        LiveAction::MarkRead { room_key } => {
+            let Some((room, peer)) = web_room_id(&room_key, &pubkey) else {
+                return Ok(());
+            };
+            let body = json!({ "type": "chat_read", "room": room, "upto": ts });
+            append_log_entry(&format!("inbox/{pubkey}"), &body)?;
+            // the peer's copy is their read receipt
+            if let Some(peer) = peer {
+                let _ = append_log_entry(&format!("inbox/{peer}"), &body);
+            }
+            Ok(())
+        }
         LiveAction::RemoveRoom { room_key } => {
+            if room_key.starts_with("dm:")
+                && let Some((_, Some(peer))) = web_room_id(&room_key, &pubkey)
+            {
+                // the conversation goes on every device, until someone writes in it again
+                return append_log_entry(
+                    &format!("inbox/{pubkey}"),
+                    &json!({ "type": "chat_remove", "peer": peer, "upto": ts }),
+                );
+            }
             remember_hidden_room(&room_key);
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
                 let creator = load_private_rooms()
@@ -3144,6 +3252,62 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inbox_marks_clear_and_count_unread_like_the_web() {
+        let me = "1".repeat(64);
+        let l = log(&[
+            (
+                me.as_str(),
+                1,
+                json!({ "type": "chat_read", "room": "comm_c_x", "upto": 120_000 }),
+            ),
+            (
+                me.as_str(),
+                2,
+                json!({ "type": "chat_read", "room": "comm_c_x", "upto": 60_000 }),
+            ),
+            (
+                me.as_str(),
+                3,
+                json!({ "type": "chat_clear", "room": "comm_c_y", "upto": 120_000 }),
+            ),
+            (
+                MALLORY,
+                4,
+                json!({ "type": "chat_clear", "room": "comm_c_x", "upto": 9_999_999 }),
+            ),
+        ]);
+        let marks = fold_inbox_marks(&me, Some(&l));
+        assert_eq!(marks.read["comm_c_x"], 120_000);
+        assert!(
+            !marks.cleared.contains_key("comm_c_x"),
+            "only my own entries count"
+        );
+        let msg = |id, author, min| Message {
+            id,
+            author,
+            time: min,
+            text: String::new(),
+            reply_to: None,
+            reactions: vec![],
+            edited: false,
+        };
+        let room = |key: &str| Room {
+            key: key.into(),
+            name: String::new(),
+            description: String::new(),
+            private: false,
+            members: vec![],
+            messages: vec![msg(1, 2, 1), msg(2, 2, 3), msg(3, 1, 4)],
+            me: 1,
+            unread: 0,
+        };
+        let mut rooms = vec![room("c_x"), room("c_y")];
+        apply_inbox_marks(&mut rooms, &marks, &me, 0);
+        assert_eq!(rooms[0].unread, 1, "only others' messages after minute 2");
+        assert_eq!(rooms[1].messages.len(), 2, "cleared up to minute 2");
+    }
 
     #[test]
     fn invites_parse_river_codes_and_key_links_but_not_legacy_aes_links() {

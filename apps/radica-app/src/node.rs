@@ -89,6 +89,10 @@ pub enum LiveAction {
     RemoveRoom {
         room_key: String,
     },
+    /// The room was opened: record that I read it so far (`chat_read`, followed on every device).
+    MarkRead {
+        room_key: String,
+    },
     CreateRoom {
         slug: String,
         name: String,
