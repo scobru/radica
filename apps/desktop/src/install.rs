@@ -8,10 +8,9 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use radica_app::InstallStep;
 use sha2::{Digest, Sha256};
 
-use crate::host::run;
+use crate::host::{InstallStep, run};
 
 /// How long the Windows setup wizard may stay open before River stops waiting for it.
 const INSTALLER_DEADLINE: Duration = Duration::from_secs(30 * 60);

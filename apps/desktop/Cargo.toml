@@ -1,6 +1,6 @@
 [package]
 name = "radica-desktop"
-description = "Radica desktop app: finds or installs a local Freenet node, then runs Radica"
+description = "Radica desktop app: finds or installs a local Freenet node, then opens Radica web from it"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,17 +12,10 @@ name = "radica"
 path = "src/main.rs"
 
 [dependencies]
-radica-app.workspace = true
-radica-river.workspace = true
-rune.workspace = true
-blake3 = "1"
 ureq = { version = "2", default-features = false, features = ["tls"] }
 serde_json = "1"
-serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 ed25519-dalek = "2"
-curve25519-dalek = "4"
-ring = "0.17"
 hex = "0.4"
 flate2 = "1"
 tar = "0.4"

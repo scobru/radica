@@ -6,8 +6,6 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use radica_app::{InstallStep, LiveAction, LiveSnapshot, NodeHost, NodeProbe};
-
 use crate::install;
 use crate::release::{self, Release};
 
@@ -18,6 +16,40 @@ const VERSION_URL: &str = "http://127.0.0.1:7509/v1/version";
 
 /// The longest a command River runs (`freenet service ...`, `hdiutil`, `ditto`) may take.
 const COMMAND_DEADLINE: Duration = Duration::from_secs(120);
+
+/// Where to send someone who wants to install Freenet by hand.
+pub const MANUAL_INSTALL_URL: &str = "https://freenet.org/quickstart/";
+
+/// The state of the local Freenet node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NodeProbe {
+    /// A node answered on its client API.
+    Running { version: String },
+    /// A node is running, but it is older than Radica supports. `running` is `None` when it is
+    /// too old to report its version at all.
+    Outdated {
+        running: Option<String>,
+        minimum: String,
+    },
+    /// Freenet is installed but no node answered.
+    InstalledNotRunning,
+    /// Freenet is not installed.
+    NotInstalled,
+}
+
+/// One step of installing Freenet, reported as it happens.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InstallStep {
+    FindingRelease,
+    Downloading {
+        received: u64,
+        total: Option<u64>,
+    },
+    Verifying,
+    Installing,
+    /// Waiting on an installer the platform opened (Windows' setup wizard).
+    WaitingForInstaller,
+}
 
 /// What answered on the node's port.
 #[derive(Debug, PartialEq, Eq)]
@@ -104,16 +136,16 @@ fn classify(answer: Answer, installed: bool) -> NodeProbe {
     }
 }
 
-impl NodeHost for DesktopHost {
-    fn probe(&self) -> NodeProbe {
+impl DesktopHost {
+    pub fn probe(&self) -> NodeProbe {
         classify(self.ask_node(), find_installed().is_some())
     }
 
-    fn can_install(&self) -> bool {
+    pub fn can_install(&self) -> bool {
         release::asset_name(release::MIN_INSTALL_VERSION).is_ok()
     }
 
-    fn install(&self, progress: &mut dyn FnMut(InstallStep)) -> Result<(), String> {
+    pub fn install(&self, progress: &mut dyn FnMut(InstallStep)) -> Result<(), String> {
         progress(InstallStep::FindingRelease);
         let release = Release::latest()?;
         let asset = release::asset_name(release.version)?;
@@ -130,7 +162,7 @@ impl NodeHost for DesktopHost {
         })
     }
 
-    fn start(&self) -> Result<(), String> {
+    pub fn start(&self) -> Result<(), String> {
         match find_installed().ok_or("Freenet isn't installed")? {
             Installed::MacApp(app) => run(Command::new("/usr/bin/open").arg(app)),
             Installed::Binary(bin) => start_binary(
@@ -142,18 +174,6 @@ impl NodeHost for DesktopHost {
                 &mut install::forget_install,
             ),
         }
-    }
-
-    fn load_live(&self) -> Option<LiveSnapshot> {
-        crate::live::load_live()
-    }
-
-    fn send_live(&self, room_key: &str, text: &str) -> Result<(), String> {
-        crate::live::send_live(room_key, text)
-    }
-
-    fn act_live(&self, action: LiveAction) -> Result<(), String> {
-        crate::live::act_live(action)
     }
 }
 
