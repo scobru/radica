@@ -213,7 +213,7 @@ The desktop app under `apps/` (`apps/desktop`) is Radica web in a native window,
 
 **Android** (`apps/android`): Radica web in a WebView over the Freenet node that [Freenet Android Node](https://github.com/HostFat/freenet-android-node) (community app by HostFat, unofficial) runs on the phone. When no node answers, the app says whether that app is missing (with where to get it) or installed but stopped (with a button to open it), and opens Radica by itself once the node is up.
 
-Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed) and macOS (Apple Silicon and Intel, unsigned `Radica.app`) and Android (debug-signed APK) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release.
+Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed) and macOS (Apple Silicon and Intel, unsigned `Radica.app`) and Android (debug-signed APK) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release. Radica's version lives in the root `package.json`: the desktop app (`apps/Cargo.toml`, checked by a test), the Android app and the macOS bundle carry it, and a release tag must be `v` plus that version (for example `v1.0.0`) or its build fails.
 
 ```bash
 npm run app        # cargo run --manifest-path apps/Cargo.toml -p radica-desktop

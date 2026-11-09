@@ -25,6 +25,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: The tag is Radica's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "${{ github.ref_name }}" = "v$(node -p "require('./package.json').version")" || { echo "Tag ${{ github.ref_name }} does not match package.json"; exit 1; }
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -53,11 +56,12 @@ jobs:
             <key>CFBundleIdentifier</key><string>org.freenet.radica</string>
             <key>CFBundleExecutable</key><string>radica</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>0.1.0</string>
+            <key>CFBundleShortVersionString</key><string>VERSION</string>
             <key>LSMinimumSystemVersion</key><string>11.0</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF
+          sed -i '' "s/VERSION/$(node -p "require('./package.json').version")/" $app/Info.plist
           ditto -c -k --keepParent Radica.app ${{ matrix.name }}.zip
 
       - uses: actions/upload-artifact@v4
@@ -73,6 +77,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: The tag is Radica's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "${{ github.ref_name }}" = "v$(node -p "require('./package.json').version")" || { echo "Tag ${{ github.ref_name }} does not match package.json"; exit 1; }
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
