@@ -12,7 +12,6 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -140,7 +139,7 @@ fn save_private_room(room: &StoredPrivateRoom) {
         })
         .collect();
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let _ = fs::write(p, serde_json::to_string_pretty(&val).unwrap_or_default());
 }
@@ -191,7 +190,7 @@ fn save_following(set: &BTreeSet<String>) {
         return;
     };
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let vec: Vec<&String> = set.iter().collect();
     let _ = fs::write(p, serde_json::to_string(&vec).unwrap_or_default());
@@ -319,7 +318,7 @@ fn remember_joined_community(comm_id: &str) {
     if !list.iter().any(|x| x == comm_id) {
         list.push(comm_id.to_owned());
         if let Some(parent) = p.parent() {
-            let _ = fs::create_dir_all(parent);
+            make_private_dir(parent);
         }
         let _ = fs::write(p, serde_json::to_string(&list).unwrap_or_default());
     }
@@ -581,20 +580,24 @@ impl StoredDesktopIdentity {
     }
 }
 
-fn entropy_32(tag: &str) -> [u8; 32] {
-    static SEQ: AtomicU64 = AtomicU64::new(1);
-    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let pid = std::process::id();
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&nanos.to_le_bytes());
-    hasher.update(&seq.to_le_bytes());
-    hasher.update(&pid.to_le_bytes());
-    *hasher.finalize().as_bytes()
+/// 32 bytes from the OS CSPRNG. Seeds keys, room keys and AES-GCM IVs, so it must be unpredictable.
+fn entropy_32(_tag: &str) -> [u8; 32] {
+    use ring::rand::{SecureRandom, SystemRandom};
+    let mut out = [0u8; 32];
+    SystemRandom::new()
+        .fill(&mut out)
+        .expect("OS random number generator unavailable");
+    out
+}
+
+/// Create Radica's data dir readable by this user only: it holds the signing key and room keys.
+fn make_private_dir(dir: &std::path::Path) {
+    let _ = fs::create_dir_all(dir);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+    }
 }
 
 fn identity_json_path() -> Option<PathBuf> {
@@ -610,7 +613,7 @@ fn legacy_identity_hex_path() -> Option<PathBuf> {
 fn save_stored_identity(id: &StoredDesktopIdentity) {
     if let Some(p) = identity_json_path() {
         if let Some(parent) = p.parent() {
-            let _ = fs::create_dir_all(parent);
+            make_private_dir(parent);
         }
         let _ = fs::write(
             p,
@@ -671,7 +674,7 @@ fn save_pending_messages(list: &[PendingMessage]) {
         return;
     };
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let _ = fs::write(p, serde_json::to_string_pretty(list).unwrap_or_default());
 }
@@ -737,7 +740,7 @@ fn remember_deleted_message(wire_id: &str) {
     let mut set = load_deleted_messages();
     set.insert(wire_id.to_owned());
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let _ = fs::write(p, serde_json::to_string_pretty(&set).unwrap_or_default());
 }
@@ -764,7 +767,7 @@ fn remember_hidden_room(room_key: &str) {
     let mut set = load_hidden_rooms();
     set.insert(room_key.to_owned());
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let _ = fs::write(p, serde_json::to_string_pretty(&set).unwrap_or_default());
 }
@@ -799,7 +802,7 @@ fn save_profiles_cache(cache: &HashMap<String, String>) {
         return;
     };
     if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
+        make_private_dir(parent);
     }
     let _ = fs::write(p, serde_json::to_string_pretty(cache).unwrap_or_default());
 }
@@ -2860,6 +2863,25 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entropy_is_random_not_derived_from_tag_or_time() {
+        let a = entropy_32("same-tag");
+        let b = entropy_32("same-tag");
+        assert_ne!(a, b);
+        assert_ne!(a, [0u8; 32]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn private_dir_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("Radica");
+        make_private_dir(&dir);
+        let mode = fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+    }
 
     #[test]
     fn contract_keys_match_radica_web_app() {
