@@ -645,3 +645,28 @@ fn typing_at_lists_members_and_a_pick_is_sent_as_their_key() {
         format!("ciao @{pk}")
     );
 }
+
+#[test]
+fn a_channel_is_listed_under_channels_and_only_its_owner_posts() {
+    let mut state = connected();
+    let key = state.chat.room().unwrap().key.clone();
+    let me = state.chat.room().unwrap().me;
+    let mut rooms = state.chat.rooms().to_vec();
+    for r in rooms.iter_mut().filter(|r| r.key == key) {
+        r.private = true;
+        r.channel = true;
+        for m in r.members.iter_mut().filter(|m| m.id == me) {
+            m.role = super::Role::Member;
+        }
+    }
+    state.chat.set_rooms(rooms);
+    let mut rt = render(state, WINDOW_SIZE);
+    assert!(shows(
+        &rt,
+        "Only the channel's owner and moderators post here"
+    ));
+    assert!(rt.find("composer-field").is_none());
+    assert!(shows(&rt, "CHANNEL"));
+    press(&mut rt, "filter-Channels");
+    assert!(rt.state.chat.rooms().iter().filter(|r| r.channel).count() == 1);
+}

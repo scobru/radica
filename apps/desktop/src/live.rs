@@ -100,6 +100,11 @@ struct StoredPrivateRoom {
     /// My signed membership and sealed room secret(s), from an invite.
     #[serde(default)]
     join: Option<Value>,
+    /// A broadcast channel (`is_channel`), and the room linked to it (`linked_room_id`): its comments, or its channel.
+    #[serde(default)]
+    is_channel: bool,
+    #[serde(default)]
+    linked_room_id: Option<String>,
 }
 
 fn private_rooms_path() -> Option<PathBuf> {
@@ -968,7 +973,8 @@ pub fn load_live() -> Option<LiveSnapshot> {
         });
 
     // River private rooms: learn new ones from my inbox, then read each room's state.
-    let removed_rooms = sync_rooms_from_inbox(&my_pk, inbox_json.as_ref());
+    let removed_rooms =
+        sync_rooms_from_inbox(&my_pk, &local_identity().0.to_bytes(), inbox_json.as_ref());
     let priv_rooms_cfg: Vec<StoredPrivateRoom> = load_private_rooms()
         .into_iter()
         .filter(|r| !removed_rooms.contains(&r.id))
@@ -1566,6 +1572,8 @@ fn build_community_room(
         messages,
         me: me_id,
         unread: 0,
+        channel: false,
+        linked: None,
     }
 }
 
@@ -1587,6 +1595,11 @@ fn room_descriptor(room_id: &str) -> Option<StoredPrivateRoom> {
                     owner,
                     key_hex: None,
                     join: None,
+                    is_channel: room["is_channel"].as_bool() == Some(true),
+                    linked_room_id: room["linked_room_id"]
+                        .as_str()
+                        .filter(|id| valid_room_id(id))
+                        .map(str::to_owned),
                 })
         })
         .last()
@@ -1598,10 +1611,40 @@ fn valid_room_id(id: &str) -> bool {
         && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 
+/// What the web sealed to me about a River room (`river_access`): its owner and my key and join there, which the web
+/// otherwise keeps only in its own storage and the node's delegate. The room id is the entry's.
+fn open_river_access(my_seed: &[u8; 32], sealed: &Value) -> Option<StoredPrivateRoom> {
+    let my_vk = hex::encode(SigningKey::from_bytes(my_seed).verifying_key().to_bytes());
+    let a: Value =
+        serde_json::from_str(&decrypt_direct_message(my_seed, &my_vk, sealed.as_str()?)?).ok()?;
+    let hex64 = |v: &Value| {
+        v.as_str()
+            .filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
+            .map(str::to_owned)
+    };
+    Some(StoredPrivateRoom {
+        id: String::new(),
+        name: String::new(),
+        creator: a["creator"].as_str()?.to_owned(),
+        owner: hex64(&a["owner"])?,
+        key_hex: hex64(&a["k"]),
+        join: Some(a["join"].clone()).filter(|j| !j.is_null()),
+        is_channel: a["is_channel"].as_bool() == Some(true),
+        linked_room_id: a["linked_room_id"]
+            .as_str()
+            .filter(|id| valid_room_id(id))
+            .map(str::to_owned),
+    })
+}
+
 /// Learn River rooms from my inbox, as the web does: invites (`room_invite` from the room's creator, with my sealed
 /// River join) and rooms I made or joined elsewhere (`room_ref`, whose `room/<id>` log names the owner).
 /// Returns the rooms I removed (`room_hide`, my newest word wins), so every device hides the same ones.
-fn sync_rooms_from_inbox(my_pk: &str, inbox: Option<&Value>) -> BTreeSet<String> {
+fn sync_rooms_from_inbox(
+    my_pk: &str,
+    my_seed: &[u8; 32],
+    inbox: Option<&Value>,
+) -> BTreeSet<String> {
     let known: BTreeSet<String> = load_private_rooms().into_iter().map(|r| r.id).collect();
     let mut refs: BTreeSet<String> = BTreeSet::new();
     let mut hidden: BTreeMap<String, bool> = BTreeMap::new();
@@ -1624,7 +1667,19 @@ fn sync_rooms_from_inbox(my_pk: &str, inbox: Option<&Value>) -> BTreeSet<String>
                         owner: owner.to_owned(),
                         key_hex: None,
                         join: Some(b["river_join"].clone()),
+                        is_channel: room["is_channel"].as_bool() == Some(true),
+                        linked_room_id: room["linked_room_id"]
+                            .as_str()
+                            .filter(|id| valid_room_id(id))
+                            .map(str::to_owned),
                     });
+                }
+            }
+            Some("river_access") if author == my_pk => {
+                if let (Some(rid), Some(room)) =
+                    (id(&b["roomId"]), open_river_access(my_seed, &b["sealed"]))
+                {
+                    save_private_room(&StoredPrivateRoom { id: rid, ..room });
                 }
             }
             Some("room_ref") if author == my_pk => {
@@ -1809,6 +1864,8 @@ fn build_river_rooms(
                 messages: Vec::new(),
                 me,
                 unread: 0,
+                channel: pr.is_channel,
+                linked: pr.linked_room_id.as_ref().map(|id| format!("priv:{id}")),
             });
             continue;
         };
@@ -1836,6 +1893,8 @@ fn build_river_rooms(
                 .unwrap_or_else(|| short_persona(vk));
             let role = if m["owner"].as_bool() == Some(true) {
                 Role::Owner
+            } else if m["deputy"].as_bool() == Some(true) {
+                Role::Moderator
             } else {
                 Role::Member
             };
@@ -1925,6 +1984,8 @@ fn build_river_rooms(
             messages,
             me,
             unread: 0,
+            channel: pr.is_channel,
+            linked: pr.linked_room_id.as_ref().map(|id| format!("priv:{id}")),
         });
     }
     out
@@ -2076,6 +2137,8 @@ fn build_dm_rooms(
             messages,
             me: me_id,
             unread: 0,
+            channel: false,
+            linked: None,
         });
     }
     out
@@ -2225,6 +2288,14 @@ fn river_code_in(raw: &str) -> Option<&str> {
 /// carrying a River key (`#join_room=…&river_owner=…&k=…&m=…&s=…`). None when `raw` is neither.
 fn river_room_from_invite(raw: &str) -> Result<Option<StoredPrivateRoom>, String> {
     let params = parse_query_params(raw.split_once('#').map_or(raw, |(_, f)| f));
+    // channel marks, as the web's invite links carry them (`inviteFromParams`)
+    let is_channel = params.get("chan").is_some_and(|v| v == "1")
+        || params.get("is_channel").is_some_and(|v| v == "true");
+    let linked_room_id = params
+        .get("lr")
+        .or_else(|| params.get("linked_room_id"))
+        .filter(|id| valid_room_id(id))
+        .cloned();
     if let Some(code) = river_code_in(raw) {
         let acc = crate::river::call(json!({ "op": "accept", "code": code }))?;
         let owner = acc["owner_vk"]
@@ -2246,6 +2317,8 @@ fn river_room_from_invite(raw: &str) -> Result<Option<StoredPrivateRoom>, String
             owner,
             key_hex: acc["sk"].as_str().map(str::to_owned),
             join: Some(json!({ "member": acc["member"], "secrets": acc["secrets"] })),
+            is_channel,
+            linked_room_id,
         }));
     }
     let hex64 = |v: Option<&String>| {
@@ -2271,6 +2344,8 @@ fn river_room_from_invite(raw: &str) -> Result<Option<StoredPrivateRoom>, String
         join: Some(
             json!({ "member": params.get("m"), "secret": params.get("s").filter(|s| !s.is_empty()) }),
         ),
+        is_channel,
+        linked_room_id,
     }))
 }
 
@@ -2534,6 +2609,8 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                 owner: owner.clone(),
                 key_hex: None,
                 join: None,
+                is_channel: false,
+                linked_room_id: None,
             });
             // The descriptor tells the web and my other devices where the room is; River decides who is in it.
             let room = json!({
@@ -3330,6 +3407,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn opens_the_river_access_the_web_seals_to_itself() {
+        // made by the web's encryptDirectMessage(secretKey = [7; 32], its own encPub, access JSON)
+        let sealed = "e2e:c418fc1b24c43e868c7ef313:9c516e7a382df00d3d40a2c455ce4ae5613bab9e6bda6555cfaa0394db6fee2ea4d78aa3ff79aafacad8cb09585c6aa95f74fd60d9cbef024e6fb6d7ebe01140edd635bbc2222d683fb685d151068f1a5fa9762ec7753765be8ed892cc74c0e96e09a3566f8caf29d9ea2fa5860531e7088c5d43a7068258335010a74e29d09c430532c8715d2a98c1d4a9df24b52e95a08e3f32867a8009ad7f6e0e92eca968478c4b7671e6eaa7227cafbab31bebdc5c7469b99fc808c4a2a3733c3b5342b881e78fe54dc9055e043347f0dc6f457e8bfccf4c53bf521d4326d574f55e08c5add4be43a4f5d722e894f3cf28f13877feece13dc284b343a6";
+        let room = open_river_access(&[7u8; 32], &json!(sealed)).unwrap();
+        assert_eq!(room.owner, "ab".repeat(32));
+        assert_eq!(room.creator, "cd".repeat(32));
+        assert_eq!(room.key_hex, None, "an empty k means my identity key");
+        assert_eq!(room.join.unwrap()["member"], "m1");
+        assert!(room.is_channel);
+        assert_eq!(room.linked_room_id.as_deref(), Some("privroom_2_x"));
+        assert!(
+            open_river_access(&[8u8; 32], &json!(sealed)).is_none(),
+            "sealed to me only"
+        );
+    }
+
+    #[test]
     fn my_blocklist_hides_messages_reactions_and_dms() {
         let me = "1".repeat(64);
         let l = log(&[
@@ -3370,6 +3464,8 @@ mod tests {
             messages: vec![msg(1, bob), msg(2, alice)],
             me: 7,
             unread: 0,
+            channel: false,
+            linked: None,
         };
         let mut rooms = vec![
             room("c_x", vec![]),
@@ -3436,6 +3532,8 @@ mod tests {
             messages: vec![msg(1, 2, 1), msg(2, 2, 3), msg(3, 1, 4)],
             me: 1,
             unread: 0,
+            channel: false,
+            linked: None,
         };
         let mut rooms = vec![room("c_x"), room("c_y")];
         apply_inbox_marks(&mut rooms, &marks, &me, 0);
@@ -3523,7 +3621,7 @@ mod tests {
         // keep the test's rooms out of the real data dir
         unsafe { std::env::set_var("XDG_DATA_HOME", dir.path()) };
         unsafe { std::env::set_var("HOME", dir.path()) };
-        let hidden = sync_rooms_from_inbox(&me, Some(&l));
+        let hidden = sync_rooms_from_inbox(&me, &[0u8; 32], Some(&l));
         assert_eq!(hidden, BTreeSet::from(["privroom_7_z".to_owned()]));
         let ids: Vec<String> = load_private_rooms().into_iter().map(|r| r.id).collect();
         assert_eq!(ids, ["privroom_9_z"]);

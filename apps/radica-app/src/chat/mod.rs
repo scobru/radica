@@ -39,6 +39,7 @@ pub enum RoomFilter {
     Unread,
     Dms,
     Groups,
+    Channels,
     Communities,
     Saved,
 }
@@ -659,6 +660,8 @@ impl Chat {
                 messages: Vec::new(),
                 me,
                 unread: 0,
+                channel: false,
+                linked: None,
             });
         }
         self.create_input.clear();
@@ -711,6 +714,8 @@ impl Chat {
                 messages: Vec::new(),
                 me,
                 unread: 0,
+                channel: false,
+                linked: None,
             });
         }
         self.create_input.clear();
@@ -763,6 +768,8 @@ impl Chat {
                 messages: Vec::new(),
                 me,
                 unread: 0,
+                channel: false,
+                linked: None,
             });
         }
         self.join_input.clear();
@@ -794,6 +801,8 @@ impl Chat {
                 messages: Vec::new(),
                 me,
                 unread: 0,
+                channel: false,
+                linked: None,
             });
         }
         if self.filter != RoomFilter::All && self.filter != RoomFilter::Dms {
