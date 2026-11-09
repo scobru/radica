@@ -28,9 +28,7 @@ pub(super) fn conversation(chat: &Chat, room: &Room, narrow: bool, p: &Palette, 
         .child(header(chat, room, narrow, p))
         .child(hline(p));
     if chat.thread_search_open {
-        stage = stage
-            .child(thread_search_bar(chat, p, k))
-            .child(hline(p));
+        stage = stage.child(thread_search_bar(chat, p, k)).child(hline(p));
     }
     stage
         .child(history(chat, room, p))
@@ -82,7 +80,10 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
     }
 
     let subtitle = if room.description.is_empty() {
-        format!("{} participants · Ed25519 signed on Freenet", room.members.len())
+        format!(
+            "{} participants · Ed25519 signed on Freenet",
+            room.members.len()
+        )
     } else {
         format!("{} participants · {}", room.members.len(), room.description)
     };
@@ -243,28 +244,25 @@ fn context_banner(room: &Room, p: &Palette) -> El {
     } else if room.private {
         "🔒 Messages in this conversation are end-to-end encrypted on your Freenet node.".to_owned()
     } else if room.key.starts_with("feed") {
-        "📢 Public Freenet social feed · Posts, likes and comments synced from feed contracts.".to_owned()
+        "📢 Public Freenet social feed · Posts, likes and comments synced from feed contracts."
+            .to_owned()
     } else {
         format!(
             "🌐 Public community chat for {}. Messages are signed with Ed25519 and synced on Freenet.",
             room.name
         )
     };
-    row()
-        .key("context-banner")
-        .w_full()
-        .px(24.0)
-        .child(
-            row()
-                .w_full()
-                .px(14.0)
-                .py(9.0)
-                .radius(12.0)
-                .center()
-                .fill(p.surface)
-                .border(1.0, p.line)
-                .child(label(msg, st::SMALL, p.text_secondary).wrap().w_full()),
-        )
+    row().key("context-banner").w_full().px(24.0).child(
+        row()
+            .w_full()
+            .px(14.0)
+            .py(9.0)
+            .radius(12.0)
+            .center()
+            .fill(p.surface)
+            .border(1.0, p.line)
+            .child(label(msg, st::SMALL, p.text_secondary).wrap().w_full()),
+    )
 }
 
 fn history(chat: &Chat, room: &Room, p: &Palette) -> El {
@@ -458,10 +456,12 @@ fn group_el(chat: &Chat, room: &Room, group: &Group, p: &Palette) -> El {
         bubble = bubble.child(meta);
 
         let line = if mine {
-            let bubble_stack = col()
-                .items_end()
-                .child(bubble)
-                .child(actions.pin(None, Some(-10.0), Some(12.0), None));
+            let bubble_stack = col().items_end().child(bubble).child(actions.pin(
+                None,
+                Some(-10.0),
+                Some(12.0),
+                None,
+            ));
             row()
                 .key(format!("row-{}", m.id))
                 .w_full()
@@ -481,10 +481,12 @@ fn group_el(chat: &Chat, room: &Room, group: &Group, p: &Palette) -> El {
             } else {
                 row().w(GUTTER)
             };
-            let bubble_stack = col()
-                .items_start()
-                .child(bubble)
-                .child(actions.pin(Some(12.0), Some(-10.0), None, None));
+            let bubble_stack = col().items_start().child(bubble).child(actions.pin(
+                Some(12.0),
+                Some(-10.0),
+                None,
+                None,
+            ));
             row()
                 .key(format!("row-{}", m.id))
                 .w_full()
@@ -574,7 +576,7 @@ fn message_actions(msg_id: u32, mine: bool, is_owner: bool, bookmarked: bool, p:
         .border(1.0, p.line)
         .center_y()
         .group_opacity(0.0, 1.0);
-    for quick in ["🌱", "❤️", "👍"] {
+    for quick in ["👍", "❤️", "🔥"] {
         let e_str = quick.to_owned();
         actions = actions.child(
             row()
@@ -610,7 +612,11 @@ fn message_actions(msg_id: u32, mine: bool, is_owner: bool, bookmarked: bool, p:
                 .child(label(
                     if bookmarked { "🔖 Saved" } else { "Save" },
                     st::GUTTER_TIME,
-                    if bookmarked { p.amber } else { p.text_secondary },
+                    if bookmarked {
+                        p.amber
+                    } else {
+                        p.text_secondary
+                    },
                 )),
         )
         .child(
@@ -748,9 +754,7 @@ fn composer(chat: &Chat, room: &Room, p: &Palette, k: &Kit) -> El {
         .on_press(|s: &mut RadicaApp| {
             s.send_chat();
         })
-        .child(
-            icon(&icons::SEND, 18.0).color(if has_text { p.on_accent } else { p.text_muted }),
-        );
+        .child(icon(&icons::SEND, 18.0).color(if has_text { p.on_accent } else { p.text_muted }));
 
     let emoji = row()
         .key("emoji")

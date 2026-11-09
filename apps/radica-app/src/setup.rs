@@ -87,15 +87,13 @@ impl Controller {
                     s.chat.identity_status = Some(format!("❌ Import failed: {e}"));
                 }
                 (LiveAction::CreateLocalIdentity, Ok(())) => {
-                    s.chat.identity_status =
-                        Some("✓ Created new local Ed25519 identity.".into());
+                    s.chat.identity_status = Some("✓ Created new local Ed25519 identity.".into());
                 }
                 (LiveAction::CreateLocalIdentity, Err(e)) => {
                     s.chat.identity_status = Some(format!("❌ Create identity failed: {e}"));
                 }
                 (LiveAction::SignOutIdentity, Ok(())) => {
-                    s.chat.identity_status =
-                        Some("Signed out. Switched to local keypair.".into());
+                    s.chat.identity_status = Some("Signed out. Switched to local keypair.".into());
                 }
                 (LiveAction::UpdateDisplayName { .. }, Err(e)) => {
                     s.chat.identity_status = Some(format!("❌ Name update failed: {e}"));

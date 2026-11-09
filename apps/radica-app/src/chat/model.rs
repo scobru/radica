@@ -136,7 +136,11 @@ impl Room {
     /// Edit a message sent by this device.
     pub fn edit_message(&mut self, id: MessageId, new_text: &str) -> bool {
         let me = self.me;
-        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id && m.author == me) {
+        if let Some(m) = self
+            .messages
+            .iter_mut()
+            .find(|m| m.id == id && m.author == me)
+        {
             m.text = new_text.to_owned();
             m.edited = true;
             return true;
@@ -342,7 +346,11 @@ pub fn links(text: &str) -> Vec<std::ops::Range<usize>> {
 /// and "ßa" is "SS" (uppercasing can give more than one character, so cut after it).
 pub fn initials(name: &str) -> String {
     name.split_whitespace()
-        .filter_map(|w| w.chars().find(|c| c.is_alphanumeric()).or_else(|| w.chars().next()))
+        .filter_map(|w| {
+            w.chars()
+                .find(|c| c.is_alphanumeric())
+                .or_else(|| w.chars().next())
+        })
         .take(2)
         .flat_map(char::to_uppercase)
         .take(2)

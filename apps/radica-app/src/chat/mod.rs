@@ -417,7 +417,11 @@ impl Chat {
             return;
         };
         let me = room.me;
-        let Some(m) = room.messages.iter().find(|m| m.id == msg_id && m.author == me) else {
+        let Some(m) = room
+            .messages
+            .iter()
+            .find(|m| m.id == msg_id && m.author == me)
+        else {
             return;
         };
         let text = m.text.clone();
@@ -433,7 +437,11 @@ impl Chat {
     }
 
     /// Toggle reaction `emoji` on `msg_id` in the open room.
-    pub fn toggle_react(&mut self, msg_id: u32, emoji: &str) -> Option<(String, u32, String, bool)> {
+    pub fn toggle_react(
+        &mut self,
+        msg_id: u32,
+        emoji: &str,
+    ) -> Option<(String, u32, String, bool)> {
         let key = self.selected.clone();
         let room = self.room_mut()?;
         let on = room.toggle_reaction(msg_id, emoji)?;
@@ -470,8 +478,7 @@ impl Chat {
     }
 
     pub fn is_bookmarked(&self, room_key: &str, msg_id: u32) -> bool {
-        self.saved_messages
-            .contains(&(room_key.to_owned(), msg_id))
+        self.saved_messages.contains(&(room_key.to_owned(), msg_id))
     }
 
     pub fn room_has_bookmarks(&self, room_key: &str) -> bool {
@@ -531,10 +538,7 @@ impl Chat {
         let key = format!("priv:{slug}");
         let name = format!("🔒 {clean}");
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -588,10 +592,7 @@ impl Chat {
         let key = format!("c_{slug}");
         let name = clean.to_owned();
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -617,10 +618,7 @@ impl Chat {
         if raw.is_empty() {
             return None;
         }
-        let clean = raw
-            .trim_start_matches('#')
-            .trim_start_matches("r/")
-            .trim();
+        let clean = raw.trim_start_matches('#').trim_start_matches("r/").trim();
         let is_priv = clean.starts_with("priv:") || clean.starts_with("inv_") || clean.len() > 28;
         let slug: String = clean
             .trim_start_matches("c_")
@@ -642,10 +640,7 @@ impl Chat {
             slug.clone()
         };
         let me = self.room().map_or(1, |r| r.me);
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
                 key: key.clone(),
@@ -675,10 +670,7 @@ impl Chat {
         if member_id == me {
             return;
         }
-        let me_nick = self
-            .room()
-            .map_or("You", |r| r.nickname(r.me))
-            .to_owned();
+        let me_nick = self.room().map_or("You", |r| r.nickname(r.me)).to_owned();
         let key = format!("dm:{member_id}");
         if !self.rooms.iter().any(|r| r.key == key) {
             self.rooms.push(Room {
@@ -729,7 +721,8 @@ impl Chat {
 
     pub fn start_viso_signin(&mut self) {
         self.identity_status = Some(
-            "Opening Viso in your browser… Approve the persona connection to complete sign-in.".into(),
+            "Opening Viso in your browser… Approve the persona connection to complete sign-in."
+                .into(),
         );
     }
 
@@ -744,8 +737,9 @@ impl Chat {
     pub fn submit_import_identity(&mut self) -> Option<String> {
         let raw = self.identity_import_input.text.trim().to_owned();
         if raw.is_empty() {
-            self.identity_status =
-                Some("Paste a 64-hex private key, a Viso callback URL, or a session JSON first.".into());
+            self.identity_status = Some(
+                "Paste a 64-hex private key, a Viso callback URL, or a session JSON first.".into(),
+            );
             return None;
         }
         let hex_candidate: String = raw
@@ -796,8 +790,9 @@ impl Chat {
                 m.nickname = name.clone();
             }
         }
-        self.identity_status =
-            Some(format!("✓ Display name \"{name}\" saved & published to Freenet."));
+        self.identity_status = Some(format!(
+            "✓ Display name \"{name}\" saved & published to Freenet."
+        ));
         Some(name)
     }
 

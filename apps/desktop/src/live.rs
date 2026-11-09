@@ -351,6 +351,12 @@ pub const FEED_CODE_HASH: &str = "6eed3cbfb9e9931660dc86c13834a1e24c4e14e547cd66
 /// Radica maintainer public key (Scobru).
 pub const MAINTAINER_PK: &str = "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b";
 
+/// The reactions a message can get, same closed set as the web (`CHAT_REACTIONS` in `ui/src/logfold.ts`),
+/// so a log entry cannot put arbitrary text on someone's message.
+const CHAT_REACTIONS: [&str; 16] = [
+    "👍", "❤️", "😂", "👀", "🔥", "😮", "😢", "😡", "🎉", "🤔", "👏", "✅", "💯", "🙏", "😍", "🥳",
+];
+
 /// Defaultcommunities to sync from the live Freenet network.
 const SYNC_COMMUNITIES: &[(&str, &str, &str)] = &[
     (
@@ -358,11 +364,7 @@ const SYNC_COMMUNITIES: &[(&str, &str, &str)] = &[
         "Radica Hub",
         "Decentralized social commons, Freenet dApps, and network updates.",
     ),
-    (
-        "c_freenet",
-        "Freenet",
-        "Talking about Freenet stuff.",
-    ),
+    ("c_freenet", "Freenet", "Talking about Freenet stuff."),
     (
         "c_radicatester",
         "radicatester",
@@ -373,16 +375,8 @@ const SYNC_COMMUNITIES: &[(&str, &str, &str)] = &[
         "Tech & P2P",
         "Peer-to-peer protocols, cryptography, and Web3 decentralization.",
     ),
-    (
-        "c_italy",
-        "Italy",
-        "All about Italy!",
-    ),
-    (
-        "c_music",
-        "Music",
-        "All about music!",
-    ),
+    ("c_italy", "Italy", "All about Italy!"),
+    ("c_music", "Music", "All about music!"),
 ];
 
 const B58: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -441,16 +435,29 @@ pub fn feed_contract_key(pubkey_hex: &str) -> Option<String> {
 fn find_fdev() -> PathBuf {
     let bin = if cfg!(windows) { "fdev.exe" } else { "fdev" };
     if let Some(localappdata) = std::env::var_os("LOCALAPPDATA") {
-        let p = PathBuf::from(localappdata).join("Freenet").join("bin").join(bin);
+        let p = PathBuf::from(localappdata)
+            .join("Freenet")
+            .join("bin")
+            .join(bin);
         if p.is_file() {
             return p;
         }
     }
     if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
         let candidates = [
-            PathBuf::from(&home).join("AppData").join("Local").join("Freenet").join("bin").join(bin),
+            PathBuf::from(&home)
+                .join("AppData")
+                .join("Local")
+                .join("Freenet")
+                .join("bin")
+                .join(bin),
             PathBuf::from(&home).join(".cargo").join("bin").join(bin),
-            PathBuf::from(&home).join(".local").join("share").join("freenet").join("bin").join(bin),
+            PathBuf::from(&home)
+                .join(".local")
+                .join("share")
+                .join("freenet")
+                .join("bin")
+                .join(bin),
             PathBuf::from(&home).join(".freenet").join("bin").join(bin),
         ];
         for c in candidates {
@@ -634,7 +641,9 @@ fn is_identity_valid(id: &StoredDesktopIdentity) -> bool {
     if id.kind == "viso" {
         if let Some(cert) = &id.cert {
             let mut cert_clone = cert.clone();
-            if !cert.challenge.contains(&my_pk) || !verify_viso_cert_multi(&id.pubkey, &mut cert_clone, &[]) {
+            if !cert.challenge.contains(&my_pk)
+                || !verify_viso_cert_multi(&id.pubkey, &mut cert_clone, &[])
+            {
                 return false;
             }
         } else {
@@ -937,7 +946,12 @@ pub fn load_live() -> Option<LiveSnapshot> {
     }
     let chat_keys: Vec<(String, String)> = active_comm_ids
         .iter()
-        .map(|(id, _, _)| (id.clone(), log_contract_key(&format!("community-chat/{id}"))))
+        .map(|(id, _, _)| {
+            (
+                id.clone(),
+                log_contract_key(&format!("community-chat/{id}")),
+            )
+        })
         .collect();
     let priv_rooms_cfg = load_private_rooms();
     let priv_keys: Vec<(String, String)> = priv_rooms_cfg
@@ -1052,65 +1066,28 @@ pub fn load_live() -> Option<LiveSnapshot> {
     }
     save_profiles_cache(&avatars);
 
-    // 3. Communities metadata
-    let mut comm_meta: BTreeMap<String, (String, String, String)> = BTreeMap::new();
-    for (id, name, desc) in &active_comm_ids {
-        comm_meta.insert(
-            id.clone(),
-            (name.clone(), desc.clone(), MAINTAINER_PK.to_owned()),
-        );
-    }
-    if let Some(comms_json) = comms_json
-        && let Some(entries) = comms_json.get("entries").and_then(Value::as_object)
-    {
-        for e in entries.values() {
-            let Some(author) = e.get("author").and_then(Value::as_str) else {
-                continue;
-            };
-            let Some(body_str) = e.get("body").and_then(Value::as_str) else {
-                continue;
-            };
-            if let Ok(body) = serde_json::from_str::<Value>(body_str)
-                && body.get("type").and_then(Value::as_str) == Some("community_create")
-                && let Some(c) = body.get("community")
-                && let Some(id) = c.get("id").and_then(Value::as_str)
-                && comm_meta.contains_key(id)
-            {
-                let name = c
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or(id)
-                    .to_owned();
-                let desc = c
-                    .get("description")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .to_owned();
-                comm_meta.insert(id.to_owned(), (name, desc, author.to_owned()));
-            }
-        }
-    }
+    // 3. Communities: creator, moderators and bans, folded the way the web does.
+    let comm_folds = fold_communities(&ordered_bodies(comms_json.as_ref()));
 
     let mut rooms: Vec<Room> = Vec::new();
 
     // 4. Community chat logs
     for (comm_id, default_name, default_desc) in &active_comm_ids {
-        let (name, desc, owner_pk) = comm_meta.get(comm_id).cloned().unwrap_or_else(|| {
-            (
-                default_name.clone(),
-                default_desc.clone(),
-                MAINTAINER_PK.to_owned(),
-            )
-        });
+        // A community missing from the log keeps the built-in name, owned by the maintainer.
+        let fold = comm_folds
+            .get(comm_id)
+            .cloned()
+            .unwrap_or_else(|| CommFold {
+                name: default_name.clone(),
+                desc: default_desc.clone(),
+                creator: MAINTAINER_PK.to_owned(),
+                moderators: BTreeSet::new(),
+                banned: BTreeSet::new(),
+            });
         let chat_json = chat_jsons.get(comm_id.as_str()).and_then(|v| v.as_ref());
         let room = build_community_room(
             comm_id,
-            &name,
-            &desc,
-            &owner_pk,
+            &fold,
             &my_pk,
             me_id,
             day_zero,
@@ -1186,12 +1163,157 @@ pub fn load_live() -> Option<LiveSnapshot> {
     })
 }
 
+/// A log's entries as `(author, ts, body)`, in the web's order (`ordered` in `ui/src/logfold.ts`):
+/// by time, then author and id. Entries whose body is not JSON are skipped.
+fn ordered_bodies(json: Option<&Value>) -> Vec<(String, u64, Value)> {
+    let Some(entries) = json
+        .and_then(|j| j.get("entries"))
+        .and_then(Value::as_object)
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<(String, String, u64, Value)> = entries
+        .values()
+        .filter_map(|e| {
+            let author = e.get("author")?.as_str()?.to_owned();
+            let id = e.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+            let ts = e.get("ts").and_then(Value::as_u64).unwrap_or(0);
+            let body = serde_json::from_str(e.get("body")?.as_str()?).ok()?;
+            Some((author, id, ts, body))
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        a.2.cmp(&b.2)
+            .then_with(|| (a.0.clone() + &a.1).cmp(&(b.0.clone() + &b.1)))
+    });
+    out.into_iter().map(|(a, _, ts, b)| (a, ts, b)).collect()
+}
+
+#[derive(Clone, Debug)]
+struct CommFold {
+    name: String,
+    desc: String,
+    creator: String,
+    moderators: BTreeSet<String>,
+    banned: BTreeSet<String>,
+}
+
+impl CommFold {
+    fn is_mod(&self, pk: &str) -> bool {
+        pk == self.creator || self.moderators.contains(pk)
+    }
+}
+
+fn valid_community_id(id: &str) -> bool {
+    id.strip_prefix("c_").is_some_and(|rest| {
+        (1..=40).contains(&rest.len())
+            && rest
+                .bytes()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_')
+    })
+}
+
+/// Communities from the `communities` log, like `foldCommunities` in `ui/src/logfold.ts`: the first
+/// `community_create` names the creator and only the creator renames it; moderators and bans follow
+/// the signed `community_mod_*` / `community_ban` entries of moderators.
+fn fold_communities(bodies: &[(String, u64, Value)]) -> HashMap<String, CommFold> {
+    let genesis = |name: &str, desc: &str, mods: &[&str]| CommFold {
+        name: name.into(),
+        desc: desc.into(),
+        creator: "system".into(),
+        moderators: mods.iter().map(|m| (*m).to_owned()).collect(),
+        banned: BTreeSet::new(),
+    };
+    let mut map: HashMap<String, CommFold> = HashMap::from([
+        (
+            "c_radica".to_owned(),
+            genesis(
+                "Radica Hub",
+                "Decentralized social commons, Freenet dApps, and network updates.",
+                &["system", MAINTAINER_PK],
+            ),
+        ),
+        (
+            "c_tech".to_owned(),
+            genesis(
+                "Tech & P2P",
+                "Peer-to-peer protocols, cryptography, and Web3 decentralization.",
+                &["system"],
+            ),
+        ),
+    ]);
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
+    for (a, _, b) in bodies {
+        match b.get("type").and_then(Value::as_str) {
+            Some("community_create") => {
+                let m = b.get("community").cloned().unwrap_or(Value::Null);
+                let Some(id) = s(&m, "id").filter(|id| valid_community_id(id)) else {
+                    continue;
+                };
+                let first_line = |d: String| d.lines().next().unwrap_or("").to_owned();
+                match map.get_mut(&id) {
+                    None => {
+                        map.insert(
+                            id.clone(),
+                            CommFold {
+                                name: s(&m, "name").unwrap_or_else(|| id.clone()),
+                                desc: first_line(s(&m, "description").unwrap_or_default()),
+                                creator: a.clone(),
+                                moderators: BTreeSet::from([a.clone()]),
+                                banned: BTreeSet::new(),
+                            },
+                        );
+                    }
+                    Some(cur) if &cur.creator == a => {
+                        if let Some(n) = s(&m, "name") {
+                            cur.name = n;
+                        }
+                        if let Some(d) = s(&m, "description") {
+                            cur.desc = first_line(d);
+                        }
+                    }
+                    Some(_) => {}
+                }
+            }
+            Some(t) => {
+                let Some(c) = s(b, "community_id").and_then(|id| map.get_mut(&id)) else {
+                    continue;
+                };
+                let target = s(b, "target").unwrap_or_default();
+                match t {
+                    "community_mod_add"
+                        if c.is_mod(a) && !target.is_empty() && !c.banned.contains(&target) =>
+                    {
+                        c.moderators.insert(target);
+                    }
+                    "community_mod_remove"
+                        if target != c.creator && (a == &c.creator || a == &target) =>
+                    {
+                        c.moderators.remove(&target);
+                    }
+                    "community_ban" if c.is_mod(a) && !target.is_empty() && target != c.creator => {
+                        c.moderators.remove(&target);
+                        c.banned.insert(target);
+                    }
+                    "community_unban" if c.is_mod(a) => {
+                        c.banned.remove(&target);
+                    }
+                    _ => {}
+                }
+            }
+            None => {}
+        }
+    }
+    if let Some(c) = map.get_mut("c_radica") {
+        c.moderators.insert(MAINTAINER_PK.to_owned());
+    }
+    map
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_community_room(
     comm_id: &str,
-    name: &str,
-    desc: &str,
-    owner_pk: &str,
+    comm: &CommFold,
     my_pk: &str,
     me_id: u32,
     day_zero: i64,
@@ -1215,10 +1337,12 @@ fn build_community_room(
 
     let mut raw_msgs: BTreeMap<String, RawMsg> = BTreeMap::new();
     let mut edits: Vec<(String, String, String, u64)> = Vec::new();
-    let mut deletes: BTreeSet<String> = BTreeSet::new();
+    let mut deletes: Vec<(String, String)> = Vec::new();
     let mut reacts: BTreeMap<(String, String, String), (bool, u64)> = BTreeMap::new();
     let mut participants: BTreeSet<String> = BTreeSet::new();
-    participants.insert(owner_pk.to_owned());
+    if comm.creator != "system" {
+        participants.insert(comm.creator.clone());
+    }
     participants.insert(my_pk.to_owned());
 
     if let Some(json) = chat_json
@@ -1254,14 +1378,15 @@ fn build_community_room(
                     let Some(text) = m.get("text").and_then(Value::as_str) else {
                         continue;
                     };
-                    if sender != author || m_room != room_id || text.trim().is_empty() {
+                    if sender != author
+                        || m_room != room_id
+                        || text.trim().is_empty()
+                        || comm.banned.contains(sender)
+                    {
                         continue;
                     }
                     let ts = m.get("timestamp").and_then(Value::as_u64).unwrap_or(e_ts);
-                    let reply_to_str = m
-                        .get("reply_to")
-                        .and_then(Value::as_str)
-                        .map(str::to_owned);
+                    let reply_to_str = m.get("reply_to").and_then(Value::as_str).map(str::to_owned);
                     participants.insert(sender.to_owned());
                     let num_id = next_id;
                     next_id += 1;
@@ -1293,7 +1418,7 @@ fn build_community_room(
                     if b.get("roomId").and_then(Value::as_str) == Some(&room_id)
                         && let Some(m_id) = b.get("messageId").and_then(Value::as_str)
                     {
-                        deletes.insert(m_id.to_owned());
+                        deletes.push((author.to_owned(), m_id.to_owned()));
                     }
                 }
                 Some("chat_react") => {
@@ -1302,6 +1427,8 @@ fn build_community_room(
                             b.get("messageId").and_then(Value::as_str),
                             b.get("emoji").and_then(Value::as_str),
                         )
+                        && CHAT_REACTIONS.contains(&emoji)
+                        && !comm.banned.contains(author)
                     {
                         let on = b.get("on").and_then(Value::as_bool).unwrap_or(false);
                         let k = (m_id.to_owned(), emoji.to_owned(), author.to_owned());
@@ -1324,8 +1451,14 @@ fn build_community_room(
             m.edited = true;
         }
     }
-    for m_id in &deletes {
-        raw_msgs.remove(m_id);
+    // Like the web: only the sender or a community moderator can delete a message.
+    for (by, m_id) in &deletes {
+        if raw_msgs
+            .get(m_id)
+            .is_some_and(|m| &m.sender == by || comm.is_mod(by))
+        {
+            raw_msgs.remove(m_id);
+        }
     }
 
     let mut ordered: Vec<&RawMsg> = raw_msgs.values().collect();
@@ -1374,7 +1507,12 @@ fn build_community_room(
     clean_confirmed_pending(comm_id, &confirmed);
     for p_msg in pending {
         if p_msg.room_key == comm_id && !confirmed.contains(&p_msg.text) {
-            let next_id = messages.iter().map(|m| m.id).max().unwrap_or(0).saturating_add(1);
+            let next_id = messages
+                .iter()
+                .map(|m| m.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1);
             messages.push(Message {
                 id: next_id,
                 author: me_id,
@@ -1401,7 +1539,7 @@ fn build_community_room(
             .get(&pk)
             .cloned()
             .unwrap_or_else(|| short_persona(&pk));
-        let role = if pk == owner_pk || pk == MAINTAINER_PK {
+        let role = if pk == comm.creator || pk == MAINTAINER_PK {
             Role::Owner
         } else {
             Role::Member
@@ -1412,8 +1550,8 @@ fn build_community_room(
 
     Room {
         key: comm_id.to_owned(),
-        name: name.to_owned(),
-        description: desc.to_owned(),
+        name: comm.name.clone(),
+        description: comm.desc.clone(),
         private: false,
         members,
         messages,
@@ -1507,19 +1645,18 @@ fn build_private_rooms(
                             .and_then(|k| decrypt_with_symmetric_key(k, raw_text))
                             .unwrap_or_else(|| raw_text.to_owned());
                         if !text.trim().is_empty()
-                            && edits.get(mid).is_none_or(|(_, prev_ts, _)| e_ts >= *prev_ts)
+                            && edits
+                                .get(mid)
+                                .is_none_or(|(_, prev_ts, _)| e_ts >= *prev_ts)
                         {
                             edits.insert(mid.to_owned(), (author.to_owned(), e_ts, text));
                         }
                     }
-                    Some("chat_delete") => {
+                    Some("chat_delete" | "chat_burn") => {
                         let Some(mid) = b.get("messageId").and_then(Value::as_str) else {
                             continue;
                         };
-                        if deletes
-                            .get(mid)
-                            .is_none_or(|(_, prev_ts)| e_ts >= *prev_ts)
-                        {
+                        if deletes.get(mid).is_none_or(|(_, prev_ts)| e_ts >= *prev_ts) {
                             deletes.insert(mid.to_owned(), (author.to_owned(), e_ts));
                         }
                     }
@@ -1527,7 +1664,11 @@ fn build_private_rooms(
                         let Some(mid) = b.get("messageId").and_then(Value::as_str) else {
                             continue;
                         };
-                        let Some(emoji) = b.get("emoji").and_then(Value::as_str) else {
+                        let Some(emoji) = b
+                            .get("emoji")
+                            .and_then(Value::as_str)
+                            .filter(|e| CHAT_REACTIONS.contains(e))
+                        else {
                             continue;
                         };
                         let on = b.get("on").and_then(Value::as_bool).unwrap_or(false);
@@ -1558,8 +1699,10 @@ fn build_private_rooms(
             if deleted_msgs.contains(&wire_id) {
                 continue;
             }
-            if let Some((del_by, _)) = deletes.get(&wire_id)
-                && (del_by == &author || del_by == &pr.creator)
+            // Like the web, only the sender deletes a message in a private room.
+            if deletes
+                .get(&wire_id)
+                .is_some_and(|(del_by, _)| del_by == &author)
             {
                 continue;
             }
@@ -1572,11 +1715,13 @@ fn build_private_rooms(
             next_id += 1;
 
             let reply_to = reply_wire.and_then(|rw| {
-                id_map.get(&rw).map(|(target_id, target_author, target_text)| ReplyTo {
-                    message: *target_id,
-                    author: *target_author,
-                    preview: radica_app::chat::model::preview(target_text, 64),
-                })
+                id_map
+                    .get(&rw)
+                    .map(|(target_id, target_author, target_text)| ReplyTo {
+                        message: *target_id,
+                        author: *target_author,
+                        preview: radica_app::chat::model::preview(target_text, 64),
+                    })
             });
 
             let mut msg_reactions: Vec<Reaction> = Vec::new();
@@ -1666,8 +1811,12 @@ fn build_dm_rooms(
     let (sk, _) = local_identity();
     let my_seed = sk.to_bytes();
 
-    let mut dm_deletes: BTreeSet<String> = BTreeSet::new();
+    // (message id, who deleted it): a delete counts only from me or the message's sender.
+    let mut dm_deletes: BTreeSet<(String, String)> = BTreeSet::new();
     for e in entries.values() {
+        let Some(deleter) = e.get("author").and_then(Value::as_str) else {
+            continue;
+        };
         let Some(body_str) = e.get("body").and_then(Value::as_str) else {
             continue;
         };
@@ -1677,11 +1826,11 @@ fn build_dm_rooms(
         let b_type = b.get("type").and_then(Value::as_str).unwrap_or("");
         if b_type == "chat_delete" || b_type == "chat_burn" {
             if let Some(mid) = b.get("messageId").and_then(Value::as_str) {
-                dm_deletes.insert(mid.to_owned());
+                dm_deletes.insert((mid.to_owned(), deleter.to_owned()));
             } else if let Some(m) = b.get("message")
                 && let Some(mid) = m.get("id").and_then(Value::as_str)
             {
-                dm_deletes.insert(mid.to_owned());
+                dm_deletes.insert((mid.to_owned(), deleter.to_owned()));
             }
         }
     }
@@ -1705,10 +1854,13 @@ fn build_dm_rooms(
             continue;
         };
         let msg_id = m.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
-        if !msg_id.is_empty() && (dm_deletes.contains(&msg_id) || deleted_msgs.contains(&msg_id)) {
+        let sender = m.get("sender").and_then(Value::as_str).unwrap_or("");
+        let deleted_by = |who: &str| dm_deletes.contains(&(msg_id.clone(), who.to_owned()));
+        if !msg_id.is_empty()
+            && (deleted_msgs.contains(&msg_id) || deleted_by(my_pk) || deleted_by(sender))
+        {
             continue;
         }
-        let sender = m.get("sender").and_then(Value::as_str).unwrap_or("");
         let recipient = m.get("recipient").and_then(Value::as_str).unwrap_or("");
         let Some(text) = m.get("text").and_then(Value::as_str) else {
             continue;
@@ -1735,10 +1887,12 @@ fn build_dm_rooms(
         } else {
             text.to_owned()
         };
-        by_peer
-            .entry(peer_pk.to_owned())
-            .or_default()
-            .push((ts, sender.to_owned(), display_text, msg_id));
+        by_peer.entry(peer_pk.to_owned()).or_default().push((
+            ts,
+            sender.to_owned(),
+            display_text,
+            msg_id,
+        ));
     }
 
     let me_nick = names
@@ -1909,8 +2063,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                 let wire_text = encrypt_direct_message(&my_seed, &peer_enc, &text)
                     .or_else(|| encrypt_direct_message(&my_seed, &peer_pk, &text))
                     .unwrap_or_else(|| text.clone());
-                let sig_msg =
-                    format!("{msg_id}:{dm_room_id}:{pubkey}:{peer_pk}:{wire_text}:{ts}");
+                let sig_msg = format!("{msg_id}:{dm_room_id}:{pubkey}:{peer_pk}:{wire_text}:{ts}");
                 let msg_sig = hex::encode(sk.sign(sig_msg.as_bytes()).to_bytes());
                 let payload = json!({
                     "type": "chat",
@@ -1961,8 +2114,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             }
             if !room_key.starts_with("c_") {
                 return Err(
-                    "Only community, private, and DM rooms accept direct chat messages"
-                        .into(),
+                    "Only community, private, and DM rooms accept direct chat messages".into(),
                 );
             }
             let room_id = format!("comm_{room_key}");
@@ -2250,8 +2402,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             save_stored_identity(&stored);
             let enc_sk = SigningKey::from_bytes(&my_seed);
             let enc_pk = hex::encode(enc_sk.verifying_key().to_bytes());
-            let prof_msg =
-                format!("radica/profile/v3:{pubkey}:{display_name}:::{enc_pk}:{ts}");
+            let prof_msg = format!("radica/profile/v3:{pubkey}:{display_name}:::{enc_pk}:{ts}");
             let prof_sig = hex::encode(sk.sign(prof_msg.as_bytes()).to_bytes());
             let _ = update_feed_contract(
                 &pubkey,
@@ -2349,7 +2500,11 @@ pub fn viso_connect_message(pk: &[u8; 32], base: &str, challenge: &str, ts: u64)
 /// Multi-base certificate verification: tries base as given, trailing slash variants, and
 /// any candidate bases (e.g. canonical base or link/return URL base). Updates `cert.base` to
 /// the matching base on success.
-pub fn verify_viso_cert_multi(persona_hex: &str, cert: &mut VisoCert, extra_bases: &[&str]) -> bool {
+pub fn verify_viso_cert_multi(
+    persona_hex: &str,
+    cert: &mut VisoCert,
+    extra_bases: &[&str],
+) -> bool {
     let Ok(pk_bytes) = hex::decode(persona_hex) else {
         return false;
     };
@@ -2436,7 +2591,11 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
     let nonce_full = entropy_32("radica-desktop-viso-nonce");
     let nonce_hex = hex::encode(&nonce_full[..16]);
     let fallback_sk = entropy_32("radica-desktop-viso-app-sk");
-    let fallback_app_pk = hex::encode(SigningKey::from_bytes(&fallback_sk).verifying_key().to_bytes());
+    let fallback_app_pk = hex::encode(
+        SigningKey::from_bytes(&fallback_sk)
+            .verifying_key()
+            .to_bytes(),
+    );
     let challenge = format!("wd1.{fallback_app_pk}.{nonce_hex}");
 
     let return_url = format!("http://127.0.0.1:{port}{APP_PATH}");
@@ -2477,7 +2636,9 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
                 if let Some((_, q)) = path_and_query.split_once('?') {
                     params.extend(parse_query_params(q));
                 }
-                if method == "POST" && let Some((_, body)) = req.split_once("\r\n\r\n") {
+                if method == "POST"
+                    && let Some((_, body)) = req.split_once("\r\n\r\n")
+                {
                     let body_trimmed = body.trim();
                     if body_trimmed.starts_with('{') {
                         if let Ok(json_val) = serde_json::from_str::<Value>(body_trimmed) {
@@ -2529,7 +2690,8 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
                 }
 
                 // Check if this request is /__viso_complete or /__viso_sk
-                let is_complete_endpoint = path_and_query.starts_with("/__viso_complete") || path_and_query.starts_with("/__viso_sk");
+                let is_complete_endpoint = path_and_query.starts_with("/__viso_complete")
+                    || path_and_query.starts_with("/__viso_sk");
 
                 // Check if we now have both cert params and captured_sk
                 let current_sk = captured_sk.clone();
@@ -2540,7 +2702,10 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
                     let sig = p.get("sig").cloned().unwrap_or_default();
                     let cert_challenge = p.get("challenge").cloned().unwrap_or(challenge.clone());
                     let ts: u64 = p.get("ts").and_then(|s| s.parse().ok()).unwrap_or(0);
-                    let base = p.get("base").cloned().unwrap_or_else(|| canonical_base.clone());
+                    let base = p
+                        .get("base")
+                        .cloned()
+                        .unwrap_or_else(|| canonical_base.clone());
 
                     let mut cert = VisoCert {
                         base,
@@ -2556,7 +2721,8 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
                         .and_then(|b| b.as_slice().try_into().map_err(|_| ()));
 
                     if let Ok(sk_arr) = sk_arr_res {
-                        let app_pk = hex::encode(SigningKey::from_bytes(&sk_arr).verifying_key().to_bytes());
+                        let app_pk =
+                            hex::encode(SigningKey::from_bytes(&sk_arr).verifying_key().to_bytes());
                         if !cert.challenge.contains(&app_pk) {
                             let json = r#"{"ok":false,"error":"Challenge does not match delegated app key"}"#;
                             let resp = format!(
@@ -2566,11 +2732,16 @@ fn sign_in_with_viso_flow() -> Result<(), String> {
                             );
                             let _ = stream.write_all(resp.as_bytes());
                             let _ = stream.flush();
-                            return Err("Viso callback challenge does not match the app's signing key.".into());
+                            return Err(
+                                "Viso callback challenge does not match the app's signing key."
+                                    .into(),
+                            );
                         }
 
-                        if !verify_viso_cert_multi(&pk, &mut cert, &[&canonical_base, &return_url]) {
-                            let json = r#"{"ok":false,"error":"Viso signature verification failed"}"#;
+                        if !verify_viso_cert_multi(&pk, &mut cert, &[&canonical_base, &return_url])
+                        {
+                            let json =
+                                r#"{"ok":false,"error":"Viso signature verification failed"}"#;
                             let resp = format!(
                                 "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                 json.len(),
@@ -2708,22 +2879,33 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
                 && let Some(pk) = pubkey
                 && pk.len() == 64
             {
-                let sk = signing_sk.or_else(|| {
-                    let cur = load_stored_identity();
-                    if let Ok(cur_bytes) = hex::decode(&cur.signing_sk)
-                        && let Ok(cur_arr) = <[u8; 32]>::try_from(cur_bytes.as_slice())
-                    {
-                        let cur_pk = hex::encode(SigningKey::from_bytes(&cur_arr).verifying_key().to_bytes());
-                        if cert.challenge.contains(&cur_pk) {
-                            return Some(cur.signing_sk);
+                let sk = signing_sk
+                    .or_else(|| {
+                        let cur = load_stored_identity();
+                        if let Ok(cur_bytes) = hex::decode(&cur.signing_sk)
+                            && let Ok(cur_arr) = <[u8; 32]>::try_from(cur_bytes.as_slice())
+                        {
+                            let cur_pk = hex::encode(
+                                SigningKey::from_bytes(&cur_arr).verifying_key().to_bytes(),
+                            );
+                            if cert.challenge.contains(&cur_pk) {
+                                return Some(cur.signing_sk);
+                            }
                         }
-                    }
-                    None
-                }).ok_or_else(|| "Viso JSON import requires the signing secret key (signing_sk or app_key).".to_owned())?;
+                        None
+                    })
+                    .ok_or_else(|| {
+                        "Viso JSON import requires the signing secret key (signing_sk or app_key)."
+                            .to_owned()
+                    })?;
 
                 let sk_bytes = hex::decode(&sk).map_err(|_| "Invalid signing_sk hex")?;
-                let sk_arr: [u8; 32] = sk_bytes.as_slice().try_into().map_err(|_| "signing_sk must be 32 bytes")?;
-                let app_pk = hex::encode(SigningKey::from_bytes(&sk_arr).verifying_key().to_bytes());
+                let sk_arr: [u8; 32] = sk_bytes
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| "signing_sk must be 32 bytes")?;
+                let app_pk =
+                    hex::encode(SigningKey::from_bytes(&sk_arr).verifying_key().to_bytes());
                 if !cert.challenge.contains(&app_pk) {
                     return Err("Viso challenge does not match the app's signing key.".into());
                 }
@@ -2735,7 +2917,10 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
                     kind: "viso".into(),
                     pubkey: pk,
                     signing_sk: sk,
-                    display_name: val.get("display_name").and_then(Value::as_str).map(str::to_owned),
+                    display_name: val
+                        .get("display_name")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                     cert: Some(cert),
                 };
                 save_stored_identity(&id);
@@ -2755,7 +2940,10 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
                     kind: "local".into(),
                     pubkey: pk,
                     signing_sk: sk_lower,
-                    display_name: val.get("display_name").and_then(Value::as_str).map(str::to_owned),
+                    display_name: val
+                        .get("display_name")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                     cert: None,
                 };
                 save_stored_identity(&id);
@@ -2808,20 +2996,28 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
                 if let Ok(cur_bytes) = hex::decode(&cur.signing_sk)
                     && let Ok(cur_arr) = <[u8; 32]>::try_from(cur_bytes.as_slice())
                 {
-                    let cur_pk = hex::encode(SigningKey::from_bytes(&cur_arr).verifying_key().to_bytes());
+                    let cur_pk =
+                        hex::encode(SigningKey::from_bytes(&cur_arr).verifying_key().to_bytes());
                     if cert.challenge.contains(&cur_pk) {
                         return Some(cur.signing_sk);
                     }
                 }
                 None
             })
-            .ok_or_else(|| "Viso import requires the application secret key (#sk=... in the URL).".to_owned())?;
+            .ok_or_else(|| {
+                "Viso import requires the application secret key (#sk=... in the URL).".to_owned()
+            })?;
 
         let sk_bytes = hex::decode(&signing_sk).map_err(|_| "Invalid signing_sk hex")?;
-        let sk_arr: [u8; 32] = sk_bytes.as_slice().try_into().map_err(|_| "signing_sk must be 32 bytes")?;
+        let sk_arr: [u8; 32] = sk_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| "signing_sk must be 32 bytes")?;
         let app_pk = hex::encode(SigningKey::from_bytes(&sk_arr).verifying_key().to_bytes());
         if !cert.challenge.contains(&app_pk) {
-            return Err("Viso callback challenge does not match the app's signing key (#sk=...).".into());
+            return Err(
+                "Viso callback challenge does not match the app's signing key (#sk=...).".into(),
+            );
         }
 
         let id = StoredDesktopIdentity {
@@ -2863,6 +3059,91 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn log(entries: &[(&str, u64, Value)]) -> Value {
+        let mut map = serde_json::Map::new();
+        for (i, (author, ts, body)) in entries.iter().enumerate() {
+            map.insert(
+                format!("{author}:{i}"),
+                json!({ "author": author, "id": format!("e{i}"), "ts": ts, "body": body.to_string() }),
+            );
+        }
+        json!({ "entries": map })
+    }
+
+    const ALICE: &str = "aa";
+    const BOB: &str = "bb";
+    const MALLORY: &str = "cc";
+
+    #[test]
+    fn only_the_first_creator_owns_a_community() {
+        let create = |name: &str| json!({ "type": "community_create", "community": { "id": "c_x", "name": name } });
+        let l = log(&[
+            (ALICE, 1, create("Mine")),
+            (MALLORY, 2, create("Stolen")),
+            (
+                MALLORY,
+                3,
+                json!({ "type": "community_mod_add", "community_id": "c_x", "target": MALLORY }),
+            ),
+            (
+                ALICE,
+                4,
+                json!({ "type": "community_ban", "community_id": "c_x", "target": BOB }),
+            ),
+        ]);
+        let f = &fold_communities(&ordered_bodies(Some(&l)))["c_x"];
+        assert_eq!(f.creator, ALICE);
+        assert_eq!(f.name, "Mine");
+        assert!(!f.is_mod(MALLORY));
+        assert!(f.banned.contains(BOB));
+        assert!(!fold_communities(&[]).contains_key("c_x"));
+    }
+
+    #[test]
+    fn community_deletes_need_sender_or_moderator_and_reactions_are_a_closed_set() {
+        let msg = |id: &str, who: &str| json!({ "type": "chat", "message": { "id": id, "sender": who, "room_id": "comm_c_x", "text": format!("hi from {who}"), "timestamp": 1 } });
+        let del =
+            |id: &str| json!({ "type": "chat_delete", "roomId": "comm_c_x", "messageId": id });
+        let react = |id: &str, e: &str| json!({ "type": "chat_react", "roomId": "comm_c_x", "messageId": id, "emoji": e, "on": true });
+        let l = log(&[
+            (BOB, 1, msg("m1", BOB)),
+            (BOB, 2, msg("m2", BOB)),
+            (MALLORY, 3, msg("m3", MALLORY)),
+            (MALLORY, 4, del("m1")),
+            (ALICE, 5, del("m2")),
+            (ALICE, 6, react("m1", "🔥")),
+            (ALICE, 7, react("m1", "scam.example")),
+        ]);
+        let comm = CommFold {
+            name: "X".into(),
+            desc: String::new(),
+            creator: ALICE.into(),
+            moderators: BTreeSet::from([ALICE.to_owned()]),
+            banned: BTreeSet::from([MALLORY.to_owned()]),
+        };
+        let room = build_community_room(
+            "c_x",
+            &comm,
+            ALICE,
+            member_id_of(ALICE),
+            0,
+            &HashMap::new(),
+            &HashMap::new(),
+            &BTreeSet::new(),
+            Some(&l),
+        );
+        let texts: Vec<&str> = room.messages.iter().map(|m| m.text.as_str()).collect();
+        // Mallory cannot delete Bob's m1; Alice moderates and removes m2; Mallory is banned.
+        assert!(texts.contains(&"hi from bb"));
+        assert_eq!(room.messages.len(), 1);
+        let emojis: Vec<&str> = room.messages[0]
+            .reactions
+            .iter()
+            .map(|r| r.emoji.as_str())
+            .collect();
+        assert_eq!(emojis, ["🔥"]);
+    }
 
     #[test]
     fn entropy_is_random_not_derived_from_tag_or_time() {
@@ -2929,18 +3210,16 @@ mod tests {
 
     #[test]
     fn dm_e2ee_matches_web_crypto_golden_vector() {
-        let sk_a: [u8; 32] = hex::decode(
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .unwrap()
-        .try_into()
-        .unwrap();
-        let sk_b: [u8; 32] = hex::decode(
-            "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
-        )
-        .unwrap()
-        .try_into()
-        .unwrap();
+        let sk_a: [u8; 32] =
+            hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let sk_b: [u8; 32] =
+            hex::decode("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+                .unwrap()
+                .try_into()
+                .unwrap();
         let pk_a = hex::encode(SigningKey::from_bytes(&sk_a).verifying_key().to_bytes());
         let pk_b = hex::encode(SigningKey::from_bytes(&sk_b).verifying_key().to_bytes());
         assert_eq!(
@@ -2978,7 +3257,8 @@ mod tests {
         let sk = SigningKey::from_bytes(&[77u8; 32]);
         let pk_bytes = sk.verifying_key().to_bytes();
         let pk_hex = hex::encode(pk_bytes);
-        let signed_base = "http://127.0.0.1:7509/v1/contract/web/Ex88TLL4HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+        let signed_base =
+            "http://127.0.0.1:7509/v1/contract/web/Ex88TLL4HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
         let msg = viso_connect_message(&pk_bytes, signed_base, "wd1.challenge.123", 99999);
         let sig_hex = hex::encode(sk.sign(&msg).to_bytes());
 
@@ -3004,7 +3284,8 @@ mod tests {
         assert_eq!(cert2.base, signed_base);
 
         // 3. Candidate canonical base matches when cert.base was a local return base
-        let return_base = "http://127.0.0.1:51234/v1/contract/web/Ex88TLL4HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+        let return_base =
+            "http://127.0.0.1:51234/v1/contract/web/Ex88TLL4HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
         let mut cert3 = VisoCert {
             base: return_base.into(),
             challenge: "wd1.challenge.123".into(),
@@ -3045,7 +3326,8 @@ mod tests {
                 "ts": 123456,
                 "sig": sig,
             }
-        }).to_string();
+        })
+        .to_string();
 
         assert!(import_identity_raw(&json_input).is_ok());
         let stored = load_stored_identity();

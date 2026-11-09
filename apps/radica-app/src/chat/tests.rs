@@ -264,18 +264,33 @@ fn reply_edit_react_and_delete_work_in_the_conversation() {
     let mut rt = render(connected(), WINDOW_SIZE);
     let last_id = rt.state.chat.room().unwrap().last_message().unwrap().id;
     // Toggle quick reaction on the visible newest message
-    press(&mut rt, &format!("react-🌱-{last_id}"));
+    press(&mut rt, &format!("react-🔥-{last_id}"));
     let last_msg = rt.state.chat.room().unwrap().last_message().unwrap();
     let me = rt.state.chat.room().unwrap().me;
-    assert!(last_msg.reactions.iter().any(|r| r.emoji == "🌱" && r.by.contains(&me)));
+    assert!(
+        last_msg
+            .reactions
+            .iter()
+            .any(|r| r.emoji == "🔥" && r.by.contains(&me))
+    );
 
     // Reply to the newest message
     press(&mut rt, &format!("reply-btn-{last_id}"));
     assert!(rt.find("reply-banner").is_some());
-    rt.state.chat.composer.replace_text("Replying to release notes");
+    rt.state
+        .chat
+        .composer
+        .replace_text("Replying to release notes");
     press(&mut rt, "send");
     assert!(rt.find("reply-banner").is_none());
-    let sent = rt.state.chat.room().unwrap().last_message().unwrap().clone();
+    let sent = rt
+        .state
+        .chat
+        .room()
+        .unwrap()
+        .last_message()
+        .unwrap()
+        .clone();
     assert_eq!(sent.text, "Replying to release notes");
     assert_eq!(sent.reply_to.as_ref().map(|r| r.message), Some(last_id));
 
@@ -292,7 +307,10 @@ fn reply_edit_react_and_delete_work_in_the_conversation() {
     // Delete our sent message
     let count_before = rt.state.chat.room().unwrap().messages.len();
     press(&mut rt, &format!("del-btn-{}", sent.id));
-    assert_eq!(rt.state.chat.room().unwrap().messages.len(), count_before - 1);
+    assert_eq!(
+        rt.state.chat.room().unwrap().messages.len(),
+        count_before - 1
+    );
 }
 
 #[test]
