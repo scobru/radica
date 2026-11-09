@@ -8,6 +8,7 @@ use rune_kit::{Kit, TextInput};
 
 use super::Chat;
 use super::icons;
+use super::media;
 use super::model::{self, Group, MINUTES_PER_DAY, Member, Message, Role, Room};
 use super::style::{self as st, Palette};
 use super::view::{HEADER_H, hline, label, room_monogram_el};
@@ -443,7 +444,7 @@ fn group_el(chat: &Chat, room: &Room, group: &Group, p: &Palette) -> El {
             bubble = bubble.child(name_row);
         }
 
-        bubble = bubble.child(message_el(room, m, mine, p));
+        bubble = bubble.child(message_el(chat, room, m, mine, p));
 
         let mut meta = row().gap(4.0).center_y().justify_end().pt(2.0);
         if m.edited {
@@ -502,7 +503,7 @@ fn group_el(chat: &Chat, room: &Room, group: &Group, p: &Palette) -> El {
     rows
 }
 
-fn message_el(room: &Room, m: &Message, mine: bool, p: &Palette) -> El {
+fn message_el(chat: &Chat, room: &Room, m: &Message, mine: bool, p: &Palette) -> El {
     let msg_id = m.id;
     let mut c = col().key(format!("msg-{}", m.id)).w_full().gap(6.0);
     if let Some(reply) = &m.reply_to {
@@ -530,7 +531,21 @@ fn message_el(room: &Room, m: &Message, mine: bool, p: &Palette) -> El {
                 ),
         );
     }
-    c = c.child(message_body(m, p));
+    let (items, caption) = media::parse(&m.text);
+    for item in &items {
+        c = c.child(attachment_el(chat, item, p));
+    }
+    if items.is_empty() || !caption.is_empty() {
+        c = c.child(message_body(
+            m,
+            &if items.is_empty() {
+                m.text.clone()
+            } else {
+                caption
+            },
+            p,
+        ));
+    }
 
     if !m.reactions.is_empty() {
         let mut pills = row().key("reactions").gap(5.0).pt(2.0).flex_wrap();
@@ -673,9 +688,9 @@ fn message_actions(msg_id: u32, mine: bool, is_owner: bool, bookmarked: bool, p:
     actions
 }
 
-fn message_body(m: &Message, p: &Palette) -> El {
-    let content = m.text.clone();
-    let links = model::links(&m.text);
+fn message_body(m: &Message, content: &str, p: &Palette) -> El {
+    let content = content.to_owned();
+    let links = model::links(&content);
     let spans: Vec<rune::Span> = links
         .iter()
         .map(|r| {
@@ -684,19 +699,116 @@ fn message_body(m: &Message, p: &Palette) -> El {
                 .underline(p.accent_line)
         })
         .collect();
-    let mut body = rune::rich(content, spans)
+    let mut body = rune::rich(content.clone(), spans)
+        .key(format!("body-{}", m.id))
         .font(st::MESSAGE)
         .color(p.text)
         .wrap_anywhere()
         .max_w(BODY_MAX_W)
         .selectable(true);
     for r in links {
-        let url = m.text[r.clone()].to_owned();
+        let url = content[r.clone()].to_owned();
         body = body.link(rune::Link::new(r, url).hover(rune::LinkPaint::new().underline(p.accent)));
     }
     body.on_link(|_: &mut RadicaApp, url: &str, tx: &mut rune::Tx| {
         let _ = tx.open_url(url);
     })
+}
+
+/// Largest side an image attachment is drawn at, in points.
+const MEDIA_MAX: f32 = 280.0;
+
+/// An attachment in a message: an image once the node has opened it, else a card that saves the file.
+/// shortcut: audio and voice notes are saved and played outside the app; play them inline once Rune has a player.
+fn attachment_el(chat: &Chat, item: &media::MediaItem, p: &Palette) -> El {
+    let key = format!("media-{}", &item.hash[..16]);
+    if item.kind == media::MediaKind::Img
+        && let Some(img) = chat.media_images.get(&item.hash)
+        && let Some([w, h]) = img.size()
+        && w > 0
+        && h > 0
+    {
+        let scale = (MEDIA_MAX / w.max(h) as f32).min(1.0);
+        return el()
+            .key(key)
+            .role("img")
+            .label("Photo")
+            .size(w as f32 * scale, h as f32 * scale)
+            .radius(10.0)
+            .pixels(img.pixels());
+    }
+    let path = chat.media_path(&item.hash);
+    let title = match item.kind {
+        media::MediaKind::Img => "📷 Photo".to_owned(),
+        media::MediaKind::Voice => format!("🎤 Voice message · {:.0}s", item.duration_sec),
+        media::MediaKind::Audio => "🎵 Audio".to_owned(),
+        media::MediaKind::File => format!("📎 {}", item.filename),
+    };
+    let detail = match (&path, item.size_bytes) {
+        (None, _) => "Downloading from Freenet…".to_owned(),
+        (Some(_), 0) => "Sealed end to end".to_owned(),
+        (Some(_), n) if n >= 1024 * 1024 => format!("{:.1} MB", n as f64 / 1024.0 / 1024.0),
+        (Some(_), n) => format!("{} KB", n.div_ceil(1024)),
+    };
+    let mut card = row()
+        .key(key)
+        .min_w(220.0)
+        .max_w(BODY_MAX_W)
+        .px(12.0)
+        .py(8.0)
+        .gap(10.0)
+        .radius(10.0)
+        .center_y()
+        .fill(p.rail)
+        .border(1.0, p.line)
+        .child(
+            col()
+                .gap(2.0)
+                .grow(1.0)
+                .min_w(0.0)
+                .child(label(title, st::SMALL_STRONG, p.text).truncate())
+                .child(label(detail, st::GUTTER_TIME, p.text_secondary)),
+        );
+    if let Some(src) = path {
+        let name = if item.filename.is_empty() {
+            let ext = item.mime.rsplit('/').next().unwrap_or("bin");
+            format!("radica-{}.{ext}", &item.hash[..8])
+        } else {
+            item.filename.clone()
+        };
+        card = card.child(
+            row()
+                .key("save")
+                .role("button")
+                .label("Save attachment")
+                .px(10.0)
+                .h(28.0)
+                .radius(14.0)
+                .center()
+                .fill(p.surface)
+                .border(1.0, p.line_strong)
+                .hover(p.surface_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press_tx(move |_: &mut RadicaApp, tx: &mut rune::Tx| {
+                    let src = src.clone();
+                    let options = rune::FileDialogOptions {
+                        title: "Save attachment".into(),
+                        file_name: Some(name.clone()),
+                        ..Default::default()
+                    };
+                    tx.save_file(options, move |s: &mut RadicaApp, result, _| {
+                        if let Ok(Some(dest)) = result
+                            && let Err(e) = std::fs::copy(&src, &dest)
+                        {
+                            s.chat.identity_status =
+                                Some(format!("Could not save the attachment: {e}"));
+                        }
+                    });
+                })
+                .child(label("Save…", st::SMALL_STRONG, p.accent)),
+        );
+    }
+    card
 }
 
 fn composer(chat: &Chat, room: &Room, p: &Palette, k: &Kit) -> El {
@@ -755,6 +867,31 @@ fn composer(chat: &Chat, room: &Room, p: &Palette, k: &Kit) -> El {
             s.send_chat();
         })
         .child(icon(&icons::SEND, 18.0).color(if has_text { p.on_accent } else { p.text_muted }));
+
+    let attach = row()
+        .key("attach")
+        .role("button")
+        .label("Attach a file")
+        .help("Attach a photo, audio or file: sealed end to end, up to 25 MB")
+        .size(36.0, 36.0)
+        .radius(18.0)
+        .center()
+        .fill(p.surface)
+        .border(1.0, p.line)
+        .hover(p.surface_hover)
+        .cursor(rune::Cursor::Pointer)
+        .on_press_tx(|_: &mut RadicaApp, tx: &mut rune::Tx| {
+            let options = rune::FileDialogOptions {
+                title: "Attach to the conversation".into(),
+                ..Default::default()
+            };
+            tx.open_file(options, |s: &mut RadicaApp, result, _| {
+                if let Ok(Some(path)) = result {
+                    s.send_attachment(path);
+                }
+            });
+        })
+        .child(label("📎", st::EMOJI, p.text));
 
     let emoji = row()
         .key("emoji")
@@ -982,6 +1119,7 @@ fn composer(chat: &Chat, room: &Room, p: &Palette, k: &Kit) -> El {
                 },
             )
             .shadow(8.0, 24.0, p.shadow)
+            .child(attach)
             .child(emoji)
             .child(field)
             .child(sprout)

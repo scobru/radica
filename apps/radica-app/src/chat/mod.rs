@@ -9,6 +9,7 @@ pub mod avatar;
 mod conversation;
 pub mod example;
 mod icons;
+pub mod media;
 pub mod model;
 pub(crate) mod style;
 #[cfg(test)]
@@ -94,6 +95,10 @@ pub struct Chat {
     pub avatar_cache: Option<rune::image::ImageCache>,
     /// Decoded/rasterized avatar images keyed by member ID.
     pub avatar_images: HashMap<u32, rune::image::Image>,
+    /// Where the node keeps opened attachments, by hash (from the live snapshot).
+    pub media_dir: Option<std::path::PathBuf>,
+    /// Decoded image attachments, by hash.
+    pub media_images: HashMap<String, rune::image::Image>,
     /// Whether a wide window shows the members panel beside the conversation.
     pub members_open: bool,
     /// Whether a narrow window shows the members panel over the conversation. Separate from
@@ -150,6 +155,8 @@ impl Chat {
             drafts: HashMap::new(),
             avatar_cache: None,
             avatar_images: HashMap::new(),
+            media_dir: None,
+            media_images: HashMap::new(),
             members_open: true,
             members_overlay: false,
             today,
@@ -179,6 +186,7 @@ impl Chat {
         self.today = snap.today;
         self.day_zero = snap.day_zero;
         self.now = snap.now;
+        self.media_dir = snap.media_dir;
         if let Some(id) = snap.identity {
             if self.identity_name_input.text.is_empty()
                 || self.identity_name_input.text == self.identity.display_name
@@ -221,6 +229,7 @@ impl Chat {
             }
         }
         self.set_rooms(merged);
+        self.refresh_media_images();
     }
 
     pub fn rooms(&self) -> &[Room] {
@@ -262,10 +271,38 @@ impl Chat {
         self.refresh_avatar_images();
     }
 
+    /// Decode the image attachments the node has opened since the last look (it keeps them by hash in `media_dir`).
+    pub fn refresh_media_images(&mut self) {
+        let (Some(cache), Some(dir)) = (&self.avatar_cache, &self.media_dir) else {
+            return;
+        };
+        for room in &self.rooms {
+            for m in &room.messages {
+                for item in media::parse(&m.text).0 {
+                    if item.kind != media::MediaKind::Img
+                        || self.media_images.contains_key(&item.hash)
+                    {
+                        continue;
+                    }
+                    if let Ok(bytes) = std::fs::read(dir.join(&item.hash)) {
+                        self.media_images.insert(item.hash, cache.load(bytes));
+                    }
+                }
+            }
+        }
+    }
+
+    /// The opened attachment's file on this device, if the node has it yet.
+    pub fn media_path(&self, hash: &str) -> Option<std::path::PathBuf> {
+        let p = self.media_dir.as_ref()?.join(hash);
+        p.exists().then_some(p)
+    }
+
     /// Initialize the avatar rasterization cache with the window waker.
     pub fn init_avatar_cache(&mut self, waker: rune::Waker) {
         self.avatar_cache = Some(rune::image::ImageCache::new(waker));
         self.refresh_avatar_images();
+        self.refresh_media_images();
     }
 
     /// Get ready-to-draw avatar pixels for member `member_id`, if rasterized.

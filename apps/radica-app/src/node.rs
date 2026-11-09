@@ -61,6 +61,8 @@ pub struct LiveSnapshot {
     pub now: u32,
     pub status: String,
     pub identity: Option<IdentityInfo>,
+    /// Where opened attachments are kept, by hash (`chat::media`); None when there is nowhere to keep them.
+    pub media_dir: Option<std::path::PathBuf>,
 }
 
 /// Interactive write actions dispatched from the Messenger UI to the local Freenet node.
@@ -69,6 +71,12 @@ pub enum LiveAction {
     SendMessage {
         room_key: String,
         text: String,
+        reply_to: Option<u32>,
+    },
+    /// Seal and publish a file, then send it as a message (`[radica-cm1:…]`, as the web does).
+    SendAttachment {
+        room_key: String,
+        path: std::path::PathBuf,
         reply_to: Option<u32>,
     },
     ReactMessage {

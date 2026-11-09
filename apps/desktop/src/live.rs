@@ -218,7 +218,7 @@ pub fn x25519_shared_secret(my_seed: &[u8; 32], peer_pubkey_hex: &str) -> Option
     Some(peer_mont.mul_clamped(my_scalar).to_bytes())
 }
 
-fn aes_gcm_encrypt(key_bytes: &[u8; 32], iv: &[u8; 12], plaintext: &[u8]) -> Option<Vec<u8>> {
+pub fn aes_gcm_encrypt(key_bytes: &[u8; 32], iv: &[u8; 12], plaintext: &[u8]) -> Option<Vec<u8>> {
     let unbound = UnboundKey::new(&AES_256_GCM, key_bytes).ok()?;
     let key = LessSafeKey::new(unbound);
     let nonce = Nonce::assume_unique_for_key(*iv);
@@ -228,7 +228,7 @@ fn aes_gcm_encrypt(key_bytes: &[u8; 32], iv: &[u8; 12], plaintext: &[u8]) -> Opt
     Some(in_out)
 }
 
-fn aes_gcm_decrypt(
+pub fn aes_gcm_decrypt(
     key_bytes: &[u8; 32],
     iv: &[u8; 12],
     ciphertext_and_tag: &[u8],
@@ -576,7 +576,7 @@ impl StoredDesktopIdentity {
 }
 
 /// 32 bytes from the OS CSPRNG. Seeds keys, room keys and AES-GCM IVs, so it must be unpredictable.
-fn entropy_32(_tag: &str) -> [u8; 32] {
+pub fn entropy_32(_tag: &str) -> [u8; 32] {
     use ring::rand::{SecureRandom, SystemRandom};
     let mut out = [0u8; 32];
     SystemRandom::new()
@@ -1146,7 +1146,17 @@ pub fn load_live() -> Option<LiveSnapshot> {
             Some(stored.signing_sk.clone())
         },
     });
+    // Open the newest attachments in the background of this poll, a few at a time.
+    let mut texts: Vec<(u32, &str)> = rooms
+        .iter()
+        .flat_map(|r| r.messages.iter().map(|m| (m.time, m.text.as_str())))
+        .filter(|(_, t)| t.contains("[radica-cm1:"))
+        .collect();
+    texts.sort_by(|a, b| b.0.cmp(&a.0));
+    crate::media::fetch_missing(texts.into_iter().map(|(_, t)| t), 6);
+
     Some(LiveSnapshot {
+        media_dir: crate::media::dir(),
         rooms,
         today,
         day_zero,
@@ -2315,6 +2325,18 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                 &format!("community-chat/{room_key}"),
                 &json!({ "type": "chat", "message": msg_obj }),
             )
+        }
+        LiveAction::SendAttachment {
+            room_key,
+            path,
+            reply_to,
+        } => {
+            let token = crate::media::send_file(&path)?;
+            act_live(LiveAction::SendMessage {
+                room_key,
+                text: token,
+                reply_to,
+            })
         }
         LiveAction::ReactMessage {
             room_key,

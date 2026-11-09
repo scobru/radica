@@ -251,6 +251,7 @@ fn create_room_join_invite_and_emoji_tray_work() {
         now: 600,
         status: "7 rooms".into(),
         identity: None,
+        media_dir: None,
     });
     assert_eq!(rt.state.chat.room().unwrap().key, "dm:2");
     assert_eq!(
@@ -579,4 +580,29 @@ fn widening_closes_the_narrow_members_panel() {
     });
     settle(&mut rt);
     assert_eq!(rt.state.chat.composer.text, "still typing");
+}
+
+#[test]
+fn an_attachment_shows_as_a_card_not_its_token() {
+    let mut state = connected();
+    let mut file = super::media::MediaItem::new(
+        super::media::MediaKind::File,
+        "application/pdf",
+        &"a".repeat(64),
+        &"b".repeat(64),
+    );
+    file.filename = "conti.pdf".into();
+    state
+        .chat
+        .composer
+        .replace_text(&format!("{} eccoli", file.token()));
+    assert!(state.chat.send());
+    let rt = render(state, WINDOW_SIZE);
+    assert!(shows(&rt, "📎 conti.pdf"));
+    assert!(shows(&rt, "Downloading from Freenet…"));
+    assert!(shows(&rt, "eccoli"));
+    assert!(
+        !shows(&rt, "radica-cm1"),
+        "the token never shows, in the thread or the room list"
+    );
 }

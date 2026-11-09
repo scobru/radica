@@ -294,6 +294,7 @@ pub fn day_label(day: i64, today: i64) -> String {
 /// become one space, and past `max_chars` it is cut at a word boundary, with trailing
 /// punctuation dropped before the "…" so a cut never reads as "up.…".
 pub fn preview(text: &str, max_chars: usize) -> String {
+    let text = &super::media::summary(text);
     let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max_chars {
         return flat;

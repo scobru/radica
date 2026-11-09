@@ -104,6 +104,21 @@ impl RadicaApp {
         }
     }
 
+    /// Send a file from disk as an attachment in the open room (the node seals and publishes it).
+    pub fn send_attachment(&mut self, path: std::path::PathBuf) {
+        let Some(room_key) = self.chat.room().map(|r| r.key.clone()) else {
+            return;
+        };
+        let reply_to = self.chat.replying_to.take().map(|r| r.message);
+        if let Some(ctl) = &self.ctl {
+            ctl.act(LiveAction::SendAttachment {
+                room_key,
+                path,
+                reply_to,
+            });
+        }
+    }
+
     pub fn send_chat(&mut self) {
         let key = self.chat.room().map(|r| r.key.clone());
         let text = self.chat.composer.text.trim().to_owned();

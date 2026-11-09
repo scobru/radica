@@ -10,6 +10,7 @@
 mod host;
 mod install;
 mod live;
+mod media;
 mod release;
 mod river;
 
