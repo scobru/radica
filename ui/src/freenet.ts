@@ -42,7 +42,8 @@ import {
 } from "./crypto.ts";
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, type LogEntry } from "./logfold.ts";
+import { CURRENT } from "./legacy.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -588,6 +589,9 @@ export class FreenetClient {
   public setIdentity(identity: UserIdentity): void {
     this.identity = identity;
     this.me = identity.pubkey;
+    this.moveLocalLogs();
+    this.applyDmHistory();
+    void this.loadDmHistory();
     // keys this device used before Viso's shared one: load first so DMs and room keys never decrypt before they arrive
     addReadKeys(JSON.parse(localStorage.getItem("radica_read_keys") || "[]"));
     this.readKeysReady = import("./delegate.ts").then(async (m) => {
@@ -1693,15 +1697,22 @@ export class FreenetClient {
           // my signed membership and sealed room secret for a River room: sent with my first message there
           if (b.room.river && typeof b.river_join?.member === "string") localStorage.setItem(`river_join_${b.room.id}`, JSON.stringify(b.river_join));
           void this.refreshLog(`room/${b.room.id}`);
+        } else if (b.type === "dm_ref" && typeof b.room === "string") {
+          // a conversation of mine changed in its own log (the other side or my other device wrote there)
+          const peer = dmPeerOf(b.room, this.me);
+          if (peer && (e.author === this.me || e.author === peer) && !this.isBlocked(peer)) {
+            rooms.add(b.room);
+            if (isSecretRoomId(b.room)) this.addSecretChatPeer(this.me, peer, e.ts);
+            else this.addChatPeer(this.me, peer, e.ts);
+            void this.refreshLog(`dm/${b.room}`);
+          }
         } else if (b.type === "room_ref" && e.author === this.me && typeof b.roomId === "string" && /^privroom_[\w]+$/.test(b.roomId)) {
           void this.refreshLog(`room/${b.roomId}`); // a room I made or joined: its log has the descriptor and my key
         }
       }
       // "mark all read" is a signed entry of mine, so it survives a re-login or a new device
       if (this.readUpTo) this.markNotificationsReadUpTo(this.me, this.readUpTo);
-      // my inbox holds both directions of each conversation; only I can delete from it
-      const isBlocked = (sender: string) => this.isBlocked(sender);
-      for (const roomId of rooms) this.writeChat(roomId, foldChat(entries, roomId, (a, m) => a === this.me || a === m.sender || isSecretRoomId(roomId), isBlocked, (a, m) => a === m.sender || a === m.recipient), entries);
+      for (const roomId of rooms) this.applyDm(roomId);
     } else if (name === "directory") {
       for (const e of [...entries].sort((a, b) => a.ts - b.ts)) {
         try {
@@ -1717,6 +1728,8 @@ export class FreenetClient {
       const isMod = (pk: string) => !!comm && (pk === comm.creator || comm.moderators.includes(pk));
       const banned = (pk: string) => !!comm?.banned_members?.includes(pk);
       this.writeChat(`comm_${id}`, foldChat(entries, `comm_${id}`, (a, m) => a === m.sender || isMod(a), (sender) => banned(sender) || this.isBlocked(sender)), entries);
+    } else if (name.startsWith("dm/")) {
+      this.applyDm(name.slice("dm/".length));
     } else if (name.startsWith("room/")) {
       const id = name.slice("room/".length);
       const room = foldRoom(entries, id);
@@ -1808,10 +1821,111 @@ export class FreenetClient {
     if (!this.deviceKeys(identity.pubkey).includes(identity.encPub)) await this.logAppend(name, { type: "device", enc_pub: identity.encPub });
   }
 
-  /** Which log a chat room lives in: DMs in my inbox, community rooms and private rooms in their own log. */
+  /** Append to a room's log. In a one-to-one conversation the other side's inbox gets a "this conversation changed"
+   *  entry (one per conversation and author, replaced each time: it wakes their client without growing the inbox),
+   *  and mine one too, once, so my other devices find the conversation. */
+  private async chatAppend(roomId: string, body: object): Promise<void> {
+    await this.logAppend(this.logOfRoom(roomId), body);
+    const peer = this.me ? dmPeerOf(roomId, this.me) : null;
+    if (!peer) return;
+    void this.logAppend(`inbox/${peer}`, { type: "dm_ref", room: roomId }).catch((e) => console.warn("[Freenet] dm_ref:", e));
+    if (!this.dmRefsSent.has(roomId)) {
+      this.dmRefsSent.add(roomId);
+      void this.logAppend(`inbox/${this.me}`, { type: "dm_ref", room: roomId }).catch(() => this.dmRefsSent.delete(roomId));
+    }
+  }
+  private dmRefsSent = new Set<string>();
+
+  /** A conversation, from its own log, my inbox and the history from before conversations had logs of their own. */
+  private applyDm(roomId: string): void {
+    const peer = this.me ? dmPeerOf(roomId, this.me) : null;
+    if (!peer) return;
+    // anyone can append to a log: in a conversation's, only its two people count
+    const own = this.logEntries(`dm/${roomId}`).filter((e) => e.author === this.me || e.author === peer);
+    const inbox = this.logEntries(`inbox/${this.me}`);
+    const entries = [...own, ...inbox, ...this.dmHistory()];
+    const read = { ...localReadMarks(localStorage), ...foldChatRead(inbox, this.me) };
+    const seen = Math.max(read[roomId] ?? 0, Number(localStorage.getItem(`freenet_chat_cleared_${roomId}`) || 0));
+    const secret = isSecretRoomId(roomId);
+    for (const e of own) {
+      let b: any;
+      try {
+        b = JSON.parse(e.body);
+      } catch {
+        continue;
+      }
+      const m = b.type === "chat" ? (b.message as ChatMessage) : null;
+      if (m && m.sender === peer && e.author === peer && m.recipient === this.me && m.room_id === roomId && m.timestamp > seen && !this.isBlocked(peer))
+        this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: peer, text: secret ? "sent you a secret chat message 🔐" : "sent you an encrypted direct message 🔒", timestamp: m.timestamp, read: false, linkRoomId: roomId, isSecret: secret });
+      else if (b.type === "chat_read" && e.author === peer && b.room === roomId && typeof b.upto === "number") this.savePeerReadUpto(roomId, peer, b.upto);
+    }
+    // only I can take someone's message out of my own view; a sender takes theirs out for both
+    this.writeChat(roomId, foldChat(entries, roomId, (a, m) => a === this.me || a === m.sender || secret, (sender) => this.isBlocked(sender), (a, m) => a === m.sender || a === m.recipient), entries);
+  }
+
+  /** A new log contract: the logs cached here are compacted as the network's are (an inbox's conversations move to
+   *  its history), or syncing would send back to the new logs everything they left behind. Once per generation. */
+  private moveLocalLogs(): void {
+    const mark = "radica_log_generation";
+    if (localStorage.getItem(mark) === CURRENT.log) return;
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith("freenet_log_")) continue;
+      const name = k.slice("freenet_log_".length);
+      try {
+        const entries = JSON.parse(localStorage.getItem(k) || "{}") as Record<string, LogEntry>;
+        if (name.startsWith("inbox/")) this.keepDmHistory(name.slice("inbox/".length), Object.values(entries));
+        localStorage.setItem(k, JSON.stringify(compactLog(name, entries)));
+      } catch {}
+    }
+    this.logEntriesCache.clear();
+    localStorage.setItem(mark, CURRENT.log);
+  }
+
+  /** Conversations' entries from before each had a log of its own: read-only history, apart from the inbox. */
+  private keepDmHistory(owner: string, entries: LogEntry[]): void {
+    const key = `freenet_dm_history_${owner}`;
+    const have = { ...this.readJson<Record<string, LogEntry>>(key, "{}") };
+    for (const e of entries) if (isDmEntry(e)) have[`${e.author}:${e.id}`] = e;
+    localStorage.setItem(key, JSON.stringify(have));
+  }
+
+  private dmHistory(): LogEntry[] {
+    return Object.values(this.readJson<Record<string, LogEntry>>(`freenet_dm_history_${this.me}`, "{}"));
+  }
+
+  /** The conversations the history holds, listed and shown. */
+  private applyDmHistory(): void {
+    const rooms = new Set<string>();
+    for (const e of this.dmHistory()) {
+      try {
+        const m = JSON.parse(e.body).message;
+        const peer = m && typeof m.room_id === "string" ? dmPeerOf(m.room_id, this.me) : null;
+        if (!peer || m.sender !== e.author || this.isBlocked(peer)) continue;
+        rooms.add(m.room_id);
+        if (isSecretRoomId(m.room_id)) this.addSecretChatPeer(this.me, peer, e.ts);
+        else this.addChatPeer(this.me, peer, e.ts);
+      } catch {}
+    }
+    for (const r of rooms) this.applyDm(r);
+  }
+
+  /** The history as the previous inbox holds it, read once per device (a device that never cached it has none). */
+  private async loadDmHistory(): Promise<void> {
+    const mark = `radica_dm_history_${this.me}`;
+    if (localStorage.getItem(mark)) return;
+    const old = await this.net.legacy<{ entries?: Record<string, LogEntry> }>(`log:inbox/${this.me}`).catch(() => null);
+    if (!old) return; // unreachable now: tried again next session
+    this.keepDmHistory(this.me, Object.values(old.entries ?? {}));
+    localStorage.setItem(mark, "1");
+    this.applyDmHistory();
+    this.notifyListeners();
+  }
+
+  /** Which log a chat room lives in: every room and conversation in its own log. */
   private logOfRoom(roomId: string): string {
     if (roomId.startsWith("comm_")) return `community-chat/${roomId.slice(5)}`;
     if (roomId.startsWith("privroom_")) return `room/${roomId}`;
+    if (this.me && dmPeerOf(roomId, this.me)) return `dm/${roomId}`; // a direct message or Secret Chat: its own log
     return `inbox/${this.me}`;
   }
 
@@ -2188,7 +2302,7 @@ export class FreenetClient {
     const key = `freenet_chat_${roomId}`;
     localStorage.setItem(key, JSON.stringify([...JSON.parse(localStorage.getItem(key) || "[]"), message]));
     this.addChatPeer(identity.pubkey, peer);
-    await this.logAppend(`inbox/${identity.pubkey}`, { type: "chat", message });
+    await this.chatAppend(roomId, { type: "chat", message });
     return { ...message, text };
   }
 
@@ -2420,10 +2534,7 @@ export class FreenetClient {
     this.addChatPeer(identity.pubkey, recipientPubkey);
     this.addChatPeer(recipientPubkey, identity.pubkey);
     this.broadcast({ type: "chat", message });
-    await Promise.all([
-      this.logAppend(`inbox/${recipientPubkey}`, { type: "chat", message }),
-      this.logAppend(`inbox/${identity.pubkey}`, { type: "chat", message }),
-    ]);
+    await this.chatAppend(roomId, { type: "chat", message });
 
     // Return message with decrypted plaintext for the local caller
     return {
@@ -2541,9 +2652,11 @@ export class FreenetClient {
     store: localStorage,
     blockedBy: (me) => this.blockedBy(me),
     visibleChat: (roomId) => this.visibleChat(roomId),
-    deliver: async (entry, inboxes) => {
+    deliver: async (entry) => {
       this.broadcast(entry);
-      await Promise.all(inboxes.map((k) => this.logAppend(`inbox/${k}`, entry)));
+      const e = entry as { roomId?: string; message?: { room_id?: string } };
+      const room = e.roomId ?? e.message?.room_id;
+      if (room) await this.chatAppend(room, entry); // the conversation's own log, as direct messages
     },
     encPubOf: async (k) => {
       await this.refresh(k); // not forced, as for direct messages
@@ -2701,7 +2814,7 @@ export class FreenetClient {
     if (this.me) {
       const peer = dmPeerOf(roomId, this.me);
       if (peer) {
-        void this.logAppend(`inbox/${peer}`, { type: "chat_read", room: roomId, upto }).catch(() => {});
+        void this.logAppend(`dm/${roomId}`, { type: "chat_read", room: roomId, upto }).catch(() => {}); // their read receipt
       }
     }
   }
@@ -2738,16 +2851,9 @@ export class FreenetClient {
       localStorage.setItem(roomKey, JSON.stringify(filtered));
     }
     this.broadcast({ type: "chat_delete", roomId, messageId });
-    await this.logAppend(this.logOfRoom(roomId), { type: "chat_delete", roomId, messageId });
-    const dmPair = /^([0-9a-f]{64}):([0-9a-f]{64})$/.exec(roomId);
+    await this.chatAppend(roomId, { type: "chat_delete", roomId, messageId });
     const deletedChatMsg = raw ? (JSON.parse(raw) as ChatMessage[]).find((m) => m.id === messageId) : undefined;
     if (deletedChatMsg?.text) revokeChatMediaInText(deletedChatMsg.text);
-    if (dmPair && (!deletedChatMsg || deletedChatMsg.sender === this.me)) {
-      const peer = dmPair[1] === this.me ? dmPair[2] : dmPair[1];
-      if (peer && peer !== this.me && !this.riverOnly.has(peer)) {
-        await this.logAppend(`inbox/${peer}`, { type: "chat_delete", roomId, messageId });
-      }
-    }
     this.notifyListeners();
   }
 
@@ -2805,23 +2911,13 @@ export class FreenetClient {
     }
 
     this.broadcast({ type: "chat_edit", roomId, messageId, text: encryptedText });
-    await this.logAppend(this.logOfRoom(roomId), { type: "chat_edit", roomId, messageId, text: encryptedText }).catch((e) =>
+    await this.chatAppend(roomId, { type: "chat_edit", roomId, messageId, text: encryptedText }).catch((e) =>
       console.warn("[Freenet] chat_edit log:", e)
     );
-
-    const dmPair = /^([0-9a-f]{64}):([0-9a-f]{64})$/.exec(roomId);
-    if (dmPair) {
-      const peer = dmPair[1] === this.me ? dmPair[2] : dmPair[1];
-      if (peer && peer !== this.me && !this.riverOnly.has(peer)) {
-        await this.logAppend(`inbox/${peer}`, { type: "chat_edit", roomId, messageId, text: encryptedText }).catch((e) =>
-          console.warn("[Freenet] dm inbox chat_edit:", e)
-        );
-      }
-    }
     this.notifyListeners();
   }
 
-  /** Toggle my `emoji` on a message. In a direct message `peer` also gets the entry in their inbox. */
+  /** Toggle my `emoji` on a message (a conversation's other side sees it in the conversation's own log). */
   public async reactToChatMessage(roomId: string, messageId: string, emoji: string, peer?: string): Promise<void> {
     const river = this.riverRoomOf(roomId);
     if (river) {
@@ -2843,8 +2939,7 @@ export class FreenetClient {
     if (!m.reactions[emoji].length) delete m.reactions[emoji];
     localStorage.setItem(key, JSON.stringify(list));
     const body = { type: "chat_react", roomId, messageId, emoji, on };
-    await this.logAppend(this.logOfRoom(roomId), body);
-    if (peer) await this.logAppend(`inbox/${peer}`, body);
+    await this.chatAppend(roomId, body);
     this.notifyListeners();
   }
 
