@@ -211,7 +211,9 @@ Add each key to `ui/freenet-assets.json` under `"langs"` (e.g. `"langs": { "it":
 
 The desktop app under `apps/` (`apps/desktop`) is Radica web in a native window, so it does what the web does from one codebase, plus the Freenet node underneath. On launch it probes port `7509`, auto-starts an installed Freenet service, or downloads and Ed25519-verifies the official Freenet release, then opens Radica web from the node in a [wry](https://github.com/tauri-apps/wry) window (WebView2 on Windows, WebKit on macOS and Linux; Linux builds need `libwebkit2gtk-4.1-dev`). Links to other sites open in the system browser. It lives in its own Cargo workspace so desktop dependencies never alter WASM contract or delegate hashes.:
 
-Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed) and macOS (Apple Silicon and Intel, unsigned `Radica.app`) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release.
+**Android** (`apps/android`): Radica web in a WebView over the Freenet node that [Freenet Android Node](https://github.com/HostFat/freenet-android-node) (community app by HostFat, unofficial) runs on the phone. When no node answers, the app says whether that app is missing (with where to get it) or installed but stopped (with a button to open it), and opens Radica by itself once the node is up.
+
+Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed) and macOS (Apple Silicon and Intel, unsigned `Radica.app`) and Android (debug-signed APK) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release.
 
 ```bash
 npm run app        # cargo run --manifest-path apps/Cargo.toml -p radica-desktop
