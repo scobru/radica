@@ -13,4 +13,9 @@ rune-kit.workspace = true
 # Turning those formats on here turns them on for Rune too (one `image` in the build).
 image = { version = "0.25", default-features = false, features = ["webp", "gif"] }
 base64 = "0.22"
+# Voice notes and audio attachments: decoded here (the same decoders Rune uses on macOS), played with rodio on every
+# platform (Rune's own player only plays on macOS).
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "aac", "isomp4", "wav", "pcm", "ogg", "vorbis", "mkv", "flac"] }
+opuscule = "0.2.2"
+rodio = { version = "0.20.1", default-features = false }
 

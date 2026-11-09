@@ -803,6 +803,41 @@ fn attachment_el(chat: &Chat, item: &media::MediaItem, p: &Palette) -> El {
                 .child(label(title, st::SMALL_STRONG, p.text).truncate())
                 .child(label(detail, st::GUTTER_TIME, p.text_secondary)),
         );
+    if let Some(src) = path.clone()
+        && matches!(item.kind, media::MediaKind::Voice | media::MediaKind::Audio)
+    {
+        let st = chat.audio_status(&item.hash);
+        let playing = st.as_ref().is_some_and(|s| s.playing);
+        let time = |t: f32| format!("{}:{:02}", t as u32 / 60, t as u32 % 60);
+        let clock = match &st {
+            Some(s) if s.error.is_some() => s.error.clone().unwrap_or_default(),
+            Some(s) => format!("{} / {}", time(s.position), time(s.duration)),
+            None if item.duration_sec > 0.0 => time(item.duration_sec),
+            None => String::new(),
+        };
+        let hash = item.hash.clone();
+        card = card.child(
+            row()
+                .key("play")
+                .role("button")
+                .label(if playing { "Pause" } else { "Play" })
+                .size(32.0, 32.0)
+                .radius(16.0)
+                .center()
+                .fill(p.accent)
+                .hover(p.own_row_hover)
+                .cursor(rune::Cursor::Pointer)
+                .on_press(move |s: &mut RadicaApp| s.chat.toggle_audio(&hash, src.clone()))
+                .child(label(
+                    if playing { "⏸" } else { "▶" },
+                    st::SMALL_STRONG,
+                    p.on_accent,
+                )),
+        );
+        if !clock.is_empty() {
+            card = card.child(label(clock, st::GUTTER_TIME, p.text_secondary));
+        }
+    }
     if let Some(src) = path {
         let name = if item.filename.is_empty() {
             let ext = item.mime.rsplit('/').next().unwrap_or("bin");
