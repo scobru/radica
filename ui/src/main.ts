@@ -7480,7 +7480,11 @@ function updateChatBadge() {
   const me = currentIdentity.pubkey;
   const read = conversation.readMarks();
   let n = 0;
-  for (const peer of freenet.getChatPeers(me)) if (peer !== me) n += conversation.unread(freenet.getRoomId(me, peer), read);
+  // count only what the chat list shows, so every badge unit has a pill to clear (blocked/removed peers are hidden there; secret chats are listed)
+  for (const peer of freenet.getChatPeers(me)) {
+    if (peer !== me && !isHiddenAuthor(peer) && !freenet.isChatPeerRemoved(me, peer)) n += conversation.unread(freenet.getRoomId(me, peer), read);
+  }
+  for (const peer of freenet.getSecretChatPeers(me)) if (peer && peer !== me) n += conversation.unread(freenet.getSecretRoomId(me, peer), read);
   for (const r of allPrivateRooms) n += conversation.unread(r.id, read);
   for (const c of joinedCommunities()) n += conversation.unread(`comm_${c.id}`, read);
   chatBadge.textContent = n > 99 ? "99+" : String(n);
