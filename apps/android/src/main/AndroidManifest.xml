@@ -13,6 +13,7 @@
     <application
         android:label="Radica"
         android:icon="@mipmap/ic_launcher"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
