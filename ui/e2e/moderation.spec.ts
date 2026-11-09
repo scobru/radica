@@ -49,6 +49,8 @@ test("a stranger's post without the anti-bot proof is shielded, one with it is n
 });
 
 test("a Radica moderator removes a stranger's post and comment for everyone following the maintainer", async ({ page }) => {
+  const ts = Date.UTC(2026, 10, 1); // before readers check the proof (POST_POW_SINCE): only moderation decides here
+  await page.clock.setFixedTime(ts + 60_000); // pinned, so the test does not depend on today's date
   await signIn(page);
   // the maintainer names me a moderator on their blocklist (a log entry as the node would have given it)
   await page.evaluate(async () => {
@@ -58,7 +60,6 @@ test("a Radica moderator removes a stranger's post and comment for everyone foll
     const e = { author: RADICA_MAINTAINER, id: "mod1", ts: Date.now(), body: JSON.stringify({ type: "mod", target: me, on: true }), sig: "" };
     localStorage.setItem(`freenet_log_blocklist/${RADICA_MAINTAINER}`, JSON.stringify({ [`${e.author}:${e.id}`]: e }));
   });
-  const ts = Date.now() - 60_000; // before the proof is checked: only moderation decides here
   const [spam, other, keep] = [tagOf(), tagOf(), tagOf()];
   const commenter = hex();
   await receive(page, post(`post_${ts}_aaaaaa`, hex(), ts, `buy now ${spam}`));
