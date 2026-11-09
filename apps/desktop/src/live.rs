@@ -2089,7 +2089,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                     .ok_or_else(|| "Invalid private room key".to_owned())?;
                 let wire_text = encrypt_with_symmetric_key(&sym_key, &text)
                     .ok_or_else(|| "Failed to encrypt message for private room".to_owned())?;
-                let room_id = format!("room_{priv_id}");
+                let room_id = priv_id.to_owned();
                 let msg_id = format!("msg_{ts}_dsk");
                 let sig_msg = format!("{msg_id}:{room_id}:{pubkey}:private:{wire_text}:{ts}");
                 let msg_sig = hex::encode(sk.sign(sig_msg.as_bytes()).to_bytes());
@@ -2154,7 +2154,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                     &format!("room/{priv_id}"),
                     &json!({
                         "type": "chat_react",
-                        "roomId": format!("room_{priv_id}"),
+                        "roomId": priv_id.to_owned(),
                         "messageId": wire_id,
                         "emoji": emoji,
                         "on": on,
@@ -2197,7 +2197,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                     &format!("room/{priv_id}"),
                     &json!({
                         "type": "chat_edit",
-                        "roomId": format!("room_{priv_id}"),
+                        "roomId": priv_id.to_owned(),
                         "messageId": wire_id,
                         "text": wire_text,
                     }),
@@ -2229,7 +2229,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                     &format!("room/{priv_id}"),
                     &json!({
                         "type": "chat_delete",
-                        "roomId": format!("room_{priv_id}"),
+                        "roomId": priv_id.to_owned(),
                         "messageId": wire_id,
                     }),
                 );
@@ -2287,28 +2287,9 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             )
         }
         LiveAction::CreatePrivateRoom { name } => {
-            let slug: String = name
-                .trim()
-                .trim_start_matches("🔒")
-                .trim()
-                .chars()
-                .map(|c| {
-                    if c.is_ascii_alphanumeric() {
-                        c.to_ascii_lowercase()
-                    } else {
-                        '-'
-                    }
-                })
-                .collect::<String>()
-                .trim_matches('-')
-                .to_owned();
+            // Same shape as the web's ids (`privroom_<ms>_<rand>`): the web only treats those as private rooms.
             let id_bytes = entropy_32("radica-private-room-id");
-            let id_suffix = hex::encode(&id_bytes[..4]);
-            let id = if slug.is_empty() {
-                id_suffix
-            } else {
-                format!("{slug}-{id_suffix}")
-            };
+            let id = format!("privroom_{ts}_{}", hex::encode(&id_bytes[..3]));
             let key_hex = hex::encode(entropy_32("radica-private-room-aes256"));
             save_private_room(&StoredPrivateRoom {
                 id,
