@@ -1144,8 +1144,6 @@ document.getElementById("blocklists-add-form")!.addEventListener("submit", (e) =
 
 // Moderation dashboard: for Radica's moderators only (the maintainer and whoever they named). Reported posts waiting for a
 // decision, and who is banned. Everything it does goes on my public blocklist, which Radica's followers read.
-const modModal = document.getElementById("mod-modal") as HTMLElement;
-const modOpenBtn = document.getElementById("mod-open-btn") as HTMLElement;
 const blocklistsTabs = document.getElementById("blocklists-tabs") as HTMLElement | null;
 const tabBtnBlocklists = document.getElementById("tab-btn-blocklists") as HTMLElement | null;
 const tabBtnModeration = document.getElementById("tab-btn-moderation") as HTMLElement | null;
@@ -1181,7 +1179,6 @@ function updateBlocklistsBadge(): void {
 }
 
 const paintModButton = () => {
-  if (modOpenBtn) modOpenBtn.style.display = "none";
   const isMod = amGlobalMod();
   if (blocklistsTabs) blocklistsTabs.style.display = isMod ? "flex" : "none";
   if (tabBtnModeration) tabBtnModeration.style.display = isMod ? "" : "none";
@@ -1328,15 +1325,6 @@ document.getElementById("mod-comm-form")!.addEventListener("submit", async (e) =
   await hideCommunityForAll(`c_${slug}`, reason.value);
   input.value = reason.value = "";
 });
-modOpenBtn.addEventListener("click", async () => {
-  if (!currentIdentity || !amGlobalMod()) return;
-  renderModDashboard();
-  modModal.style.display = "flex";
-  refreshTrustedBlocklists();
-  await freenet.refreshLog("reports", true);
-  if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
-});
-document.getElementById("mod-close-btn")!.addEventListener("click", () => (modModal.style.display = "none"));
 document.getElementById("mod-ban-form")!.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!amGlobalMod()) return;
@@ -1351,29 +1339,6 @@ document.getElementById("mod-ban-form")!.addEventListener("submit", async (e) =>
   renderModDashboard();
   renderTimeline();
 });
-modModal.addEventListener("click", async (e) => {
-  const btn = (e.target as HTMLElement).closest("[data-act]") as HTMLElement | null;
-  if (!btn || !amGlobalMod()) return;
-  e.preventDefault();
-  const { act, author = "", postId = "", media = "", target = "" } = btn.dataset;
-  if (act === "profile") return void openUserProfile(author);
-  if (act === "remove") await globalRemove(author, postId, media || null);
-  else if (act === "dismiss") await freenet.dismissReport(target);
-  else if (act === "ban") {
-    if (!confirm(`Ban ${getAuthorDisplayName(author)}? Everything they post is hidden for everyone who follows Radica's moderation.`)) return;
-    await freenet.setBlocked(author, true);
-    showToast("Banned.", "info");
-  } else if (act === "unban") await freenet.setBlocked(author, false);
-  else if (act === "unhide-comm") {
-    await freenet.setCommunityHidden(target, false);
-    hiddenCommsSig = [...hiddenCommunityIds().keys()].sort().join(",");
-    allCommunities = await loadCommunities();
-    renderCommunities();
-  }
-  renderModDashboard();
-  renderTimeline();
-});
-
 const notifsModal = document.getElementById("notifs-modal") as HTMLElement;
 const notifsList = document.getElementById("notifs-list") as HTMLElement;
 const notifsCloseBtn = document.getElementById("notifs-close-btn") as HTMLButtonElement;
