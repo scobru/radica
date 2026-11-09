@@ -179,6 +179,14 @@ test("the moderation queue puts a trusted person's report first and a swarm of f
   const fold = page.locator("#mod-queue details");
   await expect(fold).toContainText("Reported only by people outside your network (1)");
   await expect(fold).toContainText("20 reports");
+
+  // a sync redraws the dashboard: the fold I opened stays open when nothing in it changed
+  await fold.locator("summary").click();
+  await expect(fold).toHaveAttribute("open", "");
+  const tag = tagOf();
+  await receive(page, post(`post_${Date.now()}_dddddd`, hex(), Date.now(), `a sync ${tag}`));
+  await expect(page.locator(".gram-card", { hasText: tag })).toHaveCount(1, { timeout: 20_000 });
+  await expect(fold).toHaveAttribute("open", "");
 });
 
 async function makeMeAModerator(page: Page) {
