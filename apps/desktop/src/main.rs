@@ -12,8 +12,13 @@ mod web;
 #[cfg(test)]
 #[test]
 fn the_app_carries_radica_s_version() {
-    let pkg: serde_json::Value = serde_json::from_str(include_str!("../../../package.json")).unwrap();
-    assert_eq!(pkg["version"].as_str(), Some(env!("CARGO_PKG_VERSION")), "set apps/Cargo.toml's version to package.json's");
+    let pkg: serde_json::Value =
+        serde_json::from_str(include_str!("../../../package.json")).unwrap();
+    assert_eq!(
+        pkg["version"].as_str(),
+        Some(env!("CARGO_PKG_VERSION")),
+        "set apps/Cargo.toml's version to package.json's"
+    );
 }
 
 fn main() {
