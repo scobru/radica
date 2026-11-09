@@ -96,6 +96,15 @@
   .choice { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--card-2); }
   .choice h4 { font: 700 1rem var(--font); margin-bottom: .35rem; }
   .choice p { font-size: .93rem; margin-bottom: .7rem; }
+  .fast { background: var(--card); border: 2px solid var(--primary); border-radius: 20px; padding: 26px; margin-top: 2rem; }
+  .fast h3 { margin-bottom: .5rem; }
+  .fast > p { color: var(--muted); margin-bottom: 1rem; }
+  .dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .dl .btn { justify-content: center; }
+  .dl .btn[data-mine] { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+  .fast ul { margin: 1rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: .92rem; }
+  .fast li + li { margin-top: .3rem; }
+  .or { margin-top: 2.2rem; color: var(--muted); }
   .tag { display: inline-block; font: 600 .7rem var(--font); text-transform: uppercase; letter-spacing: .08em; color: var(--primary); background: var(--primary-soft); padding: .2rem .5rem; border-radius: 6px; margin-left: .4rem; vertical-align: middle; }
 
   /* faq */
@@ -146,7 +155,7 @@
       <h1>A social network <em>nobody owns.</em></h1>
       <p class="lead">Posts, communities and chat that live on a peer-to-peer network. No servers, no company, no account to make.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="#start">Get started in 3 steps</a>
+        <a class="btn btn-primary" href="#app">Download the Radica app</a>
         <a class="btn btn-ghost" href="http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">Already on Freenet? Open Radica</a>
         <a class="btn btn-ghost" href="https://try.freenet.org/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">Try it without installing</a>
       </div>
@@ -172,8 +181,28 @@
   <section id="start">
     <div class="wrap">
       <p class="eyebrow">Get started</p>
-      <h2>Three steps, about five minutes.</h2>
-      <p class="muted">A desktop or laptop is the easy way. On Android there is an unofficial app (tab below); there is nothing for iPhone yet.</p>
+      <h2>One download, or three steps by hand.</h2>
+      <p class="muted">There is nothing for iPhone yet.</p>
+
+      <div class="fast" id="app">
+        <h3>The quickest way: the Radica app</h3>
+        <p>On a computer, the app installs Freenet if you don't have it, starts it, and opens Radica in its own window. Then go to step 3 to choose your identity.</p>
+        <div class="dl">
+          <a class="btn btn-ghost" data-os="win" href="https://github.com/scobru/radica/releases/latest/download/radica-windows-x86_64.zip">Windows</a>
+          <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-arm64.zip">macOS (Apple Silicon)</a>
+          <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-x86_64.zip">macOS (Intel)</a>
+          <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-linux-x86_64.tar.gz">Linux</a>
+          <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">Android</a>
+        </div>
+        <ul>
+          <li><strong>macOS:</strong> the app is not signed yet. The first time, right-click Radica and choose Open.</li>
+          <li><strong>Linux:</strong> it needs WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code> on Debian and Ubuntu).</li>
+          <li><strong>Android:</strong> install <a href="https://github.com/HostFat/freenet-android-node/releases/latest">Freenet Android Node</a> too and press <strong>Start network node</strong>. Radica tells you if the node is missing or stopped. An update needs the old app uninstalled first, for now.</li>
+          <li>All files, checksums and release notes: <a href="https://github.com/scobru/radica/releases/latest">Radica's releases on GitHub</a>.</li>
+        </ul>
+      </div>
+
+      <p class="or">Or set it up by hand, in your browser:</p>
 
       <div class="steps">
         <div class="step">
@@ -251,7 +280,7 @@
       <details><summary>Is Radica free?</summary><p>Yes. No ads and no subscription. Radica is open source, and anyone can read its code on GitHub.</p></details>
       <details><summary>Why do I have to install something?</summary><p>On Freenet there is no company server to visit: your own computer is your way into the network. Radica then opens in your normal browser, from your computer.</p></details>
       <details><summary>Can I try it without installing anything?</summary><p>Yes: <a href="https://try.freenet.org/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">open Radica on try.freenet.org</a>, a public node run by the Freenet Project. It is for a first look: you depend on their node, and it sees what you do. To own your corner of the network, install Freenet (step 1).</p></details>
-      <details><summary>Can I use it on my phone?</summary><p>On Android, yes, with <a href="https://github.com/HostFat/freenet-android-node">Freenet Android Node</a>: an unofficial, early app that runs a Freenet node on the phone (see the Android tab in step 1). There is nothing for iPhone yet. The official Freenet installs on Windows, macOS and Linux.</p></details>
+      <details><summary>Can I use it on my phone?</summary><p>On Android, yes: <a href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">the Radica app</a> runs on <a href="https://github.com/HostFat/freenet-android-node">Freenet Android Node</a>, an unofficial, early app that runs a Freenet node on the phone (see the Android tab in step 1). There is nothing for iPhone yet. The official Freenet installs on Windows, macOS and Linux.</p></details>
       <details><summary>Who can see my posts?</summary><p>Posts and communities are public on the network, like a public social network. Direct messages and private rooms are end-to-end encrypted: only the people in the chat can read them.</p></details>
       <details><summary>What if I lose my key?</summary><p>Nobody can reset it for you: there is no company behind it. Keep the backup Radica shows you, or sign in with Viso, which keeps your persona for you.</p></details>
       <details><summary>Something doesn't work</summary><p>Ask in the Freenet <a href="https://matrix.to/#/#freenet-locutus:matrix.org">Matrix chat</a>, or open an issue on <a href="https://github.com/scobru/radica/issues">Radica's GitHub</a>.</p></details>
@@ -293,7 +322,10 @@
     });
   });
   const ua = navigator.userAgent;
-  pick(document.getElementById(/Android/.test(ua) ? "t-and" : /Mac/.test(ua) ? "t-mac" : /Linux|X11/.test(ua) ? "t-lin" : "t-win"));
+  const os = /Android/.test(ua) ? "and" : /Mac/.test(ua) ? "mac" : /Linux|X11/.test(ua) ? "lin" : "win";
+  pick(document.getElementById("t-" + os));
+  // the visitor's download stands out (an Intel Mac reads the same as Apple Silicon here, so both stay listed)
+  document.querySelector(`.dl [data-os="${os}"]`)?.setAttribute("data-mine", "");
 
   document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent); b.textContent = "Copied"; }
