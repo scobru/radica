@@ -22,6 +22,8 @@
 //!   {"op":"read","owner_vk","state","member_sk"?,"secret"?}           -> {"name","private","members","messages"}
 //!    (`secret`: the blob an invitation carried, so an invitee reads the room before their first message files it)
 //!   {"op":"pointer","state"}                                          -> {"version","code_hash"}
+//!   {"op":"legacy"}                                                   -> {"code_hashes"} River's earlier room-contract
+//!    generations, newest first: a room not under the current one is looked up under these (River's backward probe)
 //!   {"op":"invitation","owner_sk","state","invitee_sk"}               -> {"code"}    a River invitation (base58 CBOR, as
 //!    River's UI and riverctl make and read them): the invitee's key, membership and the room's secrets in clear
 //!   {"op":"accept","code"}                                            -> {"owner_vk","sk","member","secrets"}
@@ -85,6 +87,7 @@ enum Req {
     Apply { owner_vk: String, state: String, delta: String },
     Read { owner_vk: String, state: String, member_sk: Option<String>, secret: Option<String>, #[serde(default)] secrets: HashMap<String, String> },
     Pointer { state: String },
+    Legacy,
     Invitation { owner_sk: String, state: String, invitee_sk: String },
     Accept { code: String },
     ImportIdentity { token: String },
@@ -271,6 +274,9 @@ fn open(sealed: &SealedBytes, secrets: &HashMap<u32, [u8; 32]>) -> Option<String
 fn handle(req: Req) -> R<Value> {
     Ok(match req {
         Req::Params { owner_vk } => json!({ "params": cbor(&params(&owner_vk)?)? }),
+        Req::Legacy => json!({
+            "code_hashes": river_core::migration::LEGACY_ROOM_CONTRACT_CODE_HASHES.iter().rev().map(hex::encode).collect::<Vec<_>>()
+        }),
         Req::Pointer { state } => {
             let (version, code_hash) = pointer(&state)?;
             json!({ "version": version, "code_hash": hex::encode(code_hash) })
@@ -644,6 +650,14 @@ mod tests {
     }
     fn texts(view: &Value) -> Vec<(Value, Value)> {
         view["messages"].as_array().unwrap().iter().map(|m| (m["author"].clone(), m["text"].clone())).collect()
+    }
+
+    #[test]
+    fn legacy_lists_earlier_room_contracts_newest_first() {
+        let hashes = ok(json!({"op":"legacy"}))["code_hashes"].as_array().unwrap().clone();
+        // the generation Radica wrote under before River's version 11 is the newest earlier one
+        assert_eq!(hashes[0], "fa9e59e87532bc9681e8fef903f6d35a1207c25a0f0d8cca2c92e2f31761a4f9");
+        assert!(hashes.len() >= 38);
     }
 
     #[test]

@@ -12,9 +12,9 @@ use crate::{host, live};
 
 /// River's room contract, the generation river-wasm builds deltas for (`BUNDLED_ROOM_CODE` in `ui/src/riverPointer.ts`).
 /// shortcut: River's pointer record is not resolved, so when River re-keys its room contract the desktop keeps writing
-/// under this one; resolve the pointer like `resolveRoomContract` once River moves past version 7.
+/// under this one; resolve the pointer like `resolveRoomContract` once River moves past version 11.
 const ROOM_CODE: &[u8] = include_bytes!("../../../ui/src/wasm/river_room_contract.wasm");
-const ROOM_CODE_HASH: &str = "fa9e59e87532bc9681e8fef903f6d35a1207c25a0f0d8cca2c92e2f31761a4f9";
+const ROOM_CODE_HASH: &str = "bc9b4066fccc37435556295871c567e455b48832eb0a72623d399b354471aef5";
 
 /// One call into river-core (the JSON ops listed at the top of `river-wasm/src/lib.rs`).
 pub fn call(mut req: Value) -> Result<Value, String> {
@@ -89,23 +89,60 @@ fn cached(owner: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// The room as the node has it (hex CBOR), else the last copy here.
+fn get_raw(key: &str) -> Option<Vec<u8>> {
+    let tmp = tempfile::NamedTempFile::new().ok()?;
+    let mut cmd = Command::new(live::find_fdev());
+    cmd.args(["execute", "get", "--timeout", "5", "-o"])
+        .arg(tmp.path())
+        .arg(key);
+    host::run(&mut cmd).ok()?;
+    fs::read(tmp.path()).ok().filter(|raw| !raw.is_empty())
+}
+
+/// The room as the node has it (hex CBOR), else the last copy here, else under an earlier River generation.
 pub fn load(owner: &str) -> Option<String> {
-    let fetched = (|| -> Option<String> {
-        let key = room_key(owner).ok()?;
-        let tmp = tempfile::NamedTempFile::new().ok()?;
-        let mut cmd = Command::new(live::find_fdev());
-        cmd.args(["execute", "get", "--timeout", "5", "-o"])
-            .arg(tmp.path())
-            .arg(&key);
-        host::run(&mut cmd).ok()?;
-        let raw = fs::read(tmp.path()).ok()?;
-        (!raw.is_empty()).then(|| hex::encode(raw))
-    })();
+    let fetched = room_key(owner)
+        .ok()
+        .and_then(|k| get_raw(&k))
+        .map(hex::encode);
     if let Some(state) = &fetched {
         keep(owner, state);
     }
-    fetched.or_else(|| cached(owner))
+    fetched.or_else(|| cached(owner)).or_else(|| recover(owner))
+}
+
+/// River re-keys its room contract now and then: a room nobody wrote to since lives under an earlier generation. Look
+/// there, newest first (River's registry, through river-core), and carry it forward under the current key, as River's
+/// clients and the web app do. Once per room per run.
+fn recover(owner: &str) -> Option<String> {
+    static PROBED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    {
+        let mut probed = PROBED.lock().ok()?;
+        if probed.iter().any(|o| o == owner) {
+            return None;
+        }
+        probed.push(owner.to_owned());
+    }
+    let params = params(owner).ok()?;
+    let hashes = call(json!({ "op": "legacy" })).ok()?;
+    // shortcut: probes the 8 newest generations only; widen it if rooms older than that turn up
+    for hash in hashes["code_hashes"]
+        .as_array()?
+        .iter()
+        .take(8)
+        .filter_map(Value::as_str)
+    {
+        let Some(raw) = get_raw(&live::contract_key(hash, &params)) else {
+            continue;
+        };
+        let state = hex::encode(raw);
+        if let Err(e) = put(owner, &state) {
+            eprintln!("River: could not carry room {owner} forward: {e}");
+            keep(owner, &state);
+        }
+        return Some(state);
+    }
+    None
 }
 
 fn temp_with(bytes: &[u8]) -> Result<tempfile::NamedTempFile, String> {
