@@ -1,0 +1,94 @@
+name: App builds
+
+# The desktop app (apps/desktop) for Windows, Linux and macOS, and the Android app (apps/android). Every run keeps the
+# builds as artifacts; a `v*` tag also attaches them to that tag's GitHub release.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["apps/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: radica-linux-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: radica-windows-x86_64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: radica-macos-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: radica-macos-x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+      - run: cargo build --release --locked --manifest-path apps/Cargo.toml -p radica-desktop --target ${{ matrix.target }}
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: tar -czf ${{ matrix.name }}.tar.gz -C apps/target/${{ matrix.target }}/release radica
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path apps/target/${{ matrix.target }}/release/radica.exe -DestinationPath ${{ matrix.name }}.zip
+      - name: Package (macOS app bundle)
+        if: runner.os == 'macOS'
+        run: |
+          app=Radica.app/Contents
+          mkdir -p $app/MacOS
+          cp apps/target/${{ matrix.target }}/release/radica $app/MacOS/radica
+          cat > $app/Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>Radica</string>
+            <key>CFBundleIdentifier</key><string>org.freenet.radica</string>
+            <key>CFBundleExecutable</key><string>radica</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.1.0</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          EOF
+          ditto -c -k --keepParent Radica.app ${{ matrix.name }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}.*
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.name }}.*
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+      # shortcut: a debug-signed APK (each CI runner signs with its own key, so an update needs an uninstall first);
+      # sign releases with a keystore kept in repository secrets once the app is published
+      - run: gradle -p apps/android assembleDebug
+      - run: cp apps/android/build/outputs/apk/debug/*.apk radica-android-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: radica-android
+          path: radica-android-debug.apk
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: radica-android-debug.apk

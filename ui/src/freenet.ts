@@ -43,7 +43,7 @@ import {
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -3841,7 +3841,9 @@ export class FreenetClient {
       if (byOwner) {
         this.replacePrivateRoom(room);
         await this.logAppend(`room/${room.id}`, { type: "private_room", room });
-      } else await this.logAppend(`room/${room.id}`, { type: "room_kick", roomId: room.id, target: targetPubkey }); // the member list follows
+      }
+      // the member list follows; a channel's subscriber list too
+      await this.logAppend(`room/${room.id}`, { type: "room_kick", roomId: room.id, target: targetPubkey });
       this.notifyListeners();
       return room;
     }
@@ -4016,10 +4018,18 @@ export class FreenetClient {
     const memberVks: Record<string, string> = {};
     for (const m of view.members) memberVks[name(m.vk)] = m.vk;
 
+    const creator = isOwner ? identity.pubkey : (name(owner) || owner);
+    const moderators = [...new Set(view.members.filter((m) => m.deputy).map((m) => name(m.vk)))];
+    let members = view.members.map((m) => name(m.vk));
+    // a channel's subscribers never write, so River prunes them: they count from their join in the room's log
+    if (room.is_channel) {
+      void this.refreshLog(`room/${room.id}`);
+      members = [...members, ...roomJoiners(this.logEntries(`room/${room.id}`), room.id, new Set([creator, ...moderators]))];
+    }
     this.rosters.set(room.id, {
-      members: [...new Set(view.members.map((m) => name(m.vk)))],
-      creator: isOwner ? identity.pubkey : (name(owner) || owner),
-      moderators: [...new Set(view.members.filter((m) => m.deputy).map((m) => name(m.vk)))],
+      members: [...new Set(members)],
+      creator,
+      moderators,
       deputyOf: Object.fromEntries(view.members.filter((m) => m.deputy).map((m) => [name(m.vk), m.deputy_of.map(name)])),
       memberVks,
     });

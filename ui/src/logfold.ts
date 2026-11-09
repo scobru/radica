@@ -261,6 +261,23 @@ export function hasLeftRoom(entries: LogEntry[], roomId: string, me: string): bo
   return left;
 }
 
+/** Who joined a room through its link and has not left since (`room_join`, `room_leave`): a broadcast channel's
+ *  subscribers, whom River drops from its members while they never write. Someone `removers` kicked stays out. */
+export function roomJoiners(entries: LogEntry[], roomId: string, removers: ReadonlySet<string>): string[] {
+  const inRoom = new Map<string, boolean>();
+  const kicked = new Set<string>();
+  for (const { e, b } of bodies(entries)) {
+    if (b?.roomId !== roomId) continue;
+    if (b.type === "room_join" && !kicked.has(e.author)) inRoom.set(e.author, true);
+    else if (b.type === "room_leave") inRoom.set(e.author, false);
+    else if (b.type === "room_kick" && removers.has(e.author) && typeof b.target === "string") {
+      kicked.add(b.target);
+      inRoom.set(b.target, false);
+    }
+  }
+  return [...inRoom].filter(([, on]) => on).map(([pk]) => pk);
+}
+
 /** Authors a curator blocked, from their `blocklist/<curator>` log. Only the curator's own entries count; the newest per target wins. */
 export function foldBlocklist(entries: LogEntry[], curator: string, type: "block" | "mod" = "block", initial: Iterable<string> = []): Set<string> {
   const blocked = new Set<string>(initial);

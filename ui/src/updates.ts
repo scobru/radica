@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-09", text: "Broadcast channels: everyone who joined through the link now counts as a subscriber. River drops members who never write, so subscribers used to vanish from the list." },
   { date: "2026-11-08", text: "Activity & Notifications: a notification is marked read as soon as you open what it is about, whether from the list, the feed, a profile or a chat, so the bell stays honest without tending it." },
   { date: "2026-11-08", text: "Activity & Notifications: clicking a notification no longer jumps away and deletes it. Each one now has three small buttons: open (go to the post, profile or chat; it is marked read), mark as read, and delete. \"Mark all read\" keeps the list open." },
   { date: "2026-11-08", text: "Moderation notifications & accountability: the Blocklists rail button now shows a notification badge indicating when reports need to be dealt with. The Moderation queue now displays who sent each report (with clickable profile links, trust status, reasons, and timestamps), with a \"View post\" button to inspect reported posts in the timeline. Clicking a report notification or opening Blocklists with pending reports takes moderators directly to the Moderation dashboard." },

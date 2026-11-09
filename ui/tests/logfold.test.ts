@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -529,4 +529,18 @@ test("compactLog: one state entry per author and subject; an inbox leaves its co
   assert.notEqual(stateSlot("chat_read", "x"), stateSlot("chat_read", "y"));
   assert.ok(stateSlot("chat_read", "z".repeat(200)).length <= 40);
   assert.equal(stateSlotFor({ type: "dm_ref", room: "x" }), stateSlot("dm_ref", "x"));
+});
+
+test("logfold: a channel's subscribers are who joined through the link, left out once they leave or a remover kicks them", () => {
+  const log = [
+    entry(user, 1, { type: "room_join", roomId: "privroom_c" }),
+    entry(mod, 2, { type: "room_join", roomId: "privroom_c" }),
+    entry(mallory, 3, { type: "room_join", roomId: "privroom_c" }),
+    entry(user, 4, { type: "room_join", roomId: "privroom_other" }),
+    entry(mod, 5, { type: "room_leave", roomId: "privroom_c" }),
+    entry(user, 6, { type: "room_kick", roomId: "privroom_c", target: mallory }), // not a remover: no effect
+  ];
+  assert.deepEqual(roomJoiners(log, "privroom_c", new Set([owner])), [user, mallory]);
+  const kicked = [...log, entry(owner, 7, { type: "room_kick", roomId: "privroom_c", target: mallory }), entry(mallory, 8, { type: "room_join", roomId: "privroom_c" })];
+  assert.deepEqual(roomJoiners(kicked, "privroom_c", new Set([owner])), [user]);
 });
