@@ -162,14 +162,16 @@ fn remove_private_room(room_id: &str) {
 }
 
 /// My River key in `room`, as hex: an invite's key, else the derived owner key for a room I made, else my identity key.
+/// In the web's order (`riverKey` in `ui/src/freenet.ts`), so both devices are the same member of the room.
 fn river_key_of(room: &StoredPrivateRoom, my_pk: &str, my_seed: &[u8; 32]) -> String {
+    let derived = hex::encode(crate::river::owner_sk(my_seed, &room.id));
+    if crate::river::vk_of(&derived).as_deref() == Some(room.owner.as_str()) {
+        return derived;
+    }
     if let Some(k) = &room.key_hex {
         return k.clone();
     }
-    let derived = hex::encode(crate::river::owner_sk(my_seed, &room.id));
-    if room.creator == my_pk
-        || crate::river::vk_of(&derived).as_deref() == Some(room.owner.as_str())
-    {
+    if room.creator == my_pk {
         derived
     } else {
         hex::encode(my_seed)
@@ -1098,6 +1100,11 @@ pub fn load_live() -> Option<LiveSnapshot> {
         }
     }
 
+    announce_device(
+        &my_pk,
+        &hex::encode(local_identity().0.verifying_key().to_bytes()),
+    );
+
     if let Some(dir_json) = dir_json
         && let Some(entries) = dir_json.get("entries").and_then(Value::as_object)
     {
@@ -1679,6 +1686,84 @@ fn room_descriptor(room_id: &str) -> Option<StoredPrivateRoom> {
         .last()
 }
 
+fn is_key_hex(k: &str) -> bool {
+    k.len() == 64 && k.bytes().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Encryption keys `pubkey`'s devices published in `devices/<pubkey>` (`deviceKeys` in `ui/src/freenet.ts`).
+fn device_keys(pubkey: &str) -> Vec<String> {
+    let Some(log) = fetch_contract_json(&log_contract_key(&format!("devices/{pubkey}"))) else {
+        return Vec::new();
+    };
+    let mut keys: Vec<String> = log["entries"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(_, e)| e["author"].as_str() == Some(pubkey))
+        .filter_map(|(_, e)| {
+            let body: Value = serde_json::from_str(e["body"].as_str()?).ok()?;
+            body["enc_pub"]
+                .as_str()
+                .filter(|k| is_key_hex(k))
+                .map(str::to_owned)
+        })
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
+/// The key to encrypt to for `pubkey`: their signed profile's `enc_pub` (a Viso app key), else the persona key.
+fn enc_pub_of(pubkey: &str) -> String {
+    if let Some(feed) = feed_contract_key(pubkey).and_then(|k| fetch_contract_json(&k))
+        && let Some(enc) = feed["profile"]["enc_pub"].as_str()
+    {
+        remember_peer_enc_pub(pubkey, enc);
+    }
+    lookup_peer_enc_pub(pubkey)
+}
+
+/// Publish this device's key once per run, so what the web seals to my other keys also comes with a copy for this one
+/// (`announceDevice`). Not needed while my profile already names this key.
+fn announce_device(my_pk: &str, my_enc: &str) {
+    static DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if lookup_peer_enc_pub(my_pk) == my_enc || DONE.swap(true, std::sync::atomic::Ordering::Relaxed)
+    {
+        return;
+    }
+    if !device_keys(my_pk).iter().any(|k| k == my_enc)
+        && let Err(e) = append_log_entry(
+            &format!("devices/{my_pk}"),
+            &json!({ "type": "device", "enc_pub": my_enc }),
+        )
+    {
+        eprintln!("Could not publish this device's key: {e}");
+        DONE.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// A direct message's text as the web seals it (`getChatMessages`): the copy for my key, else `text` with the key it
+/// was sealed between, else the keys older clients used.
+fn open_dm_text(my_seed: &[u8; 32], my_pk: &str, peer_pk: &str, m: &Value) -> Option<String> {
+    let my_enc = hex::encode(SigningKey::from_bytes(my_seed).verifying_key().to_bytes());
+    let enc_pub = m["enc_pub"].as_str().filter(|k| is_key_hex(k));
+    if let (Some(copy), Some(from)) = (m["copies"][&my_enc].as_str(), enc_pub)
+        && let Some(t) = decrypt_direct_message(my_seed, from, copy)
+    {
+        return Some(t);
+    }
+    let text = m["text"].as_str()?;
+    let sealed_with = if m["sender"].as_str() == Some(my_pk) {
+        m["to_enc_pub"].as_str()
+    } else {
+        enc_pub
+    };
+    sealed_with
+        .into_iter()
+        .chain([lookup_peer_enc_pub(peer_pk).as_str(), peer_pk])
+        .find_map(|k| decrypt_direct_message(my_seed, k, text))
+}
+
 fn valid_room_id(id: &str) -> bool {
     id.starts_with("privroom_")
         && id.len() <= 80
@@ -1993,16 +2078,9 @@ fn build_river_rooms(
                     .with_avatar(Some(vk.to_owned()), avatars.get(vk).cloned()),
             );
         }
-        if !members.iter().any(|m| m.id == me) {
-            members.push(Member::new(
-                me,
-                names
-                    .get(my_pk)
-                    .cloned()
-                    .unwrap_or_else(|| short_persona(my_pk)),
-                Role::Member,
-            ));
-        }
+        // Not a member under the key this device has: the room holds me under the key an invite gave the web, which
+        // reaches here once the web app has run (`river_access`). No stand-in "you": it would show me twice.
+        let missing_key = my_vk != pr.owner && !members.iter().any(|m| m.id == me);
 
         let mut msgs: Vec<&Value> = view["messages"].as_array().into_iter().flatten().collect();
         msgs.sort_by_key(|m| m["time_ms"].as_u64().unwrap_or(0));
@@ -2068,7 +2146,11 @@ fn build_river_rooms(
         out.push(Room {
             key: room_key,
             name: format!("🔒 {name}"),
-            description: format!("River private room{invite}"),
+            description: if missing_key {
+                "River private room · This device does not have your key for this room yet: open Radica web once to bring it here".to_owned()
+            } else {
+                format!("River private room{invite}")
+            },
             private: true,
             members,
             messages,
@@ -2168,9 +2250,7 @@ fn build_dm_rooms(
         }
         let ts = m.get("timestamp").and_then(Value::as_u64).unwrap_or(e_ts);
         let display_text = if text.starts_with("e2e:") {
-            let peer_enc = lookup_peer_enc_pub(peer_pk);
-            decrypt_direct_message(&my_seed, &peer_enc, text)
-                .or_else(|| decrypt_direct_message(&my_seed, peer_pk, text))
+            open_dm_text(&my_seed, my_pk, peer_pk, m)
                 .unwrap_or_else(|| "🔒 Encrypted E2EE message".to_owned())
         } else {
             text.to_owned()
@@ -2592,13 +2672,32 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                 };
                 let dm_room_id = format!("{a}:{b}");
                 let msg_id = format!("msg_{ts}_dsk");
-                let peer_enc = lookup_peer_enc_pub(&peer_pk);
-                let wire_text = encrypt_direct_message(&my_seed, &peer_enc, &text)
-                    .or_else(|| encrypt_direct_message(&my_seed, &peer_pk, &text))
-                    .unwrap_or_else(|| text.clone());
+                // Like the web's `sendChatMessage`: sealed to the key the peer's profile names, with a copy for each
+                // other key of theirs and mine, so every device of both can read it.
+                let to_enc = enc_pub_of(&peer_pk);
+                let my_enc = hex::encode(sk.verifying_key().to_bytes());
+                let mut others: Vec<String> = device_keys(&peer_pk)
+                    .into_iter()
+                    .chain(device_keys(&pubkey))
+                    .chain([peer_pk.clone(), lookup_peer_enc_pub(&pubkey)])
+                    .filter(|k| *k != to_enc && *k != my_enc)
+                    .collect();
+                others.sort();
+                others.dedup();
+                let wire_text = encrypt_direct_message(&my_seed, &to_enc, &text)
+                    .ok_or("Could not encrypt the message")?;
+                let copies: serde_json::Map<String, Value> = others
+                    .iter()
+                    .filter_map(|k| {
+                        Some((
+                            k.clone(),
+                            encrypt_direct_message(&my_seed, k, &text)?.into(),
+                        ))
+                    })
+                    .collect();
                 let sig_msg = format!("{msg_id}:{dm_room_id}:{pubkey}:{peer_pk}:{wire_text}:{ts}");
                 let msg_sig = hex::encode(sk.sign(sig_msg.as_bytes()).to_bytes());
-                let payload = json!({
+                let mut payload = json!({
                     "type": "chat",
                     "message": {
                         "id": msg_id,
@@ -2608,8 +2707,13 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                         "text": wire_text,
                         "timestamp": ts,
                         "sig": msg_sig,
+                        "enc_pub": my_enc,
+                        "to_enc_pub": to_enc,
                     }
                 });
+                if !copies.is_empty() {
+                    payload["message"]["copies"] = Value::Object(copies);
+                }
                 return dm_append(&dm_room_id, &pubkey, &peer_pk, &payload);
             }
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
@@ -4076,6 +4180,27 @@ mod tests {
         );
         let decrypted = decrypt_direct_message(&sk_b, &pk_a, &encrypted).unwrap();
         assert_eq!(decrypted, "Hello Radica E2EE!");
+    }
+
+    #[test]
+    fn a_dm_from_a_web_app_key_opens_from_its_copy_or_its_enc_pub() {
+        let vk = |sk: &[u8; 32]| hex::encode(SigningKey::from_bytes(sk).verifying_key().to_bytes());
+        // the sender writes as persona A with app key A2; the profile of B names B2, this desktop holds B
+        let (a, a2, b, b2) = ([1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32]);
+        let text = encrypt_direct_message(&a2, &vk(&b2), "ciao").unwrap();
+        let copy = encrypt_direct_message(&a2, &vk(&b), "ciao").unwrap();
+        let mut m = json!({ "sender": vk(&a), "text": text, "enc_pub": vk(&a2) });
+        assert_eq!(open_dm_text(&b, &vk(&b), &vk(&a), &m), None);
+        m["copies"] = json!({ vk(&b): copy });
+        assert_eq!(
+            open_dm_text(&b, &vk(&b), &vk(&a), &m).as_deref(),
+            Some("ciao")
+        );
+        // the device B2 reads `text` with the sender's enc_pub
+        assert_eq!(
+            open_dm_text(&b2, &vk(&b), &vk(&a), &m).as_deref(),
+            Some("ciao")
+        );
     }
 
     #[test]
