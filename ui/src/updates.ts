@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-09", text: "Chat audio keeps playing when you open another chat or section, with a player bar on top (as in Telegram): pause, resume or close it from anywhere." },
   { date: "2026-11-09", text: "Broadcast channels: everyone who joined through the link now counts as a subscriber. River drops members who never write, so subscribers used to vanish from the list." },
   { date: "2026-11-08", text: "Activity & Notifications: a notification is marked read as soon as you open what it is about, whether from the list, the feed, a profile or a chat, so the bell stays honest without tending it." },
   { date: "2026-11-08", text: "Activity & Notifications: clicking a notification no longer jumps away and deletes it. Each one now has three small buttons: open (go to the post, profile or chat; it is marked read), mark as read, and delete. \"Mark all read\" keeps the list open." },

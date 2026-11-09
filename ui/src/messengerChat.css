@@ -3206,3 +3206,62 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
     animation: rm-slide-from-left 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
+
+/* The chat audio player bar (chatMedia.ts `sharedAudio`): the clip playing, wherever you are in the app */
+#cm-mini-player {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 999px;
+  background: var(--card-bg, #fbf8f2);
+  color: var(--text-main, #1e1a14);
+  border: 1px solid var(--border, #dfd6c5);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+}
+#cm-mini-player[hidden] {
+  display: none;
+}
+#cm-mini-player button {
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+#cm-mini-player .cm-mini-toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent, #3e7a20);
+  color: #fff;
+}
+#cm-mini-player .cm-mini-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+#cm-mini-player .cm-mini-time {
+  color: var(--text-muted, #847968);
+  font-variant-numeric: tabular-nums;
+}
+#cm-mini-player .cm-mini-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted, #847968);
+}
+#cm-mini-player .cm-mini-close:hover {
+  background: var(--border, #dfd6c5);
+}

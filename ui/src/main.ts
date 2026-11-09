@@ -6039,7 +6039,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
     .join("");
   const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
   const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(msg.text);
-  const mediaCards = chatMediaCardsHtml(mediaItems);
+  const mediaCards = chatMediaCardsHtml(mediaItems, textWithoutMedia);
   const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin());
   const bodyText = textWithoutMedia ? renderChatText(textWithoutMedia, getAuthorDisplayName) : "";
   return `<div class="chat-bubble ${isMine ? "mine" : "theirs"}${grouped ? " grouped" : ""}" data-msg-id="${escapeHtml(msg.id)}">${face}${head}<div class="rv-bubble">${del}${actions}${quote}${bodyText}${embeddedCards}${mediaCards}</div>${chips ? `<div class="rv-chips">${chips}</div>` : ""}</div>`;
