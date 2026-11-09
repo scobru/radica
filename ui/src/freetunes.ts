@@ -289,7 +289,7 @@ function loadCoverUrl(addr: string, get: Fetch): Promise<string | null> {
 }
 
 function pauseOtherFtAudio(except: HTMLAudioElement): void {
-  document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio").forEach((a) => {
+  document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio, #cm-shared-audio").forEach((a) => {
     if (a !== except) a.pause();
   });
 }

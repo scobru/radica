@@ -1782,7 +1782,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
       // Rich body + FreeTunes / FreePolls / Encrypted Media cards
       const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(m.text);
-      const mediaCardsHtml = chatMediaCardsHtml(mediaItems);
+      const mediaCardsHtml = chatMediaCardsHtml(mediaItems, textWithoutMedia);
       const bodyHtml = textWithoutMedia ? renderChatText(textWithoutMedia, deps.getAuthorDisplayName) : "";
       const embeddedCards = freetunesCard(m.text) + freepollsCard(m.text) + asocialCard(m.text) + fhCard(m.text) + wormholeCard(m.text) + freetreeCard(m.text);
       const cardsHtml = mediaCardsHtml + embeddedCards;

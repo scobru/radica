@@ -182,6 +182,9 @@ test("chatMedia: chatMediaCardsHtml renders valid markup", () => {
     },
   ]);
   assert.ok(audioHtml.includes('class="cm-card cm-audio-card"'));
+  // the player bar names the clip by its message's first line, escaped
+  const titled = chatMediaCardsHtml([{ raw: "", kind: "audio", mime: "audio/mpeg", hash, keyHex, durationSec: 3 }], "\nSoulwax <NY> Excuse\n#electro");
+  assert.ok(titled.includes('data-cm-title="Soulwax &#60;NY&#62; Excuse"'));
   assert.ok(audioHtml.includes('class="cm-waveform"'));
   assert.ok(audioHtml.includes("0:18"));
 });

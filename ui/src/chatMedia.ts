@@ -1045,7 +1045,8 @@ export async function startVoiceRecording(opts: {
 // Chat Bubble Media Cards & Interactive Hydration
 // ---------------------------------------------------------------------------
 
-export function chatMediaCardsHtml(items: ChatMediaItem[]): string {
+/** `title` names an audio in the player bar (the message's first line), when the chat it came from is closed. */
+export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
   if (!items.length) return "";
   return items
     .map((item) => {
@@ -1085,7 +1086,7 @@ export function chatMediaCardsHtml(items: ChatMediaItem[]): string {
         })
         .join("");
       const kindBadge = item.kind === "voice" ? "🎙️ Voice" : "🎵 Audio";
-      return `<div class="cm-card cm-audio-card" ${attrs} data-cm-dur="${item.durationSec ?? 0}">
+      return `<div class="cm-card cm-audio-card" ${attrs} data-cm-dur="${item.durationSec ?? 0}" data-cm-title="${esc(title.split("\n").find((l) => l.trim())?.trim().slice(0, 120) ?? "")}">
         <button type="button" class="cm-audio-play" aria-label="Play ${item.kind === "voice" ? "voice message" : "audio"}">▶</button>
         <div class="cm-audio-main">
           <div class="cm-waveform" role="slider" aria-label="Seek audio" tabindex="0">${barsHtml}</div>
@@ -1096,16 +1097,68 @@ export function chatMediaCardsHtml(items: ChatMediaItem[]): string {
         </div>
         <button type="button" class="cm-speed-btn" title="Playback speed">1×</button>
         <button type="button" class="cm-speed-btn cm-audio-download" title="Download" aria-label="Download ${item.kind === "voice" ? "voice message" : "audio"}">⬇️</button>
-        <audio preload="none"></audio>
       </div>`;
     })
     .join("");
 }
 
 function pauseAllOtherAudio(except: HTMLAudioElement): void {
-  document.querySelectorAll<HTMLAudioElement>(".cm-audio-card audio, .ft-card audio").forEach((a) => {
+  document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio").forEach((a) => {
     if (a !== except && !a.paused) a.pause();
   });
+}
+
+/** One player for every chat audio, outside the chat: a clip keeps playing when its chat closes (a card's own
+ *  element would stop once removed), and a bar on top, as in Telegram, shows it and lets you pause or close it. */
+const player = { el: null as HTMLAudioElement | null, hash: "" };
+const PLAYER_EVENTS = ["play", "pause", "timeupdate", "ended", "emptied", "loadedmetadata", "ratechange"];
+
+function sharedAudio(): HTMLAudioElement {
+  if (player.el) return player.el;
+  const a = document.createElement("audio");
+  a.id = "cm-shared-audio";
+  a.preload = "none";
+  const bar = document.createElement("div");
+  bar.id = "cm-mini-player";
+  bar.hidden = true;
+  bar.setAttribute("role", "region");
+  bar.setAttribute("aria-label", "Now playing");
+  bar.innerHTML = `<button type="button" class="cm-mini-toggle"></button><span class="cm-mini-title"></span><span class="cm-mini-time"></span><button type="button" class="cm-mini-close" aria-label="Close player" title="Close player">✕</button>`;
+  document.body.append(a, bar);
+  const toggle = bar.querySelector<HTMLButtonElement>(".cm-mini-toggle")!;
+  const time = bar.querySelector<HTMLElement>(".cm-mini-time")!;
+  const paint = () => {
+    bar.hidden = !player.hash || (a.paused && a.currentTime === 0);
+    toggle.textContent = a.paused ? "▶" : "⏸";
+    toggle.setAttribute("aria-label", a.paused ? "Play" : "Pause");
+    const dur = Number.isFinite(a.duration) ? a.duration : 0;
+    time.textContent = `${formatMediaDuration(a.currentTime)} / ${formatMediaDuration(dur)}`;
+  };
+  for (const ev of PLAYER_EVENTS) a.addEventListener(ev, paint);
+  a.addEventListener("play", () => pauseAllOtherAudio(a));
+  a.addEventListener("ended", () => (a.currentTime = 0));
+  toggle.addEventListener("click", () => void (a.paused ? a.play().catch(() => {}) : a.pause()));
+  bar.querySelector(".cm-mini-close")!.addEventListener("click", () => {
+    a.pause();
+    player.hash = "";
+    a.removeAttribute("src");
+    a.load();
+    paint();
+  });
+  player.el = a;
+  return a;
+}
+
+/** Load `url` in the player as the clip `hash`, titled `title` in the bar. */
+function loadInPlayer(hash: string, url: string, title: string, rate: number): HTMLAudioElement {
+  const a = sharedAudio();
+  if (player.hash !== hash) {
+    player.hash = hash;
+    a.src = url;
+    a.playbackRate = rate;
+    document.querySelector<HTMLElement>("#cm-mini-player .cm-mini-title")!.textContent = title;
+  }
+  return a;
 }
 
 /** A ⬇️ button that decrypts the attachment (fetching it if needed) and saves it as `fname`. */
@@ -1223,64 +1276,44 @@ export function fillChatMedia(
     const wfEl = card.querySelector<HTMLElement>(".cm-waveform");
     const timeEl = card.querySelector<HTMLElement>(".cm-audio-time");
     const speedBtn = card.querySelector<HTMLButtonElement>(".cm-speed-btn");
-    const audio = card.querySelector<HTMLAudioElement>("audio");
-    if (!playBtn || !wfEl || !timeEl || !audio) return;
+    if (!playBtn || !wfEl || !timeEl) return;
     const audioDl = card.querySelector<HTMLButtonElement>(".cm-audio-download");
     if (audioDl) wireDownload(audioDl, item, `${kind === "voice" ? "voice-note" : "audio"}.${AUDIO_EXT[mime] ?? "audio"}`, getSealed);
 
     const bars = Array.from(wfEl.querySelectorAll<HTMLElement>(".cm-wf-bar"));
     const knownDur = Number(card.dataset.cmDur || 0);
+    const title = card.dataset.cmTitle || (kind === "voice" ? "Voice message" : "Audio");
     const speeds = [1, 1.5, 2];
     let speedIdx = 0;
-    let loaded = false;
     let loading = false;
+    const shared = sharedAudio();
+    const mine = () => player.hash === hash;
 
-    const effectiveDuration = () =>
-      Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : knownDur;
-
-    const updateProgress = () => {
-      const dur = effectiveDuration();
-      const cur = audio.currentTime || 0;
-      const ratio = dur > 0 ? Math.max(0, Math.min(1, cur / dur)) : 0;
-      const litCount = Math.round(ratio * bars.length);
-      for (let i = 0; i < bars.length; i++) {
-        bars[i].classList.toggle("played", i < litCount);
+    // the card shows the player while it holds this clip; a card gone from the page stops listening
+    const sync = () => {
+      if (!card.isConnected) {
+        for (const ev of PLAYER_EVENTS) shared.removeEventListener(ev, sync);
+        return;
       }
-      if (!audio.paused || cur > 0) {
-        timeEl.textContent = `${formatMediaDuration(cur)} / ${formatMediaDuration(dur)}`;
-      } else {
-        timeEl.textContent = formatMediaDuration(dur);
-      }
+      if (loading) return;
+      const on = mine();
+      const playing = on && !shared.paused;
+      playBtn.textContent = playing ? "⏸" : "▶";
+      card.classList.toggle("playing", playing);
+      const dur = on && Number.isFinite(shared.duration) && shared.duration > 0 ? shared.duration : knownDur;
+      const cur = on ? shared.currentTime : 0;
+      const lit = Math.round((dur > 0 ? Math.max(0, Math.min(1, cur / dur)) : 0) * bars.length);
+      bars.forEach((b, i) => b.classList.toggle("played", i < lit));
+      timeEl.textContent = playing || cur > 0 ? `${formatMediaDuration(cur)} / ${formatMediaDuration(dur)}` : formatMediaDuration(dur);
+      if (on && speedBtn) speedBtn.textContent = `${shared.playbackRate}×`;
     };
+    for (const ev of PLAYER_EVENTS) shared.addEventListener(ev, sync);
+    sync();
 
-    audio.addEventListener("play", () => {
-      pauseAllOtherAudio(audio);
-      playBtn.textContent = "⏸";
-      card.classList.add("playing");
-    });
-
-    audio.addEventListener("pause", () => {
-      playBtn.textContent = "▶";
-      card.classList.remove("playing");
-      updateProgress();
-    });
-
-    audio.addEventListener("ended", () => {
-      playBtn.textContent = "▶";
-      card.classList.remove("playing");
-      audio.currentTime = 0;
-      for (const b of bars) b.classList.remove("played");
-      timeEl.textContent = formatMediaDuration(effectiveDuration());
-    });
-
-    audio.addEventListener("timeupdate", updateProgress);
-    audio.addEventListener("loadedmetadata", updateProgress);
-
-    const ensureAudioLoaded = async (): Promise<boolean> => {
-      if (loaded) return true;
+    const start = async (): Promise<boolean> => {
+      if (mine()) return true;
       if (loading) return false;
       loading = true;
-      const prevTimeText = timeEl.textContent;
       timeEl.textContent = "Decrypting…";
       playBtn.disabled = true;
       try {
@@ -1289,28 +1322,20 @@ export function fillChatMedia(
           timeEl.textContent = "Not on node · Retry";
           return false;
         }
-        audio.src = blobUrl;
-        audio.playbackRate = speeds[speedIdx];
-        loaded = true;
-        timeEl.textContent = prevTimeText;
+        loadInPlayer(hash, blobUrl, title, speeds[speedIdx]);
         return true;
       } finally {
         loading = false;
         playBtn.disabled = false;
+        if (mine()) sync();
       }
     };
 
     playBtn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-      if (!loaded) {
-        const ok = await ensureAudioLoaded();
-        if (!ok) return;
-      }
-      if (audio.paused) {
-        await audio.play().catch(() => {});
-      } else {
-        audio.pause();
-      }
+      if (!(await start())) return;
+      if (shared.paused) await shared.play().catch(() => {});
+      else shared.pause();
     });
 
     wfEl.addEventListener("click", async (ev) => {
@@ -1318,24 +1343,17 @@ export function fillChatMedia(
       const rect = wfEl.getBoundingClientRect();
       if (!rect.width) return;
       const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      if (!loaded) {
-        const ok = await ensureAudioLoaded();
-        if (!ok) return;
-      }
-      const dur = effectiveDuration();
-      if (dur > 0) {
-        audio.currentTime = ratio * dur;
-        updateProgress();
-      }
-      if (audio.paused) await audio.play().catch(() => {});
+      if (!(await start())) return;
+      const dur = Number.isFinite(shared.duration) && shared.duration > 0 ? shared.duration : knownDur;
+      if (dur > 0) shared.currentTime = ratio * dur;
+      if (shared.paused) await shared.play().catch(() => {});
     });
 
     speedBtn?.addEventListener("click", (ev) => {
       ev.stopPropagation();
       speedIdx = (speedIdx + 1) % speeds.length;
-      const rate = speeds[speedIdx];
-      audio.playbackRate = rate;
-      speedBtn.textContent = `${rate}×`;
+      if (mine()) shared.playbackRate = speeds[speedIdx];
+      speedBtn.textContent = `${speeds[speedIdx]}×`;
     });
   });
 }
