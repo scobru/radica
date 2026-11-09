@@ -168,10 +168,13 @@ impl RadicaApp {
         }
     }
 
-    /// Open a room from the list; on the node it counts as read up to now.
+    /// Open a room from the list; on the node it counts as read up to now, when it had unread messages.
     pub fn open_room(&mut self, room_key: &str) {
+        // as on the web: the read mark is written only when it changes something, so the inbox log stays small
+        let had_unread = self.chat.rooms().iter().any(|r| r.key == room_key && r.unread > 0);
         self.chat.select(room_key);
-        if matches!(self.chat.source, chat::Source::Live(_))
+        if had_unread
+            && matches!(self.chat.source, chat::Source::Live(_))
             && let Some(ctl) = &self.ctl
         {
             ctl.act(LiveAction::MarkRead {
