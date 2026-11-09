@@ -3221,7 +3221,7 @@ pub fn verify_viso_cert(persona_hex: &str, cert: &VisoCert) -> bool {
     verify_viso_cert_multi(persona_hex, &mut c, &[&canonical])
 }
 
-fn open_in_browser(url: &str) {
+pub(crate) fn open_in_browser(url: &str) {
     #[cfg(target_os = "windows")]
     {
         let _ = Command::new("rundll32.exe")
