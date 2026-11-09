@@ -317,14 +317,9 @@ export class FreenetNetwork {
     await withTimeout(api.update(new UpdateRequest(key, new UpdateData(UpdateDataType.DeltaUpdate, new DeltaUpdate(asBytes(delta))))));
   }
 
-  /** Nothing under the current code: look under earlier generations, once per contract, and carry what is found forward. */
-  private async fromLegacy<T>(id: ContractId): Promise<T | null> {
+  /** What a contract holds under the newest earlier generation that has it, without carrying it anywhere. */
+  async legacy<T>(id: ContractId): Promise<T | null> {
     const kind = id.startsWith("feed:") ? "feed" : "log";
-    const mark = `${PROBED}:${CURRENT[kind]}`; // a new generation probes everything again
-    // shortcut: a legacy lookup that times out is not retried, retry per session if near-misses strand data
-    const done: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
-    if (done.includes(id)) return null;
-    safeStorage.setItem(mark, JSON.stringify([...done, id])); // before probing: push below calls get again
     const api = await this.connect();
     const { params } = partsOf(id);
     for (const hex of LEGACY[kind]) {
@@ -334,20 +329,31 @@ export class FreenetNetwork {
       buf.set(params, hash.length);
       const key = new ContractKey(blake3(buf), hash);
       const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)))).catch(() => null);
-      if (!r?.state.length) continue;
-      let state = JSON.parse(dec.decode(toU8(r.state))) as T;
-      // a log moves without what no longer counts (superseded state, deleted messages): it stays small
-      const log = state as { entries?: Record<string, LogEntry> };
-      if (kind === "log" && log.entries) state = { ...log, entries: compactLog(id.slice("log:".length), log.entries) } as T;
-      try {
-        await this.push(id, state); // the current contract checks every record: a state it no longer accepts stays behind
-        return state;
-      } catch (e) {
-        console.warn("[Freenet] Could not carry", id, "forward from an earlier contract", e);
-        return null;
-      }
+      if (r?.state.length) return JSON.parse(dec.decode(toU8(r.state))) as T;
     }
     return null;
+  }
+
+  /** Nothing under the current code: look under earlier generations, once per contract, and carry what is found forward. */
+  private async fromLegacy<T>(id: ContractId): Promise<T | null> {
+    const kind = id.startsWith("feed:") ? "feed" : "log";
+    const mark = `${PROBED}:${CURRENT[kind]}`; // a new generation probes everything again
+    // shortcut: a legacy lookup that times out is not retried, retry per session if near-misses strand data
+    const done: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
+    if (done.includes(id)) return null;
+    safeStorage.setItem(mark, JSON.stringify([...done, id])); // before probing: push below calls get again
+    let state: T | null = await this.legacy<T>(id);
+    if (state === null) return null;
+    // a log moves without what no longer counts (superseded state, an inbox's conversations): it stays small
+    const log = state as { entries?: Record<string, LogEntry> };
+    if (kind === "log" && log.entries) state = { ...log, entries: compactLog(id.slice("log:".length), log.entries) } as T;
+    try {
+      await this.push(id, state); // the current contract checks every record: a state it no longer accepts stays behind
+      return state;
+    } catch (e) {
+      console.warn("[Freenet] Could not carry", id, "forward from an earlier contract", e);
+      return null;
+    }
   }
 
   /** Send `value` (put the first time, then update); the contract merges it and rejects it whole if anything is forged. */

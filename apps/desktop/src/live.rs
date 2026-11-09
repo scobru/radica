@@ -456,6 +456,7 @@ fn state_slot(body: &Value) -> Option<String> {
         "chat_remove" => "peer",
         "notif_read" | "notif_clear" => "",
         "room_ref" | "room_hide" | "river_access" => "roomId",
+        "dm_ref" => "room",
         _ => return None,
     };
     let subject = if field.is_empty() {
@@ -1180,7 +1181,8 @@ pub fn load_live() -> Option<LiveSnapshot> {
         &river_states,
     ));
 
-    // 6. 1-on-1 E2EE Direct Message (DM) rooms from `inbox/<my_pk>`
+    // 6. 1-on-1 E2EE Direct Message (DM) rooms: each conversation's own log, joined with my inbox's history
+    let dm_json = with_dm_logs(&my_pk, inbox_json.clone());
     for dm_room in build_dm_rooms(
         &my_pk,
         me_id,
@@ -1188,7 +1190,7 @@ pub fn load_live() -> Option<LiveSnapshot> {
         &names,
         &avatars,
         &deleted_msgs,
-        inbox_json.as_ref(),
+        dm_json.as_ref(),
     ) {
         rooms.push(dm_room);
     }
@@ -2232,6 +2234,73 @@ fn build_dm_rooms(
     out
 }
 
+/// Append to a one-to-one conversation's own log (`dm/<room>`, as the web does). The other side's inbox gets a
+/// "this conversation changed" entry, one per conversation and author that each write replaces, so it wakes their
+/// client without growing the inbox; mine gets one too, once per run, so my other devices find the conversation.
+fn dm_append(room: &str, my_pk: &str, peer: &str, body: &Value) -> Result<(), String> {
+    append_log_entry(&format!("dm/{room}"), body)?;
+    let r#ref = json!({ "type": "dm_ref", "room": room });
+    let _ = append_log_entry(&format!("inbox/{peer}"), &r#ref);
+    static MINE: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+    if MINE.lock().is_ok_and(|mut m| m.insert(room.to_owned())) {
+        let _ = append_log_entry(&format!("inbox/{my_pk}"), &r#ref);
+    }
+    Ok(())
+}
+
+/// The DM conversations my inbox names (its `dm_ref`s, and the messages from before conversations had logs) with
+/// their own logs joined in: only the two people of a conversation count in its log.
+fn with_dm_logs(my_pk: &str, inbox: Option<Value>) -> Option<Value> {
+    let mut inbox = inbox?;
+    let pair = |room: &str| -> Option<(String, String)> {
+        let (a, b) = room.split_once(':')?;
+        let hex64 = |s: &str| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit());
+        (hex64(a) && hex64(b) && (a == my_pk || b == my_pk)).then(|| (a.to_owned(), b.to_owned()))
+    };
+    let mut rooms: BTreeSet<String> = BTreeSet::new();
+    for (author, _, b) in ordered_bodies(Some(&inbox)) {
+        let room = match b["type"].as_str() {
+            Some("dm_ref") => b["room"].as_str(),
+            Some("chat") => b.pointer("/message/room_id").and_then(Value::as_str),
+            _ => None,
+        };
+        if let Some((x, y)) = room.and_then(pair)
+            && (author == x || author == y)
+        {
+            rooms.insert(format!("{x}:{y}"));
+        }
+    }
+    let logs: Vec<(String, Option<Value>)> = std::thread::scope(|s| {
+        let hs: Vec<_> = rooms
+            .iter()
+            .map(|r| {
+                s.spawn(move || {
+                    (
+                        r.clone(),
+                        fetch_contract_json(&log_contract_key(&format!("dm/{r}"))),
+                    )
+                })
+            })
+            .collect();
+        hs.into_iter().filter_map(|h| h.join().ok()).collect()
+    });
+    let map = inbox["entries"].as_object_mut()?;
+    for (room, log) in logs {
+        let Some((x, y)) = pair(&room) else { continue };
+        for (k, e) in log
+            .as_ref()
+            .and_then(|l| l["entries"].as_object())
+            .into_iter()
+            .flatten()
+        {
+            if matches!(e["author"].as_str(), Some(a) if a == x || a == y) {
+                map.insert(format!("dm/{k}"), e.clone());
+            }
+        }
+    }
+    Some(inbox)
+}
+
 fn append_log_entry(log_name: &str, body_val: &Value) -> Result<(), String> {
     let stored = load_stored_identity();
     let (sk, pubkey) = local_identity();
@@ -2541,8 +2610,7 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                         "sig": msg_sig,
                     }
                 });
-                let _ = append_log_entry(&format!("inbox/{pubkey}"), &payload);
-                return append_log_entry(&format!("inbox/{peer_pk}"), &payload);
+                return dm_append(&dm_room_id, &pubkey, &peer_pk, &payload);
             }
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
                 let reply = reply_to.and_then(|n| lookup_wire_id(&room_key, n));
@@ -2688,11 +2756,10 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                     "roomId": dm_room_id,
                     "messageId": wire_id,
                 });
-                let _ = append_log_entry(&format!("inbox/{pubkey}"), &payload);
-                if let Some(ref pk) = peer_pk {
-                    let _ = append_log_entry(&format!("inbox/{pk}"), &payload);
-                }
-                return Ok(());
+                return match peer_pk {
+                    Some(pk) => dm_append(&dm_room_id, &pubkey, &pk, &payload),
+                    None => Ok(()),
+                };
             }
             if room_key.starts_with("c_") {
                 return append_log_entry(
@@ -2802,9 +2869,9 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             };
             let body = json!({ "type": "chat_read", "room": room, "upto": ts });
             append_log_entry(&format!("inbox/{pubkey}"), &body)?;
-            // the peer's copy is their read receipt
-            if let Some(peer) = peer {
-                let _ = append_log_entry(&format!("inbox/{peer}"), &body);
+            // their read receipt, in the conversation's own log
+            if peer.is_some() {
+                let _ = append_log_entry(&format!("dm/{room}"), &body);
             }
             Ok(())
         }
@@ -3546,6 +3613,15 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dm_refs_are_state_like_the_web() {
+        // ui/src/logfold.ts stateSlot("dm_ref", "x")
+        assert_eq!(
+            state_slot(&json!({"type":"dm_ref","room":"x"})).unwrap(),
+            "dm_ref:1f5d4f3efe28106dd8d4b819"
+        );
+    }
 
     #[test]
     fn state_slots_match_the_web() {

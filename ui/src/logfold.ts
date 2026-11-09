@@ -531,6 +531,7 @@ const STATE_SUBJECT: Record<string, (b: any) => unknown> = {
   room_ref: (b) => b.roomId,
   room_hide: (b) => b.roomId,
   river_access: (b) => b.roomId,
+  dm_ref: (b) => b.room, // "a conversation of mine changed": one per conversation and author
 };
 
 /** The id an author writes state under, the same for every write about one subject: the log contract keeps the
@@ -547,14 +548,26 @@ export function stateSlotFor(body: { type?: unknown } & Record<string, unknown>)
   return subject ? stateSlot(body.type as string, subject(body)) : null;
 }
 
+/** Entries of a one-to-one conversation (a direct message or Secret Chat), which an inbox carried before each
+ *  conversation got its own log (`dm/<room>`). */
+export const DM_ENTRY_TYPES = new Set(["chat", "chat_edit", "chat_delete", "chat_burn", "chat_react"]);
+
+export function isDmEntry(e: LogEntry): boolean {
+  try {
+    return DM_ENTRY_TYPES.has(JSON.parse(e.body).type);
+  } catch {
+    return false;
+  }
+}
+
 /** A log as it moves to a new contract generation, without what no longer counts: the newest state entry per author
- *  and subject (read marks, hidden rooms…), and, in an inbox, no message its sender or the inbox owner deleted or
- *  burned (the delete itself stays, so a copy that comes back is dropped again). Every kept entry is unchanged, so
- *  its signature still holds. */
+ *  and subject (read marks, hidden rooms…). An inbox also leaves behind its conversations, which now have logs of
+ *  their own (their history stays readable in the previous generation, and an entry's signature names its log, so it
+ *  cannot move), and the notifications its owner cleared. Every kept entry is unchanged, so its signature holds. */
 export function compactLog(name: string, entries: Record<string, LogEntry>): Record<string, LogEntry> {
   const owner = name.startsWith("inbox/") ? name.slice("inbox/".length) : null;
   const newest = new Map<string, string>(); // author|type|subject -> entry key
-  const deleted = new Set<string>(); // message id|who deleted it
+  let cleared = -1; // the owner's "clear all notifications"
   const parsed: [string, LogEntry, any][] = [];
   for (const [k, e] of Object.entries(entries)) {
     let b: any = null;
@@ -568,14 +581,13 @@ export function compactLog(name: string, entries: Record<string, LogEntry>): Rec
       const cur = newest.get(g);
       if (!cur || e.ts > entries[cur].ts || (e.ts === entries[cur].ts && e.sig > entries[cur].sig)) newest.set(g, k);
     }
-    if (owner && (b?.type === "chat_delete" || b?.type === "chat_burn") && typeof b.messageId === "string") deleted.add(`${b.messageId}|${e.author}`);
+    if (owner && b?.type === "notif_clear" && e.author === owner && typeof b.upto === "number") cleared = Math.max(cleared, b.upto);
   }
   const keep = new Set(newest.values());
   const out: Record<string, LogEntry> = {};
   for (const [k, e, b] of parsed) {
     if (b && STATE_SUBJECT[b.type] && !keep.has(k)) continue;
-    const m = b?.type === "chat" ? b.message : null;
-    if (m && typeof m.id === "string" && (deleted.has(`${m.id}|${m.sender}`) || deleted.has(`${m.id}|${owner}`))) continue;
+    if (owner && b && (DM_ENTRY_TYPES.has(b.type) || (b.type === "notif" && e.ts <= cleared))) continue;
     out[k] = e;
   }
   return out;
