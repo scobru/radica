@@ -4,13 +4,16 @@
 
 use std::time::{Duration, Instant};
 
-use radica_app::{InstallStep, MANUAL_INSTALL_URL, NodeHost, NodeProbe, RADICA_WEB_URL};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::WindowBuilder;
 use wry::{NewWindowResponse, WebContext, WebViewBuilder};
 
-use crate::host::DesktopHost;
+use crate::host::{DesktopHost, InstallStep, MANUAL_INSTALL_URL, NodeProbe};
+
+/// Radica web, as the node serves it.
+const RADICA_WEB_URL: &str =
+    "http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
 
 enum Ui {
     Status(String),
@@ -46,8 +49,20 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
 /// Only web pages go to the browser: the page asks, so a `file:` or app-handler URL is refused.
 fn open_external(url: &str) {
     if url.starts_with("https://") || url.starts_with("http://") {
-        crate::live::open_in_browser(url);
+        open_in_browser(url);
     }
+}
+
+fn open_in_browser(url: &str) {
+    use std::process::Command;
+    #[cfg(target_os = "windows")]
+    let _ = Command::new("rundll32.exe")
+        .args(["url.dll,FileProtocolHandler", url])
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let _ = Command::new("open").arg(url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let _ = Command::new("xdg-open").arg(url).spawn();
 }
 
 fn step_text(step: &InstallStep) -> String {
@@ -120,7 +135,10 @@ pub fn run() -> wry::Result<()> {
         .build(&event_loop)
         .map_err(|e| wry::Error::Io(std::io::Error::other(e)))?;
     // The web app keeps identity and keys in its storage: a fixed folder keeps them across runs.
-    let mut context = WebContext::new(crate::live::data_dir().map(|d| d.join("webview")));
+    let mut context = WebContext::new(
+        directories::ProjectDirs::from("", "Freenet", "Radica")
+            .map(|d| d.data_local_dir().join("webview")),
+    );
     let retry = event_loop.create_proxy();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_html(LOADING)
