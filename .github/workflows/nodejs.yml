@@ -19,6 +19,8 @@ jobs:
         working-directory: ui
         run: npx playwright install --with-deps chromium && npx playwright test
       - run: npm run build:contract
+      # the native desktop app (apps/) links against libxkbcommon
+      - run: sudo apt-get install -y libxkbcommon-dev
       - run: npm test
       - run: npm ci --prefix donation-contract
       - run: npm --prefix donation-contract test
