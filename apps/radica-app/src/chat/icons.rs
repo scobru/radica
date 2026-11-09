@@ -56,12 +56,6 @@ pub static CLOSE: Icon = Icon {
     body: r#"<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>"#,
 };
 
-pub static GLOBAL: Icon = Icon {
-    name: "radica-global",
-    view: 16.0,
-    body: r#"<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><ellipse cx="8" cy="8" rx="2.5" ry="6" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 8h11" stroke="currentColor" stroke-width="1.3"/>"#,
-};
-
 pub static LOGOUT: Icon = Icon {
     name: "radica-logout",
     view: 16.0,

@@ -330,18 +330,6 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
             }),
         )
         .child(
-            outlined(
-                "open-feed-web",
-                "Radica Feed (Web)",
-                &icons::GLOBAL,
-                34.0,
-                p,
-            )
-            .on_press_tx(|_: &mut RadicaApp, tx: &mut rune::Tx| {
-                let _ = tx.open_url(&format!("{RADICA_WEB_URL}#feed"));
-            }),
-        )
-        .child(
             outlined("open-web", "Open Radica Web", &icons::CHAT, 34.0, p).on_press_tx(
                 |_: &mut RadicaApp, tx: &mut rune::Tx| {
                     let _ = tx.open_url(RADICA_WEB_URL);
@@ -367,7 +355,7 @@ fn rooms(chat: &Chat, logo: Option<&Pixels>, narrow: bool, p: &Palette, k: &Kit)
             .width(None)
             .height(30.0)
             .text_style(st::SMALL)
-            .placeholder("#slug or invite code…")
+            .placeholder("#community, invite link or River ID token…")
             .label("Invite code")
             .on_edit(|s: &mut RadicaApp| &mut s.chat.join_input)
             .on_submit(|s: &mut RadicaApp, _| s.join_room())

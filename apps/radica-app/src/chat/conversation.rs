@@ -12,7 +12,7 @@ use super::media;
 use super::model::{self, Group, MINUTES_PER_DAY, Member, Message, Role, Room};
 use super::style::{self as st, Palette};
 use super::view::{HEADER_H, hline, label, room_monogram_el};
-use crate::{RADICA_WEB_URL, RadicaApp};
+use crate::RadicaApp;
 
 const AVATAR: f32 = 34.0;
 const GUTTER: f32 = 48.0;
@@ -212,26 +212,6 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
             if open { p.accent } else { p.text_secondary },
         ));
 
-    let feed_btn = row()
-        .key("header-feed-link")
-        .role("button")
-        .label("Radica Feed (Web)")
-        .help("Open social feed on Radica Web")
-        .h(34.0)
-        .px(10.0)
-        .radius(17.0)
-        .gap(4.0)
-        .center()
-        .fill(p.surface)
-        .border(1.0, p.line)
-        .hover(p.surface_hover)
-        .cursor(rune::Cursor::Pointer)
-        .on_press_tx(|_: &mut RadicaApp, tx: &mut rune::Tx| {
-            let _ = tx.open_url(&format!("{RADICA_WEB_URL}#feed"));
-        })
-        .child(icon(&icons::GLOBAL, 12.0).color(p.accent))
-        .child(label("Feed Web", st::GUTTER_TIME, p.text_secondary));
-
     row()
         .key("room-header")
         .w_full()
@@ -243,7 +223,6 @@ fn header(chat: &Chat, room: &Room, narrow: bool, p: &Palette) -> El {
         .fill(p.rail)
         .child(room_monogram_el(chat, room, 40.0, p))
         .child(info)
-        .child(feed_btn)
         .child(search_btn)
         .child(toggle)
 }

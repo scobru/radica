@@ -9,5 +9,8 @@ publish = false
 [dependencies]
 rune.workspace = true
 rune-kit.workspace = true
+# Rune decodes images through `image` with only PNG and JPEG on; the web sends chat photos as WebP (and GIFs).
+# Turning those formats on here turns them on for Rune too (one `image` in the build).
+image = { version = "0.25", default-features = false, features = ["webp", "gif"] }
 base64 = "0.22"
 

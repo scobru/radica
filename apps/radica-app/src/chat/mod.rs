@@ -733,6 +733,12 @@ impl Chat {
         }
         let clean = raw.trim_start_matches('#').trim_start_matches("r/").trim();
         let is_priv = clean.starts_with("priv:") || clean.starts_with("inv_") || clean.len() > 28;
+        if is_priv {
+            // an invite or a River identity: the node opens the room (no placeholder that would linger in the list)
+            self.join_input.clear();
+            self.joining_room = false;
+            return Some(raw);
+        }
         let slug: String = clean
             .trim_start_matches("c_")
             .chars()
