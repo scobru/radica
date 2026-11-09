@@ -503,7 +503,7 @@ export class FreenetClient {
     this.lastRefresh.set(owner, Date.now());
     try {
       await this.pushPending(owner);
-      const text = await this.net.getText(`feed:${owner}`, urgent);
+      const text = await this.net.getText(`feed:${owner}`, urgent || owner === this.me); // my own profile never waits behind others' feeds
       if (text !== null) await this.takeFeed(owner, text);
     } catch (e) {
       console.warn("[Freenet] Could not fetch feed", owner, e);
@@ -2873,7 +2873,7 @@ export class FreenetClient {
       const k = this.knownPeers[pk];
       if (pk === this.me || (k?.avatar_url && !k.display_name.startsWith("Persona @"))) continue;
       jobs.push(this.nameFromStoredFeed(pk)); // what an earlier visit kept: no network needed
-      if (Date.now() - (this.lastRefresh.get(pk) ?? 0) > LIVE_RECHECK_MS) jobs.push(this.refresh(pk, false, true)); // people with no avatar are not refetched every minute
+      if (Date.now() - (this.lastRefresh.get(pk) ?? 0) > LIVE_RECHECK_MS) jobs.push(this.refresh(pk, true)); // people with no avatar are not refetched every minute; forced past the chat pause but on the background queue: a feed nobody published holds its slot until the 45 s timeout, and in the foreground queue that stalls images and River rooms
     }
     return Promise.all(jobs).then(() => {});
   }
