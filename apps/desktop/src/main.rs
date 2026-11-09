@@ -11,6 +11,7 @@ mod host;
 mod install;
 mod live;
 mod release;
+mod river;
 
 use std::sync::Arc;
 

@@ -661,7 +661,8 @@ impl Chat {
         self.joining_room = false;
         self.filter = RoomFilter::All;
         self.select(&key);
-        Some(key)
+        // a private room needs the whole invite (its code or keys), not the shortened key shown here
+        Some(if is_priv { raw } else { key })
     }
 
     /// Open or create a 1-on-1 E2EE Direct Message conversation with `member_id`.

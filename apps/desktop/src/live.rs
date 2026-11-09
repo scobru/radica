@@ -78,92 +78,96 @@ fn lookup_peer_enc_pub(pubkey: &str) -> String {
         .unwrap_or_else(|| pubkey.to_owned())
 }
 
-#[derive(Clone, Debug)]
+/// Radica's data dir on this device (identity, rooms, caches).
+pub fn data_dir() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "Freenet", "Radica")
+        .map(|d| d.data_local_dir().to_path_buf())
+}
+
+/// A River private room this device knows: where it lives and what lets me in (the web keeps the same in
+/// `freenet_private_rooms` + `river_key_<id>` + `river_join_<id>`).
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 struct StoredPrivateRoom {
     id: String,
+    #[serde(default)]
     name: String,
-    key_hex: String,
     creator: String,
+    /// The room's River owner key: it addresses the room contract.
+    owner: String,
+    /// My River key in this room when an invite gave me one; else my identity key, or the derived owner key.
+    #[serde(default)]
+    key_hex: Option<String>,
+    /// My signed membership and sealed room secret(s), from an invite.
+    #[serde(default)]
+    join: Option<Value>,
 }
 
 fn private_rooms_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "Freenet", "Radica")
-        .map(|d| d.data_local_dir().join("private-rooms.json"))
+    data_dir().map(|d| d.join("private-rooms.json"))
 }
 
+/// Rooms stored before rooms moved to River (no `owner`) are dropped.
 fn load_private_rooms() -> Vec<StoredPrivateRoom> {
-    let Some(p) = private_rooms_path() else {
+    let Some(raw) = private_rooms_path().and_then(|p| fs::read_to_string(p).ok()) else {
         return Vec::new();
     };
-    let Ok(raw) = fs::read_to_string(p) else {
-        return Vec::new();
-    };
-    let Ok(arr) = serde_json::from_str::<Vec<Value>>(&raw) else {
-        return Vec::new();
-    };
-    arr.into_iter()
-        .filter_map(|v| {
-            Some(StoredPrivateRoom {
-                id: v.get("id")?.as_str()?.to_owned(),
-                name: v.get("name")?.as_str()?.to_owned(),
-                key_hex: v.get("key_hex")?.as_str()?.to_owned(),
-                creator: v
-                    .get("creator")
-                    .and_then(Value::as_str)
-                    .unwrap_or(MAINTAINER_PK)
-                    .to_owned(),
-            })
-        })
+    serde_json::from_str::<Vec<Value>>(&raw)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
         .collect()
 }
 
-fn save_private_room(room: &StoredPrivateRoom) {
+fn save_private_rooms(list: &[StoredPrivateRoom]) {
     let Some(p) = private_rooms_path() else {
         return;
     };
-    let mut list = load_private_rooms();
-    if let Some(existing) = list.iter_mut().find(|r| r.id == room.id) {
-        *existing = room.clone();
-    } else {
-        list.push(room.clone());
-    }
-    let val: Vec<Value> = list
-        .iter()
-        .map(|r| {
-            json!({
-                "id": r.id,
-                "name": r.name,
-                "key_hex": r.key_hex,
-                "creator": r.creator,
-            })
-        })
-        .collect();
     if let Some(parent) = p.parent() {
         make_private_dir(parent);
     }
-    let _ = fs::write(p, serde_json::to_string_pretty(&val).unwrap_or_default());
+    let _ = fs::write(p, serde_json::to_string_pretty(list).unwrap_or_default());
+}
+
+/// Add or update a room; an update keeps what it does not know (an invite's key and join stay).
+fn save_private_room(room: &StoredPrivateRoom) {
+    let mut list = load_private_rooms();
+    match list.iter_mut().find(|r| r.id == room.id) {
+        Some(r) => {
+            let prev = r.clone();
+            *r = room.clone();
+            if r.name.is_empty() {
+                r.name = prev.name;
+            }
+            if r.key_hex.is_none() {
+                r.key_hex = prev.key_hex;
+            }
+            if r.join.is_none() {
+                r.join = prev.join;
+            }
+        }
+        None => list.push(room.clone()),
+    }
+    save_private_rooms(&list);
 }
 
 fn remove_private_room(room_id: &str) {
-    let Some(p) = private_rooms_path() else {
-        return;
-    };
     let mut list = load_private_rooms();
-    let prev_len = list.len();
     list.retain(|r| r.id != room_id);
-    if list.len() != prev_len {
-        let val: Vec<Value> = list
-            .iter()
-            .map(|r| {
-                json!({
-                    "id": r.id,
-                    "name": r.name,
-                    "key_hex": r.key_hex,
-                    "creator": r.creator,
-                })
-            })
-            .collect();
-        let _ = fs::write(p, serde_json::to_string_pretty(&val).unwrap_or_default());
+    save_private_rooms(&list);
+}
+
+/// My River key in `room`, as hex: an invite's key, else the derived owner key for a room I made, else my identity key.
+fn river_key_of(room: &StoredPrivateRoom, my_pk: &str, my_seed: &[u8; 32]) -> String {
+    if let Some(k) = &room.key_hex {
+        return k.clone();
+    }
+    let derived = hex::encode(crate::river::owner_sk(my_seed, &room.id));
+    if room.creator == my_pk
+        || crate::river::vk_of(&derived).as_deref() == Some(room.owner.as_str())
+    {
+        derived
+    } else {
+        hex::encode(my_seed)
     }
 }
 
@@ -276,22 +280,6 @@ pub fn decrypt_direct_message(
     let ct = hex::decode(ct_hex).ok()?;
     let shared = x25519_shared_secret(my_seed, peer_pubkey_hex)?;
     let plain = aes_gcm_decrypt(&shared, &iv, &ct)?;
-    String::from_utf8(plain).ok()
-}
-
-pub fn encrypt_with_symmetric_key(key_bytes: &[u8; 32], plaintext: &str) -> Option<String> {
-    let iv = random_iv_12("radica-sym-room-iv");
-    let ct = aes_gcm_encrypt(key_bytes, &iv, plaintext.as_bytes())?;
-    Some(format!("sym:{}:{}", hex::encode(iv), hex::encode(ct)))
-}
-
-pub fn decrypt_with_symmetric_key(key_bytes: &[u8; 32], text: &str) -> Option<String> {
-    let rest = text.strip_prefix("sym:")?;
-    let (iv_hex, ct_hex) = rest.split_once(':')?;
-    let iv_bytes = hex::decode(iv_hex).ok()?;
-    let iv: [u8; 12] = iv_bytes.as_slice().try_into().ok()?;
-    let ct = hex::decode(ct_hex).ok()?;
-    let plain = aes_gcm_decrypt(key_bytes, &iv, &ct)?;
     String::from_utf8(plain).ok()
 }
 
@@ -432,7 +420,7 @@ pub fn feed_contract_key(pubkey_hex: &str) -> Option<String> {
     Some(contract_key(FEED_CODE_HASH, &params))
 }
 
-fn find_fdev() -> PathBuf {
+pub fn find_fdev() -> PathBuf {
     let bin = if cfg!(windows) { "fdev.exe" } else { "fdev" };
     if let Some(localappdata) = std::env::var_os("LOCALAPPDATA") {
         let p = PathBuf::from(localappdata)
@@ -598,7 +586,7 @@ fn entropy_32(_tag: &str) -> [u8; 32] {
 }
 
 /// Create Radica's data dir readable by this user only: it holds the signing key and room keys.
-fn make_private_dir(dir: &std::path::Path) {
+pub fn make_private_dir(dir: &std::path::Path) {
     let _ = fs::create_dir_all(dir);
     #[cfg(unix)]
     {
@@ -953,13 +941,7 @@ pub fn load_live() -> Option<LiveSnapshot> {
             )
         })
         .collect();
-    let priv_rooms_cfg = load_private_rooms();
-    let priv_keys: Vec<(String, String)> = priv_rooms_cfg
-        .iter()
-        .map(|r| (r.id.clone(), log_contract_key(&format!("room/{}", r.id))))
-        .collect();
-
-    let (dir_json, comms_json, inbox_json, feed_json, my_feed_json, chat_jsons, priv_jsons) =
+    let (dir_json, comms_json, inbox_json, feed_json, my_feed_json, chat_jsons) =
         std::thread::scope(|s| {
             let h_dir = s.spawn(|| fetch_contract_json(&dir_key));
             let h_comms = s.spawn(|| fetch_contract_json(&comms_key));
@@ -970,15 +952,8 @@ pub fn load_live() -> Option<LiveSnapshot> {
                 .iter()
                 .map(|(id, k)| s.spawn(move || (id.as_str(), fetch_contract_json(k))))
                 .collect();
-            let h_privs: Vec<_> = priv_keys
-                .iter()
-                .map(|(id, k)| s.spawn(move || (id.as_str(), fetch_contract_json(k))))
-                .collect();
-
             let chats: HashMap<&str, Option<Value>> =
                 h_chats.into_iter().filter_map(|h| h.join().ok()).collect();
-            let privs: HashMap<&str, Option<Value>> =
-                h_privs.into_iter().filter_map(|h| h.join().ok()).collect();
             (
                 h_dir.join().ok().flatten(),
                 h_comms.join().ok().flatten(),
@@ -986,9 +961,22 @@ pub fn load_live() -> Option<LiveSnapshot> {
                 h_feed.join().ok().flatten(),
                 h_my_feed.join().ok().flatten(),
                 chats,
-                privs,
             )
         });
+
+    // River private rooms: learn new ones from my inbox, then read each room's state.
+    let removed_rooms = sync_rooms_from_inbox(&my_pk, inbox_json.as_ref());
+    let priv_rooms_cfg: Vec<StoredPrivateRoom> = load_private_rooms()
+        .into_iter()
+        .filter(|r| !removed_rooms.contains(&r.id))
+        .collect();
+    let river_states: HashMap<String, Option<String>> = std::thread::scope(|s| {
+        let handles: Vec<_> = priv_rooms_cfg
+            .iter()
+            .map(|r| s.spawn(move || (r.owner.clone(), crate::river::load(&r.owner))))
+            .collect();
+        handles.into_iter().filter_map(|h| h.join().ok()).collect()
+    });
 
     // 2. Directory: pubkey -> display_name & avatars
     let stored = load_stored_identity();
@@ -1099,19 +1087,17 @@ pub fn load_live() -> Option<LiveSnapshot> {
         rooms.push(room);
     }
 
-    // 5. E2EE Private Group Rooms (`priv:<id>` / `log:room/<id>`)
-    for priv_room in build_private_rooms(
+    // 5. River private rooms (`priv:<id>`)
+    let (sk, _) = local_identity();
+    rooms.extend(build_river_rooms(
         &my_pk,
-        me_id,
+        &sk.to_bytes(),
         day_zero,
         &names,
         &avatars,
-        &deleted_msgs,
         &priv_rooms_cfg,
-        &priv_jsons,
-    ) {
-        rooms.push(priv_room);
-    }
+        &river_states,
+    ));
 
     // 6. 1-on-1 E2EE Direct Message (DM) rooms from `inbox/<my_pk>`
     for dm_room in build_dm_rooms(
@@ -1560,233 +1546,242 @@ fn build_community_room(
     }
 }
 
-fn decode_sym_key(key_hex: &str) -> Option<[u8; 32]> {
-    let bytes = hex::decode(key_hex).ok()?;
-    bytes.as_slice().try_into().ok()
+/// The room's descriptor as its creator published it in `room/<id>` (`private_room`, the newest wins).
+fn room_descriptor(room_id: &str) -> Option<StoredPrivateRoom> {
+    let log = fetch_contract_json(&log_contract_key(&format!("room/{room_id}")));
+    ordered_bodies(log.as_ref())
+        .into_iter()
+        .filter_map(|(author, _, b)| {
+            let room = b.get("room")?;
+            let owner = room.pointer("/river/owner")?.as_str()?.to_owned();
+            (b.get("type")?.as_str()? == "private_room"
+                && room.get("id")?.as_str()? == room_id
+                && room.get("creator")?.as_str()? == author)
+                .then(|| StoredPrivateRoom {
+                    id: room_id.to_owned(),
+                    name: String::new(),
+                    creator: author.clone(),
+                    owner,
+                    key_hex: None,
+                    join: None,
+                })
+        })
+        .last()
 }
 
-fn build_private_rooms(
+fn valid_room_id(id: &str) -> bool {
+    id.starts_with("privroom_")
+        && id.len() <= 80
+        && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+}
+
+/// Learn River rooms from my inbox, as the web does: invites (`room_invite` from the room's creator, with my sealed
+/// River join) and rooms I made or joined elsewhere (`room_ref`, whose `room/<id>` log names the owner).
+/// Returns the rooms I removed (`room_hide`, my newest word wins), so every device hides the same ones.
+fn sync_rooms_from_inbox(my_pk: &str, inbox: Option<&Value>) -> BTreeSet<String> {
+    let known: BTreeSet<String> = load_private_rooms().into_iter().map(|r| r.id).collect();
+    let mut refs: BTreeSet<String> = BTreeSet::new();
+    let mut hidden: BTreeMap<String, bool> = BTreeMap::new();
+    for (author, _, b) in ordered_bodies(inbox) {
+        let id = |v: &Value| v.as_str().filter(|id| valid_room_id(id)).map(str::to_owned);
+        match b.get("type").and_then(Value::as_str) {
+            Some("room_invite") => {
+                let room = &b["room"];
+                if let (Some(rid), Some(owner)) = (
+                    id(&room["id"]),
+                    room.pointer("/river/owner").and_then(Value::as_str),
+                ) && room["creator"].as_str() == Some(author.as_str())
+                    && b.pointer("/river_join/member")
+                        .is_some_and(Value::is_string)
+                {
+                    save_private_room(&StoredPrivateRoom {
+                        id: rid,
+                        name: String::new(),
+                        creator: author.clone(),
+                        owner: owner.to_owned(),
+                        key_hex: None,
+                        join: Some(b["river_join"].clone()),
+                    });
+                }
+            }
+            Some("room_ref") if author == my_pk => {
+                if let Some(rid) = id(&b["roomId"]).filter(|r| !known.contains(r)) {
+                    refs.insert(rid);
+                }
+            }
+            Some("room_hide") if author == my_pk => {
+                if let Some(rid) = id(&b["roomId"]) {
+                    hidden.insert(rid, b["on"].as_bool() != Some(false));
+                }
+            }
+            _ => {}
+        }
+    }
+    for rid in refs {
+        if let Some(room) = room_descriptor(&rid) {
+            save_private_room(&room);
+        }
+    }
+    hidden
+        .into_iter()
+        .filter(|(_, on)| *on)
+        .map(|(id, _)| id)
+        .collect()
+}
+
+/// River private rooms as I see them. `states` holds each room's state by owner key (None: not on the node yet).
+#[allow(clippy::too_many_arguments)]
+fn build_river_rooms(
     my_pk: &str,
-    me_id: u32,
+    my_seed: &[u8; 32],
     day_zero: i64,
     names: &HashMap<String, String>,
     avatars: &HashMap<String, String>,
-    deleted_msgs: &BTreeSet<String>,
-    priv_rooms_cfg: &[StoredPrivateRoom],
-    priv_jsons: &HashMap<&str, Option<Value>>,
+    rooms: &[StoredPrivateRoom],
+    states: &HashMap<String, Option<String>>,
 ) -> Vec<Room> {
     let mut out = Vec::new();
-    for pr in priv_rooms_cfg {
+    for pr in rooms {
         let room_key = format!("priv:{}", pr.id);
-        let sym_key = decode_sym_key(&pr.key_hex);
-        let json_opt = priv_jsons.get(pr.id.as_str()).and_then(|v| v.as_ref());
-        let mut participants: BTreeSet<String> = BTreeSet::new();
-        participants.insert(my_pk.to_owned());
-        participants.insert(pr.creator.clone());
-
-        let mut raw_msgs: Vec<(String, String, u64, String, Option<String>)> = Vec::new();
-        let mut edits: HashMap<String, (String, u64, String)> = HashMap::new();
-        let mut deletes: HashMap<String, (String, u64)> = HashMap::new();
-        let mut reacts: HashMap<String, BTreeMap<String, BTreeMap<String, (u64, bool)>>> =
-            HashMap::new();
-
-        if let Some(json) = json_opt
-            && let Some(entries) = json.get("entries").and_then(Value::as_object)
-        {
-            let mut sorted: Vec<&Value> = entries.values().collect();
-            sorted.sort_by_key(|e| e.get("ts").and_then(Value::as_u64).unwrap_or(0));
-
-            for e in sorted {
-                let Some(author) = e.get("author").and_then(Value::as_str) else {
-                    continue;
-                };
-                let e_ts = e.get("ts").and_then(Value::as_u64).unwrap_or(0);
-                let Some(body_str) = e.get("body").and_then(Value::as_str) else {
-                    continue;
-                };
-                let Ok(b) = serde_json::from_str::<Value>(body_str) else {
-                    continue;
-                };
-                match b.get("type").and_then(Value::as_str) {
-                    Some("chat") => {
-                        let Some(m) = b.get("message") else { continue };
-                        let Some(id) = m.get("id").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        let sender = m.get("sender").and_then(Value::as_str).unwrap_or("");
-                        let Some(raw_text) = m.get("text").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        if sender != author || raw_text.trim().is_empty() {
-                            continue;
-                        }
-                        let text = sym_key
-                            .as_ref()
-                            .and_then(|k| decrypt_with_symmetric_key(k, raw_text))
-                            .unwrap_or_else(|| raw_text.to_owned());
-                        let ts = m.get("timestamp").and_then(Value::as_u64).unwrap_or(e_ts);
-                        let reply = m
-                            .get("reply_to")
-                            .and_then(Value::as_str)
-                            .map(ToOwned::to_owned);
-                        participants.insert(author.to_owned());
-                        remember_peer(member_id_of(author), author);
-                        raw_msgs.push((id.to_owned(), author.to_owned(), ts, text, reply));
+        let sk = river_key_of(pr, my_pk, my_seed);
+        let my_vk = crate::river::vk_of(&sk).unwrap_or_default();
+        let me = member_id_of(&my_vk);
+        let view = states
+            .get(&pr.owner)
+            .and_then(Option::as_ref)
+            .and_then(|state| crate::river::read(&pr.owner, state, &sk, pr.join.as_ref()).ok());
+        let Some(view) = view else {
+            out.push(Room {
+                key: room_key,
+                name: format!(
+                    "🔒 {}",
+                    if pr.name.is_empty() {
+                        "Private room"
+                    } else {
+                        &pr.name
                     }
-                    Some("chat_edit") => {
-                        let Some(mid) = b.get("messageId").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        let Some(raw_text) = b.get("text").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        let text = sym_key
-                            .as_ref()
-                            .and_then(|k| decrypt_with_symmetric_key(k, raw_text))
-                            .unwrap_or_else(|| raw_text.to_owned());
-                        if !text.trim().is_empty()
-                            && edits
-                                .get(mid)
-                                .is_none_or(|(_, prev_ts, _)| e_ts >= *prev_ts)
-                        {
-                            edits.insert(mid.to_owned(), (author.to_owned(), e_ts, text));
-                        }
-                    }
-                    Some("chat_delete" | "chat_burn") => {
-                        let Some(mid) = b.get("messageId").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        if deletes.get(mid).is_none_or(|(_, prev_ts)| e_ts >= *prev_ts) {
-                            deletes.insert(mid.to_owned(), (author.to_owned(), e_ts));
-                        }
-                    }
-                    Some("chat_react") => {
-                        let Some(mid) = b.get("messageId").and_then(Value::as_str) else {
-                            continue;
-                        };
-                        let Some(emoji) = b
-                            .get("emoji")
-                            .and_then(Value::as_str)
-                            .filter(|e| CHAT_REACTIONS.contains(e))
-                        else {
-                            continue;
-                        };
-                        let on = b.get("on").and_then(Value::as_bool).unwrap_or(false);
-                        participants.insert(author.to_owned());
-                        remember_peer(member_id_of(author), author);
-                        let by_user = reacts
-                            .entry(mid.to_owned())
-                            .or_default()
-                            .entry(emoji.to_owned())
-                            .or_default();
-                        if by_user
-                            .get(author)
-                            .is_none_or(|(prev_ts, _)| e_ts >= *prev_ts)
-                        {
-                            by_user.insert(author.to_owned(), (e_ts, on));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        let mut id_map: HashMap<String, (u32, u32, String)> = HashMap::new();
-        let mut messages: Vec<Message> = Vec::new();
-        let mut next_id = 1u32;
-
-        for (wire_id, author, ts, orig_text, reply_wire) in raw_msgs {
-            if deleted_msgs.contains(&wire_id) {
-                continue;
-            }
-            // Like the web, only the sender deletes a message in a private room.
-            if deletes
-                .get(&wire_id)
-                .is_some_and(|(del_by, _)| del_by == &author)
-            {
-                continue;
-            }
-            let (text, edited) = match edits.get(&wire_id) {
-                Some((ed_by, _, new_text)) if ed_by == &author => (new_text.clone(), true),
-                _ => (orig_text, false),
-            };
-            let author_id = member_id_of(&author);
-            let num_id = next_id;
-            next_id += 1;
-
-            let reply_to = reply_wire.and_then(|rw| {
-                id_map
-                    .get(&rw)
-                    .map(|(target_id, target_author, target_text)| ReplyTo {
-                        message: *target_id,
-                        author: *target_author,
-                        preview: radica_app::chat::model::preview(target_text, 64),
-                    })
+                ),
+                description: "River private room · not reachable on the network yet".into(),
+                private: true,
+                members: vec![Member::new(me, short_persona(my_pk), Role::Member)],
+                messages: Vec::new(),
+                me,
+                unread: 0,
             });
-
-            let mut msg_reactions: Vec<Reaction> = Vec::new();
-            if let Some(emoji_map) = reacts.get(&wire_id) {
-                for (emoji, users) in emoji_map {
-                    let by: Vec<u32> = users
-                        .iter()
-                        .filter_map(|(pk, (_, on))| (*on).then(|| member_id_of(pk)))
-                        .collect();
-                    if !by.is_empty() {
-                        msg_reactions.push(Reaction {
-                            emoji: emoji.clone(),
-                            by,
-                        });
-                    }
-                }
-            }
-
-            id_map.insert(wire_id.clone(), (num_id, author_id, text.clone()));
-            remember_wire_id(&room_key, num_id, &wire_id);
-            messages.push(Message {
-                id: num_id,
-                author: author_id,
-                time: ms_to_minutes(ts, day_zero),
-                text,
-                reply_to,
-                reactions: msg_reactions,
-                edited,
+            continue;
+        };
+        let name = view["name"]
+            .as_str()
+            .filter(|n| !n.is_empty())
+            .unwrap_or(&pr.name)
+            .to_owned();
+        if name != pr.name {
+            save_private_room(&StoredPrivateRoom {
+                name: name.clone(),
+                ..pr.clone()
             });
         }
 
         let mut members: Vec<Member> = Vec::new();
-        let mut seen_ids: BTreeSet<u32> = BTreeSet::new();
-        for pk in participants {
-            let id = member_id_of(&pk);
-            if !seen_ids.insert(id) {
-                continue;
-            }
-            let nickname = names
-                .get(&pk)
+        for m in view["members"].as_array().into_iter().flatten() {
+            let Some(vk) = m["vk"].as_str() else { continue };
+            let id = member_id_of(vk);
+            remember_peer(id, vk);
+            let nick = names
+                .get(vk)
                 .cloned()
-                .unwrap_or_else(|| short_persona(&pk));
-            let role = if pk == pr.creator {
+                .or_else(|| m["nickname"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| short_persona(vk));
+            let role = if m["owner"].as_bool() == Some(true) {
                 Role::Owner
             } else {
                 Role::Member
             };
-            let av = avatars.get(&pk).cloned();
-            members.push(Member::new(id, nickname, role).with_avatar(Some(pk.clone()), av));
+            members.push(
+                Member::new(id, nick, role)
+                    .with_avatar(Some(vk.to_owned()), avatars.get(vk).cloned()),
+            );
+        }
+        if !members.iter().any(|m| m.id == me) {
+            members.push(Member::new(
+                me,
+                names
+                    .get(my_pk)
+                    .cloned()
+                    .unwrap_or_else(|| short_persona(my_pk)),
+                Role::Member,
+            ));
         }
 
-        let invite_link = format!(
-            "#join_room={}&key={}&name={}",
-            pr.id,
-            pr.key_hex,
-            percent_encode(&pr.name)
-        );
+        let mut msgs: Vec<&Value> = view["messages"].as_array().into_iter().flatten().collect();
+        msgs.sort_by_key(|m| m["time_ms"].as_u64().unwrap_or(0));
+        let mut by_wire: HashMap<String, (u32, u32, String)> = HashMap::new();
+        let mut messages = Vec::new();
+        for (i, m) in msgs.into_iter().enumerate() {
+            let (Some(wire), Some(author)) = (m["id"].as_str(), m["author"].as_str()) else {
+                continue;
+            };
+            let num = i as u32 + 1;
+            let author_id = member_id_of(author);
+            let text = m["text"].as_str().unwrap_or_default().to_owned();
+            let reply_to = m["reply_to"]
+                .as_str()
+                .and_then(|r| by_wire.get(r))
+                .map(|(id, a, t)| ReplyTo {
+                    message: *id,
+                    author: *a,
+                    preview: radica_app::chat::model::preview(t, 64),
+                });
+            let reactions = m["reactions"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(e, _)| CHAT_REACTIONS.contains(&e.as_str()))
+                .filter_map(|(emoji, who)| {
+                    let by: Vec<u32> = who
+                        .as_array()?
+                        .iter()
+                        .filter_map(|v| v.as_str().map(member_id_of))
+                        .collect();
+                    (!by.is_empty()).then(|| Reaction {
+                        emoji: emoji.clone(),
+                        by,
+                    })
+                })
+                .collect();
+            by_wire.insert(wire.to_owned(), (num, author_id, text.clone()));
+            remember_wire_id(&room_key, num, wire);
+            messages.push(Message {
+                id: num,
+                author: author_id,
+                time: ms_to_minutes(m["time_ms"].as_u64().unwrap_or(0), day_zero),
+                text,
+                reply_to,
+                reactions,
+                edited: m["edited"].as_bool() == Some(true),
+            });
+        }
+
+        // Only the owner can invite: a River invitation code for a fresh key, as the web's invite link carries it.
+        let invite = (my_vk == pr.owner)
+            .then(|| {
+                let state = states.get(&pr.owner)?.as_ref()?;
+                let fresh = hex::encode(entropy_32("radica-river-invitee"));
+                crate::river::call(json!({ "op": "invitation", "owner_sk": sk, "state": state, "invitee_sk": fresh }))
+                    .ok()?["code"]
+                    .as_str()
+                    .map(|code| format!(" · Invite: #river_invite={code}&room_id={}&creator={my_pk}", pr.id))
+            })
+            .flatten()
+            .unwrap_or_default();
         out.push(Room {
             key: room_key,
-            name: format!("🔒 {}", pr.name),
-            description: format!("E2EE Private Group Room · AES-256-GCM · Invite: {invite_link}"),
+            name: format!("🔒 {name}"),
+            description: format!("River private room{invite}"),
             private: true,
             members,
             messages,
-            me: me_id,
+            me,
             unread: 0,
         });
     }
@@ -2021,6 +2016,122 @@ fn update_feed_contract(owner_pk: &str, mut delta_val: Value) -> Result<(), Stri
     host::run(&mut cmd)
 }
 
+fn my_nickname(my_pk: &str) -> String {
+    load_stored_identity()
+        .display_name
+        .filter(|n| !n.trim().is_empty())
+        .unwrap_or_else(|| short_persona(my_pk))
+}
+
+/// Write into a River room as me. `req` is the op (`message`, `act`…) with its own fields; this adds my key, the room
+/// as it is now, and my join while the room does not hold me (a first message, or after River pruned me).
+fn river_write(
+    room_id: &str,
+    my_pk: &str,
+    my_seed: &[u8; 32],
+    mut req: Value,
+) -> Result<(), String> {
+    use crate::river;
+    let room = load_private_rooms()
+        .into_iter()
+        .find(|r| r.id == room_id)
+        .ok_or("Unknown private room")?;
+    let sk = river_key_of(&room, my_pk, my_seed);
+    let state = river::load(&room.owner).ok_or("Room not found on the network")?;
+    let join = room.join.as_ref();
+    let obj = req.as_object_mut().ok_or("bad request")?;
+    obj.insert("author_sk".into(), json!(sk));
+    obj.insert("owner_vk".into(), json!(room.owner));
+    obj.insert("state".into(), json!(state));
+    obj.insert("time_ms".into(), json!(river::now_ms()));
+    obj.insert(
+        "secrets".into(),
+        join.and_then(|j| j.get("secrets"))
+            .cloned()
+            .unwrap_or(Value::Null),
+    );
+    if !river::holds(&room.owner, &state, &sk, join) {
+        obj.insert("join".into(), join.cloned().unwrap_or(Value::Null));
+        obj.insert("nickname".into(), json!(my_nickname(my_pk)));
+    }
+    let delta = river::call(req)?["delta"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    if river::send(&room.owner, &state, &delta)? {
+        Ok(())
+    } else {
+        Err("The room did not take it (not a member yet?)".into())
+    }
+}
+
+/// A River invitation code in what was pasted: a bare code, River's `?invitation=` link or Radica's `#river_invite=`
+/// (`riverCodeIn` in `ui/src/main.ts`).
+fn river_code_in(raw: &str) -> Option<&str> {
+    let is_b58 = |c: char| c.is_ascii_alphanumeric() && !"0OIl".contains(c);
+    for tag in ["invitation=", "river_invite="] {
+        if let Some((_, rest)) = raw.split_once(tag) {
+            let end = rest.find(|c: char| !is_b58(c)).unwrap_or(rest.len());
+            return (end > 0).then(|| &rest[..end]);
+        }
+    }
+    let t = raw.trim();
+    (t.len() >= 60 && t.chars().all(is_b58)).then_some(t)
+}
+
+/// The room an invite gives me: a River invitation code (`#river_invite=…&room_id=…&creator=…`), or a Radica link
+/// carrying a River key (`#join_room=…&river_owner=…&k=…&m=…&s=…`). None when `raw` is neither.
+fn river_room_from_invite(raw: &str) -> Result<Option<StoredPrivateRoom>, String> {
+    let params = parse_query_params(raw.split_once('#').map_or(raw, |(_, f)| f));
+    if let Some(code) = river_code_in(raw) {
+        let acc = crate::river::call(json!({ "op": "accept", "code": code }))?;
+        let owner = acc["owner_vk"]
+            .as_str()
+            .ok_or("Invalid invitation")?
+            .to_owned();
+        let id = params
+            .get("room_id")
+            .filter(|id| valid_room_id(id))
+            .cloned()
+            .unwrap_or_else(|| format!("privroom_river_{}", &owner[..16]));
+        return Ok(Some(StoredPrivateRoom {
+            id,
+            name: String::new(),
+            creator: params
+                .get("creator")
+                .cloned()
+                .unwrap_or_else(|| owner.clone()),
+            owner,
+            key_hex: acc["sk"].as_str().map(str::to_owned),
+            join: Some(json!({ "member": acc["member"], "secrets": acc["secrets"] })),
+        }));
+    }
+    let hex64 = |v: Option<&String>| {
+        v.filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
+            .cloned()
+    };
+    let (Some(id), Some(owner), Some(k)) = (
+        params.get("join_room").filter(|id| valid_room_id(id)),
+        hex64(params.get("river_owner")),
+        hex64(params.get("k")),
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some(StoredPrivateRoom {
+        id: id.clone(),
+        name: params.get("name").cloned().unwrap_or_default(),
+        creator: params
+            .get("creator")
+            .cloned()
+            .unwrap_or_else(|| owner.clone()),
+        owner,
+        key_hex: Some(k),
+        join: Some(
+            json!({ "member": params.get("m"), "secret": params.get("s").filter(|s| !s.is_empty()) }),
+        ),
+    }))
+}
+
 /// Sign and push a live message to `community-chat/<room_key>` on the local Freenet node.
 pub fn send_live(room_key: &str, text: &str) -> Result<(), String> {
     act_live(LiveAction::SendMessage {
@@ -2081,35 +2192,12 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
                 return append_log_entry(&format!("inbox/{peer_pk}"), &payload);
             }
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
-                let priv_room = load_private_rooms()
-                    .into_iter()
-                    .find(|r| r.id == priv_id)
-                    .ok_or_else(|| "Unknown private room".to_owned())?;
-                let sym_key = decode_sym_key(&priv_room.key_hex)
-                    .ok_or_else(|| "Invalid private room key".to_owned())?;
-                let wire_text = encrypt_with_symmetric_key(&sym_key, &text)
-                    .ok_or_else(|| "Failed to encrypt message for private room".to_owned())?;
-                let room_id = priv_id.to_owned();
-                let msg_id = format!("msg_{ts}_dsk");
-                let sig_msg = format!("{msg_id}:{room_id}:{pubkey}:private:{wire_text}:{ts}");
-                let msg_sig = hex::encode(sk.sign(sig_msg.as_bytes()).to_bytes());
-                let mut msg_obj = json!({
-                    "id": msg_id,
-                    "room_id": room_id,
-                    "sender": pubkey,
-                    "text": wire_text,
-                    "timestamp": ts,
-                    "sig": msg_sig,
-                });
-                if let Some(rep_num) = reply_to
-                    && let Some(rep_wire) = lookup_wire_id(&room_key, rep_num)
-                    && let Some(obj) = msg_obj.as_object_mut()
-                {
-                    obj.insert("reply_to".into(), Value::String(rep_wire));
-                }
-                return append_log_entry(
-                    &format!("room/{priv_id}"),
-                    &json!({ "type": "chat", "message": msg_obj }),
+                let reply = reply_to.and_then(|n| lookup_wire_id(&room_key, n));
+                return river_write(
+                    priv_id,
+                    &pubkey,
+                    &my_seed,
+                    json!({ "op": "message", "text": text, "reply_to": reply }),
                 );
             }
             if !room_key.starts_with("c_") {
@@ -2148,17 +2236,13 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             on,
         } => {
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
-                let wire_id =
-                    lookup_wire_id(&room_key, msg_id).unwrap_or_else(|| format!("msg_{msg_id}"));
-                return append_log_entry(
-                    &format!("room/{priv_id}"),
-                    &json!({
-                        "type": "chat_react",
-                        "roomId": priv_id.to_owned(),
-                        "messageId": wire_id,
-                        "emoji": emoji,
-                        "on": on,
-                    }),
+                let target = lookup_wire_id(&room_key, msg_id).ok_or("Unknown message")?;
+                let action = if on { "react" } else { "unreact" };
+                return river_write(
+                    priv_id,
+                    &pubkey,
+                    &my_seed,
+                    json!({ "op": "act", "action": action, "target": target, "emoji": emoji }),
                 );
             }
             if !room_key.starts_with("c_") {
@@ -2183,24 +2267,12 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             new_text,
         } => {
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
-                let priv_room = load_private_rooms()
-                    .into_iter()
-                    .find(|r| r.id == priv_id)
-                    .ok_or_else(|| "Unknown private room".to_owned())?;
-                let sym_key = decode_sym_key(&priv_room.key_hex)
-                    .ok_or_else(|| "Invalid private room key".to_owned())?;
-                let wire_text = encrypt_with_symmetric_key(&sym_key, &new_text)
-                    .ok_or_else(|| "Failed to encrypt edit for private room".to_owned())?;
-                let wire_id =
-                    lookup_wire_id(&room_key, msg_id).unwrap_or_else(|| format!("msg_{msg_id}"));
-                return append_log_entry(
-                    &format!("room/{priv_id}"),
-                    &json!({
-                        "type": "chat_edit",
-                        "roomId": priv_id.to_owned(),
-                        "messageId": wire_id,
-                        "text": wire_text,
-                    }),
+                let target = lookup_wire_id(&room_key, msg_id).ok_or("Unknown message")?;
+                return river_write(
+                    priv_id,
+                    &pubkey,
+                    &my_seed,
+                    json!({ "op": "act", "action": "edit", "target": target, "text": new_text }),
                 );
             }
             if !room_key.starts_with("c_") {
@@ -2225,13 +2297,11 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
             remove_pending_message(&room_key, None);
 
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
-                return append_log_entry(
-                    &format!("room/{priv_id}"),
-                    &json!({
-                        "type": "chat_delete",
-                        "roomId": priv_id.to_owned(),
-                        "messageId": wire_id,
-                    }),
+                return river_write(
+                    priv_id,
+                    &pubkey,
+                    &my_seed,
+                    json!({ "op": "act", "action": "delete", "target": wire_id }),
                 );
             }
             if let Some(peer_id_str) = room_key.strip_prefix("dm:")
@@ -2288,42 +2358,61 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
         }
         LiveAction::CreatePrivateRoom { name } => {
             // Same shape as the web's ids (`privroom_<ms>_<rand>`): the web only treats those as private rooms.
-            let id_bytes = entropy_32("radica-private-room-id");
-            let id = format!("privroom_{ts}_{}", hex::encode(&id_bytes[..3]));
-            let key_hex = hex::encode(entropy_32("radica-private-room-aes256"));
+            let id = format!(
+                "privroom_{ts}_{}",
+                hex::encode(&entropy_32("radica-private-room-id")[..3])
+            );
+            let name = name.trim().trim_start_matches("🔒").trim().to_owned();
+            let owner_sk = hex::encode(crate::river::owner_sk(&my_seed, &id));
+            let owner = crate::river::vk_of(&owner_sk).ok_or("Bad room key")?;
+            let state = crate::river::call(json!({
+                "op": "new_room", "owner_sk": owner_sk, "name": name, "nickname": my_nickname(&pubkey),
+                "private": true, "time_ms": ts,
+            }))?["state"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+            crate::river::put(&owner, &state)?;
             save_private_room(&StoredPrivateRoom {
-                id,
-                name: name.trim().trim_start_matches("🔒").trim().to_owned(),
-                key_hex,
-                creator: pubkey,
+                id: id.clone(),
+                name,
+                creator: pubkey.clone(),
+                owner: owner.clone(),
+                key_hex: None,
+                join: None,
             });
-            Ok(())
+            // The descriptor tells the web and my other devices where the room is; River decides who is in it.
+            let room = json!({
+                "id": id, "creator": pubkey, "name_encrypted": "", "members": [pubkey], "encrypted_keys": {},
+                "created_at": ts, "sig": "", "river": { "owner": owner },
+            });
+            append_log_entry(
+                &format!("room/{id}"),
+                &json!({ "type": "private_room", "room": room }),
+            )?;
+            append_log_entry(
+                &format!("inbox/{pubkey}"),
+                &json!({ "type": "room_ref", "roomId": id }),
+            )
         }
         LiveAction::JoinRoom { code } => {
             let trimmed = code.trim();
-            if trimmed.contains("join_room=") {
-                let fragment = trimmed
-                    .split_once('#')
-                    .map_or(trimmed, |(_, f)| f)
-                    .trim_start_matches('#');
-                let params = parse_query_params(fragment);
-                if let (Some(id), Some(key_hex)) = (params.get("join_room"), params.get("key"))
-                    && !id.is_empty()
-                    && key_hex.len() == 64
-                {
-                    let name = params
-                        .get("name")
-                        .cloned()
-                        .unwrap_or_else(|| format!("Private Room {id}"));
-                    save_private_room(&StoredPrivateRoom {
-                        id: id.clone(),
-                        name,
-                        key_hex: key_hex.clone(),
-                        creator: MAINTAINER_PK.to_owned(),
-                    });
-                    unhide_room(&format!("priv:{id}"));
-                    return Ok(());
-                }
+            if let Some(room) = river_room_from_invite(trimmed)? {
+                let id = room.id.clone();
+                save_private_room(&room);
+                unhide_room(&format!("priv:{id}"));
+                let _ = append_log_entry(
+                    &format!("inbox/{pubkey}"),
+                    &json!({ "type": "room_hide", "roomId": id, "on": false }),
+                );
+                let _ = append_log_entry(
+                    &format!("room/{id}"),
+                    &json!({ "type": "room_join", "roomId": id }),
+                );
+                return append_log_entry(
+                    &format!("inbox/{pubkey}"),
+                    &json!({ "type": "room_ref", "roomId": id }),
+                );
             }
             if trimmed.starts_with("c_") {
                 remember_joined_community(trimmed);
@@ -2338,7 +2427,22 @@ pub fn act_live(action: LiveAction) -> Result<(), String> {
         LiveAction::RemoveRoom { room_key } => {
             remember_hidden_room(&room_key);
             if let Some(priv_id) = room_key.strip_prefix("priv:") {
+                let creator = load_private_rooms()
+                    .into_iter()
+                    .find(|r| r.id == priv_id)
+                    .map(|r| r.creator);
                 remove_private_room(priv_id);
+                if creator.as_deref() != Some(pubkey.as_str()) {
+                    let _ = append_log_entry(
+                        &format!("room/{priv_id}"),
+                        &json!({ "type": "room_leave", "roomId": priv_id }),
+                    );
+                }
+                // hidden on every device, as on the web
+                return append_log_entry(
+                    &format!("inbox/{pubkey}"),
+                    &json!({ "type": "room_hide", "roomId": priv_id }),
+                );
             }
             if room_key.starts_with("c_") {
                 remove_extra_community(&room_key);
@@ -3041,6 +3145,92 @@ pub fn import_identity_raw(raw: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn invites_parse_river_codes_and_key_links_but_not_legacy_aes_links() {
+        let owner_sk = hex::encode([1u8; 32]);
+        let state = crate::river::call(json!({"op":"new_room","owner_sk":owner_sk,"name":"R","nickname":"A","private":true,"time_ms":1}))
+            .unwrap()["state"].as_str().unwrap().to_owned();
+        let code = crate::river::call(json!({"op":"invitation","owner_sk":owner_sk,"state":state,"invitee_sk":hex::encode([2u8; 32])}))
+            .unwrap()["code"].as_str().unwrap().to_owned();
+        let link = format!(
+            "http://127.0.0.1:7509/v1/contract/web/x/#river_invite={code}&room_id=privroom_1_abc&creator={}",
+            "c".repeat(64)
+        );
+        let room = river_room_from_invite(&link).unwrap().unwrap();
+        assert_eq!(room.id, "privroom_1_abc");
+        assert_eq!(
+            Some(room.owner.as_str()),
+            crate::river::vk_of(&owner_sk).as_deref()
+        );
+        assert_eq!(
+            room.key_hex.as_deref(),
+            Some(hex::encode([2u8; 32]).as_str())
+        );
+        assert!(
+            river_room_from_invite(&code)
+                .unwrap()
+                .unwrap()
+                .id
+                .starts_with("privroom_river_")
+        );
+
+        let k = "a".repeat(64);
+        let keyed = format!(
+            "#join_room=privroom_2_x&river_owner={}&k={k}&m=mm&s=ss",
+            "b".repeat(64)
+        );
+        let room = river_room_from_invite(&keyed).unwrap().unwrap();
+        assert_eq!(
+            (
+                room.key_hex.as_deref(),
+                room.join.unwrap()["secret"].as_str()
+            ),
+            (Some(k.as_str()), Some("ss"))
+        );
+
+        assert!(
+            river_room_from_invite(&format!("#join_room=privroom_3_x&key={k}"))
+                .unwrap()
+                .is_none()
+        );
+        assert!(river_room_from_invite("c_music").unwrap().is_none());
+    }
+
+    #[test]
+    fn inbox_teaches_invited_rooms_and_removed_ones() {
+        let me = "d".repeat(64);
+        let creator = "e".repeat(64);
+        let invite = json!({ "type": "room_invite", "room": { "id": "privroom_9_z", "creator": creator, "river": { "owner": "f".repeat(64) } }, "river_join": { "member": "m" } });
+        let forged = json!({ "type": "room_invite", "room": { "id": "privroom_8_z", "creator": creator, "river": { "owner": "f".repeat(64) } }, "river_join": { "member": "m" } });
+        let l = log(&[
+            (creator.as_str(), 1, invite),
+            (MALLORY, 2, forged),
+            (
+                me.as_str(),
+                3,
+                json!({ "type": "room_hide", "roomId": "privroom_7_z" }),
+            ),
+            (
+                me.as_str(),
+                4,
+                json!({ "type": "room_hide", "roomId": "privroom_6_z" }),
+            ),
+            (
+                me.as_str(),
+                5,
+                json!({ "type": "room_hide", "roomId": "privroom_6_z", "on": false }),
+            ),
+        ]);
+        let dir = tempfile::tempdir().unwrap();
+        // keep the test's rooms out of the real data dir
+        unsafe { std::env::set_var("XDG_DATA_HOME", dir.path()) };
+        unsafe { std::env::set_var("HOME", dir.path()) };
+        let hidden = sync_rooms_from_inbox(&me, Some(&l));
+        assert_eq!(hidden, BTreeSet::from(["privroom_7_z".to_owned()]));
+        let ids: Vec<String> = load_private_rooms().into_iter().map(|r| r.id).collect();
+        assert_eq!(ids, ["privroom_9_z"]);
+    }
+
     fn log(entries: &[(&str, u64, Value)]) -> Value {
         let mut map = serde_json::Map::new();
         for (i, (author, ts, body)) in entries.iter().enumerate() {
@@ -3221,16 +3411,6 @@ mod tests {
         );
         let decrypted = decrypt_direct_message(&sk_b, &pk_a, &encrypted).unwrap();
         assert_eq!(decrypted, "Hello Radica E2EE!");
-    }
-
-    #[test]
-    fn symmetric_e2ee_roundtrip_matches_web_sym_format() {
-        let key_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let key_bytes = decode_sym_key(key_hex).unwrap();
-        let ct = encrypt_with_symmetric_key(&key_bytes, "Secret group message!").unwrap();
-        assert!(ct.starts_with("sym:"));
-        let pt = decrypt_with_symmetric_key(&key_bytes, &ct).unwrap();
-        assert_eq!(pt, "Secret group message!");
     }
 
     #[test]

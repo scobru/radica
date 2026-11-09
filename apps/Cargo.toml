@@ -12,6 +12,8 @@ repository = "https://github.com/scobru/radica"
 
 [workspace.dependencies]
 radica-app = { path = "radica-app" }
+# River rooms: the same river-core code the web runs as river.wasm, linked natively.
+radica-river = { path = "../river-wasm" }
 rune = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b" }
 rune-kit = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b" }
 
