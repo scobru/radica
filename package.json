@@ -2,7 +2,6 @@
   "name": "radica",
   "version": "5.0.0",
   "description": "A 100% decentralized social media platform powered by Freenet",
-  "main": "./electron.js",
   "scripts": {
     "dev": "npm --prefix ui run dev",
     "build:ui": "npm --prefix ui run build",
@@ -14,10 +13,11 @@
     "freenet:assets:publish": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs assets && fdev website publish ui/dist-assets --key radica-assets",
     "freenet:lang": "node ui/scripts/fetch-translation-models.mjs",
     "freenet:assets:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs assets && fdev website update ui/dist-assets --key radica-assets",
-    "test": "npm run test:ui && npm run test:contract",
+    "test": "npm run test:ui && npm run test:contract && npm run test:app",
     "test:ui": "npm --prefix ui test",
     "test:contract": "cargo test --manifest-path contract/Cargo.toml && cargo test --manifest-path log-contract/Cargo.toml && cargo test --manifest-path delegate/Cargo.toml && cargo test --manifest-path river-wasm/Cargo.toml && cargo test --manifest-path ghostkey-wasm/Cargo.toml",
-    "app": "electron electron.js",
+    "test:app": "cargo test --manifest-path apps/Cargo.toml",
+    "app": "cargo run --manifest-path apps/Cargo.toml -p radica-desktop",
     "start": "npm --prefix ui run dev"
   },
   "keywords": [
@@ -29,8 +29,5 @@
     "ed25519"
   ],
   "author": "Radica Community",
-  "license": "MIT",
-  "devDependencies": {
-    "electron": "^45.2.1"
-  }
+  "license": "MIT"
 }

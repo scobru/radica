@@ -241,7 +241,7 @@ npm run test:app   # headless Rune UI + Freenet installer/probe tests
   - [FreeNames](https://github.com/scobru/freenames) (Decentralized names and resolver)
   - [Orto](https://github.com/scobru/orto) (Encrypted organizer & blog vault)
   - [Fisherman's Horizon](https://github.com/scobru/FH) (Curated Freenet bookmark lists)
-  - [FreeHole](https://github.com/scobru/freehole) (Decentralized P2P & Freenet file transfer via WebRTC & chunk contracts)
+  - [FreeHole](https://github.com/scobru/freehole) (Decentralized file transfer via Freenet chunk contracts with Reed-Solomon redundancy)
   - [Freetree](https://github.com/scobru/freetree) (Decentralized Linktree for Freenet & Delta)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)

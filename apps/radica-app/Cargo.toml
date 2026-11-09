@@ -1,0 +1,13 @@
+[package]
+name = "radica-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+rune.workspace = true
+rune-kit.workspace = true
+base64 = "0.22"
+

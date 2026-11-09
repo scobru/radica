@@ -1,0 +1,4 @@
+# ponytail: use installed stable (1.99+) instead of downloading pinned 1.98.1 toolchain
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
