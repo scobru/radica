@@ -1345,9 +1345,9 @@ dependencies = [
 
 [[package]]
 name = "freenet-macros"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d26e5c6bee9ffa0e2683bc8b41a7bd9f1e57e7fd49ac4f6ae433e5a82e9006df"
+checksum = "6447ac80d17ad1a22d87f470d1c170ca3cfa976a433883de6472c1ede381e525"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1388,9 +1388,9 @@ dependencies = [
 
 [[package]]
 name = "freenet-stdlib"
-version = "0.8.5"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62aeba7634d1ae5c2d02f78db33ee40442511858275be5be2099d24a13b2559"
+checksum = "8d1d34436ce7088f277e65a616951ab8ea43091e04bb18f9af562651019b656f"
 dependencies = [
  "bincode",
  "blake3",
@@ -3392,8 +3392,8 @@ dependencies = [
 
 [[package]]
 name = "river-core"
-version = "0.3.1"
-source = "git+https://github.com/freenet/river?rev=20e4199c35a6ef243ff1c4632c693193d1074f87#20e4199c35a6ef243ff1c4632c693193d1074f87"
+version = "0.4.0"
+source = "git+https://github.com/freenet/river?rev=d4ae22e9936115f3c5936b2a7d8a27fdf9bffb87#d4ae22e9936115f3c5936b2a7d8a27fdf9bffb87"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

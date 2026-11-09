@@ -8,9 +8,9 @@ license = "LGPL-3.0-only" # links river-core (LGPL-3.0); the rest of Radica stay
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# The commit whose room_contract.wasm is River's current pointer record (version 7, code hash fa9e59e8…):
+# The commit whose room_contract.wasm is River's current pointer record (version 11, code hash bc9b4066…):
 # the state format here must match the contract the rooms live under.
-river-core = { git = "https://github.com/freenet/river", rev = "20e4199c35a6ef243ff1c4632c693193d1074f87", features = ["ecies-randomized"] }
+river-core = { git = "https://github.com/freenet/river", rev = "d4ae22e9936115f3c5936b2a7d8a27fdf9bffb87", features = ["ecies-randomized", "migration"] }
 # rand 0.8 (behind ecies-randomized) draws on getrandom 0.2; in the browser its source is the page (see `rng` in lib.rs)
 getrandom = { version = "0.2", features = ["custom"] }
 freenet-scaffold = "0.2.2"

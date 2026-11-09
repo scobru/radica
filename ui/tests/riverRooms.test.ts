@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
 import { loadRiver } from "../src/river.ts";
-import { anchorOf } from "../src/riverPointer.ts";
+import { anchorOf, keyOf } from "../src/riverPointer.ts";
 import { RiverRooms, roomOwnerSk, vkOf } from "../src/riverRooms.ts";
 import { bytesToHex } from "../src/crypto.ts";
 
@@ -130,4 +130,23 @@ test("river rooms: unread counting and baseline tracking for group messages", as
   const unreadAfterSeen = v.messages.filter((m) => m.author !== vkOf(annOwner) && m.time_ms > lastSeen);
   assert.equal(unreadAfterSeen.length, 1);
   assert.equal(unreadAfterSeen[0].text, "msg 2");
+});
+
+test("river rooms: a room left under River's previous contract is found and carried forward", async () => {
+  const { call, peer, net } = await world();
+  const [A, B] = [peer(), peer()];
+  const ann = sk(5);
+  const owner = await A.create(ann, "privroom_old", "Before v11", "Ann");
+  // move the room to where the previous generation keyed it, as if nobody wrote to it since River re-keyed
+  const params = Uint8Array.from(Buffer.from(call({ op: "params", owner_vk: owner }).params, "hex"));
+  const previous = call({ op: "legacy" }).code_hashes[0];
+  const [current] = [...net.keys()];
+  const state = net.get(current)!;
+  net.delete(current);
+  net.set(keyOf(previous, params).encode(), state);
+
+  const found = await B.load(owner, true);
+  assert.equal(found, bytesToHex(state));
+  assert.equal(B.read(found!, owner, roomOwnerSk(ann, "privroom_old")).name, "Before v11");
+  assert.deepEqual(net.get(current), state, "carried forward under the current key");
 });

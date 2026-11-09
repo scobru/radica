@@ -6,8 +6,8 @@ import { toBase58 } from "../src/whoiam.ts";
 import { hexToBytes } from "../src/crypto.ts";
 import { BUNDLED_ROOM_CODE, anchorOf, instanceOf, nextFloor, pointerId, resolveRoomContract } from "../src/riverPointer.ts";
 
-// River's published record at the commit river-wasm pins (pointer-records.toml): version 7, BUNDLED_ROOM_CODE.
-const RECORD = "00000007fa9e59e87532bc9681e8fef903f6d35a1207c25a0f0d8cca2c92e2f31761a4f9b216297f9293599742ce10f8f408227d233183511b096448472155d0dbf6ae414a5ff844091a2d1d32769649a383d0ada6af3ce57c422829acdb826d601c3d05";
+// River's published record at the commit river-wasm pins (pointer-records.toml): version 11, BUNDLED_ROOM_CODE.
+const RECORD = "0000000bbc9b4066fccc37435556295871c567e455b48832eb0a72623d399b354471aef5834276c839356487e0e62260483bb4684b71ad21a82233c90f0ccd9c607eeab240d385dfa94ce0f8008d65f22e676874d2c547fe01f6d91aacdb3c437cb78700";
 
 test("river pointer: derivations match the published addresses and test vectors", () => {
   assert.equal(toBase58(pointerId()), "Ai4VLoC2jGdhpcB2UU8VPo3efUoxjm1Ju9VKXqRC63Az"); // River's FREENET.md
@@ -38,9 +38,9 @@ test("river pointer: resolving River's real record through river.wasm", async ()
 
   assert.deepEqual(await resolveRoomContract(async () => hexToBytes(RECORD), call, kv), { codeHash: BUNDLED_ROOM_CODE, canWrite: true, withdrawn: false });
   // a forged record (version bumped, old signature) is ignored and the floor stays
-  const forged = "00000008" + RECORD.slice(8);
+  const forged = "0000000c" + RECORD.slice(8);
   assert.equal((await resolveRoomContract(async () => hexToBytes(forged), call, kv)).codeHash, BUNDLED_ROOM_CODE);
-  assert.equal(JSON.parse(store.get("radica_river_pointer")!).version, 7);
+  assert.equal(JSON.parse(store.get("radica_river_pointer")!).version, 11);
   // pointer unreachable after it resolved once: the resolved hash stays
   assert.equal((await resolveRoomContract(async () => null, call, kv)).codeHash, BUNDLED_ROOM_CODE);
 });

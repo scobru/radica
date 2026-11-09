@@ -12,7 +12,7 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
 import { bytesToHex, hexToBytes } from "./crypto.ts";
 import type { RiverCall } from "./river.ts";
-import { type Anchor, roomKey } from "./riverPointer.ts";
+import { type Anchor, keyOf, roomKey } from "./riverPointer.ts";
 import { safeStorage } from "./storage.ts";
 
 /** What lets a key into a room: its signed membership, plus the room secret as an owner-signed blob (Radica's inbox
@@ -125,10 +125,32 @@ export class RiverRooms {
     try {
       const raw = await this.net.getRaw(await this.key(owner), `river:${owner}`);
       if (raw) this.keep(owner, bytesToHex(raw));
+      else if (!this.cached(owner)) await this.recover(owner);
     } catch (e) {
       console.warn("[River] Could not fetch room", owner, e);
     }
     return this.cached(owner);
+  }
+
+  private probed = new Set<string>();
+
+  /** River re-keys its room contract now and then: a room nobody wrote to since lives under an earlier generation. Look
+   *  there, newest first (River's own registry, via river.wasm), and carry it forward under the current key, as River's
+   *  clients do. Once per room per session. */
+  private async recover(owner: string): Promise<void> {
+    if (this.probed.has(owner)) return;
+    this.probed.add(owner);
+    const params = hexToBytes(this.call({ op: "params", owner_vk: owner }).params);
+    const hashes: string[] = this.call({ op: "legacy" }).code_hashes;
+    // shortcut: probes the 8 newest generations only; widen it if rooms older than that turn up
+    for (const hash of hashes.slice(0, 8)) {
+      const raw = await this.net.getRaw(keyOf(hash, params)).catch(() => null);
+      if (!raw) continue;
+      this.keep(owner, bytesToHex(raw));
+      if ((await this.anchor()).canWrite)
+        await this.net.putRaw(await this.key(owner), await this.roomCode(), params, raw).catch((e) => console.warn("[River] Could not carry the room forward", owner, e));
+      return;
+    }
   }
 
   /** Make a room (private unless `isPrivate` is false) owned by a key derived from mine; returns its owner key. */
