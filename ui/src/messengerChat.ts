@@ -32,6 +32,7 @@ import {
   summarizeChatMediaText,
   type PreparedChatMedia,
   sendChatAttachment,
+  syncMiniPlayerSlot,
 } from "./chatMedia.ts";
 import { freenet } from "./freenet.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
@@ -432,6 +433,8 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-filter-chip" data-filter="comm">Communities</button>
         </div>
 
+        <div id="rm-inbox-player-slot"></div>
+
         <div class="rm-conv-list" id="rm-conv-list"></div>
 
       </aside>
@@ -472,6 +475,8 @@ export function createMessengerChat(deps: MessengerDeps) {
             <button type="button" class="rm-icon-btn" id="rm-btn-close" title="Close chat and return to feed">${renderIcon("x", { className: "icon-sm" })}</button>
           </div>
         </header>
+
+        <div id="rm-player-slot"></div>
 
         <div class="rm-thread-search" id="rm-thread-search-bar">
           <svg viewBox="0 0 24 24" class="svg-icon icon-sm" style="color: var(--rm-text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -2709,6 +2714,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     mobileShowThread = true;
     workspaceEl.classList.add("mobile-thread-open");
     messagesScrollerEl.scrollTop = messagesScrollerEl.scrollHeight;
+    syncMiniPlayerSlot();
   });
 
   const goBackToInboxOnMobile = () => {
@@ -2719,12 +2725,14 @@ export function createMessengerChat(deps: MessengerDeps) {
         if (mobileShowThread) {
           mobileShowThread = false;
           workspaceEl.classList.remove("mobile-thread-open");
+          syncMiniPlayerSlot();
         }
       }, 45);
       return;
     }
     mobileShowThread = false;
     workspaceEl.classList.remove("mobile-thread-open");
+    syncMiniPlayerSlot();
   };
 
   // Mobile back button (returns to unified inbox on phones)
@@ -3812,16 +3820,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       } else {
         workspaceEl.classList.toggle("mobile-thread-open", mobileShowThread);
       }
+      syncMiniPlayerSlot();
     },
     openThreadOnMobile: () => {
       mobileShowThread = true;
       workspaceEl.classList.add("mobile-thread-open");
       messagesScrollerEl.scrollTop = messagesScrollerEl.scrollHeight;
+      syncMiniPlayerSlot();
     },
     /** Phones: back to the conversations list (the thread stays selected). */
     showInboxOnMobile: () => {
       mobileShowThread = false;
       workspaceEl.classList.remove("mobile-thread-open");
+      syncMiniPlayerSlot();
     },
     isThreadOpenOnMobile: () => workspaceEl.classList.contains("mobile-thread-open") && getComputedStyle(workspaceEl.querySelector(".rm-inbox")!).display === "none",
     /** Peel one mobile overlay/drawer/thread layer inside Messenger chat; returns true if handled. */
@@ -3851,6 +3862,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (workspaceEl.classList.contains("mobile-thread-open") && getComputedStyle(workspaceEl.querySelector(".rm-inbox")!).display === "none") {
         mobileShowThread = false;
         workspaceEl.classList.remove("mobile-thread-open");
+        syncMiniPlayerSlot();
         return true;
       }
       return false;

@@ -34,6 +34,7 @@ import {
   summarizeChatMediaText,
   type PreparedChatMedia,
   sendChatAttachment,
+  syncMiniPlayerSlot,
 } from "./chatMedia.ts";
 import {
   finishSignIn,
@@ -4363,6 +4364,7 @@ function applyChatLayoutAttr(mode: ChatLayoutMode) {
   chatModal.querySelectorAll<HTMLButtonElement>("[data-layout-mode]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.layoutMode === mode);
   });
+  syncMiniPlayerSlot();
 }
 
 function setChatFullscreen(on: boolean) {
@@ -4383,12 +4385,14 @@ async function showChat(load: () => Promise<unknown>) {
   // full screen stays what the reader chose (the button); phones get the whole screen from body.chat-open
   chatModal.classList.add("chat-loading");
   chatModal.style.display = "flex";
+  syncMiniPlayerSlot();
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))); // after the next paint
   try {
     await load();
     messengerChat.showInboxOnMobileIfEmpty();
   } finally {
     chatModal.classList.remove("chat-loading");
+    syncMiniPlayerSlot();
   }
 }
 
@@ -4464,6 +4468,7 @@ new MutationObserver(() => {
   const open = chatModal.style.display !== "none" && chatModal.style.display !== "";
   document.body.classList.toggle("chat-open", open);
   document.body.classList.toggle("chat-fullscreen", open && chatModal.classList.contains("fullscreen"));
+  syncMiniPlayerSlot();
   if (open === freenet.feedsPaused) return;
   freenet.feedsPaused = open;
   if (!open && currentIdentity) {
