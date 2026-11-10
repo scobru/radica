@@ -15,7 +15,7 @@ import { ContractCodeT } from "@freenetorg/freenet-stdlib/common";
 import { RelatedContractsT } from "@freenetorg/freenet-stdlib/client-request";
 import { CHAIN_ID, RPC_URLS, SUPPORT, SEMAPHORE, GROUPS } from "../../donate-app/src/config.js";
 import { CLAIMS_LOG, RECEIPTS_LOG, judgeClaim, issueReceipt, signEntry, bytesToHex, hexToBytes } from "./core.js";
-import { REPORTS_LOG, BATCH, recentAuthors, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
+import { REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
 
 const env = process.env;
 const NODE_WS = env.FREENET_WS || "ws://127.0.0.1:7509/v1/contract/command";
@@ -160,8 +160,9 @@ async function modPass(api, modSk) {
   const judged = new Set(mod.judged);
   const posts = [];
   const authors = recentAuthors(await getEntries(api, "directory"));
+  const edits = postEdits(await getEntries(api, "post-edits"));
   for (let i = 0; i < authors.length; i += 4) // four feeds at a time: a missing one takes the whole timeout
-    for (const [k, raw] of (await Promise.all(authors.slice(i, i + 4).map((a) => getFeed(api, a)))).entries()) posts.push(...freshPosts(raw, authors[i + k], judged));
+    for (const [k, raw] of (await Promise.all(authors.slice(i, i + 4).map((a) => getFeed(api, a)))).entries()) posts.push(...freshPosts(raw, authors[i + k], judged, Date.now(), edits));
   let { used, requestsLeft, reportsLeft } = budget(mod.used, MOD_LIMITS);
   let flagged = 0;
   for (let i = 0; i < posts.length && requestsLeft > 0; i += BATCH, requestsLeft--) {
@@ -180,7 +181,7 @@ async function modPass(api, modSk) {
         log("[mod] reported", batch[v.i].key, v.category, v.reason);
         used.reports++, reportsLeft--, flagged++;
       }
-      for (const p of batch) judged.add(p.key); // an unreadable answer leaves the batch for a later pass
+      for (const p of batch) judged.add(p.mark); // an unreadable answer leaves the batch for a later pass
     }
     // shortcut: every judged post is kept forever (a few bytes each), prune by age if the file ever gets big
     await writeFile(modFile, JSON.stringify({ judged: [...judged], used }));
