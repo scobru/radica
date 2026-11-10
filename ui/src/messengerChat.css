@@ -296,6 +296,16 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   color: var(--rm-accent, #3e7a20);
 }
 
+/* Full width layout support */
+html[data-fullwidth="true"] #chat-modal .rm-messages-track,
+html[data-fullwidth="true"] #chat-modal .rm-composer-track {
+  max-width: clamp(820px, 75vw, 1100px);
+}
+
+html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
+  color: var(--rm-accent, #3e7a20);
+}
+
 /* ==========================================================================
    WORKSPACE & UNIFIED INBOX SIDEBAR
    ========================================================================== */
@@ -2310,6 +2320,10 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
 
   #chat-modal .rm-composer-outer {
     padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  }
+
+  #chat-modal #rm-btn-fullwidth {
+    display: none !important;
   }
 }
 

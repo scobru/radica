@@ -71,3 +71,13 @@ test("layout: community banner actions wrap and never clip off-screen on mobile"
   assert.match(css, /\.comm-banner-actions\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.match(css, /\.community-header-banner\s*\{[^}]*overflow:\s*hidden;/);
 });
+
+test("layout: full width mode expands container and preserves messenger chat responsiveness", () => {
+  const css = read("../src/style.css");
+  assert.match(css, /html\[data-fullwidth="true"\]\s+\.container\s*\{[^}]*max-width:\s*100%/);
+  const chatCss = read("../src/messengerChat.css");
+  assert.match(chatCss, /html\[data-fullwidth="true"\]\s+#chat-modal\s+\.rm-messages-track/);
+  const mainTs = read("../src/main.ts");
+  assert.match(mainTs, /radica_fullwidth/);
+  assert.match(mainTs, /applyFullWidth/);
+});

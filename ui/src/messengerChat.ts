@@ -97,6 +97,7 @@ export interface MessengerDeps {
   onCreatePollLink: (question: string, options: string[], multi: boolean) => Promise<string>;
   onSwitchLayout: (mode: ChatLayoutMode) => void;
   onToggleFullscreen: () => void;
+  onToggleFullWidth?: () => void;
   onCloseChat: () => void;
   isPickingFile?: () => boolean;
   markPickingFile?: (ms?: number) => void;
@@ -467,6 +468,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-drawer-toggle"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>Info</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-invite-top" style="display: none;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg><span>Invite members</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-safety-verify" style="display: none;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span>Verify safety number</span></button>
+                <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-fullwidth" title="Toggle full-width layout"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg><span>Full width</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-fullscreen"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg><span>Full screen</span></button>
               </div>
             </div>
@@ -2798,6 +2800,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   rootEl.querySelector("#rm-btn-invite-code")?.addEventListener("click", () => deps.onOpenJoinRoomModal());
   inviteTopBtn.addEventListener("click", () => deps.onOpenInviteRoomModal());
   safetyTopBtn.addEventListener("click", () => openSafetyModal());
+  rootEl.querySelector("#rm-btn-fullwidth")?.addEventListener("click", () => deps.onToggleFullWidth?.());
   rootEl.querySelector("#rm-btn-fullscreen")?.addEventListener("click", () => deps.onToggleFullscreen());
   rootEl.querySelector("#rm-btn-close")?.addEventListener("click", () => deps.onCloseChat());
   rootEl.querySelector("#rm-btn-inbox-close")?.addEventListener("click", () => deps.onCloseChat());
