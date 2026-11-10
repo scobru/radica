@@ -4134,7 +4134,13 @@ export class FreenetClient {
     params.set("room_id", room.id);
     params.set("creator", room.creator);
     if (room.is_channel) params.set("chan", "1");
-    if (room.linked_room_id) params.set("lr", room.linked_room_id);
+    if (room.linked_room_id) {
+      params.set("lr", room.linked_room_id);
+      // a channel's link lets you into its discussion room too: without it the Comments button leads nowhere
+      const linked = (await this.getPrivateRooms(identity)).find((r) => r.id === room.linked_room_id);
+      if (linked?.river && linked.creator === identity.pubkey)
+        await (await this.rivers()).invitation(this.riverOwnerKey(identity, linked), linked.river.owner).then((c) => params.set("lr_invite", c), (e) => console.warn("[River] linked room invitation:", e));
+    }
     return `${origin}${pathname}#${params.toString()}`;
   }
 
@@ -4156,6 +4162,8 @@ export class FreenetClient {
       name?: string;
       is_channel?: boolean;
       linked_room_id?: string;
+      /** A River invitation to the linked room (a channel's discussion room), joined along with this one. */
+      linked_invite?: string;
     }
   ): Promise<PrivateRoom> {
     const rooms = await this.rivers();
@@ -4197,6 +4205,8 @@ export class FreenetClient {
     await this.logAppend(`room/${roomId}`, { type: "room_join", roomId }).catch((e) => console.warn("[River] room_join log:", e));
     await this.rememberRoom(roomId);
 
+    if (meta?.linked_invite && linkedRoomId)
+      await this.joinRiverInvitation(identity, meta.linked_invite, { roomId: linkedRoomId, creator, linked_room_id: roomId }).catch((e) => console.warn("[River] Could not join the linked room:", e));
     safeStorage.flush();
     void this.putRoomsToNode();
     this.notifyListeners();

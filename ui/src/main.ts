@@ -71,7 +71,7 @@ import { initGreenhouse, openGreenhouse } from "./greenhousePage.ts";
 import { foldSupporters, getStoredReceipt } from "./supporter.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 import { savedPosts, toggleSaved, isSaved } from "./savedPosts.ts";
-import { likers, RADICA_MAINTAINER } from "./types.ts";
+import { likers, RADICA_MAINTAINER, AI_REPORTERS } from "./types.ts";
 import { isFuture, sortPosts, type FeedSort } from "./topPosts.ts";
 import { splitNotifs } from "./notifTrust.ts";
 import { GONE_MESSAGE, whyGone } from "./postGone.ts";
@@ -1215,7 +1215,7 @@ function renderModDashboard() {
   // a report weighs what a dislike from that person would: people I trust (and the moderators) count, fresh keys do not
   const wot = getWebOfTrust();
   const mods = new Set([DEFAULT_CURATOR, ...freenet.modsOf(DEFAULT_CURATOR)]);
-  const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : wot.dislikeWeight(pk)));
+  const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : AI_REPORTERS.includes(pk) ? 1 : wot.dislikeWeight(pk)));
   const [heard, strangers] = [queue.filter((it) => it.score > 0), queue.filter((it) => it.score === 0)];
   document.getElementById("mod-queue-count")!.textContent = queue.length ? `(${queue.length})` : "";
   updateBlocklistsBadge();
@@ -1254,7 +1254,7 @@ function renderModDashboard() {
                 const timeStr = r.ts ? formatTimeAgo(r.ts) : "";
                 return `<div style="display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;">
                   <a href="#" data-act="profile" data-author="${escapeHtml(r.reporter)}" style="font-weight: 600; text-decoration: none; color: var(--primary);">@${escapeHtml(repName)}</a>
-                  ${isTrusted ? `<span title="In your trust network" style="font-size: 0.75rem;">🌿</span>` : `<span title="Outside network" style="font-size: 0.75rem; color: var(--text-muted);">(newcomer)</span>`}
+                  ${AI_REPORTERS.includes(r.reporter) ? `<span title="Radica's AI moderation helper: check before you act" style="font-size: 0.75rem; color: var(--text-muted);">(AI helper)</span>` : isTrusted ? `<span title="In your trust network" style="font-size: 0.75rem;">🌿</span>` : `<span title="Outside network" style="font-size: 0.75rem; color: var(--text-muted);">(newcomer)</span>`}
                   ${r.reason ? `<span style="color: var(--text-main);">“${escapeHtml(r.reason)}”</span>` : `<span style="color: var(--text-muted);">(no reason given)</span>`}
                   ${timeStr ? `<small style="color: var(--text-muted); margin-left: auto;">${escapeHtml(timeStr)}</small>` : ""}
                 </div>`;
@@ -7009,6 +7009,7 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
           name: nameParam,
           is_channel: isChannel,
           linked_room_id: linkedRoomId,
+          linked_invite: params.get("lr_invite") || undefined,
         });
         joinPrivroomModal.style.display = "none";
         await selectPrivateRoom(room);
@@ -8380,7 +8381,7 @@ function inviteFromParams(params: URLSearchParams) {
   const keyHex = params.get("key");
   return roomId && keyHex && keyHex.length === 64 ? { roomId, name, keyHex, creator, is_channel: isChannel, linked_room_id: linkedRoomId } : null;
 }
-const INVITE_PARAMS = ["join_room", "key", "name", "creator", "river_owner", "k", "m", "s", "river_invite", "room_id", "chan", "is_channel", "lr", "linked_room_id"];
+const INVITE_PARAMS = ["join_room", "key", "name", "creator", "river_owner", "k", "m", "s", "river_invite", "room_id", "chan", "is_channel", "lr", "linked_room_id", "lr_invite"];
 
 /** Auto-join a private room or broadcast channel from an invite URL string without opening extra tabs. */
 async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {
@@ -8409,6 +8410,7 @@ async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {
           name: nameParam,
           is_channel: isChannel,
           linked_room_id: linkedRoomId,
+          linked_invite: params.get("lr_invite") || undefined,
         })
       : await freenet.joinPrivateRoomFromInvite(currentIdentity, invite!);
     const name = invite?.name ?? (await freenet.getPrivateRoomDecryptedName(currentIdentity, room));
