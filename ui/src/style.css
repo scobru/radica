@@ -67,6 +67,18 @@
   --shadow-lg: 0 16px 32px -6px rgba(0, 0, 0, 0.65);
 }
 
+/* Accent themes: only the action colour changes, in both light and dark. No attribute = Radici green. */
+[data-accent] {
+  --accent: var(--primary);
+  --primary-soft: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+[data-accent="ocean"] { --primary: #1f6392; --primary-hover: #1a547c; --on-primary: #ffffff; }
+[data-accent="plum"] { --primary: #7a3d8f; --primary-hover: #69337b; --on-primary: #ffffff; }
+[data-accent="slate"] { --primary: #4a5059; --primary-hover: #3d424a; --on-primary: #ffffff; }
+[data-theme="dark"][data-accent="ocean"] { --primary: #7cc0ee; --primary-hover: #96cdf2; --on-primary: #0b1a26; }
+[data-theme="dark"][data-accent="plum"] { --primary: #cf9be6; --primary-hover: #dab0ec; --on-primary: #1f0f27; }
+[data-theme="dark"][data-accent="slate"] { --primary: #c3cad4; --primary-hover: #d3d9e1; --on-primary: #14171b; }
+
 * {
   box-sizing: border-box;
   margin: 0;
