@@ -8116,6 +8116,30 @@ if (themeToggleBtn) {
   });
 }
 
+// ---- Colour theme (Identity page): the accent, on top of light / dark ----
+
+const accentSelect = document.getElementById("accent-select") as HTMLSelectElement | null;
+function applyAccent(accent: string) {
+  if (!accentSelect || !Array.from(accentSelect.options).some((o) => o.value === accent)) accent = ""; // a stored value this version does not know
+  if (accent) document.documentElement.setAttribute("data-accent", accent);
+  else document.documentElement.removeAttribute("data-accent");
+  if (accentSelect) accentSelect.value = accent;
+}
+if (accentSelect) {
+  const savedAccent = safeStorage.getItem("radica_accent");
+  applyAccent(savedAccent || "");
+  accentSelect.addEventListener("change", () => {
+    applyAccent(accentSelect.value);
+    safeStorage.setItem("radica_accent", accentSelect.value);
+    void import("./delegate.ts").then((m) => m.nodePut("accent", accentSelect.value), () => {});
+  });
+  // like the theme, the choice is kept on the node too
+  if (savedAccent === null)
+    void import("./delegate.ts")
+      .then((m) => m.nodeGet("accent"))
+      .then((a) => a && applyAccent(a), () => {});
+}
+
 // ---- Translation language (Identity page) ----
 
 const langSelect = document.getElementById("translate-lang-select") as HTMLSelectElement | null;
