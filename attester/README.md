@@ -46,6 +46,26 @@ No port needs to be exposed. Freenet comes from its official installer (prebuilt
 Settings (environment): `FREENET_WS`, `RADICA_APP` (Radica's app path), `RPC_URLS` (comma separated), `POLL_MS`,
 `DATA_DIR`. Chain addresses come from `donate-app/src/config.js`.
 
+## AI moderation helper
+
+Optional, off by default. With `OPENROUTER_API_KEY` set, the same process also reads the public posts of the last week
+(the feeds of whoever is in the public directory), asks a model which ones are spam, a scam, a threat, illegal content
+or doxxing, and adds a report for those to the public `reports` log: the queue the moderators see in Blocklists. Its
+reports start with `[AI]`.
+
+It only reports. Its key (`/data/moderator.key`, printed at start as `reports as <pubkey>`) is separate from the
+attester's, is no moderator and sits on nobody's blocklist, so nothing is hidden until a person removes the post. Keep
+it that way: do not name this key a moderator. It never reads chats or private rooms.
+
+Settings (environment):
+
+- `OPENROUTER_API_KEY`: the key. On CapRover: App Configs → Environmental Variables. Never commit it.
+- `MOD_MODEL` (default `openrouter/free`), `MOD_POLL_MS` (default 15 minutes).
+- `MOD_DAILY_REQUESTS` (default 40; ten posts go in one request) and `MOD_DAILY_REPORTS` (default 20): a ceiling per
+  day, so a flood of posts or a post written to fool the model cannot use up the quota or fill the queue.
+
+The text of public posts goes to OpenRouter and to the model it picks (see TERMS.md, section 6).
+
 ## Test
 
 ```bash
