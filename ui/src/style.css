@@ -1429,6 +1429,9 @@ body.chat-fullscreen .rail {
   width: 100%;
   max-height: none;
   box-shadow: none;
+  /* a page, not a popup: the window scrolls it. Left as a scroll box it swallowed the wheel and nothing moved. */
+  overflow: visible;
+  overscroll-behavior: auto;
 }
 .rail-page #notifs-list,
 .rail-page #updates-list,
