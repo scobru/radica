@@ -2824,9 +2824,18 @@ export class FreenetClient {
     return this.visibleChat(roomId).filter((m) => m.sender !== me && m.timestamp > since).length;
   }
 
+  private visibleChatCache = new Map<string, { stored: ChatMessage[]; cleared: number; visible: ChatMessage[] }>();
+
+  /** Do not change the returned list: it is shared until the room's stored messages or its clear mark change. */
   public visibleChat(roomId: string): ChatMessage[] {
     const cleared = Number(localStorage.getItem(`freenet_chat_cleared_${roomId}`) || 0);
-    return dedupeChat(this.readJson<ChatMessage[]>(`freenet_chat_${roomId}`, "[]")).filter((m) => m.timestamp > cleared);
+    const stored = this.readJson<ChatMessage[]>(`freenet_chat_${roomId}`, "[]"); // the same array until the stored text changes
+    // the unread badge and the chat list ask for every conversation on each redraw: dedupe and sort once per change
+    const hit = this.visibleChatCache.get(roomId);
+    if (hit?.stored === stored && hit.cleared === cleared) return hit.visible;
+    const visible = dedupeChat(stored).filter((m) => m.timestamp > cleared);
+    this.visibleChatCache.set(roomId, { stored, cleared, visible });
+    return visible;
   }
 
   /** The River room behind a chat room id, if it is one I can act in. */
