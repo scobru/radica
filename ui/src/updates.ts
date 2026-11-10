@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-10", text: "Colour themes: pick Ocean, Plum or Slate instead of the Radici green in Identity, Colour Theme. It works with both light and dark mode and is remembered on your node." },
   { date: "2026-11-09", text: "Chat audio keeps playing when you open another chat or section, with a player bar on top (as in Telegram): pause, resume or close it from anywhere." },
   { date: "2026-11-09", text: "Broadcast channels: everyone who joined through the link now counts as a subscriber. River drops members who never write, so subscribers used to vanish from the list." },
   { date: "2026-11-08", text: "Activity & Notifications: a notification is marked read as soon as you open what it is about, whether from the list, the feed, a profile or a chat, so the bell stays honest without tending it." },

@@ -575,7 +575,7 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
 #chat-modal .rm-room-monogram.priv {
   background: var(--rm-accent-soft);
   color: var(--rm-accent);
-  border: 1px solid rgba(62, 122, 32, 0.25);
+  border: 1px solid color-mix(in srgb, var(--rm-accent) 25%, transparent);
 }
 
 #chat-modal .rm-room-monogram.chan {
@@ -3303,4 +3303,19 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
 [data-theme="dark"] #feed-player-slot #cm-mini-player {
   border-color: var(--border, #2a251d);
   background: var(--card-bg, #1a1713);
+}
+
+/* Accent themes: the chat follows the app's action colour (the Signal palette keeps its own) */
+html[data-accent] #chat-modal,
+html[data-accent] #chat-modal .rm-messenger-card {
+  --rm-accent: var(--primary);
+  --rm-accent-hover: var(--primary-hover);
+  --rm-accent-soft: var(--primary-soft);
+  --rm-on-accent: var(--on-primary);
+  --rm-bg-active: var(--primary-soft);
+  --rm-bubble-mine: var(--primary-hover);
+}
+html[data-theme="dark"][data-accent] #chat-modal,
+html[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
+  --rm-bubble-mine: color-mix(in srgb, var(--primary) 38%, #000);
 }
