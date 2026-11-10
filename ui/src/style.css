@@ -3163,6 +3163,36 @@ body {
 .post-link.fn-link[data-resolved="true"] {
   text-decoration-style: solid;
 }
+
+/* Channel profile card and invite pills */
+.channel-profile-card {
+  margin-bottom: 16px;
+}
+.channel-profile-card .link-card-icon {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 1.15rem;
+}
+.channel-invite-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 550;
+  text-decoration: none;
+  vertical-align: baseline;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.channel-invite-pill:hover {
+  background: var(--btn-secondary-hover);
+  border-color: var(--primary);
+  text-decoration: none;
+}
 .fn-card {
   margin: 6px 0 12px;
 }

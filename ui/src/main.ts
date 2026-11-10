@@ -284,6 +284,7 @@ const uviewAvatar = document.getElementById("uview-avatar") as HTMLImageElement;
 const uviewName = document.getElementById("uview-name") as HTMLElement;
 const uviewKey = document.getElementById("uview-key") as HTMLElement;
 const uviewBio = document.getElementById("uview-bio") as HTMLElement;
+const uviewChannel = document.getElementById("uview-channel") as HTMLElement | null;
 const uviewFollowBtn = document.getElementById("uview-follow-btn") as HTMLButtonElement;
 const uviewTalkBtn = document.getElementById("uview-talk-btn") as HTMLButtonElement;
 const uviewHideBtn = document.getElementById("uview-hide-btn") as HTMLButtonElement;
@@ -2494,6 +2495,9 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
   const href = this.getAttribute("href") || this.href;
   if (/(?:[?#&]invitation=|[#&]river_invite=|[#&]join_room=)/.test(href)) {
     e.preventDefault();
+    if (userProfileModal && userProfileModal.style.display !== "none") {
+      userProfileModal.style.display = "none";
+    }
     void handleJoinFromInviteUrl(href);
     return;
   }
@@ -4164,6 +4168,50 @@ async function renderBlog(pubkey: string) {
   if (stillHere()) await draw();
 }
 
+function renderProfileChannelCard(bio: string, authorPubkey: string, authorName: string): string {
+  const INVITE_URL_RE = /(?:https?:\/\/[^\s<>"']*(?:[?#&]invitation=|[#&]river_invite=|[#&]join_room=)[^\s<>"']*|freenet:[^\s<>"']*(?:[?#&]invitation=|[#&]river_invite=|[#&]join_room=)[^\s<>"']*|#[^\s<>"']*(?:river_invite=|join_room=)[^\s<>"']*)/i;
+  const match = INVITE_URL_RE.exec(bio);
+  if (!match) return "";
+  const inviteUrl = match[0].replace(/[.,;:!?)\]]+$/, "");
+  const rawParams = inviteUrl.includes("#")
+    ? inviteUrl.slice(inviteUrl.indexOf("#") + 1)
+    : inviteUrl.includes("?")
+    ? inviteUrl.slice(inviteUrl.indexOf("?") + 1)
+    : "";
+  const params = new URLSearchParams(rawParams);
+  const isChannel = params.get("chan") === "1" || params.get("is_channel") === "true" || /channel/i.test(bio) || /channel/i.test(inviteUrl);
+  const roomIdParam = params.get("room_id") || params.get("join_room");
+  const existingRoom = allPrivateRooms.find((r) =>
+    (roomIdParam && r.id === roomIdParam) ||
+    (isChannel ? (Boolean(r.is_channel) && r.creator === authorPubkey) : false)
+  );
+  const isJoined = Boolean(existingRoom);
+  const customName = params.get("name");
+  const title = customName ? decodeURIComponent(customName) : (isChannel ? `${authorName}'s Broadcast Channel` : `${authorName}'s Chat Room`);
+  const hostLabel = isChannel ? "Broadcast Channel on River" : "Private Chat Room on River";
+  const desc = isChannel ? "Follow updates and announcements directly in Chat" : "End-to-end encrypted chat room";
+  const buttonLabel = isJoined ? "Open in Chat" : isChannel ? "Join Channel" : "Join Room";
+  const icon = isChannel ? "\u{1F4E2}" : "\u{1F4AC}";
+  const roomIdAttr = existingRoom ? ` data-room-id="${escapeHtml(existingRoom.id)}"` : "";
+
+  return `<div class="blog-card channel-profile-card">
+    <div class="blog-card-head" style="cursor: default;">
+      <span class="link-card-icon" aria-hidden="true">${icon}</span>
+      <span class="link-card-text" style="flex: 1; min-width: 0;">
+        <span class="link-card-host">${escapeHtml(hostLabel)}</span>
+        <span class="link-card-title">${escapeHtml(title)}</span>
+        <span class="blog-card-desc">${escapeHtml(desc)}</span>
+      </span>
+      <div class="blog-card-actions">
+        <button type="button" class="btn-primary btn-sm btn-icon-text channel-card-join-btn" data-channel-url="${escapeHtml(inviteUrl)}"${roomIdAttr}>
+          ${renderIcon(isChannel ? "megaphone" : "messageSquare", { className: "icon-xs" })}
+          <span>${escapeHtml(buttonLabel)}</span>
+        </button>
+      </div>
+    </div>
+  </div>`.trim();
+}
+
 async function openUserProfile(pubkey: string) {
   markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
@@ -4173,6 +4221,7 @@ async function openUserProfile(pubkey: string) {
   uviewKey.textContent = pubkey;
   uviewAvatar.src = getAuthorAvatarUrl(pubkey);
   uviewBio.textContent = "";
+  if (uviewChannel) uviewChannel.innerHTML = "";
   uviewPostsGallery.innerHTML = `<div style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted);">Loading…</div>`;
   uviewBlog.innerHTML = "";
   if (uviewOrtoBlog) uviewOrtoBlog.innerHTML = "";
@@ -4255,7 +4304,10 @@ async function openUserProfile(pubkey: string) {
   const badge = getWebOfTrust().trustBadge(pubkey);
   uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${badge.badgeClass}" title="${escapeHtml(badge.description)}">${badge.icon} ${escapeHtml(badge.label)}</span>`;
   uviewKey.textContent = pubkey;
-  uviewBio.textContent = bio;
+  uviewBio.innerHTML = feed.profile?.bio ? renderCaption(feed.profile.bio, getAuthorDisplayName) : "No bio available.";
+  if (uviewChannel) {
+    uviewChannel.innerHTML = feed.profile?.bio ? renderProfileChannelCard(feed.profile.bio, pubkey, name) : "";
+  }
 
   const isFollowing = followingKeys.includes(pubkey);
   uviewFollowBtn.innerHTML = isFollowing
@@ -4317,6 +4369,26 @@ uviewCloseBtn.addEventListener("click", () => {
 userProfileModal.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
   if (!target) return;
+
+  const chanBtn = target.closest<HTMLElement>(".channel-card-join-btn");
+  if (chanBtn) {
+    e.preventDefault();
+    const roomId = chanBtn.dataset.roomId;
+    const existing = roomId ? allPrivateRooms.find((r) => r.id === roomId) : undefined;
+    userProfileModal.style.display = "none";
+    if (existing) {
+      chatModal.style.display = "flex";
+      void selectPrivateRoom(existing);
+      void renderChatSidebar();
+    } else {
+      const url = chanBtn.dataset.channelUrl;
+      if (url) {
+        void handleJoinFromInviteUrl(url);
+      }
+    }
+    return;
+  }
+
   // If clicked inside an external open link, any link, or FreeTunes play button, let it perform its normal action
   if (target.closest(".blog-card-open") || target.closest("a") || target.closest("[data-ft-play]")) return;
 
