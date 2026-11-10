@@ -2,7 +2,7 @@
 
 > **Draft, pending legal review.** This text is a good-faith summary of how Radica works and what to expect from it. It is not legal advice.
 
-_Last updated: 2026-11-04_
+_Last updated: 2026-11-10_
 
 Radica is open-source software for a decentralized social network on [Freenet](https://freenet.org). By using it (the app, the donate page, or the code) you accept what follows.
 
@@ -42,6 +42,7 @@ Greenhouse votes show what supporters think. They are **a guide, not a promise**
 - **Public by design:** posts, comments, community messages, your profile, your follows, Greenhouse seeds and votes (with your supporter tier), and, if you choose to appear there, your entry on the supporters wall.
 - **Private messages and private rooms** are end-to-end encrypted: only their participants can read them. Their existence and timing may still be visible on the network.
 - Translation, image and video checks run **on your device**; nothing you read or write is sent elsewhere for them.
+- The maintainers may run an automated helper that reads **public posts** and sends their text to a third-party AI service (OpenRouter, and the model provider it picks) to spot spam, scams, threats, illegal content and doxxing. It only adds a report, marked `[AI]`, to the public moderators' queue: it hides nothing and blocks nobody, a person decides. It never reads direct messages, private rooms or secret chats.
 
 ## 7. Reporting illegal content
 

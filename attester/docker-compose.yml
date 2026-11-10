@@ -20,6 +20,7 @@ services:
     network_mode: "service:freenet" # shares the node's localhost, where its WebSocket API listens (127.0.0.1:7509)
     environment:
       DATA_DIR: /data
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-} # set it to turn the AI moderation helper on (see README)
     volumes:
       - attester-data:/data # attester.key lives here: back it up, never share it
 
