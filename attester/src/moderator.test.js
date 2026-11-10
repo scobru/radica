@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recentAuthors, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
+import { recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
 
 const NOW = 1_800_000_000_000;
 const A = "ab".repeat(32), B = "cd".repeat(32);
@@ -15,9 +15,22 @@ test("recentAuthors: only well-formed keys announced in the last 30 days, once e
 
 test("freshPosts: the owner's recent posts with text, not judged yet", () => {
   const raw = feed(post("1", "hello world"), post("2", "old", { timestamp: NOW - 8 * 864e5 }), post("3", "someone else's", { author: B }), post("4", "  "), post("5", "seen before"));
-  assert.deepEqual(freshPosts(raw, A, new Set([`${A}:5`]), NOW), [{ key: `${A}:1`, text: "hello world" }]);
+  assert.deepEqual(freshPosts(raw, A, new Set([`${A}:5`]), NOW), [{ key: `${A}:1`, text: "hello world", mark: `${A}:1` }]);
   assert.deepEqual(freshPosts("not json", A, new Set(), NOW), []);
   assert.equal(freshPosts(feed(post("1", "x".repeat(5000))), A, new Set(), NOW)[0].text.length, 1000);
+});
+
+test("an edited post reads as its edit and is judged again, however old the post", () => {
+  const entry = (author, post, caption, ts) => ({ author, ts, body: JSON.stringify({ type: "edit", post, caption }) });
+  const edits = postEdits({ a: entry(A, "1", "first edit", NOW - 50), b: entry(A, "1", "buy my scam", NOW - 10), c: entry(B, "1", "not the author", NOW), d: { author: A, ts: NOW, body: "junk" } });
+  assert.deepEqual([...edits], [[`${A}:1`, { caption: "buy my scam", ts: NOW - 10 }], [`${B}:1`, { caption: "not the author", ts: NOW }]]);
+  const raw = feed(post("1", "hello world", { timestamp: NOW - 30 * 864e5 }));
+  const judged = new Set([`${A}:1`]); // judged as first written
+  assert.deepEqual(freshPosts(raw, A, judged, NOW, edits), [{ key: `${A}:1`, text: "buy my scam", mark: `${A}:1@${NOW - 10}` }]);
+  assert.deepEqual(freshPosts(raw, A, new Set([...judged, `${A}:1@${NOW - 10}`]), NOW, edits), []); // not twice
+  const backdated = new Map([[`${A}:1`, { caption: "buy my scam", ts: NOW - 20 * 864e5 }]]);
+  assert.equal(freshPosts(raw, A, judged, NOW, backdated).length, 1); // an edit dated long ago is still read
+  assert.deepEqual(postEdits(null).size, 0);
 });
 
 test("buildMessages: a post cannot close its own tag", () => {

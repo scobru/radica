@@ -14,8 +14,30 @@ export function recentAuthors(directory, now = Date.now()) {
   return [...seen];
 }
 
-/** The owner's own posts of the last week with some text, not judged yet: `{ key: "<author>:<id>", text }`, newest first. */
-export function freshPosts(feedText, author, judged, now = Date.now()) {
+/** The newest edit of each post, `<author>:<post id>` -> `{ caption, ts }`, from the `post-edits` log (as ui/src/logfold.ts
+ *  foldPostEdits): an entry is signed by its author, so only a post's own author can change what it says. */
+export function postEdits(entries) {
+  const out = new Map();
+  for (const e of Object.values(entries ?? {})) {
+    let b;
+    try {
+      b = JSON.parse(e.body);
+    } catch {
+      continue;
+    }
+    if (b?.type !== "edit" || typeof b.post !== "string" || typeof b.caption !== "string" || b.caption.length > 4000) continue;
+    const key = `${e.author}:${b.post}`;
+    if (!(out.get(key)?.ts > e.ts)) out.set(key, { caption: b.caption, ts: e.ts });
+  }
+  return out;
+}
+
+/**
+ * The owner's own posts with some text, written in the last week or edited at any time, not judged yet as they read now:
+ * `{ key: "<author>:<id>", text, mark }`, newest first. An edited post reads as its edit and is judged again (`mark`
+ * carries the edit's time), so a post cannot pass as harmless and be rewritten afterwards.
+ */
+export function freshPosts(feedText, author, judged, now = Date.now(), edits = new Map()) {
   let feed;
   try {
     feed = JSON.parse(feedText);
@@ -23,10 +45,15 @@ export function freshPosts(feedText, author, judged, now = Date.now()) {
     return [];
   }
   return Object.values(feed?.posts ?? {})
-    .filter((p) => p && p.author === author && typeof p.id === "string" && typeof p.caption === "string" && p.caption.trim().length > 2)
-    .filter((p) => now - p.timestamp <= 7 * DAY && !judged.has(`${author}:${p.id}`))
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .map((p) => ({ key: `${author}:${p.id}`, text: p.caption.slice(0, 1000) }));
+    .filter((p) => p && p.author === author && typeof p.id === "string" && typeof p.caption === "string")
+    .map((p) => {
+      const key = `${author}:${p.id}`, ed = edits.get(key);
+      return { key, text: (ed?.caption ?? p.caption).slice(0, 1000), mark: ed ? `${key}@${ed.ts}` : key, ts: Math.max(p.timestamp, ed?.ts ?? 0), edited: !!ed };
+    })
+    // an edit carries the date its author gave it, so an edited post is judged whatever its age: a backdated edit must not slip by
+    .filter((p) => p.text.trim().length > 2 && (p.edited || now - p.ts <= 7 * DAY) && !judged.has(p.mark))
+    .sort((a, b) => b.ts - a.ts)
+    .map(({ key, text, mark }) => ({ key, text, mark }));
 }
 
 /** The request for one batch. Posts are untrusted: they go in as numbered data, and the answer is checked by parseVerdicts. */

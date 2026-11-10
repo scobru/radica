@@ -48,7 +48,7 @@ Settings (environment): `FREENET_WS`, `RADICA_APP` (Radica's app path), `RPC_URL
 
 ## AI moderation helper
 
-Optional, off by default. With `OPENROUTER_API_KEY` set, the same process also reads the public posts of the last week
+Optional, off by default. With `OPENROUTER_API_KEY` set, the same process also reads the public posts written in the last week, and edited ones again after each edit,
 (the feeds of whoever is in the public directory), asks a model which ones are spam, a scam, a threat, illegal content
 or doxxing, and adds a report for those to the public `reports` log: the queue the moderators see in Blocklists. Its
 reports start with `[AI]`.
