@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canPostInRoom, computeSafetyBlocks, shouldHydratePreview, shouldUpdateCachedPreview } from "../src/messengerLogic.ts";
+import { canPostInRoom, computeSafetyBlocks, roomMetaOf, shouldHydratePreview, shouldUpdateCachedPreview } from "../src/messengerLogic.ts";
 
 test("shouldHydratePreview: never hydrates the currently open room (prevents River optimistic microtask spinlock)", () => {
   assert.equal(
@@ -246,4 +246,14 @@ test("room join events: computeLogJoins groups joins within 5 minutes into River
   assert.equal(formatJoinNotice(["userA"], "me", (pk) => pk), "userA joined");
   assert.equal(formatJoinNotice(["userA", "userB"], "me", (pk) => pk), "userA and userB joined");
   assert.equal(formatJoinNotice(["u1", "u2", "u3", "u4", "u5"], "me", (pk) => pk), "5 people joined");
+});
+
+test("roomMetaOf: a cleared chat has no last message, a newer one shows again", () => {
+  const msg = (id: string, timestamp: number) => ({ id, room_id: "r", sender: "a", text: `t${timestamp}`, timestamp });
+  const raw = JSON.stringify([msg("m1", 100), msg("msg_opt_2", 200)]);
+  assert.deepEqual(roomMetaOf(raw, 0), { lastTs: 200, lastSender: "a", rawText: "t200", count: 2, optimistic: true });
+  assert.equal(roomMetaOf(raw, 100).count, 1);
+  assert.deepEqual(roomMetaOf(raw, 200), { lastTs: 0, lastSender: "", rawText: "", count: 0, optimistic: false });
+  assert.equal(roomMetaOf(null, 0).count, 0);
+  assert.equal(roomMetaOf("not json", 0).count, 0);
 });

@@ -2,7 +2,9 @@ import {
   computeSafetyBlocks,
   shouldHydratePreview,
   shouldUpdateCachedPreview,
+  roomMetaOf,
   type PreviewItem,
+  type RoomMeta,
 } from "./messengerLogic.ts";
 export { computeSafetyBlocks, shouldHydratePreview, shouldUpdateCachedPreview, type PreviewItem };
 import { personaName } from "./crypto.ts";
@@ -753,37 +755,18 @@ export function createMessengerChat(deps: MessengerDeps) {
     composerInputEl.style.overflowY = sh > 132 ? "auto" : "hidden";
   }
 
-  const roomMetaCache = new Map<string, { raw: string | null; meta: { lastTs: number; lastSender: string; rawText: string; count: number; optimistic: boolean } }>();
+  const roomMetaCache = new Map<string, { raw: string | null; cleared: string | null; meta: RoomMeta }>();
 
   /** Inspect stored raw messages of a room synchronously for sorting timestamp & optimistic state. */
-  function storedRoomMeta(roomId: string): { lastTs: number; lastSender: string; rawText: string; count: number; optimistic: boolean } {
+  function storedRoomMeta(roomId: string): RoomMeta {
     const raw = safeStorage.getItem(`freenet_chat_${roomId}`);
+    // the clear mark is part of the key: clearing a chat leaves the stored messages as they are
+    const cleared = safeStorage.getItem(`freenet_chat_cleared_${roomId}`);
     const cached = roomMetaCache.get(roomId);
-    if (cached && cached.raw === raw) return cached.meta;
-    const cleared = Number(safeStorage.getItem(`freenet_chat_cleared_${roomId}`) || 0);
-    try {
-      const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
-      const visible = list.filter((m) => m.timestamp > cleared);
-      if (!visible.length) {
-        const meta = { lastTs: 0, lastSender: "", rawText: "", count: 0, optimistic: false };
-        roomMetaCache.set(roomId, { raw, meta });
-        return meta;
-      }
-      const last = visible[visible.length - 1];
-      const meta = {
-        lastTs: last.timestamp || 0,
-        lastSender: last.sender || "",
-        rawText: last.text || "",
-        count: visible.length,
-        optimistic: last.id.startsWith("msg_opt_"),
-      };
-      roomMetaCache.set(roomId, { raw, meta });
-      return meta;
-    } catch {
-      const meta = { lastTs: 0, lastSender: "", rawText: "", count: 0, optimistic: false };
-      roomMetaCache.set(roomId, { raw, meta });
-      return meta;
-    }
+    if (cached && cached.raw === raw && cached.cleared === cleared) return cached.meta;
+    const meta = roomMetaOf(raw, Number(cleared || 0));
+    roomMetaCache.set(roomId, { raw, cleared, meta });
+    return meta;
   }
 
   function formatPreviewLine(text: string, sender: string, me: string, type: "dm" | "priv" | "comm"): string {

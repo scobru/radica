@@ -115,3 +115,30 @@ export function formatJoinNotice(members: string[], me: string, getDisplayName: 
   return `${names.length} people joined`;
 }
 
+
+export interface RoomMeta {
+  lastTs: number;
+  lastSender: string;
+  rawText: string;
+  count: number;
+  optimistic: boolean;
+}
+
+/** What a room's stored messages (`raw`, the JSON as stored) say about its last one; those up to `cleared` are hidden. */
+export function roomMetaOf(raw: string | null, cleared: number): RoomMeta {
+  const none = { lastTs: 0, lastSender: "", rawText: "", count: 0, optimistic: false };
+  try {
+    const visible = (raw ? (JSON.parse(raw) as ChatMessage[]) : []).filter((m) => m.timestamp > cleared);
+    const last = visible[visible.length - 1];
+    if (!last) return none;
+    return {
+      lastTs: last.timestamp || 0,
+      lastSender: last.sender || "",
+      rawText: last.text || "",
+      count: visible.length,
+      optimistic: last.id.startsWith("msg_opt_"),
+    };
+  } catch {
+    return none;
+  }
+}
