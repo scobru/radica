@@ -125,7 +125,8 @@ const pathLabel = (path: string) => {
 function resolve(
   url: string,
   customLabel?: string,
-  nameOf: NameOf = keyName
+  nameOf: NameOf = keyName,
+  contextText?: string
 ): {
   href: string;
   label: string;
@@ -133,8 +134,38 @@ function resolve(
   fnName?: string;
   subpath?: string;
   isResolved?: boolean;
+  isInvite?: boolean;
   title?: string;
 } {
+  const INVITE_RE = /(?:[?#&]invitation=|[#&]river_invite=|[#&]join_room=)/i;
+  if (INVITE_RE.test(url)) {
+    const isChannel =
+      /(?:[#&?](?:chan=1|is_channel=(?:true|1)|is_chan=1))/i.test(url) ||
+      /(?:channel|canale)/i.test(url) ||
+      (contextText ? /(?:channel|canale)/i.test(contextText) : false);
+    let roomName: string | undefined;
+    try {
+      const rawParams = url.includes("#") ? url.slice(url.indexOf("#") + 1) : (url.includes("?") ? url.slice(url.indexOf("?") + 1) : "");
+      const p = new URLSearchParams(rawParams);
+      const n = p.get("name");
+      if (n) roomName = decodeURIComponent(n);
+    } catch {}
+    const m = CONTRACT_RE.exec(url);
+    const href = m ? `${nodeOrigin()}/v1/contract/web/${m[1]}/${m[2]}` : (url.startsWith("/") ? `${nodeOrigin()}${url}` : url);
+    const defaultLabel = isChannel
+      ? (roomName ? `\u{1F4E2} ${roomName}` : "\u{1F4E2} Broadcast Channel")
+      : (roomName ? `\u{1F4AC} ${roomName}` : "\u{1F4AC} Chat Room");
+    const defaultTitle = isChannel
+      ? (roomName ? `Join "${roomName}" broadcast channel on Radica & River` : "Join broadcast channel on Radica & River")
+      : (roomName ? `Join "${roomName}" chat room on Radica & River` : "Join chat room on Radica & River");
+    return {
+      href,
+      label: customLabel ?? defaultLabel,
+      isInvite: true,
+      title: defaultTitle,
+    };
+  }
+
   const fn = parseFreenameUri(url);
   if (fn) {
     const origin = nodeOrigin();
@@ -193,9 +224,11 @@ function render(caption: string, text: (t: string) => string, nameOf: NameOf = k
         continue;
       }
       out += text(caption.slice(last, start));
-      const res = resolve(url, label, nameOf);
+      const res = resolve(url, label, nameOf, caption);
       const fnAttr = res.isFreename
         ? ` class="post-link fn-link" data-freenames="${escape(res.fnName!)}" data-subpath="${escape(res.subpath || "")}"${res.isResolved ? ' data-resolved="true"' : ""}`
+        : res.isInvite
+        ? ` class="post-link channel-invite-pill"`
         : ` class="post-link"`;
       const titleAttr = res.title ? ` title="${escape(res.title)}"` : ` title="${escape(res.href)}"`;
       out += `<a${fnAttr} href="${escape(res.href)}" target="_blank" rel="noopener noreferrer nofollow"${titleAttr}>${md(escape(res.label))}</a>`;
@@ -205,11 +238,13 @@ function render(caption: string, text: (t: string) => string, nameOf: NameOf = k
       const trail = TRAILING_PUNCT.exec(raw)?.[0] ?? ""; // "see https://x.org." must not link the full stop
       const url = raw.slice(0, raw.length - trail.length);
       out += text(caption.slice(last, start));
-      const res = resolve(url, undefined, nameOf);
+      const res = resolve(url, undefined, nameOf, caption);
       const fnAttr = res.isFreename
         ? ` class="post-link fn-link" data-freenames="${escape(res.fnName!)}" data-subpath="${escape(res.subpath || "")}"${res.isResolved ? ' data-resolved="true"' : ""}`
+        : res.isInvite
+        ? ` class="post-link channel-invite-pill"`
         : ` class="post-link"`;
-      const titleAttr = res.isFreename && res.title ? ` title="${escape(res.title)}"` : "";
+      const titleAttr = res.title ? ` title="${escape(res.title)}"` : (res.isFreename && res.title ? ` title="${escape(res.title)}"` : "");
       out += `<a${fnAttr} href="${escape(res.href)}" target="_blank" rel="noopener noreferrer nofollow"${titleAttr}>${escape(res.label)}</a>${escape(trail)}`;
       last = start + raw.length;
     }

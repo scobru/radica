@@ -571,7 +571,7 @@
           <button class="btn-secondary btn-sm" id="uview-close-btn">✕</button>
         </div>
 
-        <p id="uview-bio" style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 16px;"></p>
+        <p id="uview-bio" style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 16px; white-space: pre-wrap; word-break: break-word;"></p>
 
         <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
           <button class="btn-primary btn-sm btn-icon-text" id="uview-follow-btn">
@@ -587,6 +587,8 @@
           <button class="btn-secondary btn-sm" id="uview-trust-btn" title="Hide everyone this person blocks"></button>
           <button class="btn-secondary btn-sm" id="uview-mod-btn" style="display: none;" title="Their removals and blocks apply to everyone who follows your blocklist"></button>
         </div>
+
+        <div id="uview-channel" class="uview-channel"></div>
 
         <div id="uview-ecosystem-loader" class="uview-ecosystem-loader" style="display: none;">
           <div class="boot-bar" style="width: 60px; height: 3px;"><span></span></div>

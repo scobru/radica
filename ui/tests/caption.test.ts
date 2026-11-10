@@ -251,3 +251,23 @@ test("caption: freenet:scobru/fh and fn:scobru resolve to FreeNames links with t
   assert.match(html2, /data-resolved="true"/);
   assert.match(html2, new RegExp(`title="FreeNames: scobru/fh → ${TARGET}"`));
 });
+
+test("caption: River and room invite links format into channel and room pills", () => {
+  // 1. Raw River invite link in a caption/bio
+  const rawInvite = "Follow my channel: http://localhost:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/#river_invite=QCYLRbLKZHCci4q4nMVlaFNXaHU1MH3CCvdDF42QP74pCurtTtZE";
+  const html1 = renderCaption(rawInvite);
+  assert.match(html1, /class="post-link channel-invite-pill"/);
+  assert.match(html1, /📢 Broadcast Channel<\/a>/);
+
+  // 2. Chat room invite link with name parameter
+  const roomInvite = "Join our room: freenet:Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/#join_room=room_123&key=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&name=Secret+Club";
+  const html2 = renderCaption(roomInvite);
+  assert.match(html2, /class="post-link channel-invite-pill"/);
+  assert.match(html2, /💬 Secret Club<\/a>/);
+
+  // 3. Markdown link override
+  const mdInvite = "[Click here to join](http://localhost:7509/#river_invite=abc123456789&chan=1)";
+  const html3 = renderCaption(mdInvite);
+  assert.match(html3, /class="post-link channel-invite-pill"/);
+  assert.match(html3, />Click here to join<\/a>/);
+});
