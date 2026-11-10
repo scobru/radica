@@ -143,6 +143,8 @@ function showToast(message: string, type: "info" | "warning" | "error" = "info",
 // Theme Elements
 const themeToggleBtn = document.getElementById("theme-toggle-btn") as HTMLButtonElement | null;
 const themeIcon = document.getElementById("theme-icon") as HTMLElement | null;
+const widthToggleBtn = document.getElementById("width-toggle-btn") as HTMLButtonElement | null;
+const widthIcon = document.getElementById("width-icon") as HTMLElement | null;
 
 // Identity & Key Management Elements
 const openIdentityBtn = document.getElementById("open-identity-btn") as HTMLButtonElement | null;
@@ -4386,6 +4388,7 @@ async function showChat(load: () => Promise<unknown>) {
   chatModal.classList.add("chat-loading");
   chatModal.style.display = "flex";
   syncMiniPlayerSlot();
+  applyFullWidth(document.documentElement.getAttribute("data-fullwidth") === "true");
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))); // after the next paint
   try {
     await load();
@@ -4988,6 +4991,10 @@ const messengerChat = createMessengerChat({
       nodeOrigin()
     ),
   onSwitchLayout: switchChatLayout,
+  onToggleFullWidth: () => {
+    const current = document.documentElement.getAttribute("data-fullwidth") === "true";
+    setFullWidth(!current);
+  },
   onToggleFullscreen: () => document.getElementById("chat-fullscreen-btn")?.click(),
   onCloseChat: () => {
     chatModal.style.display = "none";
@@ -8195,6 +8202,70 @@ if (maskToggle) {
       .then((v) => v === "0" && applyMaskBadWords(false), () => {});
 }
 
+// ---- Interface Width (Standard vs Full Width) ----
+
+const FULLWIDTH_KEY = "radica_fullwidth";
+const layoutWidthSelect = document.getElementById("layout-width-select") as HTMLSelectElement | null;
+
+function applyFullWidth(on: boolean) {
+  if (on) {
+    document.documentElement.setAttribute("data-fullwidth", "true");
+  } else {
+    document.documentElement.removeAttribute("data-fullwidth");
+  }
+  if (widthIcon) {
+    widthIcon.innerHTML = on
+      ? `<svg viewBox="0 0 24 24" class="svg-icon icon-md" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 8 8 12 4 16"/><polyline points="20 8 16 12 20 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
+      : `<svg viewBox="0 0 24 24" class="svg-icon icon-md" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>`;
+  }
+  if (widthToggleBtn) {
+    widthToggleBtn.title = on ? "Switch to Standard Width" : "Switch to Full Width Layout";
+    widthToggleBtn.setAttribute("aria-pressed", String(on));
+  }
+  if (layoutWidthSelect) {
+    layoutWidthSelect.value = on ? "full" : "standard";
+  }
+  const rmFwBtn = document.getElementById("rm-btn-fullwidth");
+  if (rmFwBtn) {
+    rmFwBtn.setAttribute("aria-pressed", String(on));
+    const label = rmFwBtn.querySelector("span");
+    if (label) label.textContent = on ? "Standard width" : "Full width";
+  }
+}
+
+function setFullWidth(on: boolean) {
+  applyFullWidth(on);
+  safeStorage.setItem(FULLWIDTH_KEY, on ? "1" : "0");
+  void import("./delegate.ts").then((m) => m.nodePut("fullwidth", on ? "1" : "0"), () => {});
+}
+
+function initFullWidth() {
+  const saved = safeStorage.getItem(FULLWIDTH_KEY);
+  if (saved !== null) {
+    applyFullWidth(saved === "1");
+  } else {
+    void import("./delegate.ts")
+      .then((m) => m.nodeGet("fullwidth"))
+      .then((v) => {
+        if (v === "1" || v === "0") applyFullWidth(v === "1");
+      }, () => {});
+  }
+}
+initFullWidth();
+
+if (widthToggleBtn) {
+  widthToggleBtn.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-fullwidth") === "true";
+    setFullWidth(!current);
+  });
+}
+
+if (layoutWidthSelect) {
+  layoutWidthSelect.addEventListener("change", () => {
+    setFullWidth(layoutWidthSelect.value === "full");
+  });
+}
+
 // ---- Identity & Key Management Modal ----
 
 function renderIdentityModal() {
@@ -8473,6 +8544,7 @@ setTimeout(hideBoot, BOOT_MAX_MS); // never stuck behind it, whatever init does
 
 async function init() {
   initTheme();
+  initFullWidth();
 
   // Check Viso callback in URL query parameters
   const queryParams = new URLSearchParams(window.location.search);

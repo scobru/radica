@@ -3424,11 +3424,28 @@ body {
   transition: color 0.15s, border-color 0.15s;
 }
 
+#width-toggle-btn {
+  right: 58px;
+}
+
 .corner-btn:hover,
 .corner-btn:focus-visible {
   color: var(--text-main);
   border-color: var(--primary);
   outline: none;
+}
+
+/* ================= Full Width Layout Mode ================= */
+html[data-fullwidth="true"] .container {
+  max-width: 100% !important;
+  padding-left: clamp(16px, 2.5vw, 32px);
+  padding-right: clamp(16px, 2.5vw, 32px);
+  gap: clamp(20px, 2vw, 36px);
+}
+
+html[data-fullwidth="true"] #width-toggle-btn {
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 /* my picture in the feed header opens the profile page */
@@ -3740,6 +3757,9 @@ body {
     top: auto;
     bottom: 68px;
     right: 12px;
+  }
+  #width-toggle-btn {
+    display: none !important;
   }
   .feed-head {
     flex-wrap: wrap;
