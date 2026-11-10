@@ -1255,9 +1255,13 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 1000; /* no backdrop blur: re-blurring the whole feed (images) under it made opening and closing a modal slow */
+  overscroll-behavior: contain; /* wheel at card edge must not scroll the feed behind */
 }
 
 .modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--card-bg);
   color: var(--text-main);
   border: 1px solid var(--border);
