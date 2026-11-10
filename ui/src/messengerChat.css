@@ -3207,27 +3207,24 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   }
 }
 
-/* The chat audio player bar (chatMedia.ts `sharedAudio`): the clip playing, wherever you are in the app */
+/* The chat audio player bar (chatMedia.ts `sharedAudio`): docked under the active header (Telegram style) */
 #cm-mini-player {
-  position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000;
-  width: min(520px, calc(100vw - 32px));
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 8px 6px 6px;
-  border-radius: 999px;
-  background: var(--card-bg, #fbf8f2);
-  color: var(--text-main, #1e1a14);
-  border: 1px solid var(--border, #dfd6c5);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  font-size: 0.85rem;
+  padding: 8px 14px;
+  background: var(--rm-bg-subtle, #ece4d5);
+  color: var(--rm-text-main, #1e1a14);
+  border-bottom: 1px solid var(--rm-border, #dfd6c5);
+  font-size: 0.84rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 #cm-mini-player[hidden] {
-  display: none;
+  display: none !important;
 }
 #cm-mini-player button {
   border: none;
@@ -3235,13 +3232,21 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   flex-shrink: 0;
   display: grid;
   place-items: center;
+  background: transparent;
+  padding: 0;
 }
 #cm-mini-player .cm-mini-toggle {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: var(--accent, #3e7a20);
+  background: var(--rm-accent, #3e7a20);
   color: #fff;
+  font-size: 0.72rem;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+#cm-mini-player .cm-mini-toggle:hover {
+  transform: scale(1.06);
+  background: var(--rm-accent-hover, #336619);
 }
 #cm-mini-player .cm-mini-title {
   flex: 1;
@@ -3250,18 +3255,52 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   white-space: nowrap;
   text-overflow: ellipsis;
   font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+#cm-mini-player .cm-mini-title:hover {
+  text-decoration: underline;
 }
 #cm-mini-player .cm-mini-time {
-  color: var(--text-muted, #847968);
+  color: var(--rm-text-muted, #847968);
   font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  flex-shrink: 0;
 }
 #cm-mini-player .cm-mini-close {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-muted, #847968);
+  color: var(--rm-text-muted, #847968);
+  font-size: 0.85rem;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 #cm-mini-player .cm-mini-close:hover {
-  background: var(--border, #dfd6c5);
+  background: var(--rm-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--rm-text-main, inherit);
+}
+
+[data-theme="dark"] #cm-mini-player {
+  background: var(--rm-bg-subtle, #1a1713);
+  color: var(--rm-text-main, #ede6da);
+  border-bottom-color: var(--rm-border, #2a251d);
+}
+[data-theme="dark"] #cm-mini-player .cm-mini-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+#feed-player-slot {
+  width: 100%;
+}
+#feed-player-slot #cm-mini-player {
+  border-radius: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border, #dfd6c5);
+  background: var(--card-bg, #fbf8f2);
+}
+[data-theme="dark"] #feed-player-slot #cm-mini-player {
+  border-color: var(--border, #2a251d);
+  background: var(--card-bg, #1a1713);
 }

@@ -1109,9 +1109,51 @@ function pauseAllOtherAudio(except: HTMLAudioElement): void {
 }
 
 /** One player for every chat audio, outside the chat: a clip keeps playing when its chat closes (a card's own
- *  element would stop once removed), and a bar on top, as in Telegram, shows it and lets you pause or close it. */
+ *  element would stop once removed), and an integrated bar below the active header (as in Telegram) shows it and
+ *  lets you pause, resume, seek, or close it without ever blocking header navigation. */
 const player = { el: null as HTMLAudioElement | null, hash: "" };
 const PLAYER_EVENTS = ["play", "pause", "timeupdate", "ended", "emptied", "loadedmetadata", "ratechange"];
+
+/** Dock the mini player bar into the slot corresponding to the current screen / view:
+ *  - inside .rm-stage (below chat header) when viewing a conversation
+ *  - inside .rm-inbox (below filter chips) when viewing the conversations list on mobile
+ *  - inside .chat-modal-card (below classic header) in classic layout
+ *  - inside #feed-view (below feed navigation) when chat modal is closed
+ */
+export function syncMiniPlayerSlot(): void {
+  if (typeof document === "undefined") return;
+  const bar = document.getElementById("cm-mini-player");
+  if (!bar) return;
+  const chatModal = document.getElementById("chat-modal");
+  const isChatOpen = chatModal && chatModal.style.display !== "none" && chatModal.style.display !== "";
+
+  let targetSlot: HTMLElement | null = null;
+  if (isChatOpen) {
+    const mode = chatModal.dataset.chatLayout || "messenger";
+    if (mode === "classic") {
+      targetSlot = document.getElementById("rm-classic-player-slot");
+    } else {
+      const workspace = document.getElementById("rm-workspace");
+      const isMobile = window.innerWidth <= 860;
+      const isThreadOpen = workspace?.classList.contains("mobile-thread-open");
+      if (isMobile && !isThreadOpen) {
+        targetSlot = document.getElementById("rm-inbox-player-slot");
+      } else {
+        targetSlot = document.getElementById("rm-player-slot") || document.getElementById("rm-inbox-player-slot");
+      }
+    }
+  } else {
+    targetSlot = document.getElementById("feed-player-slot");
+  }
+
+  if (targetSlot) {
+    if (bar.parentElement !== targetSlot) {
+      targetSlot.appendChild(bar);
+    }
+  } else if (bar.parentElement !== document.body) {
+    document.body.appendChild(bar);
+  }
+}
 
 function sharedAudio(): HTMLAudioElement {
   if (player.el) return player.el;
@@ -1123,16 +1165,38 @@ function sharedAudio(): HTMLAudioElement {
   bar.hidden = true;
   bar.setAttribute("role", "region");
   bar.setAttribute("aria-label", "Now playing");
-  bar.innerHTML = `<button type="button" class="cm-mini-toggle"></button><span class="cm-mini-title"></span><span class="cm-mini-time"></span><button type="button" class="cm-mini-close" aria-label="Close player" title="Close player">✕</button>`;
-  document.body.append(a, bar);
+  bar.innerHTML = `<button type="button" class="cm-mini-toggle"></button><span class="cm-mini-title" title="Jump to audio"></span><span class="cm-mini-time"></span><button type="button" class="cm-mini-close" aria-label="Close player" title="Close player">✕</button>`;
+  document.body.append(a);
+  document.body.append(bar);
+  syncMiniPlayerSlot();
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", () => syncMiniPlayerSlot());
+  }
+
   const toggle = bar.querySelector<HTMLButtonElement>(".cm-mini-toggle")!;
   const time = bar.querySelector<HTMLElement>(".cm-mini-time")!;
+  const titleEl = bar.querySelector<HTMLElement>(".cm-mini-title")!;
+  titleEl.addEventListener("click", () => {
+    if (!player.hash) return;
+    const card = document.querySelector(`.cm-card[data-cm-hash="${player.hash}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("playing");
+      setTimeout(() => {
+        if (player.hash !== card.getAttribute("data-cm-hash") || a.paused) {
+          card.classList.remove("playing");
+        }
+      }, 1500);
+    }
+  });
+
   const paint = () => {
     bar.hidden = !player.hash || (a.paused && a.currentTime === 0);
     toggle.textContent = a.paused ? "▶" : "⏸";
     toggle.setAttribute("aria-label", a.paused ? "Play" : "Pause");
     const dur = Number.isFinite(a.duration) ? a.duration : 0;
     time.textContent = `${formatMediaDuration(a.currentTime)} / ${formatMediaDuration(dur)}`;
+    if (!bar.hidden) syncMiniPlayerSlot();
   };
   for (const ev of PLAYER_EVENTS) a.addEventListener(ev, paint);
   a.addEventListener("play", () => pauseAllOtherAudio(a));
@@ -1156,8 +1220,10 @@ function loadInPlayer(hash: string, url: string, title: string, rate: number): H
     player.hash = hash;
     a.src = url;
     a.playbackRate = rate;
-    document.querySelector<HTMLElement>("#cm-mini-player .cm-mini-title")!.textContent = title;
+    const titleEl = document.querySelector<HTMLElement>("#cm-mini-player .cm-mini-title");
+    if (titleEl) titleEl.textContent = title;
   }
+  syncMiniPlayerSlot();
   return a;
 }
 

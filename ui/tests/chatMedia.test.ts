@@ -20,6 +20,7 @@ import {
   fetchChatMedia,
   uploadChatMedia,
   sendChatAttachment,
+  syncMiniPlayerSlot,
 } from "../src/chatMedia.ts";
 import { mediaHashOf } from "../src/media.ts";
 
@@ -338,4 +339,48 @@ test("fetchChatMedia hands the chunks over in order, whatever order they arrive 
   assert.deepEqual(await fetchChatMedia(hash, keyHex, get, undefined, (part, i) => (order.push(i), joined.push(part.byteLength))), plain);
   assert.deepEqual(order, [0, 1, 2, 3]);
   assert.equal(joined.reduce((a, b) => a + b, 0), plain.byteLength);
+});
+
+test("chatMedia: syncMiniPlayerSlot docks player bar under active header and never covers navigation", () => {
+  const bar = { id: "cm-mini-player", parentElement: null as any };
+  const playerSlot = { id: "rm-player-slot", appendChild(el: any) { el.parentElement = this; } };
+  const inboxSlot = { id: "rm-inbox-player-slot", appendChild(el: any) { el.parentElement = this; } };
+  const feedSlot = { id: "feed-player-slot", appendChild(el: any) { el.parentElement = this; } };
+  const chatModal = { id: "chat-modal", style: { display: "flex" }, dataset: { chatLayout: "messenger" } };
+  const workspace = { id: "rm-workspace", classList: { contains: (c: string) => c === "mobile-thread-open" } };
+
+  const prevDoc = (globalThis as any).document;
+  const prevWin = (globalThis as any).window;
+
+  try {
+    (globalThis as any).document = {
+      getElementById(id: string) {
+        if (id === "cm-mini-player") return bar;
+        if (id === "rm-player-slot") return playerSlot;
+        if (id === "rm-inbox-player-slot") return inboxSlot;
+        if (id === "feed-player-slot") return feedSlot;
+        if (id === "chat-modal") return chatModal;
+        if (id === "rm-workspace") return workspace;
+        return null;
+      },
+    };
+    (globalThis as any).window = { innerWidth: 400 };
+
+    // Case 1: Thread open in chat modal -> docks under chat header (#rm-player-slot)
+    syncMiniPlayerSlot();
+    assert.equal(bar.parentElement, playerSlot);
+
+    // Case 2: Mobile inbox in chat modal -> docks under filter chips (#rm-inbox-player-slot)
+    workspace.classList.contains = () => false;
+    syncMiniPlayerSlot();
+    assert.equal(bar.parentElement, inboxSlot);
+
+    // Case 3: Chat closed -> docks under feed nav (#feed-player-slot)
+    chatModal.style.display = "none";
+    syncMiniPlayerSlot();
+    assert.equal(bar.parentElement, feedSlot);
+  } finally {
+    (globalThis as any).document = prevDoc;
+    (globalThis as any).window = prevWin;
+  }
 });
