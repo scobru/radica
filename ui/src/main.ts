@@ -4356,7 +4356,7 @@ const CHAT_LAYOUT_KEY = "radica_chat_layout";
 let chatOnlineState = false;
 
 function currentChatLayout(): ChatLayoutMode {
-  return safeStorage.getItem(CHAT_LAYOUT_KEY) === "classic" ? "classic" : "messenger";
+  return "messenger"; // the Classic view is retired: a stored "classic" choice is ignored, its code goes next
 }
 
 function applyChatLayoutAttr(mode: ChatLayoutMode) {
