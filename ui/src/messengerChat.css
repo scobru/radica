@@ -3319,3 +3319,30 @@ html[data-theme="dark"][data-accent] #chat-modal,
 html[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
   --rm-bubble-mine: color-mix(in srgb, var(--primary) 38%, #000);
 }
+
+/* Accent themes tint the chat surfaces too (see style.css) */
+[data-accent] #chat-modal,
+[data-accent] #chat-modal .rm-messenger-card {
+  --rm-bg-inbox: color-mix(in srgb, var(--primary) 4%, #fbf8f2);
+  --rm-bg-drawer: var(--rm-bg-inbox);
+  --rm-bg-canvas: color-mix(in srgb, var(--primary) 8%, #f4efe4);
+  --rm-bg-header: color-mix(in srgb, var(--primary) 4%, rgba(251, 248, 242, 0.9));
+  --rm-bg-subtle: color-mix(in srgb, var(--primary) 12%, #ece4d5);
+  --rm-bg-hover: color-mix(in srgb, var(--primary) 17%, #e5dccb);
+  --rm-bg-active: color-mix(in srgb, var(--primary) 14%, transparent);
+  --rm-border: color-mix(in srgb, var(--primary) 14%, #dfd6c5);
+  --rm-border-subtle: color-mix(in srgb, var(--primary) 10%, #eae2d3);
+}
+[data-theme="dark"][data-accent] #chat-modal,
+[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
+  --rm-bg-inbox: color-mix(in srgb, var(--primary) 7%, #14110d);
+  --rm-bg-drawer: var(--rm-bg-inbox);
+  --rm-bg-canvas: color-mix(in srgb, var(--primary) 6%, #0f0d0a);
+  --rm-bg-header: color-mix(in srgb, var(--primary) 7%, rgba(20, 17, 13, 0.9));
+  --rm-bg-elevated: color-mix(in srgb, var(--primary) 8%, #1d1913);
+  --rm-bg-subtle: color-mix(in srgb, var(--primary) 11%, #221d16);
+  --rm-bg-hover: color-mix(in srgb, var(--primary) 16%, #2b251c);
+  --rm-bg-active: color-mix(in srgb, var(--primary) 18%, transparent);
+  --rm-border: color-mix(in srgb, var(--primary) 14%, #2a241b);
+  --rm-border-subtle: color-mix(in srgb, var(--primary) 10%, #211c15);
+}

@@ -67,7 +67,7 @@
   --shadow-lg: 0 16px 32px -6px rgba(0, 0, 0, 0.65);
 }
 
-/* Accent themes: only the action colour changes, in both light and dark. No attribute = Radici green. */
+/* Accent themes: the action colour changes (and the surfaces are tinted below), in light and dark. No attribute = Radici green. */
 [data-accent] {
   --accent: var(--primary);
   --primary-soft: color-mix(in srgb, var(--primary) 14%, transparent);
@@ -78,6 +78,41 @@
 [data-theme="dark"][data-accent="ocean"] { --primary: #7cc0ee; --primary-hover: #96cdf2; --on-primary: #0b1a26; }
 [data-theme="dark"][data-accent="plum"] { --primary: #cf9be6; --primary-hover: #dab0ec; --on-primary: #1f0f27; }
 [data-theme="dark"][data-accent="slate"] { --primary: #c3cad4; --primary-hover: #d3d9e1; --on-primary: #14171b; }
+
+/* The accent also tints the surfaces: the Radici paper/soil greys, mixed with a little of the accent. */
+[data-accent] {
+  --bg: color-mix(in srgb, var(--primary) 7%, #f6f1e7);
+  --nav-bg: var(--bg);
+  --card-bg: color-mix(in srgb, var(--primary) 4%, #fbf8f2);
+  --card-header-bg: var(--card-bg);
+  --input-bg: var(--card-bg);
+  --empty-state-bg: var(--card-bg);
+  --card-footer-bg: color-mix(in srgb, var(--primary) 9%, #f3ece0);
+  --light: color-mix(in srgb, var(--primary) 12%, #ece4d5);
+  --btn-secondary-bg: var(--light);
+  --bubble-theirs-bg: var(--light);
+  --btn-secondary-hover: color-mix(in srgb, var(--primary) 17%, #e2d7c3);
+  --border: color-mix(in srgb, var(--primary) 14%, #ddd3c2);
+  --input-border: var(--border);
+  --border-light: color-mix(in srgb, var(--primary) 10%, #e8e0d1);
+}
+[data-theme="dark"][data-accent] {
+  --bg: color-mix(in srgb, var(--primary) 7%, #100e0b);
+  --nav-bg: var(--bg);
+  --dark: var(--bg);
+  --card-bg: color-mix(in srgb, var(--primary) 7%, #19160f);
+  --card-header-bg: var(--card-bg);
+  --empty-state-bg: var(--card-bg);
+  --light: var(--card-bg);
+  --input-bg: color-mix(in srgb, var(--primary) 6%, #151209);
+  --card-footer-bg: var(--input-bg);
+  --btn-secondary-bg: color-mix(in srgb, var(--primary) 14%, #2a2418);
+  --bubble-theirs-bg: var(--btn-secondary-bg);
+  --btn-secondary-hover: color-mix(in srgb, var(--primary) 20%, #3a3328);
+  --border: color-mix(in srgb, var(--primary) 14%, #2a251d);
+  --input-border: var(--border);
+  --border-light: color-mix(in srgb, var(--primary) 10%, #211d16);
+}
 
 * {
   box-sizing: border-box;
