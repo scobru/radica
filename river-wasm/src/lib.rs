@@ -42,7 +42,7 @@
 
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use freenet_scaffold::ComposableState;
-use river_core::ecies::{decrypt_secret_from_member_blob_raw, decrypt_with_symmetric_key, encrypt_secret_for_member, encrypt_with_symmetric_key, seal_bytes, unseal_bytes_with_secrets};
+use river_core::ecies::{try_decrypt_secret_from_member_blob_raw, decrypt_with_symmetric_key, encrypt_secret_for_member, encrypt_with_symmetric_key, seal_bytes, unseal_bytes_with_secrets};
 use river_core::key_derivation::derive_room_secret;
 use river_core::room_state::direct_messages::{compose_direct_message, open_direct_message, DirectMessagesDelta};
 use river_core::room_state::dm_body::{decode_body, encode_body, DirectMessageBody};
@@ -179,7 +179,8 @@ fn secrets_of(s: &ChatRoomStateV1, p: &ChatRoomParametersV1, me: &SigningKey, ex
     }
     let my_id: MemberId = me.verifying_key().into();
     for b in s.secrets.encrypted_secrets.iter().chain(extra).filter(|b| b.secret.member_id == my_id) {
-        if let Ok(k) = decrypt_secret_from_member_blob_raw(&b.secret.ciphertext, &b.secret.nonce, &b.secret.sender_ephemeral_public_key, me) {
+        // the try_ variant: river-core's plain one panics on a blob that does not decrypt, and a panic here is a WASM trap
+        if let Ok(k) = try_decrypt_secret_from_member_blob_raw(&b.secret.ciphertext, &b.secret.nonce, &b.secret.sender_ephemeral_public_key, me) {
             out.insert(b.secret.secret_version, k); // a blob wins over a derived secret: rooms made by River's UI use random ones
         }
     }
@@ -650,6 +651,25 @@ mod tests {
     }
     fn texts(view: &Value) -> Vec<(Value, Value)> {
         view["messages"].as_array().unwrap().iter().map(|m| (m["author"].clone(), m["text"].clone())).collect()
+    }
+
+    /// A secret blob addressed to me that does not decrypt (damaged, or sealed to another key) is skipped, not a panic.
+    #[test]
+    fn a_secret_blob_that_does_not_decrypt_is_skipped() {
+        let (owner, me) = (SigningKey::from_bytes(&[1; 32]), SigningKey::from_bytes(&[2; 32]));
+        let p = ChatRoomParametersV1 { owner: owner.verifying_key() };
+        let blob = |version: u32, damage: bool| {
+            let (mut ciphertext, nonce, eph) = encrypt_secret_for_member(&[7; 32], &me.verifying_key());
+            if damage {
+                ciphertext[0] ^= 1;
+            }
+            let b = EncryptedSecretForMemberV1 { member_id: me.verifying_key().into(), secret_version: version, ciphertext, nonce, sender_ephemeral_public_key: eph.to_bytes(), provider: p.owner.into() };
+            AuthorizedEncryptedSecretForMember::new(b, &owner)
+        };
+        let mut s = ChatRoomStateV1::default();
+        s.secrets.encrypted_secrets = vec![blob(0, true), blob(1, false)];
+        let secrets = secrets_of(&s, &p, &me, Some(&blob(2, true)));
+        assert_eq!(secrets, HashMap::from([(1, [7; 32])]));
     }
 
     #[test]
