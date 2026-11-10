@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-10", text: "Broadcast channels: the invite link now lets you into the channel's discussion room too, so the Comments button works for subscribers. If you joined before, ask the founder for a new link. Moderators: reports from the AI helper now show in the queue, marked (AI helper)." },
   { date: "2026-11-10", text: "Moderation: an AI helper may now read public posts and report likely spam, scams, threats, illegal content and doxxing to the moderators' queue, marked [AI]. It hides nothing and blocks nobody: a person decides. It never reads chats or private rooms." },
   { date: "2026-11-10", text: "Chat: the Classic view is retired. Messenger now does everything it did, so the chat always opens in Messenger." },
   { date: "2026-11-10", text: "Colour themes: pick Ocean, Plum or Slate instead of the Radici green in Identity, Colour Theme. It works with both light and dark mode and is remembered on your node." },

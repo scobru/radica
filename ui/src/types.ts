@@ -56,6 +56,10 @@ export const RADICA_MAINTAINER = "464b576da4cc5bcf31febd41a863ac251d04024c19f178
  *  on their blocklist add more, or remove these. */
 export const RADICA_DEFAULT_MODS: readonly string[] = ["3ac3e7f1f7535888597dbd8b25e362fa153eb10bfedd1e2df1b50299d7f2bf98"];
 
+/** Radica's AI moderation helper (attester/src/moderator.js): its reports show in the moderators' queue, but weigh less
+ *  than a person's and hide nothing. It is no moderator. */
+export const AI_REPORTERS: readonly string[] = ["f7e890b950b78259767d164db5d28e3a685e0fcf8fc60ae1e927dd25b16ee191"];
+
 export interface Community {
   id: string;
   name: string;

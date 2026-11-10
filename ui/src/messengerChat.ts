@@ -3098,7 +3098,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (targetRoom) {
         setDrawer(false);
         void deps.onSelectPrivateRoom(targetRoom);
-      }
+      } else deps.showToast("You are not in this channel's discussion room yet. Ask the channel's founder for a new invite link: it now lets you into both.", "warning");
       return;
     }
 
