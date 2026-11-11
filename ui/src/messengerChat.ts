@@ -18,6 +18,7 @@ import { fillAsocial, asocialCard } from "./asocial.ts";
 import { fillFh, fhCard } from "./fh.ts";
 import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard } from "./freetree.ts";
+import { sporeRadioCard } from "./sporeRadio.ts";
 import {
   chatMediaCardsHtml,
   fileExtensionIcon,
@@ -1772,7 +1773,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(m.text);
       const mediaCardsHtml = chatMediaCardsHtml(mediaItems, textWithoutMedia);
       const bodyHtml = textWithoutMedia ? renderChatText(textWithoutMedia, deps.getAuthorDisplayName) : "";
-      const embeddedCards = freetunesCard(m.text) + freepollsCard(m.text) + asocialCard(m.text) + fhCard(m.text) + wormholeCard(m.text) + freetreeCard(m.text);
+      const embeddedCards = freetunesCard(m.text) + freepollsCard(m.text) + asocialCard(m.text) + fhCard(m.text) + wormholeCard(m.text) + freetreeCard(m.text) + sporeRadioCard(m.text);
       const cardsHtml = mediaCardsHtml + embeddedCards;
       if (cardsHtml || mediaItems.length > 0) hasEmbeddedCards = true;
 

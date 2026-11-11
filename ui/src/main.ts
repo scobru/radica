@@ -13,6 +13,7 @@ import { asocialCard, fillAsocial, asocialPersonOf, asocialProfileCard } from ".
 import { fhCard, fillFh, fhProfileCard } from "./fh.ts";
 import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard, freetreeProfileCard, parseFreetreeInput } from "./freetree.ts";
+import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
 import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
@@ -2259,7 +2260,7 @@ function renderTimeline() {
               ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
                 (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
               : "";
-            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + repostCard(caption);
+            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + sporeRadioCard(caption) + repostCard(caption);
           })()}
 
           ${
@@ -6433,7 +6434,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
   const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
   const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(msg.text);
   const mediaCards = chatMediaCardsHtml(mediaItems, textWithoutMedia);
-  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin());
+  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin()) + sporeRadioCard(textWithoutMedia);
   const bodyText = textWithoutMedia ? renderChatText(textWithoutMedia, getAuthorDisplayName) : "";
   return `<div class="chat-bubble ${isMine ? "mine" : "theirs"}${grouped ? " grouped" : ""}" data-msg-id="${escapeHtml(msg.id)}">${face}${head}<div class="rv-bubble">${del}${actions}${quote}${bodyText}${embeddedCards}${mediaCards}</div>${chips ? `<div class="rv-chips">${chips}</div>` : ""}</div>`;
 }
