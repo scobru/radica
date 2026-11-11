@@ -197,9 +197,21 @@ export function deriveMailAddress(mlDsaSeed: Uint8Array): { address: string; dsa
 }
 
 /**
+ * Sanitize an email alias: alphanumeric, dash, dot, underscore, max 32 chars.
+ */
+export function sanitizeMailAlias(name: string): string {
+  if (!name) return "";
+  let clean = name.trim().toLowerCase().replace(/[\s\t\n]+/g, "_").replace(/[^a-z0-9_\-\.]/g, "");
+  clean = clean.replace(/^[_\-\.]+|[_\-\.]+$/g, "");
+  if (clean.length > 32) clean = clean.substring(0, 32);
+  return clean;
+}
+
+/**
  * Derive full mail identity (address, public keys, recovery key, backup JSON) from persona.
  */
 export function deriveMailIdentity(alias: string, masterSecret: Uint8Array): FreenetMailIdentity {
+  const cleanAlias = sanitizeMailAlias(alias) || "radica";
   const seeds = deriveMailSeeds(masterSecret);
   const dsaKeys = ml_dsa65.keygen(seeds.mlDsaSeed);
   const kemKeys = ml_kem768.keygen(seeds.mlKemSeed);
@@ -209,7 +221,7 @@ export function deriveMailIdentity(alias: string, masterSecret: Uint8Array): Fre
   const recoveryKey = encodeRecoveryKey(seeds.mlDsaSeed, seeds.mlKemSeed);
 
   return {
-    alias,
+    alias: cleanAlias,
     address,
     recoveryKey,
     seeds,

@@ -463,6 +463,80 @@
   gap: 8px;
 }
 
+/* Mail Contacts & Recipient Suggestions */
+.mail-to-row {
+  position: relative;
+}
+
+.mail-suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--mail-bg);
+  border: 1px solid var(--mail-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.mail-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--mail-border);
+  transition: background 0.12s ease;
+  gap: 10px;
+}
+
+.mail-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.mail-suggestion-item:hover,
+.mail-suggestion-item.highlighted {
+  background: var(--mail-active-item);
+}
+
+.mail-suggestion-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mail-suggestion-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mail-suggestion-addr {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--mail-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-suggestion-tag {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--mail-surface);
+  border: 1px solid var(--mail-border);
+  color: var(--mail-muted);
+  white-space: nowrap;
+}
+
 /* Mobile Back Button */
 .mail-mobile-back-btn {
   display: none;

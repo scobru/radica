@@ -13,6 +13,12 @@ import {
   buildReplyDraft,
   isValidMailAddress,
   normalizeMailAddress,
+  loadMailContacts,
+  saveMailContact,
+  deleteMailContact,
+  resolveRecipientAddress,
+  getRecipientSuggestions,
+  resolveMailAlias,
   type MailMessage,
 } from "../src/mailClient.ts";
 import type { FreenetMailIdentity } from "../src/freenetMail.ts";
@@ -186,4 +192,72 @@ test("formatMailDate: formats today and past dates gracefully", () => {
   const past = new Date(2020, 0, 1).getTime();
   const formattedPast = formatMailDate(past);
   assert.equal(formattedPast.includes("2020"), true);
+});
+
+test("resolveMailAlias: cleans profile name, rejects raw base58, allows custom handle", () => {
+  const pk = "464b576da4cc5bcf31febd41a863ac251d04824c19f1786b24ca6620accc53b";
+  const rawBase58 = "5jQAw8QEzaWvC1ZZKnjQwgv7dtCZ9X8vHjTheCRBBygN";
+
+  // From profile display name
+  assert.equal(resolveMailAlias(pk, rawBase58, "Scobru"), "scobru");
+  assert.equal(resolveMailAlias(pk, rawBase58, "Alice Wonderland"), "alice_wonderland");
+
+  // Fallback when name is default "Persona @..."
+  assert.equal(resolveMailAlias(pk, rawBase58, "Persona @5jQAw8"), "user_464b57");
+  assert.equal(resolveMailAlias(pk, rawBase58, ""), "user_464b57");
+});
+
+test("contacts & address book: saves, loads, deletes, and resolves contacts", () => {
+  const pk = "user_contacts_test";
+  const aliceAddr = "alice@333333333333333333333333333333333333";
+
+  // Initially empty
+  assert.equal(loadMailContacts(pk).length, 0);
+
+  // Save contact
+  saveMailContact(pk, {
+    name: "Alice",
+    address: aliceAddr,
+    handle: "@alice",
+  });
+
+  const list = loadMailContacts(pk);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].name, "Alice");
+  assert.equal(list[0].address, aliceAddr);
+
+  // Resolve by exact address
+  const res1 = resolveRecipientAddress(aliceAddr, list);
+  assert.equal(res1?.address, aliceAddr);
+
+  // Resolve by name
+  const res2 = resolveRecipientAddress("Alice", list);
+  assert.equal(res2?.address, aliceAddr);
+
+  // Resolve by @handle
+  const res3 = resolveRecipientAddress("@alice", list);
+  assert.equal(res3?.address, aliceAddr);
+
+  // Resolve with known peers
+  const knownPeers = {
+    bob_pk: {
+      display_name: "Bob",
+      fmail_address: "bob@222222222222222222222222222222222222",
+    },
+  };
+  const res4 = resolveRecipientAddress("Bob", list, knownPeers);
+  assert.equal(res4?.address, "bob@222222222222222222222222222222222222");
+
+  // Autocomplete suggestions
+  const suggestions = getRecipientSuggestions("al", mockIdentity, list, knownPeers);
+  assert.equal(suggestions.some((s) => s.displayName === "Alice"), true);
+
+  // Send mail to contact by name
+  const sendRes = sendMailMessage(pk, mockIdentity, "Alice", "Hi Alice", "Test content");
+  assert.equal(sendRes.success, true);
+  assert.equal(sendRes.message?.to, aliceAddr);
+
+  // Delete contact
+  deleteMailContact(pk, aliceAddr);
+  assert.equal(loadMailContacts(pk).length, 0);
 });

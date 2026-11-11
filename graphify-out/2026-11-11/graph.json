@@ -11068,7 +11068,7 @@
       "source_location": "L499",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_refresh",
-      "community": 26,
+      "community": 89,
       "norm_label": ".refresh()"
     },
     {
@@ -11078,7 +11078,7 @@
       "source_location": "L516",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_feedchanged",
-      "community": 26,
+      "community": 89,
       "norm_label": ".feedchanged()"
     },
     {
@@ -11088,7 +11088,7 @@
       "source_location": "L536",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_takefeed",
-      "community": 26,
+      "community": 89,
       "norm_label": ".takefeed()"
     },
     {
@@ -11098,7 +11098,7 @@
       "source_location": "L566",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_requeuelostdeletions",
-      "community": 26,
+      "community": 89,
       "norm_label": ".requeuelostdeletions()"
     },
     {
@@ -11148,7 +11148,7 @@
       "source_location": "L682",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_peerposts",
-      "community": 1,
+      "community": 89,
       "norm_label": ".peerposts()"
     },
     {
@@ -11258,7 +11258,7 @@
       "source_location": "L794",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_pushpending",
-      "community": 26,
+      "community": 89,
       "norm_label": ".pushpending()"
     },
     {
@@ -11268,7 +11268,7 @@
       "source_location": "L810",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_readjson",
-      "community": 42,
+      "community": 9,
       "norm_label": ".readjson()"
     },
     {
@@ -11788,7 +11788,7 @@
       "source_location": "L1470",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_blockedby",
-      "community": 10,
+      "community": 9,
       "norm_label": ".blockedby()"
     },
     {
@@ -11868,7 +11868,7 @@
       "source_location": "L1597",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_logchanged",
-      "community": 42,
+      "community": 10,
       "norm_label": ".logchanged()"
     },
     {
@@ -11898,7 +11898,7 @@
       "source_location": "L1779",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_writechat",
-      "community": 42,
+      "community": 9,
       "norm_label": ".writechat()"
     },
     {
@@ -12018,7 +12018,7 @@
       "source_location": "L1926",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_logofroom",
-      "community": 9,
+      "community": 46,
       "norm_label": ".logofroom()"
     },
     {
@@ -12148,7 +12148,7 @@
       "source_location": "L2205",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_gettimeline",
-      "community": 1,
+      "community": 89,
       "norm_label": ".gettimeline()"
     },
     {
@@ -12168,7 +12168,7 @@
       "source_location": "L2248",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getexploretimeline",
-      "community": 1,
+      "community": 89,
       "norm_label": ".getexploretimeline()"
     },
     {
@@ -12318,7 +12318,7 @@
       "source_location": "L2621",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getchatpeers",
-      "community": 10,
+      "community": 42,
       "norm_label": ".getchatpeers()"
     },
     {
@@ -12448,7 +12448,7 @@
       "source_location": "L2732",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendtyping",
-      "community": 10,
+      "community": 46,
       "norm_label": ".sendtyping()"
     },
     {
@@ -12488,7 +12488,7 @@
       "source_location": "L2759",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendcommunitychatmessage",
-      "community": 80,
+      "community": 46,
       "norm_label": ".sendcommunitychatmessage()"
     },
     {
@@ -12528,7 +12528,7 @@
       "source_location": "L2816",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_markroomread",
-      "community": 9,
+      "community": 46,
       "norm_label": ".markroomread()"
     },
     {
@@ -12598,7 +12598,7 @@
       "source_location": "L2960",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_clearchatroom",
-      "community": 26,
+      "community": 46,
       "norm_label": ".clearchatroom()"
     },
     {
@@ -12618,7 +12618,7 @@
       "source_location": "L2984",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_warmpeers",
-      "community": 26,
+      "community": 89,
       "norm_label": ".warmpeers()"
     },
     {
@@ -12628,7 +12628,7 @@
       "source_location": "L3000",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_namefromstoredfeed",
-      "community": 26,
+      "community": 89,
       "norm_label": ".namefromstoredfeed()"
     },
     {
@@ -12648,7 +12648,7 @@
       "source_location": "L3017",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_addchatpeer",
-      "community": 42,
+      "community": 9,
       "norm_label": ".addchatpeer()"
     },
     {
@@ -12928,7 +12928,7 @@
       "source_location": "L3347",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getcommunityfeed",
-      "community": 1,
+      "community": 89,
       "norm_label": ".getcommunityfeed()"
     },
     {
@@ -13168,7 +13168,7 @@
       "source_location": "L3844",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_kickmemberfromprivateroom",
-      "community": 46,
+      "community": 1,
       "norm_label": ".kickmemberfromprivateroom()"
     },
     {
@@ -13198,7 +13198,7 @@
       "source_location": "L3975",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_saveriveronly",
-      "community": 10,
+      "community": 42,
       "norm_label": ".saveriveronly()"
     },
     {
@@ -22978,7 +22978,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_src_pow_powproof",
-      "community": 1,
+      "community": 89,
       "norm_label": "powproof"
     },
     {
@@ -25718,7 +25718,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ui_src_types_post",
-      "community": 1,
+      "community": 89,
       "norm_label": "post"
     },
     {
@@ -110869,7 +110869,7 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "CHANGELOG.md",
-      "source_location": "L93",
+      "source_location": "L94",
       "weight": 1.0,
       "source": "changelog",
       "target": "readme",
@@ -111447,5 +111447,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "db0cdb28979b1e817f359d0784a06c1deddcdab9"
+  "built_at_commit": "1c61147e173c2af9064e5a813136de0d08a45d80"
 }

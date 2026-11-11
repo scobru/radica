@@ -733,7 +733,10 @@
                 <h2 id="mail-read-subject" style="margin: 0 0 10px 0; font-size: 1.25rem;">Subject</h2>
                 <div class="mail-read-meta">
                   <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="font-size: 0.88rem;"><b>From:</b> <span id="mail-read-from" style="font-family: monospace; color: var(--primary);">...</span></div>
+                    <div style="font-size: 0.88rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+                      <b>From:</b> <span id="mail-read-from" style="font-family: monospace; color: var(--primary);">...</span>
+                      <button type="button" class="btn-secondary btn-xs" id="mail-add-contact-btn" style="display: none; font-size: 0.72rem; padding: 2px 7px;">+ Save to Contacts</button>
+                    </div>
                     <div style="font-size: 0.82rem; color: var(--text-muted);"><b>To:</b> <span id="mail-read-to" style="font-family: monospace;">...</span></div>
                   </div>
                   <div id="mail-read-time" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">...</div>
@@ -752,9 +755,15 @@
                 <span style="font-size: 0.75rem; color: var(--text-muted);">End-to-end encrypted post-quantum mail</span>
               </div>
               <div class="mail-compose-form">
-                <div class="mail-form-row">
-                  <label for="mail-to-input">To:</label>
-                  <input type="text" id="mail-to-input" placeholder="recipient@address or address alone..." spellcheck="false" autocomplete="off" />
+                <div class="mail-form-row mail-to-row" style="position: relative;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label for="mail-to-input">To:</label>
+                    <button type="button" class="btn-link btn-sm" id="mail-contacts-toggle-btn" style="font-size: 0.78rem; color: var(--primary); padding: 0; background: none; border: none; cursor: pointer; text-decoration: underline;">
+                      👥 Contacts
+                    </button>
+                  </div>
+                  <input type="text" id="mail-to-input" placeholder="Type @name, contact nickname, or address..." spellcheck="false" autocomplete="off" />
+                  <div id="mail-to-suggestions" class="mail-suggestions-dropdown" style="display: none;"></div>
                 </div>
                 <div class="mail-form-row">
                   <label for="mail-subject-input">Subject:</label>
@@ -893,8 +902,23 @@
           <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
             Your decentralized email inbox on Freenet, derived deterministically from this persona. You can open and read your mail directly in the official <b>Freenet Mail</b> app with full interoperability.
           </p>
-          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Mail Address:</div>
-          <div class="identity-code-box" id="fmail-address-val" title="Click to copy mail address" style="font-family: monospace; font-size: 0.85rem; color: #a5b4fc; cursor: pointer;">...</div>
+          <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Mail Handle / Alias:</div>
+              <div style="display: flex; gap: 8px; align-items: center; max-width: 320px;">
+                <input type="text" id="fmail-alias-input" placeholder="e.g. scobru or alice" spellcheck="false" autocomplete="off" style="font-size: 0.85rem; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); flex: 1;" />
+                <button type="button" class="btn-secondary btn-sm" id="fmail-save-alias-btn">Save Handle</button>
+              </div>
+              <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">Your readable username prefix. Change it anytime without changing your keys.</div>
+            </div>
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Full Post-Quantum Address:</span>
+                <span style="font-size: 0.72rem; color: #818cf8;">36-character P2P cryptographic key</span>
+              </div>
+              <div class="identity-code-box" id="fmail-address-val" title="Click to copy full post-quantum mail address" style="font-family: monospace; font-size: 0.85rem; color: #a5b4fc; cursor: pointer;">...</div>
+            </div>
+          </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
             <button type="button" class="btn-secondary btn-sm btn-icon-text" id="fmail-copy-recovery-btn">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>

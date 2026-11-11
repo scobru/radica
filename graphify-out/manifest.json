@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794408933.4402814,
-    "ast_hash": "542c4adfadf9801a2bd066923ea53a53",
+    "mtime": 1794416197.6408622,
+    "ast_hash": "e95dd2649bacab377bbbeb63697411de",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794409530.764798,
-    "ast_hash": "ddd31a58402c0eb687974db29e4f1316",
+    "mtime": 1794416275.0163915,
+    "ast_hash": "cee004be732acb40611b89bdb09de7aa",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794409418.1659057,
-    "ast_hash": "d82e2cc0bf583566131165f9cb412ea1",
+    "mtime": 1794415677.3122373,
+    "ast_hash": "a68e0b0e70dcdfbc8ae2c1903150b8c1",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794409512.754418,
-    "ast_hash": "56754ebe06c033e645dedb2f4c4f5342",
+    "mtime": 1794416262.2759776,
+    "ast_hash": "77413ba2521b043de09c88b9e00eec67",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -1365,8 +1365,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenetMail.ts": {
-    "mtime": 1794391914.7804508,
-    "ast_hash": "a9fbbc4349a88153608df460256cdf87",
+    "mtime": 1794415432.5060108,
+    "ast_hash": "276510ca5d6e6bc8ba0de139fe06f814",
     "semantic_hash": ""
   },
   "ui/tests/freenetMail.test.ts": {
@@ -1380,13 +1380,13 @@
     "semantic_hash": ""
   },
   "ui/src/mailClient.ts": {
-    "mtime": 1794394039.5781214,
-    "ast_hash": "dda4ac23d1c38d36a108f9aff098b0b5",
+    "mtime": 1794415590.5379276,
+    "ast_hash": "9ee3361d3f1d79f99b01040ac8946ced",
     "semantic_hash": ""
   },
   "ui/tests/mailClient.test.ts": {
-    "mtime": 1794394043.9904754,
-    "ast_hash": "0dbe0a361971fcef6ef90146a6377598",
+    "mtime": 1794415609.907891,
+    "ast_hash": "f51bad586c6237536a54fd7fe743bf62",
     "semantic_hash": ""
   },
   "ui/src/linfa.ts": {

@@ -19,6 +19,7 @@ import { rootsSvg } from "./roots.ts";
 import {
   deriveMailIdentity,
   downloadIdentityBackup,
+  sanitizeMailAlias,
   FREENET_MAIL_CONTAINER_KEY,
   type FreenetMailIdentity,
 } from "./freenetMail.ts";
@@ -34,7 +35,15 @@ import {
   deleteMailMessage,
   setMailReadStatus,
   formatMailDate,
+  normalizeMailAddress,
   buildReplyDraft,
+  loadMailContacts,
+  saveMailContact,
+  deleteMailContact,
+  resolveRecipientAddress,
+  getRecipientSuggestions,
+  resolveMailAlias,
+  type MailContact,
   type MailMessage,
   type MailFolder,
 } from "./mailClient.ts";
@@ -204,6 +213,8 @@ const settingsToIdentityBtn = document.getElementById("settings-to-identity-btn"
 
 // Freenet Mail Elements
 const identityFmailSection = document.getElementById("identity-fmail-section") as HTMLElement | null;
+const fmailAliasInput = document.getElementById("fmail-alias-input") as HTMLInputElement | null;
+const fmailSaveAliasBtn = document.getElementById("fmail-save-alias-btn") as HTMLButtonElement | null;
 const fmailAddressVal = document.getElementById("fmail-address-val") as HTMLElement | null;
 const fmailCopyRecoveryBtn = document.getElementById("fmail-copy-recovery-btn") as HTMLButtonElement | null;
 const fmailDownloadBackupBtn = document.getElementById("fmail-download-backup-btn") as HTMLButtonElement | null;
@@ -241,6 +252,7 @@ const mailEmptyView = document.getElementById("mail-empty-view") as HTMLElement 
 
 const mailReadSubject = document.getElementById("mail-read-subject") as HTMLElement | null;
 const mailReadFrom = document.getElementById("mail-read-from") as HTMLElement | null;
+const mailAddContactBtn = document.getElementById("mail-add-contact-btn") as HTMLButtonElement | null;
 const mailReadTo = document.getElementById("mail-read-to") as HTMLElement | null;
 const mailReadTime = document.getElementById("mail-read-time") as HTMLElement | null;
 const mailReadBody = document.getElementById("mail-read-body") as HTMLElement | null;
@@ -254,6 +266,8 @@ const mailComposeMobileBackBtn = document.getElementById("mail-compose-mobile-ba
 
 const mailComposeTitle = document.getElementById("mail-compose-title") as HTMLElement | null;
 const mailToInput = document.getElementById("mail-to-input") as HTMLInputElement | null;
+const mailContactsToggleBtn = document.getElementById("mail-contacts-toggle-btn") as HTMLButtonElement | null;
+const mailToSuggestions = document.getElementById("mail-to-suggestions") as HTMLElement | null;
 const mailSubjectInput = document.getElementById("mail-subject-input") as HTMLInputElement | null;
 const mailContentInput = document.getElementById("mail-content-input") as HTMLTextAreaElement | null;
 const mailSendBtn = document.getElementById("mail-send-btn") as HTMLButtonElement | null;
@@ -8686,9 +8700,12 @@ function renderIdentityModal() {
   if (identityFmailSection) {
     if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
       try {
-        const alias = currentIdentity.personaName || personaName(currentIdentity.pubkey) || "radica";
+        const alias = resolveMailAlias(currentIdentity.pubkey, currentIdentity.personaName, currentProfile?.display_name);
         currentFmailIdentity = deriveMailIdentity(alias, currentIdentity.secretKey);
         identityFmailSection.style.display = "block";
+        if (fmailAliasInput) {
+          fmailAliasInput.value = currentFmailIdentity.alias;
+        }
         if (fmailAddressVal) {
           fmailAddressVal.textContent = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
         }
@@ -8822,6 +8839,35 @@ if (fmailDownloadBackupBtn) {
   });
 }
 
+if (fmailSaveAliasBtn) {
+  fmailSaveAliasBtn.addEventListener("click", () => {
+    if (!currentIdentity) return;
+    const raw = fmailAliasInput?.value?.trim() || "";
+    const clean = sanitizeMailAlias(raw);
+    if (!clean) {
+      showToast("Please enter a valid handle (letters, numbers, dot, dash, underscore).", "error");
+      return;
+    }
+    safeStorage.setItem(`radica_mail_alias_${currentIdentity.pubkey}`, clean);
+    currentFmailIdentity = null;
+    const fmail = getOrDeriveFmailIdentity();
+    if (fmail) {
+      if (fmailAddressVal) {
+        fmailAddressVal.textContent = `${fmail.alias}@${fmail.address}`;
+      }
+      if (mailUserAddressDisplay) {
+        mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 6)}…`;
+      }
+    }
+    renderMailList();
+    showToast(`✓ Mail handle saved: @${clean}`, "info");
+    if (fmailStatusMsg) {
+      fmailStatusMsg.textContent = `✓ Mail handle saved: @${clean}`;
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+    }
+  });
+}
+
 if (fmailAddressVal) {
   fmailAddressVal.addEventListener("click", async () => {
     if (!currentFmailIdentity) return;
@@ -8842,7 +8888,7 @@ function getOrDeriveFmailIdentity(): FreenetMailIdentity | null {
   if (currentFmailIdentity) return currentFmailIdentity;
   if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
     try {
-      const alias = currentIdentity.personaName || personaName(currentIdentity.pubkey) || "radica";
+      const alias = resolveMailAlias(currentIdentity.pubkey, currentIdentity.personaName, currentProfile?.display_name);
       currentFmailIdentity = deriveMailIdentity(alias, currentIdentity.secretKey);
       return currentFmailIdentity;
     } catch (err) {
@@ -8917,7 +8963,8 @@ function renderMailList() {
   const filtered = filterMailMessages(store.messages, activeMailFolder, query);
 
   if (mailUserAddressDisplay && fmail) {
-    mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 8)}…`;
+    mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 6)}…`;
+    mailUserAddressChip?.setAttribute("title", `Freenet Mail: ${fmail.alias}@${fmail.address}\nClick to copy full post-quantum address`);
   }
   if (mailCompanionLink) {
     mailCompanionLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
@@ -8944,7 +8991,14 @@ function renderMailList() {
     .map((m) => {
       const isUnread = !m.read && m.folder === "inbox";
       const isActive = m.id === activeMailId;
-      const peer = m.folder === "sent" ? `To: ${escapeHtml(m.to)}` : escapeHtml(m.from || m.fromAddress);
+      let peer = "";
+      if (m.folder === "sent") {
+        const toClean = m.to.includes("<") ? m.to.split("<")[0].trim() : m.to;
+        peer = `To: ${escapeHtml(toClean)}`;
+      } else {
+        const fromClean = m.from.includes("<") ? m.from.split("<")[0].trim() : (m.from || m.fromAddress);
+        peer = escapeHtml(fromClean);
+      }
       const timeStr = formatMailDate(m.timestamp);
       const snippet = escapeHtml(m.content.slice(0, 70));
 
@@ -9018,6 +9072,31 @@ function selectMail(m: MailMessage) {
     mailToggleReadLabel.textContent = m.read ? "Mark Unread" : "Mark Read";
   }
 
+  // Handle "Save to Contacts"
+  if (mailAddContactBtn && currentIdentity) {
+    const rawAddr = normalizeMailAddress(m.fromAddress || m.from);
+    const contacts = loadMailContacts(currentIdentity.pubkey);
+    const isSaved = contacts.some((c) => c.address.toLowerCase() === rawAddr.toLowerCase());
+    const isSelfOrSystem =
+      rawAddr.endsWith("@official") ||
+      rawAddr.startsWith("welcome@") ||
+      (currentFmailIdentity &&
+        (rawAddr === `${currentFmailIdentity.alias}@${currentFmailIdentity.address}` ||
+          rawAddr === currentFmailIdentity.address));
+
+    mailAddContactBtn.style.display = !isSaved && !isSelfOrSystem && rawAddr.includes("@") ? "inline-block" : "none";
+    mailAddContactBtn.onclick = () => {
+      if (!currentIdentity) return;
+      const aliasName = m.from.includes("<") ? m.from.split("<")[0].trim() : rawAddr.split("@")[0];
+      const saved = saveMailContact(currentIdentity.pubkey, {
+        name: aliasName || "Contact",
+        address: rawAddr,
+      });
+      mailAddContactBtn.style.display = "none";
+      showToast(`✓ Saved "${saved.name}" to Mail Contacts!`, "info");
+    };
+  }
+
   mailList?.querySelectorAll(".mail-item-card").forEach((el) => {
     el.classList.toggle("active", (el as HTMLElement).dataset.id === m.id);
     if ((el as HTMLElement).dataset.id === m.id) {
@@ -9036,6 +9115,7 @@ function openMailComposer(opts: { to?: string; subject?: string; content?: strin
   if (mailComposeView) mailComposeView.style.display = "flex";
   if (mailEmptyView) mailEmptyView.style.display = "none";
   if (mailBodyContainer) mailBodyContainer.classList.add("in-detail");
+  if (mailToSuggestions) mailToSuggestions.style.display = "none";
   if (window.innerWidth <= 768 && history.state?.radica !== "page") {
     pushBackStep("page");
   }
@@ -9053,6 +9133,51 @@ function openMailComposer(opts: { to?: string; subject?: string; content?: strin
   } else if (mailContentInput) {
     mailContentInput.focus();
   }
+}
+
+function renderMailToSuggestions(filter = "") {
+  if (!mailToSuggestions || !currentIdentity) return;
+  const fmail = getOrDeriveFmailIdentity();
+  const contacts = loadMailContacts(currentIdentity.pubkey);
+  const suggestions = getRecipientSuggestions(filter, fmail, contacts, freenet.knownPeers);
+
+  if (suggestions.length === 0) {
+    mailToSuggestions.style.display = "none";
+    mailToSuggestions.innerHTML = "";
+    return;
+  }
+
+  mailToSuggestions.innerHTML = suggestions
+    .map(
+      (s) => `
+        <div class="mail-suggestion-item" data-address="${escapeHtml(s.address)}" data-name="${escapeHtml(s.displayName)}">
+          <div class="mail-suggestion-info">
+            <span class="mail-suggestion-name">
+              <span>${escapeHtml(s.displayName)}</span>
+              ${s.handle ? `<small style="color: var(--text-muted); font-size: 0.76rem;">${escapeHtml(s.handle)}</small>` : ""}
+            </span>
+            <span class="mail-suggestion-addr">${escapeHtml(s.address)}</span>
+          </div>
+          <span class="mail-suggestion-tag">${s.source === "self" ? "You" : s.source === "contact" ? "Contact" : "Radica Peer"}</span>
+        </div>
+      `
+    )
+    .join("");
+
+  mailToSuggestions.style.display = "block";
+
+  mailToSuggestions.querySelectorAll<HTMLElement>(".mail-suggestion-item").forEach((item) => {
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const addr = item.dataset.address;
+      const name = item.dataset.name;
+      if (addr && mailToInput) {
+        mailToInput.value = name && !name.includes("(") ? `${name} <${addr}>` : addr;
+        mailToSuggestions.style.display = "none";
+        mailSubjectInput?.focus();
+      }
+    });
+  });
 }
 
 function openMailModal() {
@@ -9211,7 +9336,7 @@ if (mailSendBtn) {
     const subject = mailSubjectInput?.value || "";
     const content = mailContentInput?.value || "";
 
-    const res = sendMailMessage(currentIdentity.pubkey, fmail, to, subject, content, activeReplyToId || undefined);
+    const res = sendMailMessage(currentIdentity.pubkey, fmail, to, subject, content, activeReplyToId || undefined, freenet.knownPeers);
     if (!res.success) {
       if (mailComposeStatus) mailComposeStatus.textContent = `❌ ${res.error || "Failed to send"}`;
       showToast(res.error || "Could not send mail", "error");
@@ -9254,6 +9379,32 @@ if (mailCancelComposeBtn) {
     if (mailComposeView) mailComposeView.style.display = "none";
     if (mailEmptyView) mailEmptyView.style.display = "flex";
     mailBodyContainer?.classList.remove("in-detail");
+    if (mailToSuggestions) mailToSuggestions.style.display = "none";
+  });
+}
+
+if (mailToInput) {
+  mailToInput.addEventListener("input", () => {
+    renderMailToSuggestions(mailToInput.value);
+  });
+  mailToInput.addEventListener("focus", () => {
+    renderMailToSuggestions(mailToInput.value);
+  });
+  mailToInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (mailToSuggestions) mailToSuggestions.style.display = "none";
+    }, 250);
+  });
+}
+
+if (mailContactsToggleBtn) {
+  mailContactsToggleBtn.addEventListener("click", () => {
+    if (mailToSuggestions && mailToSuggestions.style.display === "block") {
+      mailToSuggestions.style.display = "none";
+    } else {
+      renderMailToSuggestions("");
+      mailToInput?.focus();
+    }
   });
 }
 
