@@ -46,14 +46,16 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
   return { closed: false, opener: null, focus() {}, close() {} };
 };"#;
 
-/// Only web pages go to the browser: the page asks, so a `file:` or app-handler URL is refused.
+/// Only web pages, and the one app-handler link Radica itself renders (Spore Radio's hand-off to the Spore desktop
+/// app), go to the system: anything else the page asks for (`file:`, an arbitrary app-handler URL) is refused.
 fn open_external(url: &str) {
-    if url.starts_with("https://") || url.starts_with("http://") {
-        open_in_browser(url);
+    if url.starts_with("https://") || url.starts_with("http://") || url.starts_with("spore:radio:") {
+        launch_externally(url);
     }
 }
 
-fn open_in_browser(url: &str) {
+/// Hand `url` to the OS: the system browser for `http(s)`, or whatever app registered the scheme otherwise.
+fn launch_externally(url: &str) {
     use std::process::Command;
     #[cfg(target_os = "windows")]
     let _ = Command::new("rundll32.exe")

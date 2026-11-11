@@ -63,6 +63,24 @@ export function getMailStorageKey(pubkey: string): string {
   return `${MAIL_STORAGE_PREFIX}${pubkey || "anon"}`;
 }
 
+const DELETED_KEY = (pubkey: string) => `radica_fmail_deleted_${pubkey || "anon"}`;
+
+/** Messages deleted locally: a sync must not bring them back from the still-holding network inbox contract. */
+function deletedMailIds(pubkey: string): Set<string> {
+  try {
+    return new Set(JSON.parse(safeStorage.getItem(DELETED_KEY(pubkey)) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDeletedMailId(pubkey: string, id: string): void {
+  const ids = deletedMailIds(pubkey);
+  ids.add(id);
+  safeStorage.setItem(DELETED_KEY(pubkey), JSON.stringify([...ids].slice(-500)));
+  safeStorage.flush();
+}
+
 /**
  * Validate a Freenet Mail address or contact token format.
  * Accepts:
@@ -609,6 +627,7 @@ export async function syncFreenetMailInbox(
     }
 
     const store = loadMailStore(pubkey, identity);
+    const deletedIds = deletedMailIds(pubkey);
     let newCount = 0;
 
     for (const msg of parsedInbox.messages) {
@@ -622,6 +641,7 @@ export async function syncFreenetMailInbox(
         : undefined;
 
       const msgId = assignHash ? `fmail_${assignHash}` : `fmail_${dec.time}_${dec.from}`;
+      if (deletedIds.has(msgId)) continue; // deleted locally: the contract still holds it, don't bring it back
 
       // Check if already in store
       const exists = store.messages.some(
@@ -712,6 +732,7 @@ export function deleteMailMessage(pubkey: string, id: string): boolean {
   const prevLen = store.messages.length;
   store.messages = store.messages.filter((m) => m.id !== id);
   if (store.messages.length !== prevLen) {
+    rememberDeletedMailId(pubkey, id); // a sync must not re-import it from the network inbox contract
     saveMailStore(pubkey, store);
     return true;
   }
