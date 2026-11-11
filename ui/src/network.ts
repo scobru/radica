@@ -265,13 +265,15 @@ export class FreenetNetwork {
   }
 
   /** Raw state of any contract key (another app's, like River's), or null when it is not on the network. With `watch`,
-   *  subscribe to it: its changes come back through `onChange(watch)`. */
-  async getRaw(key: ContractKey, watch?: ContractId, urgent = true): Promise<Uint8Array | null> {
+   *  subscribe to it: its changes come back through `onChange(watch)`. With `fetchCode`, also ask the node to fetch
+   *  and cache the contract's WASM: required before an `updateRaw` on a contract this node never ran before
+   *  (plain state reads don't need the code, but applying a delta does). */
+  async getRaw(key: ContractKey, watch?: ContractId, urgent = true, fetchCode = false): Promise<Uint8Array | null> {
     const api = await this.connect();
     if (watch) this.ids.set(key.encode(), watch);
     const gate = urgent ? fgGate : bgGate;
     try {
-      const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, !!watch))));
+      const r = await gate(() => withTimeout(api.get(new GetRequest(key, fetchCode, !!watch))));
       if (watch && r.state.length) this.live.set(watch, Date.now());
       return r.state.length ? toU8(r.state) : null;
     } catch (e) {
@@ -285,9 +287,10 @@ export class FreenetNetwork {
     return this.getRaw(new ContractKey(visoIdentityInstance(pkHex), hexToBytes(VISO_IDENTITY_CODE_HASH)));
   }
 
-  /** Raw state of another app's contract known only by its instance id (FreeTunes releases and audio chunks). */
-  getByInstance(instance: string): Promise<Uint8Array | null> {
-    return this.getRaw(ContractKey.fromInstanceId(instance));
+  /** Raw state of another app's contract known only by its instance id (FreeTunes releases and audio chunks). Pass
+   *  `fetchCode` before updating a contract this node has never held (see `getRaw`). */
+  getByInstance(instance: string, fetchCode = false): Promise<Uint8Array | null> {
+    return this.getRaw(ContractKey.fromInstanceId(instance), undefined, true, fetchCode);
   }
 
   /** Publish a contract of another app with its first state (River rooms: the code is River's room contract). */
