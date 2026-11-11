@@ -3076,6 +3076,11 @@ export class FreenetClient {
   private readUpTo?: number;
   private clearUpTo?: number;
 
+  /** Store a local notification on this device (e.g. for post-quantum mail or direct app notices). */
+  public recordLocalNotification(owner: string, item: NotificationItem): void {
+    this.storeNotification(owner, item);
+  }
+
   private storeNotification(owner: string, item: NotificationItem): void {
     if (this.dismissedNotifications(owner).includes(item.id)) return; // the log would bring it back otherwise
     if (owner === this.me && item.timestamp <= (this.clearUpTo ??= this.foldInboxUpTo("notif_clear"))) return;

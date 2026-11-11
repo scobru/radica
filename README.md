@@ -77,6 +77,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 10. ✉️ Radica Mail & Freenet Mail Interoperability (Post-Quantum)
 - **Built-in Mail Client**: A dedicated Mail navigation rail view (`g m`) with full split-pane Inbox, Sent, and Drafts management, real-time search filtering, unread badges, and responsive viewports.
+- **Activity & System Notifications**: Hooked directly into the central Activity & Notifications stream. Incoming and unread emails trigger pop audio alerts, show unread badges on the navigation rail and activity bell, update window titles, and provide interactive notification actions (Open, Mark Read, Delete) with bidirectional synchronization.
 - **In-App Compose & Reply**: Read end-to-end encrypted emails, compose messages to any Freenet Mail address, reply to threads with automatic `Re:` subject handling and quoted body formatting, and save drafts locally.
 - **Zero Lock-In Interoperability**: Every Radica persona deterministically derives a decentralized post-quantum email identity compatible with the official [`freenet/mail`](https://github.com/freenet/mail) application:
   - 🔑 **Post-Quantum Crypto**: ML-KEM-768 for encrypted message decapsulation and ML-DSA-65 for signing and verification.

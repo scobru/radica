@@ -169,7 +169,7 @@ export interface RoomState {
 
 export interface NotificationItem {
   id: string;
-  type: "like" | "comment" | "follow" | "chat" | "mention" | "report";
+  type: "like" | "comment" | "follow" | "chat" | "mention" | "report" | "mail";
   from: string;
   text: string;
   timestamp: number;
@@ -179,6 +179,8 @@ export interface NotificationItem {
   linkPostOwner?: string;
   /** The private room a chat notification is about. */
   linkRoomId?: string;
+  /** The email message id a mail notification is about. */
+  linkMailId?: string;
   /** Whether this chat notification is for a Secret Chat (ephemeral ratchet). */
   isSecret?: boolean;
 }

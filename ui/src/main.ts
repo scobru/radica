@@ -1453,6 +1453,14 @@ const commDeletedPostsList = document.getElementById("comm-deleted-posts-list") 
 const commModCloseBtn = document.getElementById("comm-mod-close-btn") as HTMLButtonElement;
 
 function getAuthorDisplayName(pubkey: string): string {
+  if (!pubkey) return "";
+  if (pubkey.includes("<") && pubkey.includes(">")) {
+    const match = pubkey.match(/^(.*?)\s*<.*?>$/);
+    if (match && match[1].trim()) return match[1].trim();
+  }
+  if (pubkey.includes("@")) {
+    return pubkey;
+  }
   if (currentIdentity && pubkey === currentIdentity.pubkey && currentProfile?.display_name) {
     return currentProfile.display_name;
   }
@@ -7259,6 +7267,7 @@ async function notifCounts(): Promise<(n: NotificationItem) => boolean> {
   return (n) => {
     if (isKnownSender(n.from)) return true;
     if (n.type === "report") return true;
+    if (n.type === "mail") return true;
     if (n.type !== "comment" || !n.linkPostId) return false;
     const post = mine[n.linkPostId] ?? freenet.peerCache[n.linkPostId] ?? timelinePosts.find((p) => p.id === n.linkPostId);
     return Object.values(post?.comments ?? {}).some((c) => c.author === n.from && c.text !== "" && !(isWotModerationEnabled() && unprovenComment(c, wot)));
@@ -7495,9 +7504,9 @@ async function showMyPost(postId: string, author = currentIdentity?.pubkey) {
   setTimeout(() => card.classList.remove("notif-flash"), 2500);
 }
 
-/** Whether a notification points anywhere: a post, a profile or a chat. */
+/** Whether a notification points anywhere: a post, a profile, a chat or a mail. */
 function notificationHasTarget(n: NotificationItem): boolean {
-  return !!(n.linkPostId || n.type === "follow" || n.type === "chat" || n.linkRoomId);
+  return !!(n.linkPostId || n.type === "follow" || n.type === "chat" || n.linkRoomId || n.type === "mail" || n.linkMailId);
 }
 
 /** Go to what a notification is about; opening it also marks it read. */
@@ -7506,7 +7515,14 @@ async function openNotification(n: NotificationItem) {
   freenet.markNotificationRead(currentIdentity, n.id);
   notifsModal.style.display = "none";
   void updateNotificationsBadge();
-  if (n.type === "report") {
+  if (n.type === "mail" || n.linkMailId) {
+    openMailModal();
+    if (n.linkMailId) {
+      const store = loadMailStore(currentIdentity.pubkey);
+      const target = store.messages.find((m) => m.id === n.linkMailId);
+      if (target) selectMail(target);
+    }
+  } else if (n.type === "report") {
     if (amGlobalMod()) {
       paintModButton();
       showBlocklistTab("moderation");
@@ -7555,7 +7571,14 @@ notifsList.addEventListener("click", (e) => {
   if (!button || !n || !currentIdentity) return;
   const act = button.dataset.notifAct;
   if (act === "open") return void openNotification(n);
-  if (act === "read") freenet.markNotificationRead(currentIdentity, n.id), (n.read = true);
+  if (act === "read") {
+    freenet.markNotificationRead(currentIdentity, n.id);
+    n.read = true;
+    if (n.type === "mail" && n.linkMailId) {
+      setMailReadStatus(currentIdentity.pubkey, n.linkMailId, true);
+      updateMailBadges();
+    }
+  }
   if (act === "delete") {
     freenet.dismissNotification(currentIdentity, n.id);
     shownNotifs = shownNotifs.filter((x) => x.id !== n.id);
@@ -7680,9 +7703,31 @@ function markChatSeen(matches: (n: NotificationItem) => boolean): void {
   if (chatModal.style.display !== "none" && !document.hidden) markSeen((n) => n.type === "chat" && matches(n));
 }
 
+function syncMailNotifications() {
+  if (!currentIdentity) return;
+  const fmail = getOrDeriveFmailIdentity();
+  if (!fmail) return;
+  const store = loadMailStore(currentIdentity.pubkey, fmail);
+  for (const m of store.messages) {
+    if (m.folder === "inbox" && !m.read) {
+      freenet.recordLocalNotification(currentIdentity.pubkey, {
+        id: `notif_mail_${m.id}`,
+        type: "mail",
+        from: m.fromAddress || m.from,
+        text: `sent you an encrypted post-quantum mail: "${m.subject || "(No subject)"}"`,
+        timestamp: m.timestamp,
+        read: false,
+        linkMailId: m.id,
+      });
+    }
+  }
+}
+
 async function updateNotificationsBadge() {
   updateChatBadge();
   updateBlocklistsBadge();
+  updateMailBadges();
+  syncMailNotifications();
   if (!currentIdentity) return;
   const notifs = splitNotifs(await freenet.getNotifications(currentIdentity), await notifCounts()).main; // strangers' are under "Others"
   const unreadCount = notifs.filter((n) => !n.read).length;
@@ -8580,6 +8625,7 @@ function getOrDeriveFmailIdentity(): FreenetMailIdentity | null {
   return null;
 }
 
+let prevMailUnread = -1;
 function updateMailBadges() {
   if (!currentIdentity) return;
   const fmail = getOrDeriveFmailIdentity();
@@ -8604,6 +8650,10 @@ function updateMailBadges() {
     mailDraftsBadge.textContent = String(draftsCount);
     mailDraftsBadge.style.display = draftsCount > 0 ? "inline-block" : "none";
   }
+  if (prevMailUnread !== -1 && unreadCount > prevMailUnread) {
+    playPopSound();
+  }
+  prevMailUnread = unreadCount;
 }
 
 function formatMailContent(content: string): string {
@@ -8719,6 +8769,8 @@ function selectMail(m: MailMessage) {
     m.read = true;
     updateMailBadges();
   }
+  freenet.markNotificationsReadWhere(currentIdentity, (n) => n.linkMailId === m.id);
+  void updateNotificationsBadge();
 
   if (mailReadView) mailReadView.style.display = "flex";
   if (mailComposeView) mailComposeView.style.display = "none";
@@ -8878,7 +8930,21 @@ if (mailToggleReadBtn) {
     if (mailToggleReadLabel) {
       mailToggleReadLabel.textContent = newStatus ? "Mark Unread" : "Mark Read";
     }
+    if (newStatus) {
+      freenet.markNotificationsReadWhere(currentIdentity, (n) => n.linkMailId === current.id);
+    } else {
+      freenet.recordLocalNotification(currentIdentity.pubkey, {
+        id: `notif_mail_${current.id}`,
+        type: "mail",
+        from: current.fromAddress || current.from,
+        text: `sent you an encrypted post-quantum mail: "${current.subject || "(No subject)"}"`,
+        timestamp: current.timestamp,
+        read: false,
+        linkMailId: current.id,
+      });
+    }
     updateMailBadges();
+    void updateNotificationsBadge();
     renderMailList();
   });
 }
@@ -8887,9 +8953,11 @@ if (mailDeleteBtn) {
   mailDeleteBtn.addEventListener("click", () => {
     if (!currentIdentity || !activeMailId) return;
     if (confirm("Delete this message?")) {
+      freenet.dismissNotification(currentIdentity, `notif_mail_${activeMailId}`);
       deleteMailMessage(currentIdentity.pubkey, activeMailId);
       activeMailId = null;
       renderMailList();
+      void updateNotificationsBadge();
       if (mailReadView) mailReadView.style.display = "none";
       if (mailEmptyView) mailEmptyView.style.display = "flex";
       mailBodyContainer?.classList.remove("in-detail");
@@ -8925,6 +8993,7 @@ if (mailSendBtn) {
     showToast("✓ Mail sent!", "info");
     activeMailFolder = "sent";
     renderMailList();
+    void updateNotificationsBadge();
     if (res.message) {
       selectMail(res.message);
     }

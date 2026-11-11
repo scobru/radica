@@ -29,6 +29,12 @@ Terms the code and its reviews use. Keep them exact.
 - **Receipt** (`RADICA-RECEIPT-V1:` token) — the tier of one Radica key, signed by a key in `RECEIPT_ISSUERS`. No transaction hash; issue time rounded to the day.
 - **Supporters wall** — the public, opt-in list in the log `supporters`; each entry is a receipt published by the key it names.
 
+## Mail
+
+- **Radica Mail** — the built-in email client in Radica (`mailClient.ts`), offering split-pane inbox/sent/drafts management, live search, threading, and activity notifications.
+- **Freenet Mail Identity** — deterministic derivation of post-quantum ML-KEM-768 and ML-DSA-65 keys from the user's secret persona key, matching the official `freenet/mail` standard (`fmail-key-1:...`).
+- **Mail Notifications** — integration with `NotificationItem` (type: `"mail"`) where unread emails trigger sound chimes, activity bell badges, and direct navigation into message view with bidirectional read status sync.
+
 ## Decisions
 
 - Both chat views stay (Messenger and Classic, 2026-11): shared chat behaviour lives in Conversation state, not in either view.
