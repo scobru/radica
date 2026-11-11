@@ -98,10 +98,17 @@ test("a stranger's notifications sit under Others and do not light the bell", as
   await signIn(page);
   await page.evaluate(async () => {
     const { freenet } = await import("/src/freenet.ts");
-    const me = (freenet as unknown as { me: string }).me;
+    const withFreenet = freenet as unknown as {
+      me: string;
+      recordLocalNotification(owner: string, item: unknown): void;
+      dismissNotification(identity: { pubkey: string }, id: string): void;
+    };
+    const me = withFreenet.me;
+    withFreenet.dismissNotification({ pubkey: me }, "notif_mail_welcome_radica_mail"); // irrelevant to this test: don't let it light the bell too
     const stranger = "ab".repeat(32);
     const item = { id: "n_spam1", type: "comment", from: stranger, text: 'commented: "buy now"', timestamp: Date.now() - 1000, read: false };
-    localStorage.setItem(`freenet_notifs_${me}`, JSON.stringify([item]));
+    // through the real API, not a raw write: SafeStorage caches reads, so a write behind its back here would go unseen
+    withFreenet.recordLocalNotification(me, item);
   });
   await page.reload();
   await expect(page.locator("#post-caption")).toBeVisible({ timeout: 30_000 });
@@ -139,13 +146,22 @@ test("a stranger's notification counts when a real comment is behind it, and wai
   await page.evaluate(async ({ real, fake, ts }) => {
     const { freenet } = await import("/src/freenet.ts");
     const { solvePoW, postIdWithPow, COMMENT_POW_BITS } = await import("/src/pow.ts");
-    const me = (freenet as unknown as { me: string }).me;
+    const withFreenet = freenet as unknown as {
+      me: string;
+      handlePeerEvent(d: unknown): void;
+      recordLocalNotification(owner: string, item: unknown): void;
+      dismissNotification(identity: { pubkey: string }, id: string): void;
+    };
+    const me = withFreenet.me;
+    withFreenet.dismissNotification({ pubkey: me }, "notif_mail_welcome_radica_mail"); // irrelevant to this test: don't let it take the one "main" slot
     const cid = postIdWithPow(ts, await solvePoW(real, ts, COMMENT_POW_BITS, "comment"), "comment"); // a comment that paid its proof
     const postId = `post_${ts}_mine01`;
     const post = { id: postId, author: me, category: "thought", caption: "my notified post", timestamp: ts, sig: "", is_nsfw: false, likes: {}, comments: { [`${real}:${cid}`]: { id: cid, post_id: postId, author: real, text: "hello", timestamp: ts, sig: "" } } };
-    (freenet as unknown as { handlePeerEvent(d: unknown): void }).handlePeerEvent({ type: "post", post });
+    withFreenet.handlePeerEvent({ type: "post", post });
     const n = (id: string, from: string) => ({ id, type: "comment", from, text: 'commented: "hello"', linkPostId: postId, linkPostOwner: me, timestamp: ts + 1000, read: false });
-    localStorage.setItem(`freenet_notifs_${me}`, JSON.stringify([n("n_real", real), n("n_fake", fake)]));
+    // through the real API, not a raw write: SafeStorage caches reads, so a write behind its back here would go unseen
+    withFreenet.recordLocalNotification(me, n("n_real", real));
+    withFreenet.recordLocalNotification(me, n("n_fake", fake));
   }, { real, fake, ts });
   await page.click("#open-notifs-btn");
   await expect(page.locator("#notifs-list > .notif-item")).toHaveCount(1);

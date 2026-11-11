@@ -7,6 +7,7 @@ import {
   sanitizeMailAlias,
   encryptFreenetMailV1,
   decryptFreenetMailV1,
+  INBOX_V1_CODE_HASH,
   type FreenetMailIdentity,
 } from "./freenetMail.ts";
 import { fromBase58, toBase58 } from "./whoiam.ts";
@@ -554,7 +555,7 @@ export async function sendMailMessage(
             content,
             identity.alias
           );
-          const key = ContractKey.fromInstanceId(targetContractId);
+          const key = new ContractKey(fromBase58(targetContractId), fromBase58(INBOX_V1_CODE_HASH));
           await updateContractFn.call(freenet, key, new TextEncoder().encode(deltaJson));
           networkDelivered = true;
           networkDetails = "Delivered to recipient's Freenet Mail inbox contract on the network.";

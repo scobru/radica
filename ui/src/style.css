@@ -3477,6 +3477,24 @@ body {
   }
 }
 
+/* On desktop the rail stays put (it doubles as nav while chat/mail hide the feed and right panel), but with
+   enough rail buttons its own content is taller than the viewport; left unbounded, that stretches the whole
+   grid row and the page scrolls instead of the chat/mail pane. Cap it to the viewport and let it scroll itself. */
+@media (min-width: 769px) {
+  body.chat-open .rail,
+  body.chat-fullscreen .rail,
+  body.mail-open .rail {
+    max-height: calc(100dvh - 84px - 24px);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  body.chat-open .rail::-webkit-scrollbar,
+  body.chat-fullscreen .rail::-webkit-scrollbar,
+  body.mail-open .rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ================= Radici, closer to the mockup: no top bar ================= */
 .container {
   margin-top: 28px;
