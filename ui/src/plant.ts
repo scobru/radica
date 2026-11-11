@@ -4,7 +4,7 @@
 // key, and each part has a moment of its life at which it appears. The Linfa only says how far along that life the
 // plant is, so a plant never reshuffles: it puts out the next leaf of the same tree. What appeared in the last week
 // is drawn as fresh growth.
-import { STAGES, stageOf, type Linfa } from "./linfa.ts";
+import { STAGES, stageOf, type Linfa, type SeasonInfo } from "./linfa.ts";
 
 /** How far along its life a plant is (0 a seed, 1 full grown) for each age's threshold, and past the last age. */
 const LIFE = [0, 0.08, 0.3, 0.5, 0.7, 0.88];
@@ -132,7 +132,8 @@ const leafPath = (s: number): string =>
  * The plant of `seed` (a persona's key) at a Linfa of `total`, `week` of which grew in the last seven days.
  * Colours and motion are the page's (style.css, `.linfa-plant`).
  */
-export function plantSvg(seed: string, total: number, week = 0): string {
+export function plantSvg(seed: string, total: number, week = 0, season?: SeasonInfo): string {
+  const currentSeason = season ?? { season: "spring", daysInactive: 0, vitality: 1, label: "Active" };
   const life = lifeOf(total);
   const before = week > 0 ? lifeOf(total - week) : Infinity; // what was there a week ago: the rest is fresh
   const plant = grow(seed);
@@ -164,24 +165,52 @@ export function plantSvg(seed: string, total: number, week = 0): string {
   }
 
   const leaves: string[] = [];
+  const fallenLeaves: string[] = [];
   let order = 0;
+  const vitality = currentSeason.vitality;
+  const isAutumn = currentSeason.season === "autumn";
+  const isDormant = currentSeason.season === "dormant";
+
   for (const l of plant.leaves) {
     const s = shown.get(l.branch);
     if (!s || life < l.born || life >= l.gone) continue;
     const [x, y] = end(s.here, l.at, s.grown * reach);
     const angle = l.branch.angle + l.side * l.tilt;
     const size = l.size * (0.75 + 0.25 * life) * (0.4 + 0.6 * clamp((life - l.born) / 0.035)); // a new leaf is small, then opens
+    const leafIndex = order++;
+
+    // Deterministic shedding threshold per leaf when tree slows down or rests
+    const leafResistance = ((leafIndex * 37 + l.tone * 19) % 100) / 100;
+    const isShed = vitality < 0.95 && leafResistance > vitality;
+
+    if (isShed) {
+      if (fallenLeaves.length < 18) {
+        const moundSpread = Math.min(38, 10 + 30 * life);
+        const fx = CX + ((leafIndex * 23) % (moundSpread * 2)) - moundSpread;
+        const fy = GROUND + 1 + ((leafIndex * 7) % 5);
+        const fAngle = ((leafIndex * 53) % 180) - 90;
+        const fSeason = isDormant ? " dormant" : " autumn";
+        fallenLeaves.push(`<g transform="translate(${f(fx)} ${f(fy)}) rotate(${f(fAngle)})"><path class="linfa-leaf fallen t${l.tone}${fSeason}" d="${leafPath(size * 0.85)}"/></g>`);
+      }
+      continue;
+    }
+
     reaches(x + Math.cos(angle) * size, y - Math.sin(angle) * size, size * 0.4);
-    leaves.push(`<g transform="translate(${f(x)} ${f(y)}) rotate(${f((-angle * 180) / Math.PI)})"><path class="linfa-leaf t${l.tone}${l.born >= before ? " fresh" : ""}" style="--d:${f(l.branch.level + 1 + (order++ % 5) * 0.12)}" d="${leafPath(size)}"/></g>`);
+    const seasonClass = isDormant ? " dormant" : isAutumn ? " autumn" : "";
+    const freshClass = l.born >= before && !isDormant && !isAutumn ? " fresh" : "";
+    leaves.push(`<g transform="translate(${f(x)} ${f(y)}) rotate(${f((-angle * 180) / Math.PI)})"><path class="linfa-leaf t${l.tone}${seasonClass}${freshClass}" style="--d:${f(l.branch.level + 1 + (leafIndex % 5) * 0.12)}" d="${leafPath(size)}"/></g>`);
   }
 
-  const blooms = plant.blooms
-    .filter((b) => life >= b.born && shown.has(b.branch))
-    .map((b) => {
-      const s = shown.get(b.branch)!;
-      const [x, y] = end(s.here, 0.9, s.grown * reach);
-      return `<g class="linfa-bloom" transform="translate(${f(x)} ${f(y)})">${[0, 72, 144, 216, 288].map((a) => `<ellipse class="petal" rx="2" ry="3.3" cy="-2.9" transform="rotate(${a})"/>`).join("")}<circle class="heart" r="1.5"/></g>`;
-    });
+  // Elder blooms only awaken during active spring
+  const blooms = (currentSeason.season === "spring" && vitality >= 0.8)
+    ? plant.blooms
+      .filter((b) => life >= b.born && shown.has(b.branch))
+      .map((b) => {
+        const s = shown.get(b.branch)!;
+        const [x, y] = end(s.here, 0.9, s.grown * reach);
+        return `<g class="linfa-bloom" transform="translate(${f(x)} ${f(y)})">${[0, 72, 144, 216, 288].map((a) => `<ellipse class="petal" rx="2" ry="3.3" cy="-2.9" transform="rotate(${a})"/>`).join("")}<circle class="heart" r="1.5"/></g>`;
+      })
+    : [];
 
   const roots: string[] = [];
   const rootReach = 0.45 + 0.55 * life;
@@ -203,9 +232,10 @@ export function plantSvg(seed: string, total: number, week = 0): string {
   const side = Math.max(44, 2 * Math.max(CX - left, right - CX), bottom - top) + 10;
   const mound = Math.min(side * 0.42, 14 + 60 * life);
   return (
-    `<svg class="linfa-plant" viewBox="${f(CX - side / 2)} ${f(bottom + 5 - side)} ${f(side)} ${f(side)}" role="img" aria-label="A plant">` +
+    `<svg class="linfa-plant season-${currentSeason.season}" viewBox="${f(CX - side / 2)} ${f(bottom + 5 - side)} ${f(side)} ${f(side)}" role="img" aria-label="A plant">` +
     `<g class="linfa-roots">${roots.join("")}</g>` +
     `<path class="linfa-soil" d="M${f(CX - mound)} ${GROUND + 1}Q${CX} ${f(GROUND - side * 0.035)} ${f(CX + mound)} ${GROUND + 1}Q${CX} ${f(GROUND + side * 0.05)} ${f(CX - mound)} ${GROUND + 1}Z"/>` +
+    (fallenLeaves.length ? `<g class="linfa-fallen-leaves">${fallenLeaves.join("")}</g>` : "") +
     seedHtml +
     `<g class="linfa-crown">${wood.join("")}${leaves.join("")}${blooms.join("")}</g>` +
     `</svg>`
@@ -223,15 +253,29 @@ export function linfaPanel(who: string, l: Linfa, mine: boolean): string {
   const s = stageOf(l.total);
   const n = (v: number) => (Math.round(v * 10) / 10).toLocaleString("en");
   const seed = l.total < STAGES[1].at;
+  const season = l.season ?? { season: "spring", daysInactive: 0, vitality: 1, label: "Active" };
+  const isDormant = season.season === "dormant";
+  const isAutumn = season.season === "autumn";
   const next = seed
     ? mine ? "Answer someone's post, or plant your first, and it wakes." : "Still a seed, as far as this node has seen."
-    : s.next ? `${n(Math.max(0.1, s.next.at - l.total))} more to ${s.next.name.toLowerCase()}` : "Full grown, and still growing.";
+    : isDormant
+      ? mine ? `Tree is resting in winter dormancy (${season.daysInactive}d). Post, reply or like to awaken spring sap!` : `Resting in winter dormancy (${season.daysInactive}d inactive).`
+      : isAutumn
+        ? mine ? `Autumn sap slowing (${season.daysInactive}d inactive). Post or reply to revive full spring bloom!` : `Autumn rest (${season.daysInactive}d inactive).`
+        : s.next ? `${n(Math.max(0.1, s.next.at - l.total))} more to ${s.next.name.toLowerCase()}` : "Full grown, and still growing.";
+
+  const badgeHtml = isDormant
+    ? `<span class="linfa-season-badge dormant" title="${season.daysInactive} days inactive — winter dormancy">❄️ Dormant (${season.daysInactive}d)</span>`
+    : isAutumn
+      ? `<span class="linfa-season-badge autumn" title="${season.daysInactive} days inactive — autumn slowdown">🍂 Autumn</span>`
+      : "";
+
   const part = (label: string, v: number) => `<li><span>${label}</span><b>${n(v)}</b></li>`;
   return (
     `<div class="linfa-panel">` +
-    `<div class="linfa-pot">${plantSvg(who, l.total, l.week)}</div>` +
+    `<div class="linfa-pot">${plantSvg(who, l.total, l.week, season)}</div>` +
     `<div class="linfa-info">` +
-    `<div class="linfa-stage">${s.name}</div>` +
+    `<div class="linfa-stage"><span>${s.name}</span>${badgeHtml}</div>` +
     `<div class="linfa-count"><b>${n(l.total)}</b> Linfa${l.week > 0 ? ` <span class="linfa-week">+${n(l.week)} this week</span>` : ""}</div>` +
     `<div class="linfa-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(s.progress * 100)}" aria-label="Way to the next age"><span style="width: ${Math.round(s.progress * 100)}%"></span></div>` +
     `<div class="linfa-next">${next}</div>` +

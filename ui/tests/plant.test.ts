@@ -59,3 +59,20 @@ test("every number in the picture is a number, at every Linfa", () => {
       assert.ok(w >= 54 && w === h && w < 400, `frame ${w} at ${t}`);
     }
 });
+
+test("seasons: autumn changes tones and sheds leaves, dormancy preserves wood while resting", () => {
+  const springSvg = plantSvg(A, 700, 0, { season: "spring", daysInactive: 2, vitality: 1, label: "Active" });
+  assert.match(springSvg, /season-spring/);
+  assert.ok(count(springSvg, "linfa-bloom") > 0);
+
+  const autumnSvg = plantSvg(A, 700, 0, { season: "autumn", daysInactive: 15, vitality: 0.6, label: "Autumn" });
+  assert.match(autumnSvg, /season-autumn/);
+  assert.match(autumnSvg, /linfa-leaf t\d autumn/);
+  assert.equal(count(autumnSvg, "linfa-bloom"), 0);
+
+  const dormantSvg = plantSvg(A, 700, 0, { season: "dormant", daysInactive: 50, vitality: 0.15, label: "Dormant" });
+  assert.match(dormantSvg, /season-dormant/);
+  assert.match(dormantSvg, /linfa-leaf fallen/);
+  assert.equal(count(dormantSvg, "linfa-branch"), count(springSvg, "linfa-branch"));
+  assert.equal(count(dormantSvg, "linfa-root"), count(springSvg, "linfa-root"));
+});

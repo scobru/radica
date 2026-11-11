@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { linfaOf, stageOf, POINTS, POST_DAYS_CAP, STRANGER_CAP, STAGES, WEEK_MS, type Trust } from "../src/linfa.ts";
+import { linfaOf, stageOf, seasonOf, POINTS, POST_DAYS_CAP, STRANGER_CAP, STAGES, WEEK_MS, type Trust } from "../src/linfa.ts";
 import type { Post } from "../src/types.ts";
 
 const DAY = 86_400_000;
@@ -23,7 +23,15 @@ const post = (author: string, o: { ts?: number; caption?: string; likes?: [strin
 const old = NOW - 20 * DAY;
 
 test("nothing done is a seed", () => {
-  assert.deepEqual(linfaOf([], ME, trust, NOW), { given: 0, received: 0, posting: 0, total: 0, week: 0 });
+  assert.deepEqual(linfaOf([], ME, trust, NOW), {
+    given: 0,
+    received: 0,
+    posting: 0,
+    total: 0,
+    week: 0,
+    lastActiveTs: 0,
+    season: { season: "spring", daysInactive: 0, vitality: 1, label: "Awakening" },
+  });
   assert.equal(stageOf(0).name, "Seed");
 });
 
@@ -97,4 +105,35 @@ test("ages: each starts at its threshold, with the way to the next", () => {
   const s = stageOf(26);
   assert.deepEqual([s.name, s.next?.name, s.progress], ["Sapling", "Young tree", 0.5]);
   assert.deepEqual([stageOf(9999).next, stageOf(9999).progress], [null, 1]);
+});
+
+test("seasons: dormancy and vitality change with inactivity, total Linfa preserved", () => {
+  // Active / Spring (<= 7 days inactive)
+  const springNow = seasonOf(NOW - 2 * DAY, NOW);
+  assert.equal(springNow.season, "spring");
+  assert.equal(springNow.vitality, 1);
+  assert.equal(springNow.daysInactive, 2);
+
+  // Autumn (8 to 30 days inactive)
+  const autumnNow = seasonOf(NOW - 15 * DAY, NOW);
+  assert.equal(autumnNow.season, "autumn");
+  assert.equal(autumnNow.daysInactive, 15);
+  assert.ok(autumnNow.vitality < 1 && autumnNow.vitality >= 0.35);
+
+  // Dormant (> 30 days inactive)
+  const dormantNow = seasonOf(NOW - 45 * DAY, NOW);
+  assert.equal(dormantNow.season, "dormant");
+  assert.equal(dormantNow.daysInactive, 45);
+  assert.ok(dormantNow.vitality <= 0.35);
+
+  // Awakening from 0 or empty activity
+  assert.equal(seasonOf(0, NOW).season, "spring");
+  assert.equal(seasonOf(0, NOW).vitality, 1);
+
+  // Recent post awakens the tree to active spring
+  const activePost = post(ME, { ts: NOW - 1 * DAY });
+  const l = linfaOf([activePost], ME, trust, NOW);
+  assert.equal(l.season.season, "spring");
+  assert.equal(l.season.daysInactive, 1);
+  assert.equal(l.season.vitality, 1);
 });

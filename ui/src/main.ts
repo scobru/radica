@@ -4028,6 +4028,10 @@ publishBtn.addEventListener("click", async () => {
 editProfileBtn.addEventListener("click", () => {
   modalNameInput.value = currentProfile?.display_name || "";
   modalBioInput.value = currentProfile?.bio || "";
+  if (modalBioInput) {
+    modalBioInput.style.height = "auto";
+    modalBioInput.style.height = `${Math.max(110, Math.min(320, modalBioInput.scrollHeight + 6))}px`;
+  }
   const me = currentIdentity?.pubkey;
   modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
   if (me) void freenet.refreshLog(`delta/${me}`).then(() => (modalDeltaInput.value ||= freenet.deltaSiteOf(me) ?? ""));
@@ -4090,6 +4094,11 @@ modalAvatarResetBtn.addEventListener("click", () => {
 modalAvatarInput.addEventListener("input", () => {
   const val = modalAvatarInput.value.trim();
   modalAvatarPreview.src = val || generateDefaultAvatar(currentIdentity?.pubkey || "radica");
+});
+
+modalBioInput.addEventListener("input", () => {
+  modalBioInput.style.height = "auto";
+  modalBioInput.style.height = `${Math.max(110, Math.min(320, modalBioInput.scrollHeight + 6))}px`;
 });
 
 modalAvatarPreview.onerror = () => {

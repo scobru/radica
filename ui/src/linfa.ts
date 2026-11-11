@@ -21,6 +21,35 @@ export type Trust = (pubkey: string) => 0 | 1 | 2;
 const DAY_MS = 86_400_000;
 export const WEEK_MS = 7 * DAY_MS;
 
+export type PlantSeason = "spring" | "autumn" | "dormant";
+
+export interface SeasonInfo {
+  season: PlantSeason;
+  daysInactive: number;
+  vitality: number; // 0.1 to 1.0
+  label: string;
+}
+
+export function seasonOf(lastActiveTs: number, now = Date.now()): SeasonInfo {
+  if (!lastActiveTs || lastActiveTs <= 0) {
+    return { season: "spring", daysInactive: 0, vitality: 1, label: "Awakening" };
+  }
+  const diff = Math.max(0, now - lastActiveTs);
+  const daysInactive = Math.floor(diff / DAY_MS);
+
+  if (daysInactive <= 7) {
+    return { season: "spring", daysInactive, vitality: 1, label: "Active" };
+  }
+  if (daysInactive <= 30) {
+    const t = (daysInactive - 7) / 23;
+    const vitality = Math.max(0.35, 1 - t * 0.65);
+    return { season: "autumn", daysInactive, vitality, label: `Autumn (${daysInactive}d inactive)` };
+  }
+  const t = Math.min(1, (daysInactive - 30) / 60);
+  const vitality = Math.max(0.12, 0.35 - t * 0.23);
+  return { season: "dormant", daysInactive, vitality, label: `Dormant (${daysInactive}d resting)` };
+}
+
 export interface Linfa {
   total: number;
   /** Grown in the last seven days. */
@@ -29,17 +58,21 @@ export interface Linfa {
   given: number;
   received: number;
   posting: number;
+  lastActiveTs: number;
+  season: SeasonInfo;
 }
 
 interface Gain { ts: number; points: number; from: string; part: "given" | "received" }
 
 /** Every act that feeds `who`'s Linfa, found in `posts` (what this node holds, `who`'s own posts among them). */
-function gains(posts: Post[], who: string): { acts: Gain[]; postDays: number[] } {
+function gains(posts: Post[], who: string): { acts: Gain[]; postDays: number[]; lastActiveTs: number } {
   const acts: Gain[] = [];
   const days = new Map<number, number>(); // day -> the first post of that day
+  let lastActiveTs = 0;
   for (const p of posts) {
     const comments = Object.values(p.comments ?? {}).filter((c) => c.text !== ""); // an empty one was taken back
     if (p.author === who) {
+      lastActiveTs = Math.max(lastActiveTs, p.timestamp);
       const day = Math.floor(p.timestamp / DAY_MS);
       days.set(day, Math.min(days.get(day) ?? Infinity, p.timestamp));
       const answered = new Map<string, number>(); // one answer per person and post: a long thread is not a harvest
@@ -49,16 +82,26 @@ function gains(posts: Post[], who: string): { acts: Gain[]; postDays: number[] }
       continue;
     }
     const mine = comments.filter((c) => c.author === who);
-    if (mine.length) acts.push({ ts: Math.min(...mine.map((c) => c.timestamp)), points: POINTS.replyGiven, from: p.author, part: "given" });
-    if (p.likes?.[who]?.liked) acts.push({ ts: p.likes[who].ts, points: POINTS.likeGiven, from: p.author, part: "given" });
-    if (repostRef(p.caption)?.author === who) acts.push({ ts: p.timestamp, points: POINTS.repostReceived, from: p.author, part: "received" });
+    if (mine.length) {
+      const ts = Math.max(...mine.map((c) => c.timestamp));
+      lastActiveTs = Math.max(lastActiveTs, ts);
+      acts.push({ ts: Math.min(...mine.map((c) => c.timestamp)), points: POINTS.replyGiven, from: p.author, part: "given" });
+    }
+    if (p.likes?.[who]?.liked) {
+      lastActiveTs = Math.max(lastActiveTs, p.likes[who].ts);
+      acts.push({ ts: p.likes[who].ts, points: POINTS.likeGiven, from: p.author, part: "given" });
+    }
+    if (repostRef(p.caption)?.author === who) {
+      lastActiveTs = Math.max(lastActiveTs, p.timestamp);
+      acts.push({ ts: p.timestamp, points: POINTS.repostReceived, from: p.author, part: "received" });
+    }
   }
-  return { acts, postDays: [...days.values()].sort((a, b) => a - b).slice(0, POST_DAYS_CAP) };
+  return { acts, postDays: [...days.values()].sort((a, b) => a - b).slice(0, POST_DAYS_CAP), lastActiveTs };
 }
 
 /** The Linfa of `who` as the reader sees it now. */
 export function linfaOf(posts: Post[], who: string, trust: Trust, now = Date.now()): Linfa {
-  const { acts, postDays } = gains(posts, who);
+  const { acts, postDays, lastActiveTs } = gains(posts, who);
   const upTo = (until: number) => {
     const sum = { given: 0, received: 0, posting: postDays.filter((ts) => ts <= until).length * POINTS.postDay };
     let strangers = 0;
@@ -76,7 +119,8 @@ export function linfaOf(posts: Post[], who: string, trust: Trust, now = Date.now
   const all = upTo(now); // a date in the future (a contract has no clock) does not count yet
   const before = upTo(now - WEEK_MS);
   const total = all.given + all.received + all.posting;
-  return { ...all, total, week: total - (before.given + before.received + before.posting) };
+  const season = seasonOf(lastActiveTs, now);
+  return { ...all, total, week: total - (before.given + before.received + before.posting), lastActiveTs, season };
 }
 
 /** The plant's ages. Not the supporter tiers (Sprout, Root, Oak): those are bought, these are grown. */

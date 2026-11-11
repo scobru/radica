@@ -2694,6 +2694,18 @@ body {
   padding: 9px 12px;
   font-size: 0.9rem;
   outline: none;
+  box-sizing: border-box;
+}
+
+.modal-card textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+#profile-modal .modal-card {
+  max-width: 540px;
 }
 
 .identity-field input:focus,
@@ -5660,6 +5672,12 @@ kbd {
   --linfa-root: #b08a5c;
   --linfa-petal: #fff3d6;
   --linfa-heart: #e2952a;
+  --linfa-autumn-0: #c97a2b;
+  --linfa-autumn-1: #e09838;
+  --linfa-autumn-2: #9e4b1a;
+  --linfa-dormant-0: #8c7355;
+  --linfa-dormant-1: #a48c6b;
+  --linfa-dormant-2: #6d5438;
 }
 [data-theme="dark"] {
   --linfa-bark: #a88763;
@@ -5671,6 +5689,12 @@ kbd {
   --linfa-root: #6e5a41;
   --linfa-petal: #fff3d6;
   --linfa-heart: #f0ad4e;
+  --linfa-autumn-0: #e5933d;
+  --linfa-autumn-1: #f5b056;
+  --linfa-autumn-2: #c46830;
+  --linfa-dormant-0: #a98e6d;
+  --linfa-dormant-1: #c4a987;
+  --linfa-dormant-2: #846949;
 }
 .linfa-plant {
   display: block;
@@ -5696,6 +5720,19 @@ kbd {
 .linfa-plant .linfa-leaf.t1 { fill: var(--linfa-leaf-1); }
 .linfa-plant .linfa-leaf.t2 { fill: var(--linfa-leaf-2); }
 .linfa-plant .linfa-leaf.fresh { fill: var(--linfa-fresh); }
+
+/* autumn & dormant seasonal tones */
+.linfa-plant .linfa-leaf.autumn.t0 { fill: var(--linfa-autumn-0); }
+.linfa-plant .linfa-leaf.autumn.t1 { fill: var(--linfa-autumn-1); }
+.linfa-plant .linfa-leaf.autumn.t2 { fill: var(--linfa-autumn-2); }
+
+.linfa-plant .linfa-leaf.dormant.t0 { fill: var(--linfa-dormant-0); }
+.linfa-plant .linfa-leaf.dormant.t1 { fill: var(--linfa-dormant-1); }
+.linfa-plant .linfa-leaf.dormant.t2 { fill: var(--linfa-dormant-2); }
+
+.linfa-plant .linfa-leaf.fallen {
+  opacity: 0.85;
+}
 .linfa-plant .linfa-seed ellipse { fill: var(--linfa-bark); }
 .linfa-plant .linfa-seed path {
   fill: none;
@@ -5757,11 +5794,35 @@ kbd {
   min-width: 0;
 }
 .linfa-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-family: var(--font-display);
   font-size: 1.45rem;
   font-weight: 600;
   line-height: 1.15;
   color: var(--text-main);
+}
+.linfa-season-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.linfa-season-badge.autumn {
+  background: color-mix(in srgb, var(--linfa-autumn-0) 18%, transparent);
+  color: var(--linfa-autumn-0);
+  border: 1px solid color-mix(in srgb, var(--linfa-autumn-0) 30%, transparent);
+}
+.linfa-season-badge.dormant {
+  background: color-mix(in srgb, var(--linfa-dormant-0) 18%, transparent);
+  color: var(--linfa-dormant-1);
+  border: 1px solid color-mix(in srgb, var(--linfa-dormant-0) 30%, transparent);
 }
 .linfa-count {
   margin-top: 2px;
