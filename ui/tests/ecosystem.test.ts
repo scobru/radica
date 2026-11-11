@@ -36,6 +36,12 @@ test("ecosystem: includes all requested projects", () => {
   assert.equal(freetree?.key, "4SC5QCzLzKWH9BSFFybivTynfBRkPw3PtXwegjXbPm8x");
   assert.equal(freetree?.repo, "https://github.com/scobru/freetree");
   assert.equal(freetree?.author, "by @scobru");
+
+  assert.ok(names.includes("Spore"));
+  const spore = ECOSYSTEM.find((e) => e.name === "Spore");
+  assert.equal(spore?.repo, "https://github.com/scobru/spore");
+  assert.equal(spore?.author, "by @scobru");
+  assert.equal(spore?.category, "affiliated");
 });
 
 test("ecosystem: links use nodeOrigin for known contracts and repos for others", () => {
@@ -45,6 +51,7 @@ test("ecosystem: links use nodeOrigin for known contracts and repos for others",
   assert.ok(footer.includes(`${origin}/v1/contract/web/9eBjDkH6ZXA6ehUyWBBjT6Xg4tQE4ALZjSsgXERds4yZ/#/`));
   assert.ok(footer.includes(SUPPORT_URL));
   assert.ok(footer.includes("Support Radica"));
+  assert.ok(footer.includes("Spore"));
 
   const card = ecosystemCard(origin);
   assert.ok(card.includes("Works with"));
@@ -53,4 +60,6 @@ test("ecosystem: links use nodeOrigin for known contracts and repos for others",
   assert.ok(card.includes("by @scobru"));
   assert.ok(card.includes("Freenet core"));
   assert.ok(card.includes("by porky11"));
+  assert.ok(card.includes("Affiliated App"));
+  assert.ok(card.includes("https://github.com/scobru/spore"));
 });

@@ -29,6 +29,36 @@ export const repostLink = (appPath: string, ref: RepostRef): string => `${appPat
 /** The caption of a repost: the reposter's words (if any), then the permalink. */
 export const repostCaption = (text: string, link: string): string => [text.trim(), link].filter(Boolean).join("\n\n");
 
+/** Build a map of repost counts (key: `${author}:${id}`) from a collection of posts. */
+export function repostCountsOf(posts: Iterable<{ caption?: string }>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of posts) {
+    if (!p?.caption) continue;
+    const ref = repostRef(p.caption);
+    if (ref) {
+      const key = `${ref.author}:${ref.id}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/** Returns true if `who` has a post that shares `targetId` from `targetAuthor`. */
+export function hasUserReposted(
+  posts: Iterable<{ author: string; caption?: string }>,
+  who: string,
+  targetId: string,
+  targetAuthor: string
+): boolean {
+  if (!who) return false;
+  for (const p of posts) {
+    if (p.author !== who || !p.caption) continue;
+    const ref = repostRef(p.caption);
+    if (ref && ref.id === targetId && ref.author === targetAuthor) return true;
+  }
+  return false;
+}
+
 /** The shared post's place in a card, filled in by the page once the post is found (see repostBody). */
 export function repostCard(caption: string): string {
   const ref = repostRef(caption);

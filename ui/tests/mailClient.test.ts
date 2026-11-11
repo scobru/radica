@@ -17,6 +17,7 @@ import {
   saveMailContact,
   deleteMailContact,
   resolveRecipientAddress,
+  parseFmailContactInput,
   getRecipientSuggestions,
   resolveMailAlias,
   type MailMessage,
@@ -47,15 +48,27 @@ test("normalizeMailAddress: extracts address from angle brackets", () => {
   assert.equal(normalizeMailAddress("  bob@test  "), "bob@test");
 });
 
-test("loadMailStore: initializes empty store with welcome message if identity provided", () => {
+test("loadMailStore: initializes empty store with welcome message if identity provided and avoids duplicates", () => {
   const pubkey = "test_user_pubkey_1";
   const store = loadMailStore(pubkey, mockIdentity);
 
   assert.equal(store.version, 1);
   assert.equal(store.messages.length, 1);
+  assert.equal(store.messages[0].id, "welcome_radica_mail");
   assert.equal(store.messages[0].folder, "inbox");
   assert.equal(store.messages[0].subject.includes("Welcome to Radica Mail"), true);
   assert.equal(store.messages[0].read, false);
+
+  // Calling again with identity does not create duplicate welcome message
+  const store2 = loadMailStore(pubkey, mockIdentity);
+  assert.equal(store2.messages.length, 1);
+  assert.equal(store2.messages[0].id, "welcome_radica_mail");
+
+  // Even if user deletes the welcome message, it does not regenerate on subsequent load
+  store2.messages = [];
+  saveMailStore(pubkey, store2);
+  const store3 = loadMailStore(pubkey, mockIdentity);
+  assert.equal(store3.messages.length, 0);
 });
 
 test("sendMailMessage: stores in sent folder and handles self-send to inbox", () => {
@@ -260,4 +273,41 @@ test("contacts & address book: saves, loads, deletes, and resolves contacts", ()
   // Delete contact
   deleteMailContact(pk, aliceAddr);
   assert.equal(loadMailContacts(pk).length, 0);
+});
+
+test("isValidMailAddress & parseFmailContactInput: supports Freenet Mail contact tokens", () => {
+  const fmailToken = "AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs";
+  const aliasToken = `scobru@${fmailToken}`;
+
+  // Address validation
+  assert.equal(isValidMailAddress(fmailToken), true);
+  assert.equal(isValidMailAddress(aliasToken), true);
+  assert.equal(isValidMailAddress("scobru@0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"), true);
+
+  // Parsing contact inputs
+  const p1 = parseFmailContactInput(fmailToken, "Scobru");
+  assert.deepEqual(p1, { name: "Scobru", address: fmailToken });
+
+  const p2 = parseFmailContactInput(aliasToken);
+  assert.deepEqual(p2, { name: "scobru", address: aliasToken });
+
+  const p3 = parseFmailContactInput(`Scobru Friend <${aliasToken}>`);
+  assert.deepEqual(p3, { name: "Scobru Friend", address: aliasToken });
+
+  // Direct recipient resolution without pre-saving
+  const resolved = resolveRecipientAddress(aliasToken);
+  assert.equal(resolved?.address, aliasToken);
+  assert.equal(resolved?.displayName, "scobru");
+
+  // Send mail directly to Freenet Mail token
+  const pk = "test_user_fmail_token_send";
+  const sendRes = sendMailMessage(pk, mockIdentity, aliasToken, "Hello via Token", "Test body");
+  assert.equal(sendRes.success, true);
+  assert.equal(sendRes.message?.to, aliasToken);
+
+  // Check that contact was auto-saved
+  const contacts = loadMailContacts(pk);
+  assert.equal(contacts.length, 1);
+  assert.equal(contacts[0].address, aliasToken);
+  assert.equal(contacts[0].name, "scobru");
 });

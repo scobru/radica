@@ -785,6 +785,14 @@ body {
   color: #a78bfa;
 }
 
+.action-btn.reposted {
+  color: #10b981;
+}
+
+[data-theme="dark"] .action-btn.reposted {
+  color: #34d399;
+}
+
 .action-btn:hover {
   color: var(--primary);
 }
@@ -5092,6 +5100,22 @@ html[data-fullwidth="true"] #width-toggle-btn {
   background: var(--primary-soft, rgba(74, 222, 128, 0.12));
   color: var(--primary);
   border-color: transparent;
+  font-weight: 600;
+}
+.eco-type-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  vertical-align: middle;
+  margin: 0 4px;
+}
+.eco-type-badge.eco-type-affiliated {
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+  border-color: rgba(139, 92, 246, 0.25);
   font-weight: 600;
 }
 .updates-eco-section .eco-what {

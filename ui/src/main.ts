@@ -41,6 +41,7 @@ import {
   saveMailContact,
   deleteMailContact,
   resolveRecipientAddress,
+  parseFmailContactInput,
   getRecipientSuggestions,
   resolveMailAlias,
   type MailContact,
@@ -79,7 +80,7 @@ import {
 import { freenet } from "./freenet";
 import { linfaOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
-import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, type RepostRef } from "./repost.ts";
+import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
 import { CHAT_REACTIONS } from "./logfold";
 import { analyzeImageFile, analyzeTextContent, personalDataIn, type ImageModerationResult } from "./moderation";
@@ -266,6 +267,7 @@ const mailComposeMobileBackBtn = document.getElementById("mail-compose-mobile-ba
 
 const mailComposeTitle = document.getElementById("mail-compose-title") as HTMLElement | null;
 const mailToInput = document.getElementById("mail-to-input") as HTMLInputElement | null;
+const mailImportContactBtn = document.getElementById("mail-import-contact-btn") as HTMLButtonElement | null;
 const mailContactsToggleBtn = document.getElementById("mail-contacts-toggle-btn") as HTMLButtonElement | null;
 const mailToSuggestions = document.getElementById("mail-to-suggestions") as HTMLElement | null;
 const mailSubjectInput = document.getElementById("mail-subject-input") as HTMLInputElement | null;
@@ -275,6 +277,14 @@ const mailSaveDraftBtn = document.getElementById("mail-save-draft-btn") as HTMLB
 const mailCancelComposeBtn = document.getElementById("mail-cancel-compose-btn") as HTMLButtonElement | null;
 const mailComposeStatus = document.getElementById("mail-compose-status") as HTMLElement | null;
 const mailEmptyComposeBtn = document.getElementById("mail-empty-compose-btn") as HTMLButtonElement | null;
+
+// Add / Import Freenet Mail Contact Modal Elements
+const mailContactModal = document.getElementById("mail-contact-modal") as HTMLElement | null;
+const mailContactModalCloseBtn = document.getElementById("mail-contact-modal-close-btn") as HTMLButtonElement | null;
+const mailContactModalCancelBtn = document.getElementById("mail-contact-modal-cancel-btn") as HTMLButtonElement | null;
+const mailContactModalSaveBtn = document.getElementById("mail-contact-modal-save-btn") as HTMLButtonElement | null;
+const mailContactNameInput = document.getElementById("mail-contact-name-input") as HTMLInputElement | null;
+const mailContactAddrInput = document.getElementById("mail-contact-addr-input") as HTMLInputElement | null;
 
 let activeMailFolder: MailFolder = "inbox";
 let activeMailId: string | null = null;
@@ -2048,6 +2058,11 @@ function renderTimeline() {
       ? `<div class="load-more"><button type="button" class="btn-secondary" id="load-more-btn">Show more (${filtered.length - visiblePosts} left)</button></div>`
       : "";
 
+  const allKnownPosts = new Map<string, Post>();
+  for (const p of Object.values(freenet.peerCache)) if (p?.id) allKnownPosts.set(p.id, p);
+  for (const p of timelinePosts) if (p?.id) allKnownPosts.set(p.id, p);
+  const repostCounts = repostCountsOf(allKnownPosts.values());
+
   const items = filtered
     .slice(0, visiblePosts)
     .filter((post) => SAFE_ID.test(post.id) && HEX64.test(post.author))
@@ -2057,6 +2072,8 @@ function renderTimeline() {
       const dislikersList = freenet.postDislikers(post.author, post.id);
       const isDisliked = !!currentIdentity && dislikersList.includes(currentIdentity.pubkey);
       const dislikeCount = dislikersList.length;
+      const repostCount = repostCounts.get(`${post.author}:${post.id}`) ?? 0;
+      const isReposted = !!currentIdentity && hasUserReposted(allKnownPosts.values(), currentIdentity.pubkey, post.id, post.author);
       const postComm = commOf(post);
       const commMods = postComm ? [postComm.creator, ...postComm.moderators] : [];
       const wot = topWot;
@@ -2122,6 +2139,8 @@ function renderTimeline() {
         hit.sig[17] === shownComments.length &&
         hit.sig[18] === globalMod &&
         hit.sig[19] === unproven.length &&
+        hit.sig[20] === repostCount &&
+        hit.sig[21] === isReposted &&
         hit.sig[11] === getCommSig() &&
         hit.sig[12] === getMentionSig()
       ) {
@@ -2130,7 +2149,7 @@ function renderTimeline() {
         return { key, html: hit.html };
       }
 
-      const sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, globalMod, unproven.length];
+      const sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, globalMod, unproven.length, repostCount, isReposted];
 
       const html = `
       <article class="gram-card${isWotShielded ? " wot-shielded" : ""}" id="card-${post.id}">
@@ -2268,9 +2287,9 @@ function renderTimeline() {
             <span>${renderIcon("messageSquare", { className: "icon-sm" })}</span>
             <span><span class="action-count">${commentsArray.length}</span><span class="action-label"> ${commentsArray.length === 1 ? "Comment" : "Comments"}</span></span>
           </button>
-          <button class="action-btn repost-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Repost: share this post on your feed">
+          <button class="action-btn repost-btn ${isReposted ? "reposted" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isReposted ? "You reposted this" : "Repost: share this post on your feed"}">
             <span>${renderIcon("repeat", { className: "icon-sm" })}</span>
-            <span><span class="action-label"> Repost</span></span>
+            <span><span class="action-count">${repostCount}</span><span class="action-label"> ${repostCount === 1 ? "Repost" : "Reposts"}</span></span>
           </button>
           <button class="action-btn share-post-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Share post and view Freenet details">
             <span>${renderIcon("share2", { className: "icon-sm" })}</span>
@@ -7797,9 +7816,15 @@ document.getElementById("notifs-clear-btn")!.addEventListener("click", async () 
 notifsMarkReadBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
   const written = freenet.markNotificationsAsRead(currentIdentity); // the local copy is marked at once, the log write goes over the network
-  for (const n of shownNotifs) n.read = true;
+  for (const n of shownNotifs) {
+    n.read = true;
+    if ((n.type === "mail" || n.linkMailId) && n.linkMailId) {
+      setMailReadStatus(currentIdentity.pubkey, n.linkMailId, true);
+    }
+  }
   void renderNotifs(shownNotifs);
   await written;
+  updateMailBadges();
   updateNotificationsBadge();
 });
 
@@ -9149,14 +9174,15 @@ function renderMailToSuggestions(filter = "") {
   const fmail = getOrDeriveFmailIdentity();
   const contacts = loadMailContacts(currentIdentity.pubkey);
   const suggestions = getRecipientSuggestions(filter, fmail, contacts, freenet.knownPeers);
+  const filterTrimmed = filter.trim();
 
-  if (suggestions.length === 0) {
+  if (suggestions.length === 0 && !filterTrimmed) {
     mailToSuggestions.style.display = "none";
     mailToSuggestions.innerHTML = "";
     return;
   }
 
-  mailToSuggestions.innerHTML = suggestions
+  const itemsHtml = suggestions
     .map(
       (s) => `
         <div class="mail-suggestion-item" data-address="${escapeHtml(s.address)}" data-name="${escapeHtml(s.displayName)}">
@@ -9173,9 +9199,19 @@ function renderMailToSuggestions(filter = "") {
     )
     .join("");
 
+  const addOptionHtml = `
+    <div class="mail-suggestion-item mail-suggestion-add-contact" style="border-top: 1px dashed var(--border); color: var(--primary); font-weight: 500; cursor: pointer;">
+      <div class="mail-suggestion-info">
+        <span class="mail-suggestion-name">➕ Add "${escapeHtml(filterTrimmed || "new contact")}"</span>
+        <span class="mail-suggestion-addr">Import via token or address</span>
+      </div>
+    </div>
+  `;
+
+  mailToSuggestions.innerHTML = itemsHtml + addOptionHtml;
   mailToSuggestions.style.display = "block";
 
-  mailToSuggestions.querySelectorAll<HTMLElement>(".mail-suggestion-item").forEach((item) => {
+  mailToSuggestions.querySelectorAll<HTMLElement>(".mail-suggestion-item:not(.mail-suggestion-add-contact)").forEach((item) => {
     item.addEventListener("mousedown", (e) => {
       e.preventDefault();
       const addr = item.dataset.address;
@@ -9187,6 +9223,15 @@ function renderMailToSuggestions(filter = "") {
       }
     });
   });
+
+  const addBtn = mailToSuggestions.querySelector<HTMLElement>(".mail-suggestion-add-contact");
+  if (addBtn) {
+    addBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      mailToSuggestions.style.display = "none";
+      openMailContactModal(filterTrimmed);
+    });
+  }
 }
 
 function openMailModal() {
@@ -9413,6 +9458,66 @@ if (mailContactsToggleBtn) {
     } else {
       renderMailToSuggestions("");
       mailToInput?.focus();
+    }
+  });
+}
+
+function openMailContactModal(prefill = "") {
+  if (!mailContactModal) return;
+  if (mailContactNameInput) mailContactNameInput.value = "";
+  if (mailContactAddrInput) mailContactAddrInput.value = prefill;
+  if (prefill && prefill.includes("@")) {
+    const parts = prefill.split("@");
+    if (mailContactNameInput) mailContactNameInput.value = parts[0];
+  }
+  mailContactModal.style.display = "flex";
+  (mailContactAddrInput?.value ? mailContactNameInput : (mailContactAddrInput || mailContactNameInput))?.focus();
+}
+
+if (mailImportContactBtn) {
+  mailImportContactBtn.addEventListener("click", () => {
+    openMailContactModal(mailToInput?.value.trim() || "");
+  });
+}
+
+if (mailContactModalCloseBtn && mailContactModal) {
+  mailContactModalCloseBtn.addEventListener("click", () => {
+    mailContactModal.style.display = "none";
+  });
+}
+
+if (mailContactModalCancelBtn && mailContactModal) {
+  mailContactModalCancelBtn.addEventListener("click", () => {
+    mailContactModal.style.display = "none";
+  });
+}
+
+if (mailContactModalSaveBtn && mailContactModal) {
+  mailContactModalSaveBtn.addEventListener("click", () => {
+    if (!currentIdentity) {
+      showToast("Please sign in first.", "info");
+      return;
+    }
+    const rawName = mailContactNameInput?.value.trim() || "";
+    const rawAddr = mailContactAddrInput?.value.trim() || "";
+    if (!rawAddr) {
+      showToast("Please enter a Freenet Mail token or address.", "error");
+      return;
+    }
+    const parsed = parseFmailContactInput(rawAddr, rawName);
+    if (!parsed) {
+      showToast("Invalid Freenet Mail address or contact token format.", "error");
+      return;
+    }
+    const saved = saveMailContact(currentIdentity.pubkey, {
+      name: parsed.name,
+      address: parsed.address,
+    });
+    mailContactModal.style.display = "none";
+    showToast(`✓ Contact "${saved.name}" saved!`, "info");
+    if (mailToInput) {
+      mailToInput.value = `${saved.name} <${saved.address}>`;
+      mailSubjectInput?.focus();
     }
   });
 }
@@ -9750,6 +9855,7 @@ async function init() {
   renderIdentityModal();
   renderFollowingList();
   renderDiscoveredPeers();
+  await durable.ready;
   updateNotificationsBadge();
   void maybeShowWelcome();
   void refreshSupporters();

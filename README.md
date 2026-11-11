@@ -79,6 +79,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Built-in Mail Client**: A dedicated Mail navigation rail view (`g m`) with full split-pane Inbox, Sent, and Drafts management, real-time search filtering, unread badges, and responsive viewports.
 - **Activity & System Notifications**: Hooked directly into the central Activity & Notifications stream. Incoming and unread emails trigger pop audio alerts, show unread badges on the navigation rail and activity bell, update window titles, and provide interactive notification actions (Open, Mark Read, Delete) with bidirectional synchronization.
 - **In-App Compose & Reply**: Read end-to-end encrypted emails, compose messages to any Freenet Mail address, reply to threads with automatic `Re:` subject handling and quoted body formatting, and save drafts locally.
+- **Address Book & Contact Token Support**: Compose emails using clean human-readable handles (e.g. `scobru@...`), 36-character post-quantum addresses, or official Freenet Mail Contact Tokens (43-44 char Base58 keys from Freenet Mail's Share screen). Import contacts directly via the "➕ Add Contact" modal or autocomplete suggestions with automatic address book learning.
 - **Zero Lock-In Interoperability**: Every Radica persona deterministically derives a decentralized post-quantum email identity compatible with the official [`freenet/mail`](https://github.com/freenet/mail) application:
   - 🔑 **Post-Quantum Crypto**: ML-KEM-768 for encrypted message decapsulation and ML-DSA-65 for signing and verification.
   - 📋 **Universal Recovery Key**: Export official `fmail-key-1:<base58>` recovery keys or JSON backups (`identity-backup-v2.json`) directly from Identity & Key Management.
@@ -278,6 +279,7 @@ npm run test:app   # Freenet installer/probe tests
   - [Fisherman's Horizon](https://github.com/scobru/FH) (Curated Freenet bookmark lists)
   - [FreeHole](https://github.com/scobru/freehole) (Decentralized file transfer via Freenet chunk contracts with Reed-Solomon redundancy)
   - [Freetree](https://github.com/scobru/freetree) (Decentralized Linktree for Freenet & Delta)
+  - [Spore](https://github.com/scobru/spore) (Sovereign P2P desktop music client; Soulseek-style crate digging & library sharing on Freenet)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
 

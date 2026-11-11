@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText } from "../src/repost.ts";
+import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted } from "../src/repost.ts";
 import { renderCaption } from "../src/caption.ts";
 
 const AUTHOR = "ab".repeat(32);
@@ -43,4 +43,28 @@ test("the card names its post, and what it shows is escaped", () => {
   assert.match(body, /Ada/);
   assert.match(body, /<em>ok<\/em>/);
   assert.doesNotMatch(body, /repost-media/);
+});
+
+test("repostCountsOf and hasUserReposted correctly count and detect reposts", () => {
+  const postA = { id: "pA", author: AUTHOR };
+  const postB = { id: "pB", author: "cd".repeat(32) };
+  const user1 = "11".repeat(32);
+  const user2 = "22".repeat(32);
+
+  const posts = [
+    { author: user1, caption: repostCaption("reposting A", repostLink(APP, postA)) },
+    { author: user2, caption: repostCaption("also sharing A", repostLink(APP, postA)) },
+    { author: user1, caption: repostCaption("sharing B", repostLink(APP, postB)) },
+    { author: user2, caption: "just a normal post with no link" },
+  ];
+
+  const counts = repostCountsOf(posts);
+  assert.equal(counts.get(`${postA.author}:${postA.id}`), 2);
+  assert.equal(counts.get(`${postB.author}:${postB.id}`), 1);
+  assert.equal(counts.get("unknown:none"), undefined);
+
+  assert.equal(hasUserReposted(posts, user1, postA.id, postA.author), true);
+  assert.equal(hasUserReposted(posts, user2, postA.id, postA.author), true);
+  assert.equal(hasUserReposted(posts, user2, postB.id, postB.author), false);
+  assert.equal(hasUserReposted(posts, "33".repeat(32), postA.id, postA.author), false);
 });

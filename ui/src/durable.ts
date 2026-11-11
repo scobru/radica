@@ -19,6 +19,10 @@ export const DURABLE_PREFIXES = [
   "radica_ghostkey_", // my GhostKey proof: its perks hold here even before the ghostkeys log arrives
   "radica_welcomed_", // the welcome tour, seen or skipped: it must not come back on every visit
   "freenet_notifs_dismissed_", // Activity items I opened: the inbox log would bring them back
+  "radica_fmail_store_", // Radica Mail store: messages, drafts, read/unread states
+  "radica_mail_alias_", // Radica Mail custom handle
+  "radica_mail_contacts_", // Radica Mail address book contacts
+  "radica_mail_welcomed_", // Flag to prevent duplicate welcome mail on fresh loads
 ];
 
 /** The delegate refuses values over 256 KB. */

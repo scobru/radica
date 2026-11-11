@@ -48,19 +48,22 @@ export function getMailStorageKey(pubkey: string): string {
 }
 
 /**
- * Validate a Freenet Mail address format.
+ * Validate a Freenet Mail address or contact token format.
  * Accepts:
- * - Full address: `alias@<36-chars base58>` (e.g. `scobru@111111111111111111111111111111111111`)
+ * - Standard address: `alias@<36-chars base58>` (e.g. `scobru@111111111111111111111111111111111111`)
  * - Bare address: `<36-chars base58>`
- * - Special local addresses (e.g. `welcome@freenet`)
+ * - Freenet Mail Contact Token: `alias@<32..44-chars base58>` (e.g. `scobru@AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs`)
+ * - Bare Contact Token: `<32..44-chars base58>` (e.g. `AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs`)
+ * - Raw hex public key: `alias@<64 hex chars>` or bare `<64 hex chars>`
+ * - Special local addresses (e.g. `welcome@freenet`, `@official`)
  */
 export function isValidMailAddress(address: string): boolean {
   if (!address) return false;
   const trimmed = address.trim();
   if (trimmed === "welcome@freenet" || trimmed.endsWith("@official")) return true;
 
-  // Pattern: optional "alias@" followed by 36 alphanumeric characters (Base58)
-  const fullMatch = trimmed.match(/^([a-zA-Z0-9_\-\.]+@)?([1-9A-HJ-NP-Za-km-z]{36})$/);
+  // Pattern: optional "alias@" followed by 32..44 Base58 characters OR 64 hex characters
+  const fullMatch = trimmed.match(/^([a-zA-Z0-9_\-\.]+@)?([1-9A-HJ-NP-Za-km-z]{32,44}|[0-9a-fA-F]{64})$/);
   return !!fullMatch;
 }
 
@@ -130,7 +133,7 @@ export function deleteMailContact(pubkey: string, address: string): void {
 }
 
 /**
- * Resolve an input recipient (address, "@name", contact nickname, or peer) to a valid Freenet Mail address.
+ * Resolve an input recipient (address, "@name", contact nickname, token, or peer) to a valid Freenet Mail address.
  */
 export function resolveRecipientAddress(
   input: string,
@@ -140,11 +143,12 @@ export function resolveRecipientAddress(
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  // 1. Direct valid mail address format
+  // 1. Direct valid mail address or Freenet Mail contact token format
   const norm = normalizeMailAddress(trimmed);
   if (isValidMailAddress(norm)) {
     const contact = contacts.find((c) => c.address.toLowerCase() === norm.toLowerCase());
-    return { address: norm, displayName: contact?.name };
+    const aliasPart = norm.includes("@") ? norm.split("@")[0] : undefined;
+    return { address: norm, displayName: contact?.name || aliasPart };
   }
 
   // 2. Exact match in saved address book (name or handle)
@@ -168,6 +172,39 @@ export function resolveRecipientAddress(
         return { address: peer.fmail_address, displayName: peer.display_name };
       }
     }
+  }
+
+  return null;
+}
+
+/**
+ * Parse an imported contact input (which can be a token, alias@token, full address, or Name <address/token>).
+ */
+export function parseFmailContactInput(
+  rawInput: string,
+  defaultName?: string
+): { name: string; address: string } | null {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+
+  // 1. Check if formatted as "DisplayName <address/token>"
+  const bracketMatch = trimmed.match(/^([^<]+)<([^>]+)>$/);
+  if (bracketMatch) {
+    const name = bracketMatch[1].trim();
+    const addr = bracketMatch[2].trim();
+    if (isValidMailAddress(addr)) {
+      const aliasPart = addr.includes("@") ? addr.split("@")[0] : undefined;
+      return { name: name || defaultName?.trim() || aliasPart || "Contact", address: addr };
+    }
+  }
+
+  // 2. Direct address or token
+  if (isValidMailAddress(trimmed)) {
+    const aliasPart = trimmed.includes("@") ? trimmed.split("@")[0] : undefined;
+    return {
+      name: defaultName?.trim() || aliasPart || `Contact (${trimmed.substring(0, 6)}…)`,
+      address: trimmed,
+    };
   }
 
   return null;
@@ -271,6 +308,8 @@ export function resolveMailAlias(
   return `user_${pubkey.substring(0, 6)}`;
 }
 
+const WELCOMED_KEY = (pubkey: string) => `radica_mail_welcomed_${pubkey}`;
+
 /**
  * Load the mail store for a given persona, or initialize it with the welcome mail.
  */
@@ -282,6 +321,9 @@ export function loadMailStore(pubkey: string, identity?: FreenetMailIdentity | n
     try {
       const parsed = JSON.parse(raw) as MailStore;
       if (Array.isArray(parsed?.messages)) {
+        if (parsed.messages.some((m) => m.id === "welcome_radica_mail" || m.id.startsWith("welcome_"))) {
+          safeStorage.setItem(WELCOMED_KEY(pubkey), "true");
+        }
         return parsed;
       }
     } catch (err) {
@@ -295,9 +337,11 @@ export function loadMailStore(pubkey: string, identity?: FreenetMailIdentity | n
     messages: [],
   };
 
-  if (identity) {
+  const alreadyWelcomed = safeStorage.getItem(WELCOMED_KEY(pubkey)) === "true";
+
+  if (identity && !alreadyWelcomed) {
     const welcomeMail: MailMessage = {
-      id: `welcome_${Date.now()}`,
+      id: "welcome_radica_mail",
       from: "Freenet Mail <welcome@official>",
       fromAddress: "welcome@official",
       to: `${identity.alias}@${identity.address}`,
@@ -320,6 +364,7 @@ Happy decentralized messaging!`,
       folder: "inbox",
     };
     store.messages.push(welcomeMail);
+    safeStorage.setItem(WELCOMED_KEY(pubkey), "true");
     saveMailStore(pubkey, store);
   }
 

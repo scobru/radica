@@ -27,21 +27,24 @@ export interface EcosystemApp {
   repo: string;
   /** Project author or maintainer */
   author?: string;
+  /** App relationship: 'integrated' (connected directly in Radica) or 'affiliated' (autonomous sister / companion dApp) */
+  category?: "integrated" | "affiliated";
 }
 
 export const ECOSYSTEM: EcosystemApp[] = [
-  { name: "River", what: "group chat; Radica's private rooms are River rooms", repo: "https://github.com/freenet/river", author: "Freenet core" },
-  { name: "Freenet Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core" },
-  { name: "Viso", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru" },
-  { name: "FreeTunes", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru" },
-  { name: "FreePolls", what: "anonymous polls in posts and chat", key: FREEPOLLS_SITE, repo: "https://github.com/scobru/freepolls", author: "by @scobru" },
-  { name: "FreeNames", what: "short names, profile sites and resolved links in posts", key: FREENAMES_KEY, repo: "https://github.com/scobru/freenames", author: "by @scobru" },
-  { name: "Delta", what: "blogs linked from profiles", key: DELTA_WEB, repo: "https://github.com/freenet/delta", author: "Freenet core" },
-  { name: "Orto", what: "encrypted organizer; reads your Radica feed in its Feeds tab", key: ORTO_SITE, repo: "https://github.com/scobru/orto", author: "by @scobru" },
-  { name: "Asocial", what: "browser & HTML5 games, played inside posts", key: ASOCIAL_SITE, repo: ASOCIAL_REPO, author: "by porky11" },
-  { name: "Fisherman's Horizon", what: "curate & pin Freenet sites; shared bookmark lists", key: FH_SITE, repo: FH_REPO, author: "by @scobru" },
-  { name: "FreeHole", what: "sovereign P2P & Freenet file transfer; send & receive files via mnemonic codes", key: FREEHOLE_SITE, repo: FREEHOLE_REPO, author: "by @scobru" },
-  { name: "Freetree", what: "decentralized linktree; transforms Delta link pages into profile hubs", key: FREETREE_SITE, repo: FREETREE_REPO, author: "by @scobru" },
+  { name: "River", what: "group chat; Radica's private rooms are River rooms", repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated" },
+  { name: "Freenet Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core", category: "integrated" },
+  { name: "Viso", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru", category: "integrated" },
+  { name: "FreeTunes", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru", category: "integrated" },
+  { name: "FreePolls", what: "anonymous polls in posts and chat", key: FREEPOLLS_SITE, repo: "https://github.com/scobru/freepolls", author: "by @scobru", category: "integrated" },
+  { name: "FreeNames", what: "short names, profile sites and resolved links in posts", key: FREENAMES_KEY, repo: "https://github.com/scobru/freenames", author: "by @scobru", category: "integrated" },
+  { name: "Delta", what: "blogs linked from profiles", key: DELTA_WEB, repo: "https://github.com/freenet/delta", author: "Freenet core", category: "integrated" },
+  { name: "Orto", what: "encrypted organizer; reads your Radica feed in its Feeds tab", key: ORTO_SITE, repo: "https://github.com/scobru/orto", author: "by @scobru", category: "integrated" },
+  { name: "Asocial", what: "browser & HTML5 games, played inside posts", key: ASOCIAL_SITE, repo: ASOCIAL_REPO, author: "by porky11", category: "integrated" },
+  { name: "Fisherman's Horizon", what: "curate & pin Freenet sites; shared bookmark lists", key: FH_SITE, repo: FH_REPO, author: "by @scobru", category: "integrated" },
+  { name: "FreeHole", what: "sovereign P2P & Freenet file transfer; send & receive files via mnemonic codes", key: FREEHOLE_SITE, repo: FREEHOLE_REPO, author: "by @scobru", category: "integrated" },
+  { name: "Freetree", what: "decentralized linktree; transforms Delta link pages into profile hubs", key: FREETREE_SITE, repo: FREETREE_REPO, author: "by @scobru", category: "integrated" },
+  { name: "Spore", what: "sovereign P2P desktop music client; Soulseek-style crate digging & library sharing on Freenet", repo: "https://github.com/scobru/spore", author: "by @scobru", category: "affiliated" },
 ];
 
 const hrefOf = (app: EcosystemApp, origin: string) => (app.key ? `${origin}/v1/contract/web/${app.key}/#/` : app.repo);
@@ -60,7 +63,10 @@ export function ecosystemCard(origin: string): string {
     const isScobru = a.author === "by @scobru";
     const badgeCls = isScobru ? "eco-author-badge eco-author-scobru" : "eco-author-badge";
     const authorBadge = a.author ? `<span class="${badgeCls}">${esc(a.author)}</span>` : "";
-    return `<li>${link(hrefOf(a, origin), a.name, "eco-name")}${authorBadge} <span class="eco-what">${esc(a.what)}</span></li>`;
+    const typeBadge = a.category === "affiliated"
+      ? `<span class="eco-type-badge eco-type-affiliated" title="Autonomous sovereign dApp in the Freenet ecosystem">Affiliated App</span>`
+      : "";
+    return `<li>${link(hrefOf(a, origin), a.name, "eco-name")}${authorBadge}${typeBadge} <span class="eco-what">${esc(a.what)}</span></li>`;
   }).join("");
   return `
     <div class="eco-support-box">
@@ -85,8 +91,8 @@ export function ecosystemCard(origin: string): string {
       </div>
     </div>
     <div class="eco-apps-box">
-      <h4>Works with</h4>
-      <p class="eco-note">Radica connects seamlessly with these decentralized apps on Freenet. Except for River, Delta, and Asocial (developed by Freenet core and community contributors), all of these companion apps are built and maintained by Radica's creator (@scobru):</p>
+      <h4>Works with &amp; Affiliated Apps</h4>
+      <p class="eco-note">Radica connects seamlessly with these decentralized apps on Freenet, alongside affiliated sovereign desktop and companion dApps created by Radica's creator (@scobru) and community contributors:</p>
       <ul class="eco-list">${rows}</ul>
     </div>
   `;

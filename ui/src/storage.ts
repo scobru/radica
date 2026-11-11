@@ -201,6 +201,10 @@ class SafeStorage {
       "river_key_",
       "river_join_",
       "freenet_room_key_",
+      "radica_fmail_store_",
+      "radica_mail_alias_",
+      "radica_mail_contacts_",
+      "radica_mail_welcomed_",
     ];
     // Larger data: budgeted strictly up to MAX_HASH_LENGTH (7500 chars)
     const optionalPrefixes = ["freenet_feed_", "freenet_chat_"];

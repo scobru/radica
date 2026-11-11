@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794418099.0011332,
-    "ast_hash": "badacf5706b591103896811cd7c0a9b7",
+    "mtime": 1794420219.007197,
+    "ast_hash": "f6f37839b5313be5ded707c947ac0f46",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794418757.651698,
-    "ast_hash": "ed6ac7749fd825f9175647ce82234a33",
+    "mtime": 1794420339.861657,
+    "ast_hash": "b252245514ec5704341ce9c971713626",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794407576.3122766,
-    "ast_hash": "68c97678c74b98dabfd3f4c2a7a0ea73",
+    "mtime": 1794420096.0959506,
+    "ast_hash": "008dab0128582bc85430f9812909c0cc",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794418052.9215817,
-    "ast_hash": "8772ac676b63c988aec568282139692e",
+    "mtime": 1794419681.835322,
+    "ast_hash": "4fd45102129169287036af45de51eb1e",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -90,8 +90,8 @@
     "semantic_hash": ""
   },
   "ui/src/storage.ts": {
-    "mtime": 1793911958.542998,
-    "ast_hash": "ee7def15a1fd3c043276cd25e950ef91",
+    "mtime": 1794419608.0533905,
+    "ast_hash": "3ffa279889ba8f5699649123c2a52b47",
     "semantic_hash": ""
   },
   "ui/src/avatar.ts": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794418742.689154,
-    "ast_hash": "3ada38eaca72c2a9a4deea86e10ecc79",
+    "mtime": 1794420329.6126153,
+    "ast_hash": "cb2ee2c26b8975b0a7a836b323ca9479",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
-    "mtime": 1794392081.640337,
-    "ast_hash": "eaa64430b9ab0aedd1fb39320df6f43b",
+    "mtime": 1794420011.4911277,
+    "ast_hash": "54447d079e2d55d0bb6a9ad91429b66b",
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
@@ -425,8 +425,8 @@
     "semantic_hash": ""
   },
   "ui/src/durable.ts": {
-    "mtime": 1793813113.689399,
-    "ast_hash": "32148d86d8dd33ea415fc9c9fae9d4c7",
+    "mtime": 1794419598.5253205,
+    "ast_hash": "ffee6b055419d3866969bd494b11e586",
     "semantic_hash": ""
   },
   "ui/src/html.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1794407553.6359248,
-    "ast_hash": "66d3648238984e3cbb743db4190b3359",
+    "mtime": 1794419987.246468,
+    "ast_hash": "6492170eba10e47813433b618d40ddcd",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -935,8 +935,8 @@
     "semantic_hash": ""
   },
   "ui/tests/ecosystem.test.ts": {
-    "mtime": 1794164951.1268277,
-    "ast_hash": "c649e9d1b2b8d88806dd02ba1f3741ca",
+    "mtime": 1794420040.1331737,
+    "ast_hash": "22c192af0f4d2f0f31bcb31230758373",
     "semantic_hash": ""
   },
   "ui/tests/feedlight.test.ts": {
@@ -1380,13 +1380,13 @@
     "semantic_hash": ""
   },
   "ui/src/mailClient.ts": {
-    "mtime": 1794415590.5379276,
-    "ast_hash": "9ee3361d3f1d79f99b01040ac8946ced",
+    "mtime": 1794419636.1069458,
+    "ast_hash": "b230003d98e68a854aa8db79e81b3272",
     "semantic_hash": ""
   },
   "ui/tests/mailClient.test.ts": {
-    "mtime": 1794415609.907891,
-    "ast_hash": "f51bad586c6237536a54fd7fe743bf62",
+    "mtime": 1794419802.7445989,
+    "ast_hash": "5e535c29cebb8efe030243fdd1484da5",
     "semantic_hash": ""
   },
   "ui/src/linfa.ts": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "ui/src/repost.ts": {
-    "mtime": 1794406187.5251327,
-    "ast_hash": "6e4ad45e837aec729ab6c075661a7f7d",
+    "mtime": 1794420106.6048656,
+    "ast_hash": "7690393ca9db0ed258affb3276436f64",
     "semantic_hash": ""
   },
   "ui/tests/linfa.test.ts": {
@@ -1415,8 +1415,8 @@
     "semantic_hash": ""
   },
   "ui/tests/repost.test.ts": {
-    "mtime": 1794406187.5694535,
-    "ast_hash": "c91111cbc93b089198752a2bdeaccc10",
+    "mtime": 1794420243.622883,
+    "ast_hash": "6c4352387e8ac6d0c38c7507ebf5f4b9",
     "semantic_hash": ""
   },
   "apps/desktop/assets/make-icons.py": {
