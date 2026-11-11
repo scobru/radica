@@ -20,8 +20,10 @@ import {
   parseFmailContactInput,
   getRecipientSuggestions,
   resolveMailAlias,
+  syncFreenetMailInbox,
   type MailMessage,
 } from "../src/mailClient.ts";
+import { deriveMailIdentity, encryptFreenetMailV1 } from "../src/freenetMail.ts";
 import type { FreenetMailIdentity } from "../src/freenetMail.ts";
 
 const mockIdentity: FreenetMailIdentity = {
@@ -139,6 +141,29 @@ test("deleteMailMessage and setMailReadStatus: modify mail state correctly", () 
   deleteMailMessage(pubkey, welcomeId);
   const storeAfterDelete = loadMailStore(pubkey);
   assert.equal(storeAfterDelete.messages.length, 0);
+});
+
+test("syncFreenetMailInbox: a message deleted locally does not come back on the next sync", async () => {
+  const pubkey = "test_user_pubkey_5";
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  const bob = deriveMailIdentity("bob", new Uint8Array(32).fill(22));
+
+  const { deltaJson } = encryptFreenetMailV1(bob.kemEk, alice.dsaSk, alice.dsaVk, bob.inboxAddress, "Hi", "hello", alice.alias);
+  const wireMsg = JSON.parse(deltaJson).AddMessages.messages[0];
+  const rawState = new TextEncoder().encode(JSON.stringify({ messages: [wireMsg] }));
+  const freenet = { getByInstance: async () => rawState };
+
+  const first = await syncFreenetMailInbox(pubkey, bob, freenet);
+  assert.equal(first.newCount, 1);
+  const inboxId = loadMailStore(pubkey).messages.find((m) => m.folder === "inbox")!.id;
+
+  deleteMailMessage(pubkey, inboxId);
+  assert.equal(loadMailStore(pubkey).messages.some((m) => m.id === inboxId), false);
+
+  // same network state as a user hitting Refresh again: the contract still holds the message
+  const second = await syncFreenetMailInbox(pubkey, bob, freenet);
+  assert.equal(second.newCount, 0);
+  assert.equal(loadMailStore(pubkey).messages.some((m) => m.id === inboxId), false);
 });
 
 test("filterMailMessages: searches and sorts messages", () => {
