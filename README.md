@@ -81,6 +81,18 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
   - 📋 **Universal Recovery Key**: Export official `fmail-key-1:<base58>` recovery keys or JSON backups (`identity-backup-v2.json`) directly from Identity & Key Management.
   - 🌐 **Cross-App Sync**: Users can import their recovery key into the native Freenet Mail Dioxus client and access the exact same inbox contract on the decentralized network.
 
+### 11. 🌱 Linfa: a Plant on Every Profile
+- **Counted, never stored**: each profile shows a plant whose Linfa (sap) the reader's node adds up from the signed posts, comments and likes it holds. There is no score in any contract, so nobody can write themselves a number.
+- **Answering beats posting**: a comment on someone's post counts 3, being reposted 3, a comment received 2, a like received 1, a like given ½. Posting alone grows the first leaves only (one point per day posted, thirty at most).
+- **Sybil-resistant by Web-of-Trust**: each act is weighed by the reader's trust in the other side (followed 1, friend of a friend ½, stranger ¼) and strangers together are capped, so a crowd of new identities cannot grow a tree. Two readers can therefore see two different plants.
+- **One plant per persona**: a procedural SVG whose whole shape comes from the persona's key. It grows from seed to elder tree without reshuffling; the leaves of the last week are drawn lighter.
+
+### 12. 🔁 Reposts Without a Contract Change
+- **Share a post on your feed**: the Repost button stages a post in the composer; add your own words or plant it as it is. The shared post is drawn inside yours, and its author is notified.
+- **No new contract key**: a repost is an ordinary post whose signed caption carries the shared post's permalink, so the feed contract is untouched and older clients show it as a link.
+- **Moderation holds**: a reposted post by someone you hide or block, or a reported post, stays hidden.
+- **Reposts tab** on every profile, beside Posts.
+
 ---
 
 ## 🏗️ Architecture
@@ -99,6 +111,9 @@ radica/
 │   │   ├── whoiam.ts            # Viso / Whoiam decentralized SSO identity bridge
 │   │   ├── moderation.ts        # Desert Ant Labs WASM loader & text/PII censorship
 │   │   ├── freenetMail.ts       # Freenet Mail post-quantum seeds & recovery key codec
+│   │   ├── repost.ts            # Reposts: a post whose caption carries the shared post's permalink
+│   │   ├── linfa.ts             # Linfa: a profile's score, counted from signed acts and weighed by trust
+│   │   ├── plant.ts             # The plant a Linfa grows: procedural SVG seeded by the persona's key
 │   │   ├── freenet.ts           # Freenet client, P2P broadcast channel & room key cache
 │   │   ├── types.ts             # Contract state & delta interface declarations
 │   │   ├── icons.ts             # SVG icon definitions & helpers
