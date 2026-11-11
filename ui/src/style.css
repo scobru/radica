@@ -30,6 +30,7 @@
   --nav-bg: #f6f1e7;
   --font: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-serif: var(--font-display);
   --shadow: none;
   --shadow-lg: 0 12px 28px -8px rgba(30, 26, 20, 0.25);
 }
@@ -124,6 +125,20 @@
 h1, h2, h3, .brand, .profile-name {
   font-family: var(--font-display);
   letter-spacing: -0.01em;
+}
+
+/* Ensure child text elements inside headings inherit the heading's display font */
+h1 *, h2 *, h3 *, .brand *, .profile-name * {
+  font-family: inherit;
+}
+
+/* Badges, code chips, keys, and hashes inside headings stay monospace */
+h1 code, h2 code, h3 code,
+h1 .identity-badge, h2 .identity-badge, h3 .identity-badge,
+h1 .mail-address-badge, h2 .mail-address-badge, h3 .mail-address-badge,
+h1 .mail-address-badge *, h2 .mail-address-badge *, h3 .mail-address-badge *,
+code, kbd, samp, pre {
+  font-family: monospace;
 }
 
 html, body {
@@ -1437,6 +1452,29 @@ body.chat-fullscreen .rail {
 .rail-page #updates-list,
 .rail-page #blocklists-mine {
   max-height: none !important;
+}
+
+/* Unified top header typography across all pages and modals (Messages, Mail, Identity, Activity, Settings, etc.) */
+.modal-card > div:first-child h3,
+.rail-page .modal-card > div:first-child h3,
+.rail-page .mail-header h3,
+.chat-header h3,
+.modal-title,
+.mail-title {
+  font-family: var(--font-display) !important;
+  font-size: 1.35rem !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
+}
+
+.modal-card > div:first-child h3 *,
+.rail-page .modal-card > div:first-child h3 *,
+.rail-page .mail-header h3 *,
+.chat-header h3 *,
+.modal-title *,
+.mail-title * {
+  font-family: inherit;
 }
 
 #chat-send-form button {

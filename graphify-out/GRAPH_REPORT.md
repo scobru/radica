@@ -1,16 +1,16 @@
 # Graph Report - radica  (2026-11-11)
 
 ## Corpus Check
-- 250 files · ~749,525 words
+- 250 files · ~749,667 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2898 nodes · 7722 edges · 98 communities (87 shown, 11 thin omitted)
+- 2898 nodes · 7722 edges · 99 communities (87 shown, 12 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 133 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `db0cdb28`
+- Built from commit: `1c61147e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -93,6 +93,7 @@
 - [[_COMMUNITY_start.sh|start.sh]]
 - [[_COMMUNITY_README|README.md]]
 - [[_COMMUNITY_types.ts|types.ts]]
+- [[_COMMUNITY_Post|Post]]
 - [[_COMMUNITY_🚨 Mandatory Rule Features, Updates Tab & Documentation|🚨 Mandatory Rule: Features, Updates Tab & Documentation]]
 - [[_COMMUNITY_resolve|resolve]]
 - [[_COMMUNITY_fh.ts|fh.ts]]
@@ -132,15 +133,15 @@
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (98 total, 11 thin omitted)
+## Communities (99 total, 12 thin omitted)
 
 ### Community 0 - "main.ts"
 Cohesion: 0.01
 Nodes (378): accentSelect, activeFilterBanner, activeFilterTag, addModForm, addModPubkeyInput, alerted, allCommunities, allPrivateRooms (+370 more)
 
 ### Community 1 - "RiverRooms"
-Cohesion: 0.09
-Nodes (27): decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer(), encryptWithSymmetricKey(), formatChatMessageSignatureMessage() (+19 more)
+Cohesion: 0.11
+Nodes (25): decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer(), encryptWithSymmetricKey(), formatChatMessageSignatureMessage() (+17 more)
 
 ### Community 2 - "lib.rs"
 Cohesion: 0.09
@@ -295,7 +296,7 @@ Cohesion: 0.07
 Nodes (55): cacheCard(), deleteCommentFromCard(), deletePostFromCard(), fillReposts(), findFeedScrollAnchor(), formatTimeAgo(), getWebOfTrust(), globalRemove() (+47 more)
 
 ### Community 46 - "handleJoinFromInviteUrl"
-Cohesion: 0.21
+Cohesion: 0.17
 Nodes (3): MessengerDeps, PrivateRoom, UserIdentity
 
 ### Community 47 - "rootsfx.ts"
@@ -403,7 +404,7 @@ Cohesion: 0.50
 Nodes (3): out, pairs, registry
 
 ### Community 80 - "versionCheck.ts"
-Cohesion: 0.24
+Cohesion: 0.26
 Nodes (3): MessengerActiveState, UnifiedConversation, Community
 
 ### Community 85 - "types.ts"
@@ -437,16 +438,16 @@ Nodes (11): mediaAttr(), postImagesHtml(), dataUrlBytes(), inflight, keepMedia()
 ## Knowledge Gaps
 - **744 isolated node(s):** `name`, `private`, `type`, `start`, `test` (+739 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Cert` connect `lib.rs` to `RiverRooms`, `NotificationItem`, `createMessengerChat`, `signOut`, `handleJoinFromInviteUrl`, `types.ts`, `updates.ts`?**
+- **Why does `Cert` connect `lib.rs` to `NotificationItem`, `createMessengerChat`, `signOut`, `handleJoinFromInviteUrl`, `types.ts`, `Post`, `updates.ts`?**
   _High betweenness centrality (0.067) - this node is a cross-community bridge._
-- **Why does `FreenetClient` connect `moderation.ts` to `RiverRooms`, `whoiam.ts`, `compilerOptions`, `SafeStorage`, `feature_request.md`, `compilerOptions`, `avatar.ts`, `icons.ts`, `nodeOrigin`, `createMessengerChat`, `Reader`, `delegate.ts`, `messengerLogic.ts`, `handleJoinFromInviteUrl`, `caption.test.ts`, `createMessengerChat`, `versionCheck.ts`, `riverPointer.ts`, `media.ts`?**
+- **Why does `FreenetClient` connect `moderation.ts` to `RiverRooms`, `whoiam.ts`, `compilerOptions`, `SafeStorage`, `feature_request.md`, `compilerOptions`, `avatar.ts`, `icons.ts`, `nodeOrigin`, `createMessengerChat`, `Reader`, `delegate.ts`, `messengerLogic.ts`, `handleJoinFromInviteUrl`, `caption.test.ts`, `createMessengerChat`, `versionCheck.ts`, `Post`, `riverPointer.ts`, `media.ts`?**
   _High betweenness centrality (0.056) - this node is a cross-community bridge._
-- **Why does `UserIdentity` connect `handleJoinFromInviteUrl` to `main.ts`, `RiverRooms`, `lib.rs`, `createMessengerChat`, `compilerOptions`, `moderation.ts`, `delegate.ts`, `versionCheck.ts`, `compilerOptions`, `types.ts`, `secretChat.ts`, `avatar.ts`?**
+- **Why does `UserIdentity` connect `handleJoinFromInviteUrl` to `main.ts`, `RiverRooms`, `lib.rs`, `createMessengerChat`, `compilerOptions`, `moderation.ts`, `delegate.ts`, `versionCheck.ts`, `compilerOptions`, `types.ts`, `secretChat.ts`, `Post`, `avatar.ts`?**
   _High betweenness centrality (0.030) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `renderTimeline()` (e.g. with `.key()` and `pk()`) actually correct?**
   _`renderTimeline()` has 2 INFERRED edges - model-reasoned connections that need verification._
@@ -455,4 +456,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `main.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.005128205128205128 - nodes in this community are weakly interconnected._
 - **Should `RiverRooms` be split into smaller, more focused modules?**
-  _Cohesion score 0.09343200740055504 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10685249709639953 - nodes in this community are weakly interconnected._

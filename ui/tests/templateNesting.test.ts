@@ -91,3 +91,12 @@ test("layout: mobile mail is full screen and hides bottom rail like chat", () =>
   const mainTs = read("../src/main.ts");
   assert.match(mainTs, /document\.body\.classList\.toggle\("mail-open",\s*mailOpen\)/);
 });
+
+test("typography: headings consistently render in Fraunces display font across all child elements", () => {
+  const styleCss = read("../src/style.css");
+  assert.match(styleCss, /--font-serif:\s*var\(--font-display\);/);
+  assert.match(styleCss, /h1\s*\*,[\s\S]*?h2\s*\*,[\s\S]*?h3\s*\*[\s\S]*?font-family:\s*inherit/);
+  assert.match(styleCss, /\.mail-title[\s\S]*?font-family:\s*var\(--font-display\)/);
+  const mailCss = read("../src/mail.css");
+  assert.match(mailCss, /\.mail-title\s*\{[\s\S]*?font-family:\s*var\(--font-display\)/);
+});
