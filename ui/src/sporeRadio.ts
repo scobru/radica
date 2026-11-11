@@ -100,7 +100,7 @@ export function sporeRadioCard(caption: string): string {
     `</div>` +
     `</div>` +
     `<div class="spore-radio-footer">` +
-    `<a class="btn-primary btn-xs spore-radio-listen-btn" href="${esc(sporeUri)}" title="Tune in via Spore Desktop Client">` +
+    `<a class="btn-primary btn-xs spore-radio-listen-btn" href="${esc(sporeUri)}" target="_blank" rel="noopener noreferrer" title="Tune in via Spore Desktop Client">` +
     `&#x25B6; Tune In on Spore` +
     `</a>` +
     `<a class="btn-secondary btn-xs" href="${esc(SPORE_REPO)}" target="_blank" rel="noopener noreferrer" title="About Spore Client">` +
