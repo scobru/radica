@@ -634,31 +634,35 @@
       <div class="modal-card mail-modal-card">
         <!-- Header -->
         <div class="mail-header">
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              <span>Freenet Mail</span>
-            </h3>
-            <span class="mail-address-badge" id="mail-user-address-chip" title="Click to copy your decentralized mail address">
-              <span id="mail-user-address-display">Loading...</span>
-              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </span>
-            <span class="identity-badge" style="background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px;">● Post-Quantum E2EE</span>
+          <div class="mail-header-info">
+            <div class="mail-header-title-wrap">
+              <h3 class="mail-title" style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>Freenet Mail</span>
+              </h3>
+              <span class="mail-pq-badge identity-badge" style="background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px;">● Post-Quantum E2EE</span>
+            </div>
+            <div class="mail-header-address-wrap">
+              <span class="mail-address-badge" id="mail-user-address-chip" title="Click to copy your decentralized mail address">
+                <span id="mail-user-address-display">Loading...</span>
+                <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </span>
+            </div>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-new-btn">
+          <div class="mail-header-actions">
+            <button type="button" class="btn-primary btn-sm btn-icon-text mail-header-btn" id="mail-new-btn">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>Compose</span>
             </button>
-            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-refresh-btn" title="Refresh mailbox">
+            <button type="button" class="btn-secondary btn-sm btn-icon-text mail-header-btn mail-refresh-btn" id="mail-refresh-btn" title="Refresh mailbox">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              <span>Refresh</span>
+              <span class="mail-btn-text">Refresh</span>
             </button>
-            <a id="mail-companion-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-sm btn-icon-text" title="Open official Freenet Mail app">
+            <a id="mail-companion-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-sm btn-icon-text mail-header-btn mail-external-btn" title="Open official Freenet Mail app">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              <span>External App</span>
+              <span class="mail-btn-text">External App</span>
             </a>
-            <button type="button" class="btn-secondary btn-sm" id="mail-close-btn" title="Close Mail">✕</button>
+            <button type="button" class="btn-secondary btn-sm mail-close-btn" id="mail-close-btn" title="Close Mail and return to feed">✕</button>
           </div>
         </div>
 

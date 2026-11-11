@@ -81,3 +81,13 @@ test("layout: full width mode expands container and preserves messenger chat res
   assert.match(mainTs, /radica_fullwidth/);
   assert.match(mainTs, /applyFullWidth/);
 });
+
+test("layout: mobile mail is full screen and hides bottom rail like chat", () => {
+  const mailCss = read("../src/mail.css");
+  assert.match(mailCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?#mail-modal\s*\{[^}]*position:\s*fixed/);
+  assert.match(mailCss, /#mail-modal\s*\{[^}]*min\(var\(--rm-vvh,\s*100dvh\),\s*100dvh\)/);
+  const styleCss = read("../src/style.css");
+  assert.match(styleCss, /body\.mail-open\s+\.rail\s*\{[^}]*display:\s*none\s*!important/);
+  const mainTs = read("../src/main.ts");
+  assert.match(mainTs, /document\.body\.classList\.toggle\("mail-open",\s*mailOpen\)/);
+});

@@ -1,6 +1,7 @@
 5.3.0 / 2026-11-11
 ==================
 
+  * **NEW** Mobile Mail Full-Screen & Navigation: Opening Freenet Mail on mobile now expands to 100% full screen (`position: fixed; inset: 0`), hiding the bottom navigation rail (matching Messages chat). The header features a clean top bar with an accessible ✕ close button to instantly return to the feed, responsive address badge, and smooth navigation gestures where the mobile/Android Back gesture steps from message detail back to the inbox list, then back to the timeline.
   * **NEW** Dedicated Settings & Preferences Page: Added a clean Settings view in the navigation rail (shortcut `g ,`) for frontend customization. Moves interface width, colour themes, translation language, offensive words masking, and notification audio chime controls out of the Identity modal into a dedicated preferences pane.
   * **NEW** Focused Identity & Key Management: The Identity view now strictly focuses on cryptographic persona details, Viso decentralized SSO, local key creation/import, Freenet Mail key derivation, and ZK supporter badges.
   * **NEW** Built-in Radica Mail Client: Dedicated Mail tab in the navigation rail (keyboard shortcut `g m`) featuring full split-pane Inbox, Sent, and Drafts management, real-time message search, unread badges, and responsive desktop/mobile viewports.

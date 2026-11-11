@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794407390.4205346,
-    "ast_hash": "c3d02c4d03e0d8f473d4839e2a2e7f91",
+    "mtime": 1794408933.4402814,
+    "ast_hash": "542c4adfadf9801a2bd066923ea53a53",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794407527.767133,
-    "ast_hash": "63394f0d7dba2a2bd753d93e715771fe",
+    "mtime": 1794408989.0161371,
+    "ast_hash": "948abe97931f5865dec6ec9da10365c9",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794407248.8166049,
-    "ast_hash": "4af170fe5b89f1d99d56a029c8b376d7",
+    "mtime": 1794408838.765408,
+    "ast_hash": "1a192db089047440f2793e82fceb2d78",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794407510.5836825,
-    "ast_hash": "2614d7ba8c1ba818b65d37505b53a94d",
+    "mtime": 1794408966.1103718,
+    "ast_hash": "4a512900b588ca8d1a9cea8f280123ea",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1794346211.50754,
-    "ast_hash": "8d022c242b5739be2deed578b9e092e8",
+    "mtime": 1794408980.2604232,
+    "ast_hash": "cb20677c1d4e1d03363eb6e893c29681",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1794247439.0352585,
-    "ast_hash": "89939c5eadea82f7088f749130239f84",
+    "mtime": 1794407830.2800891,
+    "ast_hash": "16885057424d28c42b839ad1822d8ebd",
     "semantic_hash": ""
   },
   "inbox.json": {
@@ -1345,8 +1345,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/desktop.yml": {
-    "mtime": 1794247438.847282,
-    "ast_hash": "513c64ada47ee169176f9087f7381e1e",
+    "mtime": 1794407830.19315,
+    "ast_hash": "d6a216baf2df395825570c8c04adcefa",
     "semantic_hash": ""
   },
   "apps/android/src/main/res/mipmap/ic_launcher.png": {
@@ -1417,6 +1417,21 @@
   "ui/tests/repost.test.ts": {
     "mtime": 1794406187.5694535,
     "ast_hash": "c91111cbc93b089198752a2bdeaccc10",
+    "semantic_hash": ""
+  },
+  "apps/desktop/assets/make-icons.py": {
+    "mtime": 1794407830.2510276,
+    "ast_hash": "baa33cd0921dd45b0b506b1016b43365",
+    "semantic_hash": ""
+  },
+  "apps/desktop/build.rs": {
+    "mtime": 1794407830.263519,
+    "ast_hash": "a69bd34d3c2869c07a02507a246c4a0d",
+    "semantic_hash": ""
+  },
+  "apps/desktop/assets/icon-512.png": {
+    "mtime": 1794407830.243505,
+    "ast_hash": "dc583bd1972657672a7566d6b6bcd7ac",
     "semantic_hash": ""
   }
 }

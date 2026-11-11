@@ -3400,18 +3400,21 @@ body {
   body {
     padding-bottom: 72px;
   }
-  /* phones: when chat is open, hide the bottom rail and remove body padding so chat is 100% full screen */
+  /* phones: when chat or mail is open, hide the bottom rail and remove body padding so it is 100% full screen */
   body.chat-open,
-  body.chat-fullscreen {
+  body.chat-fullscreen,
+  body.mail-open {
     padding-bottom: 0 !important;
     overflow: hidden;
   }
   body.chat-open .rail,
-  body.chat-fullscreen .rail {
+  body.chat-fullscreen .rail,
+  body.mail-open .rail {
     display: none !important;
   }
   body.chat-open .container,
-  body.chat-fullscreen .container {
+  body.chat-fullscreen .container,
+  body.mail-open .container {
     margin-top: 0 !important;
   }
 }

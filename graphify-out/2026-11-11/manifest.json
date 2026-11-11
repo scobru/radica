@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794406187.5028298,
-    "ast_hash": "a352727449532a05081ed6210b5b5bea",
+    "mtime": 1794407390.4205346,
+    "ast_hash": "c3d02c4d03e0d8f473d4839e2a2e7f91",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794406271.206743,
-    "ast_hash": "1596935a40fa6775f3b6ec5c5341556d",
+    "mtime": 1794407527.767133,
+    "ast_hash": "63394f0d7dba2a2bd753d93e715771fe",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794406302.607175,
-    "ast_hash": "df1399b35d400b4ff16d0d4e85e288e2",
+    "mtime": 1794407576.3122766,
+    "ast_hash": "68c97678c74b98dabfd3f4c2a7a0ea73",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794406187.426282,
-    "ast_hash": "46ca94174db686d065c67c7e60f2b12b",
+    "mtime": 1794407248.8166049,
+    "ast_hash": "4af170fe5b89f1d99d56a029c8b376d7",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794406313.922689,
-    "ast_hash": "a1ad96099412033a056fd688621728ba",
+    "mtime": 1794407510.5836825,
+    "ast_hash": "2614d7ba8c1ba818b65d37505b53a94d",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1794406294.046554,
-    "ast_hash": "93f28da783ab825e15d3e1ca884657b7",
+    "mtime": 1794407553.6359248,
+    "ast_hash": "66d3648238984e3cbb743db4190b3359",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1255,13 +1255,13 @@
     "semantic_hash": ""
   },
   "ui/src/shortcuts.ts": {
-    "mtime": 1794394522.275711,
-    "ast_hash": "9f7363edb515833350ecc202344472a8",
+    "mtime": 1794407296.1851206,
+    "ast_hash": "041d76919de6d904afa4b161e2130134",
     "semantic_hash": ""
   },
   "ui/tests/shortcuts.test.ts": {
-    "mtime": 1794394434.5743861,
-    "ast_hash": "7a63f60889c92244bfa880e8267e1358",
+    "mtime": 1794407406.650241,
+    "ast_hash": "df8b7da38e0e860851b4bb18e8a4f3bf",
     "semantic_hash": ""
   },
   "ui/src/freetree.ts": {

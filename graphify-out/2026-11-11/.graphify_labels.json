@@ -99,6 +99,8 @@
   "97": "fh.ts",
   "98": "riverPointer.ts",
   "99": "limit.ts",
+  "100": "freetree.ts",
+  "101": "renderWelcomeSuggestions",
   "105": "WORMHOLE_PATH",
   "106": "wormholeHref",
   "107": "roots.ts",

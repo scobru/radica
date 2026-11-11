@@ -4867,8 +4867,10 @@ for (const [page, btnId] of railPages) {
     }
     const open = railPages.some(([el]) => isOpen(el));
     const chatOpen = isOpen(chatModal);
+    const mailOpen = isOpen(mailModal);
     document.body.classList.toggle("page-open", open);
     document.body.classList.toggle("chat-open", chatOpen);
+    document.body.classList.toggle("mail-open", mailOpen);
     document.body.classList.toggle("chat-fullscreen", chatOpen && chatModal.classList.contains("fullscreen"));
     if (wasOpen && !open) requestAnimationFrame(() => window.scrollTo({ top: feedScrollY }));
     document.getElementById(btnId)?.classList.toggle("active", isOpen(page));
@@ -5348,6 +5350,13 @@ function stepBackInRadica(): boolean {
       chatBody.classList.remove("show-rooms");
       return true;
     }
+  }
+  if (isOpen(mailModal) && mailBodyContainer?.classList.contains("in-detail")) {
+    mailBodyContainer.classList.remove("in-detail");
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    return true;
   }
   if (railPages.some(([el]) => isOpen(el))) {
     closeRailPages();
@@ -8994,6 +9003,9 @@ function selectMail(m: MailMessage) {
   if (mailComposeView) mailComposeView.style.display = "none";
   if (mailEmptyView) mailEmptyView.style.display = "none";
   if (mailBodyContainer) mailBodyContainer.classList.add("in-detail");
+  if (window.innerWidth <= 768 && history.state?.radica !== "page") {
+    pushBackStep("page");
+  }
 
   if (mailReadSubject) mailReadSubject.textContent = m.subject || "(No subject)";
   if (mailReadFrom) mailReadFrom.textContent = m.from || m.fromAddress;
@@ -9024,6 +9036,9 @@ function openMailComposer(opts: { to?: string; subject?: string; content?: strin
   if (mailComposeView) mailComposeView.style.display = "flex";
   if (mailEmptyView) mailEmptyView.style.display = "none";
   if (mailBodyContainer) mailBodyContainer.classList.add("in-detail");
+  if (window.innerWidth <= 768 && history.state?.radica !== "page") {
+    pushBackStep("page");
+  }
 
   if (mailComposeTitle) {
     mailComposeTitle.textContent = opts.replyToId ? "Reply" : (opts.draftId ? "Edit Draft" : "New Message");
