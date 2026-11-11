@@ -96,6 +96,10 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Moderation holds**: a reposted post by someone you hide or block, or a reported post, stays hidden.
 - **Reposts tab** on every profile, beside Posts.
 
+### 13. ⚙️ Dedicated Settings & Frontend Customization
+- **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) are organized into a dedicated Settings view (`g ,`), keeping Identity & Key Management strictly focused on cryptographic persona management and key portability.
+- **Instant Synchronization**: Theme accents (Radici, Ocean, Plum, Slate) and full-width layout changes persist across reloads and sync seamlessly with the node.
+
 ---
 
 ## 🏗️ Architecture

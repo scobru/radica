@@ -1,6 +1,8 @@
 5.3.0 / 2026-11-11
 ==================
 
+  * **NEW** Dedicated Settings & Preferences Page: Added a clean Settings view in the navigation rail (shortcut `g ,`) for frontend customization. Moves interface width, colour themes, translation language, offensive words masking, and notification audio chime controls out of the Identity modal into a dedicated preferences pane.
+  * **NEW** Focused Identity & Key Management: The Identity view now strictly focuses on cryptographic persona details, Viso decentralized SSO, local key creation/import, Freenet Mail key derivation, and ZK supporter badges.
   * **NEW** Built-in Radica Mail Client: Dedicated Mail tab in the navigation rail (keyboard shortcut `g m`) featuring full split-pane Inbox, Sent, and Drafts management, real-time message search, unread badges, and responsive desktop/mobile viewports.
   * **NEW** Activity & Notifications Integration: Incoming and unread mails are hooked up to Radica's central activity notification stream. Features audio pop alerts, unread badges on both the rail and the Activity bell, browser title indicators, and actionable notification items (Open, Read, Delete) with automatic bidirectional read-state synchronization.
   * **NEW** In-App Reading & Replying: Read end-to-end post-quantum encrypted messages, compose new emails, reply with automatic `Re:` subject handling and threaded quote formatting, or save drafts locally.

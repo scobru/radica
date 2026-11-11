@@ -12,9 +12,11 @@ export interface ShortcutItem {
 export const SHORTCUTS_LIST: ShortcutItem[] = [
   // Navigation
   { keyLabel: "g h", category: "Navigation", description: "Go to Home / Feed (from anywhere)" },
-  { keyLabel: "g c / g m", category: "Navigation", description: "Go to Direct Messages / Chat" },
+  { keyLabel: "g c", category: "Navigation", description: "Go to Direct Messages / Chat" },
+  { keyLabel: "g m", category: "Navigation", description: "Go to Freenet Mail" },
   { keyLabel: "g n", category: "Navigation", description: "Go to Notifications & Activity" },
   { keyLabel: "g i", category: "Navigation", description: "Go to Identity & Keys" },
+  { keyLabel: "g ,", category: "Navigation", description: "Go to Settings & Preferences" },
   { keyLabel: "g p", category: "Navigation", description: "Go to My Posts" },
   { keyLabel: "g s", category: "Navigation", description: "Go to Saved Posts" },
   { keyLabel: "g u", category: "Navigation", description: "Go to What's New" },
@@ -77,6 +79,7 @@ export type ActiveView =
   | "chat"
   | "mail"
   | "identity"
+  | "settings"
   | "updates"
   | "greenhouse"
   | "blocklists"
@@ -98,6 +101,7 @@ export function getActiveView(): ActiveView {
   if (isVisible("chat-modal")) return "chat";
   if (isVisible("mail-modal")) return "mail";
   if (isVisible("identity-modal")) return "identity";
+  if (isVisible("settings-modal")) return "settings";
   if (isVisible("updates-modal")) return "updates";
   if (isVisible("greenhouse-modal")) return "greenhouse";
   if (isVisible("blocklists-modal")) return "blocklists";
@@ -140,7 +144,7 @@ export function showGotoHud(visible: boolean, customText?: string): void {
     if (visible) {
       hud.innerHTML =
         customText ||
-        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>?</kbd> help`;
+        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>?</kbd> help`;
       if (hud.style) hud.style.display = "flex";
       gotoTimer = setTimeout(() => {
         showGotoHud(false);
@@ -189,6 +193,12 @@ export function handleGotoKey(key: string): boolean {
     case "i": {
       closeOtherPages("identity-modal");
       document.getElementById("open-identity-btn")?.click();
+      return true;
+    }
+    case ",":
+    case "t": {
+      closeOtherPages("settings-modal");
+      document.getElementById("settings-open-btn")?.click();
       return true;
     }
     case "p": {

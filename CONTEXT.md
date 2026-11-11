@@ -52,6 +52,7 @@ Terms the code and its reviews use. Keep them exact.
 
 ## Decisions
 
+- Settings separated from Identity (2026-11): UI preferences (layout width, themes, translation language, offensive words mask, audio sounds) live in their own Settings page, keeping Identity purely about cryptographic keys, Viso SSO and supporter proofs.
 - Reposts live in the caption, not in a contract field (2026-11): a new `contract.wasm` moves every feed to a new key, and a field outside the signed message could be altered by any peer.
 - Linfa is counted by each reader, not stored (2026-11): a stored counter is whatever its owner signs. There is no leaderboard: it would need every feed, and on a small network it discourages more than it rewards.
 - Both chat views stay (Messenger and Classic, 2026-11): shared chat behaviour lives in Conversation state, not in either view.

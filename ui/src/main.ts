@@ -3,7 +3,7 @@ import "@fontsource-variable/fraunces";
 import { UPDATES } from "./updates";
 import { ecosystemFooter, ecosystemCard } from "./ecosystem";
 import { closeModal, installModalDismiss } from "./modals";
-import { initShortcuts } from "./shortcuts";
+import { initShortcuts, toggleShortcutsModal } from "./shortcuts";
 import { findCommunities, type CommunitySort } from "./communityFinder";
 import { getIdentity, personaName } from "./crypto";
 import { linkify, renderCaption, renderPost, renderComment, mentionsIn, nodeOrigin, renderChatText, setMaskBadWords, trendingTags } from "./caption.ts";
@@ -192,6 +192,15 @@ const localCreateMsg = document.getElementById("local-create-msg") as HTMLElemen
 const importKeyInput = document.getElementById("import-key-input") as HTMLInputElement;
 const importKeyBtn = document.getElementById("import-key-btn") as HTMLButtonElement;
 const localImportMsg = document.getElementById("local-import-msg") as HTMLElement;
+
+// Settings & Preferences Elements
+const settingsOpenBtn = document.getElementById("settings-open-btn") as HTMLButtonElement | null;
+const settingsModal = document.getElementById("settings-modal") as HTMLElement;
+const settingsCloseBtn = document.getElementById("settings-close-btn") as HTMLButtonElement | null;
+const settingsSoundToggle = document.getElementById("settings-sound-toggle") as HTMLInputElement | null;
+const settingsShortcutsBtn = document.getElementById("settings-shortcuts-btn") as HTMLButtonElement | null;
+const idOpenSettingsBtn = document.getElementById("id-open-settings-btn") as HTMLButtonElement | null;
+const settingsToIdentityBtn = document.getElementById("settings-to-identity-btn") as HTMLButtonElement | null;
 
 // Freenet Mail Elements
 const identityFmailSection = document.getElementById("identity-fmail-section") as HTMLElement | null;
@@ -4819,6 +4828,7 @@ const railPages: [HTMLElement, string][] = [
   [mailModal, "open-mail-btn"],
   [notifsModal, "open-notifs-btn"],
   [identityModal, "open-identity-btn"],
+  [settingsModal, "settings-open-btn"],
   [updatesModal, "updates-open-btn"],
   [guideModal, "guide-open-btn"],
   [greenhouseModal, "greenhouse-open-btn"],
@@ -7762,10 +7772,14 @@ notifsMarkReadBtn.addEventListener("click", async () => {
 });
 
 function updateNotifsSoundBtn() {
-  if (!notifsSoundBtn) return;
   const enabled = isSoundEnabled();
-  notifsSoundBtn.textContent = enabled ? "🔔 Sound on" : "🔕 Sound off";
-  notifsSoundBtn.title = enabled ? "Notification sound enabled (click to mute)" : "Notification sound muted (click to enable)";
+  if (notifsSoundBtn) {
+    notifsSoundBtn.textContent = enabled ? "🔔 Sound on" : "🔕 Sound off";
+    notifsSoundBtn.title = enabled ? "Notification sound enabled (click to mute)" : "Notification sound muted (click to enable)";
+  }
+  if (settingsSoundToggle) {
+    settingsSoundToggle.checked = enabled;
+  }
 }
 updateNotifsSoundBtn();
 
@@ -8695,6 +8709,15 @@ function openIdentityModal() {
   if (card) card.scrollTop = 0;
 }
 
+function openSettingsModal() {
+  if (settingsSoundToggle) {
+    settingsSoundToggle.checked = isSoundEnabled();
+  }
+  settingsModal.style.display = "flex";
+  const card = settingsModal.querySelector<HTMLElement>(".identity-modal-card");
+  if (card) card.scrollTop = 0;
+}
+
 if (openIdentityBtn) {
   openIdentityBtn.addEventListener("click", openIdentityModal);
 }
@@ -8702,6 +8725,46 @@ if (openIdentityBtn) {
 identityCloseBtn.addEventListener("click", () => {
   identityModal.style.display = "none";
 });
+
+if (settingsOpenBtn) {
+  settingsOpenBtn.addEventListener("click", openSettingsModal);
+}
+
+if (settingsCloseBtn) {
+  settingsCloseBtn.addEventListener("click", () => {
+    settingsModal.style.display = "none";
+  });
+}
+
+if (idOpenSettingsBtn) {
+  idOpenSettingsBtn.addEventListener("click", () => {
+    identityModal.style.display = "none";
+    openSettingsModal();
+  });
+}
+
+if (settingsToIdentityBtn) {
+  settingsToIdentityBtn.addEventListener("click", () => {
+    settingsModal.style.display = "none";
+    openIdentityModal();
+  });
+}
+
+if (settingsSoundToggle) {
+  settingsSoundToggle.checked = isSoundEnabled();
+  settingsSoundToggle.addEventListener("change", () => {
+    if (settingsSoundToggle.checked !== isSoundEnabled()) {
+      toggleSoundEnabled();
+      updateNotifsSoundBtn();
+    }
+  });
+}
+
+if (settingsShortcutsBtn) {
+  settingsShortcutsBtn.addEventListener("click", () => {
+    toggleShortcutsModal(true);
+  });
+}
 
 idShowKeyBtn.addEventListener("click", () => {
   if (idSecretKeyDisplay.style.display === "none") {

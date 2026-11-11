@@ -79,6 +79,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
             <span>Guide</span>
           </button>
+          <button class="rail-btn" id="settings-open-btn" title="Settings &amp; Appearance">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Settings</span>
+          </button>
           <!-- phones only, and only where the page may go full screen (main.ts shows it) -->
           <button class="rail-btn" id="fullscreen-btn" title="Full screen" style="display: none;">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
@@ -957,67 +961,16 @@
           </div>
         </div>
 
-        <!-- Section: Translation language -->
-        <div class="identity-section">
-          <h4>
-            <span class="btn-icon-text">
-              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <span>Translate Posts Into</span>
-            </span>
-          </h4>
-          <p>Posts and comments in another language show a Translate button. They are translated on this device into the language you pick here.</p>
-          <div class="identity-field">
-            <label for="translate-lang-select">Your language:</label>
-            <select id="translate-lang-select"></select>
+        <!-- Link to Preferences & Settings Modal -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;">Preferences &amp; Customization</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Looking for colour themes, interface width, post translation, or sound alerts?</div>
           </div>
-        </div>
-
-        <!-- Section: Colour theme -->
-        <div class="identity-section">
-          <h4>Colour Theme</h4>
-          <p>The colour of buttons, links to actions and your chat bubbles. It works in both light and dark mode.</p>
-          <div class="identity-field">
-            <label for="accent-select">Colour:</label>
-            <select id="accent-select">
-              <option value="">Radici (green)</option>
-              <option value="ocean">Ocean (blue)</option>
-              <option value="plum">Plum (purple)</option>
-              <option value="slate">Slate (grey)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Section: Offensive words -->
-        <div class="identity-section">
-          <h4>
-            <span class="btn-icon-text">
-              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              <span>Offensive Words</span>
-            </span>
-          </h4>
-          <p>Posts, comments and messages reach you as their author wrote them. Here you choose whether offensive words show as asterisks, on this device only.</p>
-          <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
-            <input type="checkbox" id="mask-bad-words-toggle" checked />
-            Hide offensive words
-          </label>
-        </div>
-
-        <!-- Section: Interface width -->
-        <div class="identity-section">
-          <h4>
-            <span class="btn-icon-text">
-              <svg viewBox="0 0 24 24" class="svg-icon icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-              <span>Interface Width</span>
-            </span>
-          </h4>
-          <p>Choose between standard centered width (1280px) and full-width layout for laptops and wide displays.</p>
-          <div class="identity-field">
-            <label for="layout-width-select">Width:</label>
-            <select id="layout-width-select">
-              <option value="standard">Standard (1280px)</option>
-              <option value="full">Full width</option>
-            </select>
-          </div>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="id-open-settings-btn">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Open Settings</span>
+          </button>
         </div>
 
         <!-- Section: Support Radica & Verified Identity -->
@@ -1089,6 +1042,121 @@
 
       </div>
     </div>
+
+    <!-- Settings & Customization Modal -->
+    <div id="settings-modal" class="rail-page" style="display: none;">
+      <div class="modal-card identity-modal-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Settings &amp; Preferences</span>
+          </h3>
+          <button class="btn-secondary btn-sm" id="settings-close-btn">✕</button>
+        </div>
+
+        <!-- Section: Interface width -->
+        <div class="identity-section">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+              <span>Interface Width</span>
+            </span>
+          </h4>
+          <p>Choose between standard centered width (1280px) and full-width layout for laptops and wide displays.</p>
+          <div class="identity-field">
+            <label for="layout-width-select">Width:</label>
+            <select id="layout-width-select">
+              <option value="standard">Standard (1280px)</option>
+              <option value="full">Full width</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section: Colour theme -->
+        <div class="identity-section">
+          <h4>Colour Theme</h4>
+          <p>The colour of buttons, links to actions and your chat bubbles. It works in both light and dark mode.</p>
+          <div class="identity-field">
+            <label for="accent-select">Colour:</label>
+            <select id="accent-select">
+              <option value="">Radici (green)</option>
+              <option value="ocean">Ocean (blue)</option>
+              <option value="plum">Plum (purple)</option>
+              <option value="slate">Slate (grey)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section: Translation language -->
+        <div class="identity-section">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <span>Translate Posts Into</span>
+            </span>
+          </h4>
+          <p>Posts and comments in another language show a Translate button. They are translated on this device into the language you pick here.</p>
+          <div class="identity-field">
+            <label for="translate-lang-select">Your language:</label>
+            <select id="translate-lang-select"></select>
+          </div>
+        </div>
+
+        <!-- Section: Offensive words -->
+        <div class="identity-section">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Offensive Words</span>
+            </span>
+          </h4>
+          <p>Posts, comments and messages reach you as their author wrote them. Here you choose whether offensive words show as asterisks, on this device only.</p>
+          <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
+            <input type="checkbox" id="mask-bad-words-toggle" checked />
+            Hide offensive words
+          </label>
+        </div>
+
+        <!-- Section: Sound & Audio Notifications -->
+        <div class="identity-section">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span>Audio Chimes</span>
+            </span>
+          </h4>
+          <p>Play chime sound alerts when new messages, chat replies or encrypted mail arrive.</p>
+          <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
+            <input type="checkbox" id="settings-sound-toggle" checked />
+            Enable notification chime sounds
+          </label>
+        </div>
+
+        <!-- Section: Keyboard Shortcuts & Help -->
+        <div class="identity-section" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h4 style="margin: 0 0 4px;">Keyboard Shortcuts</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Navigate and control Radica entirely from your keyboard.</p>
+          </div>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="settings-shortcuts-btn">
+            <span>View Shortcuts (?)</span>
+          </button>
+        </div>
+
+        <!-- Link back to Identity Modal -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 10px; margin-top: 14px; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;">Identity, Keys &amp; Freenet Mail</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage your Viso persona, backup private keys, or export mail recovery tokens.</div>
+          </div>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="settings-to-identity-btn">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
+            <span>Open Identity</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Updates Modal -->
     <div id="welcome-modal" class="rail-page" style="display: none;">
       <div class="modal-card welcome" style="max-width: 560px;">
