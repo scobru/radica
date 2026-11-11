@@ -248,3 +248,26 @@ test("the feed size panel stays hidden while the feed is small", async ({ page }
   await signIn(page);
   await expect(page.locator("#feed-size-panel")).toBeHidden();
 });
+
+test("a post can be reposted with my own words, and my profile grows a plant", async ({ page }) => {
+  await signIn(page);
+  const tag = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+  await page.fill("#post-caption", `original ${tag}`);
+  await page.getByRole("button", { name: "Plant post" }).click();
+  const original = page.locator(".gram-card", { hasText: tag }).first();
+  await expect(original).toBeVisible({ timeout: 30_000 });
+
+  await original.locator(".repost-btn").click();
+  await expect(page.locator("#composer-repost .repost-card")).toContainText(tag); // the composer shows what is shared
+  await page.fill("#post-caption", "worth a second look");
+  await page.getByRole("button", { name: "Plant post" }).click(); // waits out the pause between posts
+  const repost = page.locator(".gram-card", { hasText: "worth a second look" }).first();
+  await expect(repost.locator(".repost-card")).toContainText(tag, { timeout: 30_000 });
+  await expect(repost.locator(".gram-caption")).toHaveText("worth a second look"); // the link itself is not shown
+  await expect(page.locator("#composer-repost")).toBeHidden();
+
+  await repost.locator(".gram-author-name").click();
+  await expect(page.locator("#uview-linfa .linfa-plant")).toBeVisible();
+  await expect(page.locator("#uview-linfa .linfa-stage")).toHaveText("Seedling"); // a first post wakes the seed
+  await expect(page.locator('#uview-tabs [data-tab="reposts"]')).toHaveText("Reposts (1)", { timeout: 30_000 });
+});

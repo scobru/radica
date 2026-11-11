@@ -1,6 +1,8 @@
 5.3.0 / 2026-11-11
 ==================
 
+  * **NEW** Linfa: every profile grows a plant. Its Linfa is counted on the reader's node from the signed posts, comments and likes it holds, so nothing is stored and no score can be forged. Answering others counts more than posting, each act is weighed by the reader's Web-of-Trust (strangers are capped), and the plant grows from seed to elder tree with the last week's leaves drawn lighter. Each persona's plant takes its shape from their key.
+  * **NEW** Reposts: a Repost button under each post shares it on your feed, with your own words if you add any. The shared post is drawn inside yours, its author is notified, and profiles have a Reposts tab. A repost is an ordinary post carrying the shared post's permalink, so the feed contract and its key are unchanged.
   * **NEW** Freenet Mail Interoperability (Post-Quantum Post-Delivery): Every persona automatically derives a deterministic Freenet Mail identity (ML-KEM-768 for message decapsulation and ML-DSA-65 for signing) from its master secret.
   * **NEW** Recovery Key & Backup Export: One-click export of `fmail-key-1:<base58>` recovery keys and `identity-backup-v2.json` files compatible with the official Dioxus Freenet Mail client (`contracts/facade`).
   * **NEW** Ecosystem Integration: Added Freenet Mail to companion apps footer and updates card with the official stable container contract (`122f6AR7PyF8d8mhczuNQM4xrLtBf5t8g2iB7PEVT7KC`).

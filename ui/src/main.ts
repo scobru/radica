@@ -54,6 +54,9 @@ import {
   restart,
 } from "./whoiam";
 import { freenet } from "./freenet";
+import { linfaOf } from "./linfa.ts";
+import { linfaPanel } from "./plant.ts";
+import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
 import { CHAT_REACTIONS } from "./logfold";
 import { analyzeImageFile, analyzeTextContent, personalDataIn, type ImageModerationResult } from "./moderation";
@@ -2064,6 +2067,7 @@ function renderTimeline() {
                   : `<span class="gram-category-tag ${escapeHtml(post.category)}" title="${escapeHtml(post.category)}">${renderIcon(CATEGORY_ICON[post.category] ?? "messageCircle", { className: "icon-xs", ariaLabel: post.category })}</span>`
               }
               ${authorIsMod ? `<span class="gram-trust-badge badge-mod" title="Moderator of r/${escapeHtml(postComm!.slug)}">mod</span>` : ""}
+              ${repostRef(caption) ? `<span class="gram-category-tag repost" title="Shares someone's post">${renderIcon("repeat", { className: "icon-xs" })} reposted</span>` : ""}
               ${
                 post.is_nsfw
                   ? `<span class="gram-category-tag nsfw" title="18+ Adult Content (Moderated On-Device)">NSFW</span>`
@@ -2127,14 +2131,15 @@ function renderTimeline() {
 
         <div class="gram-content">
           ${(() => {
-            const { html, card } = renderPost(caption, getAuthorDisplayName);
-            const from = html ? translatableFrom(caption) : null;
+            const own = repostRef(caption) ? repostText(caption) : caption; // a repost: the shared post's card stands for its link
+            const { html, card } = renderPost(own, getAuthorDisplayName);
+            const from = html ? translatableFrom(own) : null;
             const translated = postTranslations.get(`${post.author}:${post.id}`);
             const translate = from
               ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
                 (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
               : "";
-            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin());
+            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + repostCard(caption);
           })()}
 
           ${
@@ -2161,6 +2166,10 @@ function renderTimeline() {
           <button class="action-btn comment-count-btn" onclick="document.getElementById('comment-input-${post.id}')?.focus()">
             <span>${renderIcon("messageSquare", { className: "icon-sm" })}</span>
             <span><span class="action-count">${commentsArray.length}</span><span class="action-label"> ${commentsArray.length === 1 ? "Comment" : "Comments"}</span></span>
+          </button>
+          <button class="action-btn repost-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Repost: share this post on your feed">
+            <span>${renderIcon("repeat", { className: "icon-sm" })}</span>
+            <span><span class="action-label"> Repost</span></span>
           </button>
           <button class="action-btn share-post-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Share post and view Freenet details">
             <span>${renderIcon("share2", { className: "icon-sm" })}</span>
@@ -2318,6 +2327,7 @@ function renderTimeline() {
   fillAsocial(postsContainer);
   fillFh(postsContainer, freenet, nodeOrigin());
   fillWormhole(postsContainer);
+  fillReposts(postsContainer);
 
   if (anchor) {
     restoreScrollAnchor(anchor);
@@ -2463,6 +2473,108 @@ const mediaObserver = new IntersectionObserver(
 function showMedia(root: ParentNode) {
   root.querySelectorAll<HTMLImageElement>("img[data-media]:not([src]), img[data-vposter]:not([src])").forEach((img) => mediaObserver.observe(img));
 }
+
+// ---- Linfa (linfa.ts): the plant on a profile, counted from the posts this node holds ----
+
+/** Draw `pubkey`'s plant in `box`: their own posts and everything else this node sees, weighed by my web of trust. */
+async function showLinfa(box: HTMLElement | null, pubkey: string) {
+  if (!box || !currentIdentity) return;
+  const [seen, feed] = await Promise.all([freenet.getExploreTimeline(currentIdentity), freenet.getFeed(pubkey)]);
+  const posts = new Map<string, Post>();
+  for (const p of [...seen, ...Object.values(feed.posts)]) posts.set(`${p.author}:${p.id}`, p);
+  const wot = getWebOfTrust();
+  const html = linfaPanel(pubkey, linfaOf([...posts.values()], pubkey, (k) => wot.trustTier(k)), pubkey === currentIdentity.pubkey);
+  if (box.dataset.linfa === html) return; // the same plant: it does not grow in again
+  box.dataset.linfa = html;
+  box.innerHTML = html;
+}
+
+// ---- Reposts (repost.ts): a post whose caption carries the permalink of the post it shares ----
+
+/** What a repost card shows for the post it shares: the post, or why it is not shown. */
+async function sharedPost(ref: RepostRef): Promise<Parameters<typeof repostBody>[0]> {
+  const me = currentIdentity?.pubkey;
+  // what the reader hid stays hidden: a repost is no way around a blocklist or a report
+  if (ref.author !== me && isHiddenAuthor(ref.author)) return "A post by someone hidden on this device.";
+  if (ref.author !== me && [...moderationCurators(), me ?? ""].some((c) => freenet.reportedBy(c).has(`${ref.author}:${ref.id}`))) return "This post was reported and is hidden.";
+  let post = timelinePosts.find((p) => p.id === ref.id && p.author === ref.author);
+  if (!post) {
+    post = (await freenet.getFeed(ref.author).catch(() => null))?.posts?.[ref.id];
+    if (!post) {
+      await freenet.refresh(ref.author, true).catch(() => {}); // a feed this node does not hold yet
+      post = (await freenet.getFeed(ref.author).catch(() => null))?.posts?.[ref.id];
+    }
+  }
+  if (!post) {
+    const stored = localStorage.getItem(`freenet_feed_${ref.author}`) !== null;
+    return GONE_MESSAGE[whyGone(stored ? await freenet.getFeed(ref.author) : null, ref.id)];
+  }
+  const caption = freenet.postEdit(ref.author, ref.id)?.caption ?? post.caption;
+  const picture = post.media_uri && !videoRef(post.media_uri) ? mediaUris(post.media_uri)[0] : undefined;
+  const inner = repostRef(caption);
+  return {
+    name: getAuthorDisplayName(ref.author),
+    avatar: safeUrl(getAuthorAvatarUrl(ref.author)),
+    time: formatTimeAgo(post.timestamp),
+    // a repost of a repost names the inner one and goes no deeper
+    textHtml: renderCaption(inner ? repostText(caption) : caption, getAuthorDisplayName) + (inner ? `<span class="repost-note repost-inner">\u21AA shares a post by ${escapeHtml(getAuthorDisplayName(inner.author))}</span>` : ""),
+    mediaHtml: !post.media_uri
+      ? ""
+      : post.is_nsfw
+        ? `<span class="repost-note">Sensitive media: open the post to see it.</span>`
+        : picture
+          ? `<img ${mediaAttr(picture)} alt="Post media" loading="lazy" decoding="async" onerror="this.style.display='none'" />`
+          : `<span class="repost-note">\u25B6 Video: open the post to play it.</span>`,
+  };
+}
+
+/** What each repost card last showed, so a card drawn again (a new like, "2m ago") does not blink back to "Loading". */
+const repostSeen = new Map<string, string>();
+/** Draw the shared post in each repost card under `root`. */
+function fillReposts(root: ParentNode) {
+  root.querySelectorAll<HTMLElement>(".repost-card:not([data-state])").forEach((card) => {
+    card.dataset.state = "loading";
+    const ref = { id: card.dataset.repostId!, author: card.dataset.repostAuthor! };
+    const key = `${ref.author}:${ref.id}`;
+    let shown = repostSeen.get(key);
+    if (shown) {
+      card.innerHTML = shown;
+      showMedia(card);
+    }
+    void sharedPost(ref).then((v) => {
+      const html = repostBody(v);
+      repostSeen.set(key, html);
+      card.dataset.state = typeof v === "string" ? "gone" : "ready";
+      if (html === shown) return;
+      card.innerHTML = shown = html;
+      showMedia(card);
+    });
+  });
+}
+
+/** Open the post a repost card shares, as its permalink would. */
+const openRepost = (card: HTMLElement) => void checkUrlPostHash(`#post=${card.dataset.repostId}&author=${card.dataset.repostAuthor}`);
+
+/** The post waiting in the composer to be reposted with the next publish. */
+let stagedRepost: RepostRef | null = null;
+const composerRepost = document.getElementById("composer-repost") as HTMLElement;
+function stageRepost(ref: RepostRef | null) {
+  // reposting a plain repost shares the post itself, not the repost of it
+  const inner = ref && timelinePosts.find((p) => p.id === ref.id && p.author === ref.author);
+  const innerCaption = inner ? (freenet.postEdit(inner.author, inner.id)?.caption ?? inner.caption) : "";
+  stagedRepost = ref && innerCaption && !repostText(innerCaption) ? (repostRef(innerCaption) ?? ref) : ref;
+  composerRepost.hidden = !stagedRepost;
+  composerRepost.innerHTML = stagedRepost
+    ? `<div class="composer-repost-head"><span>${renderIcon("repeat", { className: "icon-xs" })} Reposting: add your words above, or plant it as it is</span><button type="button" class="btn-secondary btn-sm" id="composer-repost-remove" aria-label="Do not repost">\u2715</button></div>${repostCard(repostLink("", stagedRepost))}`
+    : "";
+  if (!stagedRepost) return;
+  fillReposts(composerRepost);
+  postCaption.focus();
+  postCaption.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+composerRepost.addEventListener("click", (e) => {
+  if ((e.target as Element).closest("#composer-repost-remove")) stageRepost(null);
+});
 
 async function handleFreenameLink(a: HTMLAnchorElement, e: Event): Promise<boolean> {
   const fnName = a.dataset.freenames || a.closest<HTMLElement>(".fn-card")?.dataset.freenames;
@@ -2660,6 +2772,8 @@ function initCardListeners() {
       void reportPostFromCard(el);
     } else if ((el = hit(".share-post-btn"))) {
       void openSharePostModal(el.dataset.postId!, el.dataset.author!);
+    } else if ((el = hit(".repost-btn"))) {
+      stageRepost({ id: el.dataset.postId!, author: el.dataset.author! });
     } else if ((el = hit(".comment-del-btn"))) {
       void deleteCommentFromCard(el);
     } else if ((el = hit(".comment-like-btn"))) {
@@ -2731,7 +2845,13 @@ function initCardListeners() {
       if (pid) {
         removeStagedCommentMedia(pid);
       }
+    } else if ((el = hit(".repost-card")) && !t.closest("a")) {
+      openRepost(el); // the shared post opens; a link inside it keeps its own click
     }
+  });
+  postsContainer.addEventListener("keydown", (e) => {
+    const card = e.target as HTMLElement;
+    if (e.key === "Enter" && card.classList?.contains("repost-card")) openRepost(card);
   });
 
   postsContainer.addEventListener("change", (e) => {
@@ -3667,11 +3787,13 @@ publishBtn.addEventListener("click", async () => {
     return;
   }
 
-  const caption = postCaption.value.trim();
-  if (!caption) {
+  const ownWords = postCaption.value.trim();
+  if (!ownWords && !stagedRepost) {
     showToast("Please write something before publishing.", "warning");
     return;
   }
+  // a repost carries the permalink of the post it shares after my own words (repost.ts)
+  const caption = stagedRepost ? repostCaption(ownWords, repostLink(window.location.pathname, stagedRepost)) : ownWords;
 
   // 4. Duplicate content check (prevent spamming identical text)
   const normalizedCaption = caption.toLowerCase().replace(/\s+/g, " ");
@@ -3681,7 +3803,7 @@ publishBtn.addEventListener("click", async () => {
   }
 
   // 5. Personal data (email, phone…) is asked about; bad words are masked by each reader, if they choose
-  if (!okToPublish(caption)) return;
+  if (!okToPublish(ownWords)) return; // not the repost link: its keys look like phone numbers to the check
   const finalCaption = withMentionKeys(postCaption, caption); // after the check: a key looks like a phone number to it
 
   let mediaUri = activeComposerType === "moment" ? [postMediaUrl.value.trim(), ...extraMedia].filter(Boolean).join(" ") : undefined;
@@ -3753,6 +3875,7 @@ publishBtn.addEventListener("click", async () => {
   const mediaNsfwScore = currentMediaNsfwScore;
   timelinePosts.unshift(optimisticPost);
   postCaption.value = "";
+  stageRepost(null);
   safeStorage.removeItem(draftKey(currentIdentity.pubkey));
   postMediaUrl.value = "";
   setExtraMedia([]);
@@ -4238,6 +4361,12 @@ async function openUserProfile(pubkey: string) {
   uviewBio.textContent = "";
   if (uviewChannel) uviewChannel.innerHTML = "";
   uviewPostsGallery.innerHTML = `<div style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted);">Loading…</div>`;
+  drawUviewPosts = () => {}; // the tabs wait for this persona's posts, and do not draw the last profile's
+  const uviewLinfa = document.getElementById("uview-linfa");
+  if (uviewLinfa) {
+    uviewLinfa.innerHTML = "";
+    delete uviewLinfa.dataset.linfa;
+  }
   uviewBlog.innerHTML = "";
   if (uviewOrtoBlog) uviewOrtoBlog.innerHTML = "";
   if (uviewAsocial) uviewAsocial.innerHTML = "";
@@ -4348,30 +4477,46 @@ async function openUserProfile(pubkey: string) {
     openChatWithPeer(pubkey);
   };
 
-  // their posts, newest first: the text, the picture, likes and comments; a click opens the post in the feed
+  void showLinfa(uviewLinfa, pubkey);
+
+  // their posts, newest first: the text, the picture, likes and comments; a click opens the post in the feed.
+  // What they wrote and what they reposted are two tabs (a repost is a post that shares another: repost.ts).
+  const captionOf = (p: Post) => freenet.postEdit(pubkey, p.id)?.caption ?? p.caption;
   const authorPosts = Object.values(feed.posts).sort((a, b) => b.timestamp - a.timestamp);
-  if (authorPosts.length === 0) {
-    uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">No posts yet.</div>`;
-  } else {
-    uviewPostsGallery.innerHTML = authorPosts
+  const byTab = { posts: authorPosts.filter((p) => !repostRef(captionOf(p))), reposts: authorPosts.filter((p) => repostRef(captionOf(p))) };
+  drawUviewPosts = (tab) => {
+    uviewTabs.querySelectorAll<HTMLElement>("button").forEach((b) => {
+      const t = b.dataset.tab as keyof typeof byTab;
+      b.setAttribute("aria-selected", String(t === tab));
+      b.textContent = `${t === "posts" ? "Posts" : "Reposts"} (${byTab[t].length})`;
+    });
+    if (byTab[tab].length === 0) {
+      uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">${tab === "posts" ? "No posts yet." : "Nothing reposted yet."}</div>`;
+      return;
+    }
+    uviewPostsGallery.innerHTML = byTab[tab]
       .map((p) => {
         const likes = Object.values(p.likes ?? {}).filter((l) => l.liked).length;
         const comments = Object.values(p.comments ?? {}).filter((c) => c.text !== "").length;
         const edit = freenet.postEdit(pubkey, p.id);
-        const caption = edit?.caption ?? p.caption;
+        const caption = captionOf(p);
+        const own = tab === "reposts" ? repostText(caption) : caption;
         const comm = p.community_id ? ` · r/${escapeHtml(p.community_id.replace(/^c_/, ""))}` : "";
         const editedTag = edit ? ` · <span class="gram-edited" title="Edited ${formatTimeAgo(edit.ts)}">edited</span>` : "";
         return `<div class="uview-post" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(pubkey)}" role="button" tabindex="0" title="Open this post">
           ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" /></div>` : ""}
           <div class="uview-post-body">
-            ${caption ? `<div class="uview-post-text">${renderCaption(caption, getAuthorDisplayName)}</div>` : ""}
+            ${own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : ""}
+            ${tab === "reposts" ? repostCard(caption) : ""}
             <div class="uview-post-meta">${formatTimeAgo(p.timestamp)}${editedTag} · ♥ ${likes} · 💬 ${comments}${comm}</div>
           </div>
         </div>`;
       })
       .join("");
     showMedia(uviewPostsGallery);
-  }
+    fillReposts(uviewPostsGallery);
+  };
+  drawUviewPosts("posts");
 
   userProfileModal.style.display = "flex";
 }
@@ -4432,9 +4577,18 @@ const openProfilePost = (e: Event) => {
   if (t.closest(".mention")) return void openUserProfile(t.closest<HTMLElement>(".mention")!.dataset.author!);
   if (t.closest(".uview-post-thumb img")) return; // the picture opens full size
   userProfileModal.style.display = "none";
+  const shared = t.closest<HTMLElement>(".repost-card");
+  if (shared) return openRepost(shared); // the post that was reposted, not the repost
   void showMyPost(row.dataset.postId!, row.dataset.author!);
 };
 uviewPostsGallery.addEventListener("click", openProfilePost);
+/** Draw one tab of the open profile (set by openUserProfile, which knows whose posts they are). */
+let drawUviewPosts: (tab: "posts" | "reposts") => void = () => {};
+const uviewTabs = document.getElementById("uview-tabs") as HTMLElement;
+uviewTabs.addEventListener("click", (e) => {
+  const tab = (e.target as Element).closest<HTMLElement>("button")?.dataset.tab;
+  if (tab === "posts" || tab === "reposts") drawUviewPosts(tab);
+});
 uviewPostsGallery.addEventListener("keydown", (e) => {
   if ((e as KeyboardEvent).key === "Enter") openProfilePost(e);
 });
@@ -8079,6 +8233,7 @@ function showProfilePage(show: boolean) {
     document.getElementById("pp-name")!.textContent = sidebarName.textContent;
     document.getElementById("pp-meta")!.textContent = `${sidebarHandle?.textContent ?? ""} · ${sidebarBio.textContent}`;
     renderRoots();
+    if (currentIdentity) void showLinfa(document.getElementById("pp-linfa"), currentIdentity.pubkey);
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
