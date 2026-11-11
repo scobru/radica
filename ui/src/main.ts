@@ -13,6 +13,7 @@ import { asocialCard, fillAsocial, asocialPersonOf, asocialProfileCard } from ".
 import { fhCard, fillFh, fhProfileCard } from "./fh.ts";
 import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard, freetreeProfileCard, parseFreetreeInput } from "./freetree.ts";
+import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
 import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
@@ -44,6 +45,7 @@ import {
   parseFmailContactInput,
   getRecipientSuggestions,
   resolveMailAlias,
+  syncFreenetMailInbox,
   type MailContact,
   type MailMessage,
   type MailFolder,
@@ -216,7 +218,12 @@ const settingsToIdentityBtn = document.getElementById("settings-to-identity-btn"
 const identityFmailSection = document.getElementById("identity-fmail-section") as HTMLElement | null;
 const fmailAliasInput = document.getElementById("fmail-alias-input") as HTMLInputElement | null;
 const fmailSaveAliasBtn = document.getElementById("fmail-save-alias-btn") as HTMLButtonElement | null;
+const fmailInboxVal = document.getElementById("fmail-inbox-val") as HTMLElement | null;
+const fmailContactCardVal = document.getElementById("fmail-contact-card-val") as HTMLElement | null;
+const fmailKeyWordsBadge = document.getElementById("fmail-key-words-badge") as HTMLElement | null;
 const fmailAddressVal = document.getElementById("fmail-address-val") as HTMLElement | null;
+const fmailCopyInboxBtn = document.getElementById("fmail-copy-inbox-btn") as HTMLButtonElement | null;
+const fmailCopyCardBtn = document.getElementById("fmail-copy-card-btn") as HTMLButtonElement | null;
 const fmailCopyRecoveryBtn = document.getElementById("fmail-copy-recovery-btn") as HTMLButtonElement | null;
 const fmailDownloadBackupBtn = document.getElementById("fmail-download-backup-btn") as HTMLButtonElement | null;
 const fmailOpenAppLink = document.getElementById("fmail-open-app-link") as HTMLAnchorElement | null;
@@ -229,10 +236,27 @@ const openMailBtn = document.getElementById("open-mail-btn") as HTMLButtonElemen
 const mailBadge = document.getElementById("mail-badge") as HTMLElement | null;
 const mailUserAddressChip = document.getElementById("mail-user-address-chip") as HTMLElement | null;
 const mailUserAddressDisplay = document.getElementById("mail-user-address-display") as HTMLElement | null;
+const mailTokensBtn = document.getElementById("mail-tokens-btn") as HTMLButtonElement | null;
 const mailNewBtn = document.getElementById("mail-new-btn") as HTMLButtonElement | null;
 const mailRefreshBtn = document.getElementById("mail-refresh-btn") as HTMLButtonElement | null;
 const mailCompanionLink = document.getElementById("mail-companion-link") as HTMLAnchorElement | null;
 const mailCloseBtn = document.getElementById("mail-close-btn") as HTMLButtonElement | null;
+
+// Freenet Mail Tokens Modal Elements
+const mailTokensModal = document.getElementById("mail-tokens-modal") as HTMLElement | null;
+const mailTokensModalCloseBtn = document.getElementById("mail-tokens-modal-close-btn") as HTMLButtonElement | null;
+const modalFmailInboxInput = document.getElementById("modal-fmail-inbox-input") as HTMLInputElement | null;
+const modalCopyInboxBtn = document.getElementById("modal-copy-inbox-btn") as HTMLButtonElement | null;
+const modalFmailCardTextarea = document.getElementById("modal-fmail-card-textarea") as HTMLTextAreaElement | null;
+const modalCopyCardBtn = document.getElementById("modal-copy-card-btn") as HTMLButtonElement | null;
+const modalFmailKeyShort = document.getElementById("modal-fmail-key-short") as HTMLElement | null;
+const modalFmailFpFull = document.getElementById("modal-fmail-fp-full") as HTMLElement | null;
+const modalCopyFpBtn = document.getElementById("modal-copy-fp-btn") as HTMLButtonElement | null;
+const modalFmailV2Input = document.getElementById("modal-fmail-v2-input") as HTMLInputElement | null;
+const modalCopyV2Btn = document.getElementById("modal-copy-v2-btn") as HTMLButtonElement | null;
+const modalFmailCopyRecoveryBtn = document.getElementById("modal-fmail-copy-recovery-btn") as HTMLButtonElement | null;
+const modalFmailBackupBtn = document.getElementById("modal-fmail-backup-btn") as HTMLButtonElement | null;
+const modalFmailDoneBtn = document.getElementById("modal-fmail-done-btn") as HTMLButtonElement | null;
 
 const mailFolderInboxBtn = document.getElementById("mail-folder-inbox-btn") as HTMLButtonElement | null;
 const mailFolderSentBtn = document.getElementById("mail-folder-sent-btn") as HTMLButtonElement | null;
@@ -2259,7 +2283,7 @@ function renderTimeline() {
               ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
                 (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
               : "";
-            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + repostCard(caption);
+            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + sporeRadioCard(caption) + repostCard(caption);
           })()}
 
           ${
@@ -6433,7 +6457,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
   const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
   const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(msg.text);
   const mediaCards = chatMediaCardsHtml(mediaItems, textWithoutMedia);
-  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin());
+  const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin()) + sporeRadioCard(textWithoutMedia);
   const bodyText = textWithoutMedia ? renderChatText(textWithoutMedia, getAuthorDisplayName) : "";
   return `<div class="chat-bubble ${isMine ? "mine" : "theirs"}${grouped ? " grouped" : ""}" data-msg-id="${escapeHtml(msg.id)}">${face}${head}<div class="rv-bubble">${del}${actions}${quote}${bodyText}${embeddedCards}${mediaCards}</div>${chips ? `<div class="rv-chips">${chips}</div>` : ""}</div>`;
 }
@@ -8740,6 +8764,15 @@ function renderIdentityModal() {
         if (fmailAliasInput) {
           fmailAliasInput.value = currentFmailIdentity.alias;
         }
+        if (fmailInboxVal) {
+          fmailInboxVal.textContent = currentFmailIdentity.inboxAddress;
+        }
+        if (fmailContactCardVal) {
+          fmailContactCardVal.textContent = currentFmailIdentity.contactCard;
+        }
+        if (fmailKeyWordsBadge) {
+          fmailKeyWordsBadge.textContent = `key: ${currentFmailIdentity.fingerprintShort}`;
+        }
         if (fmailAddressVal) {
           fmailAddressVal.textContent = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
         }
@@ -8886,6 +8919,15 @@ if (fmailSaveAliasBtn) {
     currentFmailIdentity = null;
     const fmail = getOrDeriveFmailIdentity();
     if (fmail) {
+      if (fmailInboxVal) {
+        fmailInboxVal.textContent = fmail.inboxAddress;
+      }
+      if (fmailContactCardVal) {
+        fmailContactCardVal.textContent = fmail.contactCard;
+      }
+      if (fmailKeyWordsBadge) {
+        fmailKeyWordsBadge.textContent = `key: ${fmail.fingerprintShort}`;
+      }
       if (fmailAddressVal) {
         fmailAddressVal.textContent = `${fmail.alias}@${fmail.address}`;
       }
@@ -8898,6 +8940,62 @@ if (fmailSaveAliasBtn) {
     if (fmailStatusMsg) {
       fmailStatusMsg.textContent = `✓ Mail handle saved: @${clean}`;
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+    }
+  });
+}
+
+if (fmailCopyInboxBtn) {
+  fmailCopyInboxBtn.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    try {
+      await navigator.clipboard.writeText(currentFmailIdentity.inboxAddress);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Native Freenet Mail inbox address copied!";
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+      showToast("✓ Copied native Freenet Mail inbox address!", "info");
+    } catch {
+      prompt("Copy inbox address:", currentFmailIdentity.inboxAddress);
+    }
+  });
+}
+
+if (fmailInboxVal) {
+  fmailInboxVal.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    try {
+      await navigator.clipboard.writeText(currentFmailIdentity.inboxAddress);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Native inbox address copied!";
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+      showToast("✓ Copied native inbox address!", "info");
+    } catch {
+      prompt("Copy inbox address:", currentFmailIdentity.inboxAddress);
+    }
+  });
+}
+
+if (fmailCopyCardBtn) {
+  fmailCopyCardBtn.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    try {
+      await navigator.clipboard.writeText(currentFmailIdentity.contactCard);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Contact card token copied!";
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+      showToast("✓ Copied contact card token!", "info");
+    } catch {
+      prompt("Copy contact token:", currentFmailIdentity.contactCard);
+    }
+  });
+}
+
+if (fmailContactCardVal) {
+  fmailContactCardVal.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    try {
+      await navigator.clipboard.writeText(currentFmailIdentity.contactCard);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Contact card token copied!";
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+      showToast("✓ Copied contact card token!", "info");
+    } catch {
+      prompt("Copy contact token:", currentFmailIdentity.contactCard);
     }
   });
 }
@@ -9262,9 +9360,22 @@ if (mailEmptyComposeBtn) {
   mailEmptyComposeBtn.addEventListener("click", () => openMailComposer());
 }
 if (mailRefreshBtn) {
-  mailRefreshBtn.addEventListener("click", () => {
+  mailRefreshBtn.addEventListener("click", async () => {
+    if (currentIdentity) {
+      const fmail = getOrDeriveFmailIdentity();
+      if (fmail) {
+        showToast("Checking Freenet network for mail...", "info");
+        const syncRes = await syncFreenetMailInbox(currentIdentity.pubkey, fmail, freenet);
+        if (syncRes.newCount > 0) {
+          showToast(`✓ Received ${syncRes.newCount} new email(s) from network!`, "info");
+          updateMailBadges();
+          void updateNotificationsBadge();
+        } else {
+          showToast("✓ Mailbox refreshed", "info");
+        }
+      }
+    }
     renderMailList();
-    showToast("✓ Mailbox refreshed", "info");
   });
 }
 if (mailFolderInboxBtn) {
@@ -9379,7 +9490,7 @@ if (mailDeleteBtn) {
 }
 
 if (mailSendBtn) {
-  mailSendBtn.addEventListener("click", () => {
+  mailSendBtn.addEventListener("click", async () => {
     if (!currentIdentity) return;
     const fmail = getOrDeriveFmailIdentity();
     if (!fmail) {
@@ -9390,24 +9501,47 @@ if (mailSendBtn) {
     const subject = mailSubjectInput?.value || "";
     const content = mailContentInput?.value || "";
 
-    const res = sendMailMessage(currentIdentity.pubkey, fmail, to, subject, content, activeReplyToId || undefined, freenet.knownPeers);
-    if (!res.success) {
-      if (mailComposeStatus) mailComposeStatus.textContent = `❌ ${res.error || "Failed to send"}`;
-      showToast(res.error || "Could not send mail", "error");
-      return;
-    }
+    if (mailComposeStatus) mailComposeStatus.textContent = "Encrypting & delivering...";
+    mailSendBtn.disabled = true;
 
-    if (activeDraftId) {
-      deleteMailMessage(currentIdentity.pubkey, activeDraftId);
-      activeDraftId = null;
-    }
+    try {
+      const res = await sendMailMessage(
+        currentIdentity.pubkey,
+        fmail,
+        to,
+        subject,
+        content,
+        activeReplyToId || undefined,
+        freenet.knownPeers,
+        freenet
+      );
+      if (!res.success) {
+        if (mailComposeStatus) mailComposeStatus.textContent = `❌ ${res.error || "Failed to send"}`;
+        showToast(res.error || "Could not send mail", "error");
+        return;
+      }
 
-    showToast("✓ Mail sent!", "info");
-    activeMailFolder = "sent";
-    renderMailList();
-    void updateNotificationsBadge();
-    if (res.message) {
-      selectMail(res.message);
+      if (activeDraftId) {
+        deleteMailMessage(currentIdentity.pubkey, activeDraftId);
+        activeDraftId = null;
+      }
+
+      if (res.networkDelivered) {
+        showToast("✓ Mail sent & delivered to Freenet network!", "info");
+      } else if (res.networkDetails) {
+        showToast(`✓ Mail sent (${res.networkDetails})`, "info");
+      } else {
+        showToast("✓ Mail sent!", "info");
+      }
+      activeMailFolder = "sent";
+      renderMailList();
+      void updateNotificationsBadge();
+      if (res.message) {
+        selectMail(res.message);
+      }
+    } finally {
+      mailSendBtn.disabled = false;
+      if (mailComposeStatus) mailComposeStatus.textContent = "";
     }
   });
 }
@@ -9533,8 +9667,98 @@ if (mailComposeMobileBackBtn) {
   });
 }
 
+function openMailTokensModal() {
+  const fmail = getOrDeriveFmailIdentity();
+  if (!fmail || !mailTokensModal) return;
+
+  if (modalFmailInboxInput) {
+    modalFmailInboxInput.value = fmail.inboxAddress;
+  }
+  if (modalFmailCardTextarea) {
+    modalFmailCardTextarea.value = fmail.contactCard;
+  }
+  if (modalFmailKeyShort) {
+    modalFmailKeyShort.textContent = fmail.fingerprintShort;
+  }
+  if (modalFmailFpFull) {
+    modalFmailFpFull.textContent = fmail.fingerprintFull;
+  }
+  if (modalFmailV2Input) {
+    modalFmailV2Input.value = `${fmail.alias}@${fmail.address}`;
+  }
+
+  mailTokensModal.style.display = "flex";
+}
+
+if (mailTokensBtn) {
+  mailTokensBtn.addEventListener("click", () => openMailTokensModal());
+}
+
 if (mailUserAddressChip) {
-  mailUserAddressChip.addEventListener("click", async () => {
+  mailUserAddressChip.addEventListener("click", () => openMailTokensModal());
+}
+
+if (mailTokensModalCloseBtn && mailTokensModal) {
+  mailTokensModalCloseBtn.addEventListener("click", () => {
+    mailTokensModal.style.display = "none";
+  });
+}
+
+if (modalFmailDoneBtn && mailTokensModal) {
+  modalFmailDoneBtn.addEventListener("click", () => {
+    mailTokensModal.style.display = "none";
+  });
+}
+
+if (mailTokensModal) {
+  mailTokensModal.addEventListener("click", (e) => {
+    if (e.target === mailTokensModal) {
+      mailTokensModal.style.display = "none";
+    }
+  });
+}
+
+if (modalCopyInboxBtn) {
+  modalCopyInboxBtn.addEventListener("click", async () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    try {
+      await navigator.clipboard.writeText(fmail.inboxAddress);
+      showToast("✓ Copied native Freenet Mail inbox address!", "info");
+    } catch {
+      prompt("Copy inbox address:", fmail.inboxAddress);
+    }
+  });
+}
+
+if (modalCopyCardBtn) {
+  modalCopyCardBtn.addEventListener("click", async () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    try {
+      await navigator.clipboard.writeText(fmail.contactCard);
+      showToast("✓ Copied contact card token!", "info");
+    } catch {
+      prompt("Copy contact token:", fmail.contactCard);
+    }
+  });
+}
+
+if (modalCopyFpBtn) {
+  modalCopyFpBtn.addEventListener("click", async () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    try {
+      await navigator.clipboard.writeText(fmail.fingerprintFull);
+      showToast("✓ Copied verification words!", "info");
+    } catch {
+      prompt("Copy verification words:", fmail.fingerprintFull);
+    }
+  });
+}
+
+if (modalCopyV2Btn) {
+  modalCopyV2Btn.addEventListener("click", async () => {
     const fmail = getOrDeriveFmailIdentity();
     if (!fmail) return;
     const full = `${fmail.alias}@${fmail.address}`;
@@ -9542,8 +9766,30 @@ if (mailUserAddressChip) {
       await navigator.clipboard.writeText(full);
       showToast(`✓ Copied mail address: ${full}`, "info");
     } catch {
-      prompt("Copy your Freenet Mail address:", full);
+      prompt("Copy mail address:", full);
     }
+  });
+}
+
+if (modalFmailCopyRecoveryBtn) {
+  modalFmailCopyRecoveryBtn.addEventListener("click", async () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    try {
+      await navigator.clipboard.writeText(fmail.recoveryKey);
+      showToast("✓ Copied recovery key! Paste in Freenet Mail -> Restore identity.", "info");
+    } catch {
+      prompt("Copy recovery key:", fmail.recoveryKey);
+    }
+  });
+}
+
+if (modalFmailBackupBtn) {
+  modalFmailBackupBtn.addEventListener("click", () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    downloadIdentityBackup(fmail.alias, fmail.seeds);
+    showToast("✓ Downloaded identity backup JSON", "info");
   });
 }
 

@@ -6,9 +6,12 @@
 
 import { blake3 } from "@noble/hashes/blake3.js";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { hkdf } from "@noble/hashes/hkdf.js";
+import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { ml_kem768 } from "@noble/post-quantum/ml-kem.js";
 import { toBase58, fromBase58 } from "./whoiam.ts";
+import { BIP39_WORDLIST } from "./bip39Words.ts";
 
 export const FMAIL_TOKEN_PREFIX = "fmail-key-1:";
 export const FMAIL_PREFIX_STEM = "fmail-key-";
@@ -27,8 +30,11 @@ export const CHECK_CONTEXT = "freenet-mail address check v1";
 export const FREENET_MAIL_CONTAINER_KEY = "122f6AR7PyF8d8mhczuNQM4xrLtBf5t8g2iB7PEVT7KC";
 /** Candidate inbox-v2 contract code hash. */
 export const INBOX_V2_CODE_HASH = "GpuWR879xBi13sSeDhoT1zNzEhVmMBFSEr1aoJGCc8a6";
+/** Official inbox v1 contract code hash (shipped in v0.2.7 and v1). */
+export const INBOX_V1_CODE_HASH = "Av3KF7WSod8E5qkABKWDYenhPkF246rC5aUMcHZ3Frdc";
 
 const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 export interface FreenetMailSeeds {
   mlDsaSeed: Uint8Array;
@@ -37,11 +43,18 @@ export interface FreenetMailSeeds {
 
 export interface FreenetMailIdentity {
   alias: string;
-  address: string;
+  address: string; // 36-char v2 address
+  inboxAddress: string; // 44-char native Freenet Mail contract instance ID
+  fingerprintWords: string[]; // 6 BIP-39 fingerprint words
+  fingerprintShort: string; // first 3 words, e.g. "pear-young-final"
+  fingerprintFull: string; // all 6 words joined by "-"
+  contactCard: string; // `${inboxAddress}\nverify: ${fingerprintFull}`
   recoveryKey: string;
   seeds: FreenetMailSeeds;
   dsaVk: Uint8Array;
+  dsaSk: Uint8Array;
   kemEk: Uint8Array;
+  kemDk: Uint8Array;
 }
 
 export interface FreenetMailBackupJson {
@@ -197,6 +210,182 @@ export function deriveMailAddress(mlDsaSeed: Uint8Array): { address: string; dsa
 }
 
 /**
+ * Derive the 44-character Base58 native inbox contract instance ID for Freenet Mail (v0.2.7 / v1).
+ * Matches freenet-email `inbox_key_for`:
+ *   code_key = bs58::decode(INBOX_V1_CODE_HASH)
+ *   params = serde_json::to_vec(&InboxParams { pub_key: dsaVk })
+ *   contract_id = blake3(code_key || params)
+ */
+export function deriveInboxContractAddress(dsaVk: Uint8Array): string {
+  const codeKey = fromBase58(INBOX_V1_CODE_HASH);
+  const params = enc.encode(JSON.stringify({ pub_key: Array.from(dsaVk) }));
+  const buf = new Uint8Array(codeKey.length + params.length);
+  buf.set(codeKey, 0);
+  buf.set(params, codeKey.length);
+  const instance = blake3(buf);
+  return toBase58(instance);
+}
+
+/**
+ * Derive the 6 BIP-39 words fingerprint matching Freenet Mail's `fingerprint_words(&vk, &ek)`.
+ * The first 3 words form the short key display (e.g. `pear-young-final`).
+ */
+export function deriveFingerprintWords(
+  dsaVk: Uint8Array,
+  kemEk: Uint8Array
+): { words: string[]; shortKey: string; fullKey: string } {
+  const hasher = blake3.create({});
+  hasher.update(dsaVk);
+  hasher.update(kemEk);
+  const hash = hasher.digest();
+
+  let n = 0n;
+  for (let i = 0; i < 12; i++) {
+    n = (n << 8n) | BigInt(hash[i]);
+  }
+  const words: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const shift = BigInt(96 - 11 * (i + 1));
+    const idx = Number((n >> shift) & 0x7ffn);
+    words.push(BIP39_WORDLIST[idx] || "unknown");
+  }
+
+  const shortKey = `${words[0]}-${words[1]}-${words[2]}`;
+  const fullKey = words.join("-");
+  return { words, shortKey, fullKey };
+}
+
+/**
+ * Build the standard Freenet Mail Contact Card token string.
+ * Format: `<inbox_address>\nverify: <word1-word2-word3-word4-word5-word6>`
+ */
+export function formatContactCard(inboxAddress: string, fullKey: string): string {
+  return `${inboxAddress}\nverify: ${fullKey}`;
+}
+
+/**
+ * Encrypt and seal a message into Freenet Mail v1 wire format.
+ * Matches `contracts/inbox` and `mail-delegate/crypto.rs` encrypt_v1 & seal_v1.
+ */
+export function encryptFreenetMailV1(
+  recipientEk: Uint8Array,
+  senderDsaSk: Uint8Array,
+  senderDsaVk: Uint8Array,
+  recipientInboxContractId: string,
+  subject: string,
+  contentText: string,
+  senderAlias: string
+): {
+  deltaJson: string;
+  assignmentHash: Uint8Array;
+} {
+  // Plaintext DecryptedMessage JSON
+  const msgObj = {
+    title: subject.trim(),
+    content: contentText.trim(),
+    from: senderAlias,
+    to: [{ 0: Array.from(recipientEk) }],
+    cc: [],
+    time: new Date().toISOString(),
+  };
+  const plaintext = enc.encode(JSON.stringify(msgObj));
+
+  // 1. ML-KEM-768 encapsulate
+  const { cipherText: kemCt, sharedSecret } = ml_kem768.encapsulate(recipientEk);
+
+  // 2. HKDF-SHA256 message key derivation (context: "freenet-email-v1 message-key")
+  const msgKey = hkdf(sha256, sharedSecret, undefined, enc.encode("freenet-email-v1 message-key"), 32);
+
+  // 3. XChaCha20-Poly1305 with random 24-byte nonce
+  const nonce = globalThis.crypto.getRandomValues(new Uint8Array(24));
+  const cipher = xchacha20poly1305(msgKey, nonce);
+  const sealed = cipher.encrypt(plaintext);
+
+  // 4. Assemble content layout: nonce (24) | kemCt (1088) | sealed
+  const content = new Uint8Array(24 + kemCt.length + sealed.length);
+  content.set(nonce, 0);
+  content.set(kemCt, 24);
+  content.set(sealed, 24 + kemCt.length);
+
+  // 5. ML-DSA-65 detached signature over content
+  const signature = ml_dsa65.sign(content, senderDsaSk);
+
+  // 6. Token assignment hash (blake3 of content)
+  const assignmentHash = blake3(content);
+
+  // 7. Token assignment record (placeholder for verified-sender / open policy)
+  const tokenAssignment = {
+    tier: "Min1",
+    time_slot: new Date().toISOString(),
+    generator: [],
+    signature: [],
+    assignment_hash: Array.from(assignmentHash),
+    token_record: Array.from(fromBase58(recipientInboxContractId)),
+  };
+
+  const storedMessage = {
+    content: Array.from(content),
+    token_assignment: tokenAssignment,
+    sender_vk: Array.from(senderDsaVk),
+    signature: Array.from(signature),
+  };
+
+  const delta = {
+    AddMessages: {
+      messages: [storedMessage],
+    },
+  };
+
+  return {
+    deltaJson: JSON.stringify(delta),
+    assignmentHash,
+  };
+}
+
+/**
+ * Decrypt a Freenet Mail v1 encrypted message payload.
+ */
+export function decryptFreenetMailV1(
+  myKemDk: Uint8Array,
+  contentBytes: Uint8Array
+): {
+  title: string;
+  content: string;
+  from: string;
+  time: string;
+  thread_id?: string;
+  in_reply_to?: string;
+  quoted_excerpt?: string;
+} | null {
+  if (contentBytes.length < 24 + 1088) return null;
+
+  try {
+    const nonce = contentBytes.slice(0, 24);
+    const kemCt = contentBytes.slice(24, 24 + 1088);
+    const sealed = contentBytes.slice(24 + 1088);
+
+    const sharedSecret = ml_kem768.decapsulate(kemCt, myKemDk);
+    const msgKey = hkdf(sha256, sharedSecret, undefined, enc.encode("freenet-email-v1 message-key"), 32);
+
+    const cipher = xchacha20poly1305(msgKey, nonce);
+    const plaintext = cipher.decrypt(sealed);
+    const parsed = JSON.parse(dec.decode(plaintext));
+
+    return {
+      title: parsed.title || "(No Subject)",
+      content: parsed.content || "",
+      from: parsed.from || "unknown",
+      time: parsed.time || new Date().toISOString(),
+      thread_id: parsed.thread_id,
+      in_reply_to: parsed.in_reply_to,
+      quoted_excerpt: parsed.quoted_excerpt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Sanitize an email alias: alphanumeric, dash, dot, underscore, max 32 chars.
  */
 export function sanitizeMailAlias(name: string): string {
@@ -218,15 +407,25 @@ export function deriveMailIdentity(alias: string, masterSecret: Uint8Array): Fre
 
   const addr24 = rawAddressOf(dsaKeys.publicKey);
   const address = formatAddress(addr24);
+  const inboxAddress = deriveInboxContractAddress(dsaKeys.publicKey);
+  const fp = deriveFingerprintWords(dsaKeys.publicKey, kemKeys.publicKey);
+  const contactCard = formatContactCard(inboxAddress, fp.fullKey);
   const recoveryKey = encodeRecoveryKey(seeds.mlDsaSeed, seeds.mlKemSeed);
 
   return {
     alias: cleanAlias,
     address,
+    inboxAddress,
+    fingerprintWords: fp.words,
+    fingerprintShort: fp.shortKey,
+    fingerprintFull: fp.fullKey,
+    contactCard,
     recoveryKey,
     seeds,
     dsaVk: dsaKeys.publicKey,
+    dsaSk: dsaKeys.secretKey,
     kemEk: kemKeys.publicKey,
+    kemDk: kemKeys.secretKey,
   };
 }
 

@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794420219.007197,
-    "ast_hash": "f6f37839b5313be5ded707c947ac0f46",
+    "mtime": 1794421574.0706892,
+    "ast_hash": "3fae308ca253c3b4b29cb097601bc570",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794420088.2902575,
-    "ast_hash": "7ca5efb8a9b000cda97bedf4048fb64e",
+    "mtime": 1794421719.9109728,
+    "ast_hash": "d4c4767992fddb84dfd521b309cf8f36",
     "semantic_hash": ""
   },
   "README.md": {
@@ -120,8 +120,8 @@
     "semantic_hash": ""
   },
   "ui/src/caption.ts": {
-    "mtime": 1794346242.9507673,
-    "ast_hash": "0451ba30cf0aa2bc064aa787133494e1",
+    "mtime": 1794421647.814137,
+    "ast_hash": "bc869fd70053ec9e604989e4452f53d5",
     "semantic_hash": ""
   },
   "ui/src/delegate.ts": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794420059.4568138,
-    "ast_hash": "85c088d6f9c5f7746a8ca37f3c5b6368",
+    "mtime": 1794421704.9009132,
+    "ast_hash": "1fe3b1f2b782df3034ddf27083c408ff",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1794346211.427576,
-    "ast_hash": "b246418d1b89e163702fd77b75532380",
+    "mtime": 1794421594.6535964,
+    "ast_hash": "d325ed448c51a82cdaafc1a246a2a3a8",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -1432,6 +1432,16 @@
   "apps/desktop/assets/icon-512.png": {
     "mtime": 1794407830.243505,
     "ast_hash": "dc583bd1972657672a7566d6b6bcd7ac",
+    "semantic_hash": ""
+  },
+  "ui/src/sporeRadio.ts": {
+    "mtime": 1794421618.433963,
+    "ast_hash": "db373db2be4c313f2a39e2788495a8a6",
+    "semantic_hash": ""
+  },
+  "ui/tests/sporeRadio.test.ts": {
+    "mtime": 1794421605.8848562,
+    "ast_hash": "84258cceab156d2a2e8e31321590c861",
     "semantic_hash": ""
   }
 }

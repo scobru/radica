@@ -71,12 +71,12 @@ test("loadMailStore: initializes empty store with welcome message if identity pr
   assert.equal(store3.messages.length, 0);
 });
 
-test("sendMailMessage: stores in sent folder and handles self-send to inbox", () => {
+test("sendMailMessage: stores in sent folder and handles self-send to inbox", async () => {
   const pubkey = "test_user_pubkey_2";
   loadMailStore(pubkey, mockIdentity);
 
   // Send to someone else (different address)
-  const res1 = sendMailMessage(
+  const res1 = await sendMailMessage(
     pubkey,
     mockIdentity,
     "bob@222222222222222222222222222222222222",
@@ -87,7 +87,7 @@ test("sendMailMessage: stores in sent folder and handles self-send to inbox", ()
   assert.equal(res1.message?.folder, "sent");
 
   // Send to self
-  const res2 = sendMailMessage(
+  const res2 = await sendMailMessage(
     pubkey,
     mockIdentity,
     `alice@${mockIdentity.address}`,
@@ -220,7 +220,7 @@ test("resolveMailAlias: cleans profile name, rejects raw base58, allows custom h
   assert.equal(resolveMailAlias(pk, rawBase58, ""), "user_464b57");
 });
 
-test("contacts & address book: saves, loads, deletes, and resolves contacts", () => {
+test("contacts & address book: saves, loads, deletes, and resolves contacts", async () => {
   const pk = "user_contacts_test";
   const aliceAddr = "alice@333333333333333333333333333333333333";
 
@@ -266,7 +266,7 @@ test("contacts & address book: saves, loads, deletes, and resolves contacts", ()
   assert.equal(suggestions.some((s) => s.displayName === "Alice"), true);
 
   // Send mail to contact by name
-  const sendRes = sendMailMessage(pk, mockIdentity, "Alice", "Hi Alice", "Test content");
+  const sendRes = await sendMailMessage(pk, mockIdentity, "Alice", "Hi Alice", "Test content");
   assert.equal(sendRes.success, true);
   assert.equal(sendRes.message?.to, aliceAddr);
 
@@ -275,7 +275,7 @@ test("contacts & address book: saves, loads, deletes, and resolves contacts", ()
   assert.equal(loadMailContacts(pk).length, 0);
 });
 
-test("isValidMailAddress & parseFmailContactInput: supports Freenet Mail contact tokens", () => {
+test("isValidMailAddress & parseFmailContactInput: supports Freenet Mail contact tokens", async () => {
   const fmailToken = "AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs";
   const aliasToken = `scobru@${fmailToken}`;
 
@@ -301,7 +301,7 @@ test("isValidMailAddress & parseFmailContactInput: supports Freenet Mail contact
 
   // Send mail directly to Freenet Mail token
   const pk = "test_user_fmail_token_send";
-  const sendRes = sendMailMessage(pk, mockIdentity, aliasToken, "Hello via Token", "Test body");
+  const sendRes = await sendMailMessage(pk, mockIdentity, aliasToken, "Hello via Token", "Test body");
   assert.equal(sendRes.success, true);
   assert.equal(sendRes.message?.to, aliasToken);
 

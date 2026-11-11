@@ -642,11 +642,15 @@
               </h3>
               <span class="mail-pq-badge identity-badge" style="background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px;">● Post-Quantum E2EE</span>
             </div>
-            <div class="mail-header-address-wrap">
-              <span class="mail-address-badge" id="mail-user-address-chip" title="Click to copy your decentralized mail address">
+            <div class="mail-header-address-wrap" style="display: flex; align-items: center; gap: 6px;">
+              <span class="mail-address-badge" id="mail-user-address-chip" title="Click to view & copy your Freenet Mail tokens and addresses">
                 <span id="mail-user-address-display">Loading...</span>
                 <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </span>
+              <button type="button" class="btn-secondary btn-xs btn-icon-text" id="mail-tokens-btn" title="View all Freenet Mail tokens, contact cards, and addresses" style="font-size: 0.72rem; padding: 2px 7px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Tokens & Keys</span>
+              </button>
             </div>
           </div>
           <div class="mail-header-actions">
@@ -916,15 +920,44 @@
               </div>
               <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">Your readable username prefix. Change it anytime without changing your keys.</div>
             </div>
+
+            <!-- Native Inbox Address (44 chars) for official Freenet Mail compatibility -->
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="font-size: 0.8rem; color: var(--text-muted);">Full Post-Quantum Address:</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Native Freenet Mail Inbox Address (44 chars):</span>
+                <span style="font-size: 0.72rem; color: #10b981;">Required by official Freemail (v0.2.x)</span>
+              </div>
+              <div class="identity-code-box" id="fmail-inbox-val" title="Click to copy native 44-character Freenet Mail contract address" style="font-family: monospace; font-size: 0.85rem; color: #34d399; cursor: pointer; word-break: break-all;">...</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Share this address with users of the native Freenet Mail app to receive mail from them.</div>
+            </div>
+
+            <!-- Contact Card Token -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Contact Card Token:</span>
+                <span id="fmail-key-words-badge" style="font-size: 0.72rem; color: #fbbf24; font-family: monospace;">key: ...</span>
+              </div>
+              <div class="identity-code-box" id="fmail-contact-card-val" title="Click to copy full contact card token" style="font-family: monospace; font-size: 0.8rem; color: #a5b4fc; cursor: pointer; white-space: pre-wrap; word-break: break-all;">...</div>
+            </div>
+
+            <!-- Radica Post-Quantum Address -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Radica Post-Quantum Address (v2):</span>
                 <span style="font-size: 0.72rem; color: #818cf8;">36-character P2P cryptographic key</span>
               </div>
               <div class="identity-code-box" id="fmail-address-val" title="Click to copy full post-quantum mail address" style="font-family: monospace; font-size: 0.85rem; color: #a5b4fc; cursor: pointer;">...</div>
             </div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+            <button type="button" class="btn-primary btn-sm btn-icon-text" id="fmail-copy-inbox-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Inbox Address</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="fmail-copy-card-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Contact Token</span>
+            </button>
             <button type="button" class="btn-secondary btn-sm btn-icon-text" id="fmail-copy-recovery-btn">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>Copy Recovery Key</span>
@@ -933,7 +966,7 @@
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Backup (.json)</span>
             </button>
-            <a id="fmail-open-app-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-primary btn-sm btn-icon-text" style="text-decoration: none;">
+            <a id="fmail-open-app-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-sm btn-icon-text" style="text-decoration: none;">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span>Open Freenet Mail App</span>
             </a>
@@ -1779,6 +1812,111 @@
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
           <button type="button" class="btn-secondary" id="mail-contact-modal-cancel-btn">Cancel</button>
           <button type="button" class="btn-primary" id="mail-contact-modal-save-btn">Save Contact</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Freenet Mail Tokens & Interoperability Modal -->
+    <div id="mail-tokens-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Freenet Mail Tokens & Addresses</span>
+          </h3>
+          <button class="btn-secondary btn-sm" id="mail-tokens-modal-close-btn">✕</button>
+        </div>
+
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;">
+          Here are your cryptographic identifiers for Freenet Mail. Use the <b>Native Inbox Address</b> or <b>Contact Card Token</b> to receive mail from users of the official Freenet Mail app (v0.2.x).
+        </p>
+
+        <!-- 1. Native Freenet Mail Inbox Contract ID (44 chars) -->
+        <div style="margin-bottom: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text);">Native Inbox Address (v1 / Freemail App):</span>
+            <span style="font-size: 0.72rem; color: #10b981; font-weight: 600;">✓ Official Format</span>
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 6px;">
+            Give this 44-character address to contacts using the official Freenet Mail app to enter in their "To:" field or address book.
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="modal-fmail-inbox-input" readonly spellcheck="false" style="font-family: monospace; font-size: 0.8rem; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: #34d399; flex: 1;" />
+            <button type="button" class="btn-primary btn-sm btn-icon-text" id="modal-copy-inbox-btn" style="white-space: nowrap;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Contact Card Token -->
+        <div style="margin-bottom: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text);">Contact Card Token (Full Token):</span>
+            <span style="font-size: 0.72rem; color: #818cf8;">Address + Verification Words</span>
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 6px;">
+            Full token for native Freemail "Import Contact". Contains your inbox address and cryptographic verification words.
+          </div>
+          <div style="position: relative;">
+            <textarea id="modal-fmail-card-textarea" readonly rows="2" spellcheck="false" style="font-family: monospace; font-size: 0.78rem; width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: #a5b4fc; resize: none;"></textarea>
+            <button type="button" class="btn-secondary btn-xs btn-icon-text" id="modal-copy-card-btn" style="position: absolute; right: 8px; bottom: 10px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Token</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Cryptographic Verification & Fingerprint -->
+        <div style="margin-bottom: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text);">Identity Fingerprint & Key Words:</span>
+            <span style="font-size: 0.72rem; color: #fbbf24;">BIP-39 Wordlist</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+            <div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Freemail Footer Key (3 words):</div>
+              <div id="modal-fmail-key-short" style="font-family: monospace; font-size: 0.88rem; font-weight: 600; color: #fbbf24;">...</div>
+            </div>
+            <div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Full Verification (6 words):</div>
+              <div id="modal-fmail-fp-full" style="font-family: monospace; font-size: 0.78rem; color: var(--text);">...</div>
+            </div>
+            <button type="button" class="btn-secondary btn-xs" id="modal-copy-fp-btn" title="Copy fingerprint words">Copy Words</button>
+          </div>
+        </div>
+
+        <!-- 4. Radica Post-Quantum P2P Address (v2) -->
+        <div style="margin-bottom: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text);">Radica Mail Address (v2):</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">36-char compact</span>
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 6px;">
+            Used within Radica Mail for peer-to-peer routing.
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="modal-fmail-v2-input" readonly spellcheck="false" style="font-family: monospace; font-size: 0.8rem; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); flex: 1;" />
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="modal-copy-v2-btn" style="white-space: nowrap;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--border);">
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="modal-fmail-copy-recovery-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Recovery Key</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="modal-fmail-backup-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Backup JSON</span>
+            </button>
+          </div>
+          <button type="button" class="btn-primary btn-sm" id="modal-fmail-done-btn">Done</button>
         </div>
       </div>
     </div>
