@@ -1330,7 +1330,16 @@
         </details>
 
         <details><summary>🧩 Contracts Radica uses on Freenet</summary>
-          <p><b>Radica's own</b> (this repo): the main social contract (posts, profiles, comments, follows), the media contract (images &amp; video chunks), the log contract (append-only logs: Greenhouse, supporter claims/receipts), the delegate (proof-of-work / FreePolls challenges), the GhostKey delegate and the River bridge delegate.</p>
+          <p><b>Radica's own</b> (this repo): each contract's code hash is the BLAKE3 of its compiled WASM, so it changes whenever that contract is rebuilt — these are the current ones (<code>ui/src/wasm/</code>):</p>
+          <ul>
+            <li><b>Social</b> (posts, profiles, comments, follows), one per persona &mdash; <code>6eed3cbf…50d5b6</code></li>
+            <li><b>Media</b> (images &amp; video chunks), one per file hash &mdash; <code>393faa96…25d0762</code></li>
+            <li><b>Log</b> (named append-only logs: Greenhouse, supporter claims/receipts, chats) &mdash; <code>004279a5…d5acb6e</code></li>
+            <li><b>Proof-of-work delegate</b> (post/FreePolls challenges) &mdash; <code>f10f40a3…c78925f</code></li>
+            <li><b>GhostKey delegate</b> (verifies a Freenet GhostKey proof) &mdash; <code>2d88583f…be770c7b</code></li>
+            <li><b>River bridge delegate</b> &mdash; <code>a52e1654…230c07289ca3</code></li>
+            <li><b>River room contract</b> (bundled rooms) &mdash; <code>bc9b4066…99b354471aef5</code></li>
+          </ul>
           <p><b>Other Freenet apps it reads or writes</b>: Viso (identity), FreeNames (name registry &amp; zone sites), Fisherman's Horizon (bookmark lists), FreeTunes (release directory), FreePolls (polls &amp; its ante/proof-of-work delegate), Asocial (games site &amp; records), Freetree (link hubs), Delta (pages, pointer &amp; bundled sites), Orto (blog vault), River (chat rooms, pointer &amp; bundled rooms), and the native Freenet Mail inbox contract (v1/v2).</p>
         </details>
 

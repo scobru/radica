@@ -559,7 +559,7 @@ export async function sendMailMessage(
 
   if (targetContractId.length >= 43 && targetContractId.length <= 44 && getContractFn && updateContractFn) {
     try {
-      const raw = await getContractFn.call(freenet, targetContractId);
+      const raw = await getContractFn.call(freenet, targetContractId, true); // fetchCode: this node may never have held the recipient's inbox contract, and an UPDATE needs its WASM cached locally
       if (raw) {
         const inboxObj = JSON.parse(new TextDecoder().decode(raw));
         if (inboxObj && Array.isArray(inboxObj.owner_ek_bytes) && inboxObj.owner_ek_bytes.length > 0) {
