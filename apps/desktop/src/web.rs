@@ -162,13 +162,37 @@ fn spawn_bring_up(proxy: EventLoopProxy<Ui>) {
     });
 }
 
+/// Radica's icon on the window and the taskbar. Windows reads it from radica.exe (build.rs puts it there, at every
+/// size); Linux gets the 64 px pixels; a macOS app takes its icon from its bundle.
+#[cfg(windows)]
+fn with_icon(builder: WindowBuilder) -> WindowBuilder {
+    use tao::platform::windows::{IconExtWindows, WindowBuilderExtWindows};
+    use tao::window::Icon;
+    // without the icon the app still opens: a missing resource must not stop it
+    let icon = |px: u32| Icon::from_resource(1, Some(tao::dpi::PhysicalSize::new(px, px))).ok();
+    builder
+        .with_window_icon(icon(32))
+        .with_taskbar_icon(icon(256))
+}
+#[cfg(target_os = "macos")]
+fn with_icon(builder: WindowBuilder) -> WindowBuilder {
+    builder
+}
+#[cfg(not(any(windows, target_os = "macos")))]
+fn with_icon(builder: WindowBuilder) -> WindowBuilder {
+    let pixels = include_bytes!("../assets/icon-64.rgba").to_vec();
+    builder.with_window_icon(tao::window::Icon::from_rgba(pixels, 64, 64).ok())
+}
+
 pub fn run() -> wry::Result<()> {
     let event_loop = EventLoopBuilder::<Ui>::with_user_event().build();
-    let window = WindowBuilder::new()
-        .with_title("Radica")
-        .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 860.0))
-        .build(&event_loop)
-        .map_err(|e| wry::Error::Io(std::io::Error::other(e)))?;
+    let window = with_icon(
+        WindowBuilder::new()
+            .with_title("Radica")
+            .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 860.0)),
+    )
+    .build(&event_loop)
+    .map_err(|e| wry::Error::Io(std::io::Error::other(e)))?;
     // The web app keeps identity and keys in its storage: a fixed folder keeps them across runs.
     let mut context = WebContext::new(
         directories::ProjectDirs::from("", "Freenet", "Radica")
