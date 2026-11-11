@@ -86,6 +86,7 @@ import type { ContractKey } from "@freenetorg/freenet-stdlib";
 import { MEDIA_PREFIX, dataUrlBytes, keepMedia, mediaHashOf, mediaUris } from "./media.ts";
 import { revokeChatMediaInText, summarizeChatMediaText } from "./chatMedia.ts";
 import { mentionsIn, plainMentions } from "./caption.ts";
+import { repostRef } from "./repost.ts";
 import { yieldToMain } from "./limit.ts";
 import { knownAnchor, resolveRoomContract } from "./riverPointer.ts";
 import { RiverRooms, roomOwnerSk, vkOf, type RiverJoin } from "./riverRooms.ts";
@@ -1997,6 +1998,10 @@ export class FreenetClient {
     this.cachePeerPost(id, post);
     this.broadcast({ type: "post", post });
     void this.notifyMentions(caption, id, identity.pubkey);
+    // a repost tells the author of the post it shares, unless the caption already mentions them
+    const shared = repostRef(caption);
+    if (shared && !mentionsIn(caption).includes(shared.author))
+      void this.addNotification(shared.author, { type: "mention", from: this.me, text: "reposted your post", linkPostId: id, linkPostOwner: identity.pubkey }).catch((e) => console.warn("[Freenet] repost:", e));
     return post;
   }
 

@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1794339411.3567965,
-    "ast_hash": "16b6ca6932ca757c944f41afbfeffc38",
+    "mtime": 1794405342.727073,
+    "ast_hash": "5e0b8ea4dab8a80efe25985568461936",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794394397.072973,
-    "ast_hash": "82e17841050331a5445475b83111be6f",
+    "mtime": 1794405716.6838162,
+    "ast_hash": "aded8fbe890ba52d8b5b9cc29774df2c",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "ui/src/types.ts": {
-    "mtime": 1794339411.4135523,
-    "ast_hash": "eac2b815e984c75e7dcdcd582123f4d4",
+    "mtime": 1794405331.8560886,
+    "ast_hash": "33d086c58ea43ea37fe3141d491ddff4",
     "semantic_hash": ""
   },
   "ui/src/whoiam.ts": {
@@ -70,13 +70,13 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794404885.4853075,
-    "ast_hash": "d22729c2ffde72ad9db88178cd9f308a",
+    "mtime": 1794405795.4362369,
+    "ast_hash": "e6d47d81b05031a573f6f60b3985af41",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794404943.0088284,
-    "ast_hash": "64130309856b29b92491f5c02d34a742",
+    "mtime": 1794405827.7986784,
+    "ast_hash": "dfe4620a6c61a4e2e66a8bd2227dba59",
     "semantic_hash": ""
   },
   "ui/index.html": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794404873.8962455,
-    "ast_hash": "d0796c82601965e20aab448c684a955e",
+    "mtime": 1794405758.8775609,
+    "ast_hash": "6041c0c9f62623660cb8b5a85cc183a6",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1793642158.6090891,
-    "ast_hash": "014cf7c1e0f96e54cf6011538110dbd5",
+    "mtime": 1794405850.9356844,
+    "ast_hash": "709e34ac5b1f3a6ff7b5f16cd16e99e3",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {

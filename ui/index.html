@@ -246,6 +246,9 @@
             <textarea class="composer-input" id="post-caption" placeholder="What's happening on Freenet? #hashtag"></textarea>
           </div>
 
+          <!-- A post waiting to be reposted with the next publish (repost.ts) -->
+          <div class="composer-extra composer-repost" id="composer-repost" hidden></div>
+
           <!-- Moment File & URL Inputs -->
           <div class="composer-extra" id="moment-fields" style="display: none; flex-direction: column; gap: 8px;">
             <div style="display: flex; gap: 8px; align-items: center;">
@@ -315,6 +318,10 @@
               <button type="button" class="btn-secondary pp-edit" id="pp-edit-btn">Edit profile</button>
             </div>
           </div>
+          <section class="linfa-section" aria-label="Your Linfa">
+            <h2>Your Linfa</h2>
+            <div id="pp-linfa"></div>
+          </section>
           <section class="roots-panel" aria-label="Your roots">
             <h2>Your roots</h2>
             <p>The people you follow, straight from your node. A root lights up when they post.</p>
@@ -594,6 +601,8 @@
           <button class="btn-secondary btn-sm" id="uview-mod-btn" style="display: none;" title="Their removals and blocks apply to everyone who follows your blocklist"></button>
         </div>
 
+        <!-- Their Linfa: the plant this node counts from what it holds (linfa.ts, plant.ts) -->
+        <div id="uview-linfa" class="uview-linfa"></div>
         <div id="uview-channel" class="uview-channel"></div>
 
         <div id="uview-ecosystem-loader" class="uview-ecosystem-loader" style="display: none;">
@@ -608,7 +617,10 @@
         <div id="uview-freetree" class="uview-blog"></div>
         <div id="uview-sites" class="uview-sites"></div>
 
-        <h4 style="border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 12px;">Posts</h4>
+        <div class="uview-tabs" id="uview-tabs" role="tablist" aria-label="Their posts">
+          <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="posts" aria-selected="true">Posts</button>
+          <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="reposts" aria-selected="false">Reposts</button>
+        </div>
         <div id="uview-posts-gallery" class="uview-posts"></div>
       </div>
     </div>
@@ -1119,6 +1131,17 @@
           <p><b>Public:</b> your profile, posts, comments, likes, who you follow, and communities. Anyone on Freenet can read them.</p>
           <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses per-message forward-secrecy keys, stays strictly on this device (never synced across devices), and supports disappearing message timers.</p>
           <p><b>River contacts</b> (marked "River") are people using River, Freenet's chat app. You can message them, but River's direct messages carry text only: no reactions, reply quotes or edits.</p>
+        </details>
+
+        <details><summary>🌱 Linfa and reposts</summary>
+          <p><b>Linfa</b> is the sap of the plant on every profile. Your node counts it from the posts, comments and likes it holds: nothing is stored, so nobody can write themselves a number.</p>
+          <ul>
+            <li><b>Answering counts most</b>: a comment on someone's post 3, being reposted 3, a comment received 2, a like received 1, a like given ½. One answer per person and post.</li>
+            <li><b>Posting grows the first leaves only</b>: one for each day you post, thirty at most. The rest comes from other people.</li>
+            <li><b>It flows through roots</b>: the people you follow count whole, their friends half, strangers a quarter and only a little in all. So two readers can see two different plants on the same profile.</li>
+            <li><b>Ages</b>: seed, seedling, sapling, young tree, tree, elder tree. Lighter leaves are what grew in the last week.</li>
+          </ul>
+          <p><b>Repost</b> (under a post) shares it on your feed, with your own words if you add any. The author is told, and your reposts have their own tab on your profile.</p>
         </details>
 
         <details><summary>🌿 Trust badges</summary>

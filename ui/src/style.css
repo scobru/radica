@@ -5502,3 +5502,314 @@ kbd {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
+
+/* ---- Reposts (repost.ts): the shared post, drawn inside the card of the post that shares it ---- */
+.repost-card {
+  margin: 6px 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 14px;
+  background: var(--card-footer-bg);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.repost-card:hover,
+.repost-card:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+.repost-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.repost-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.repost-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+.repost-time,
+.repost-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.repost-note {
+  margin: 0;
+}
+.repost-text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* a long post is cut here: the card opens it whole */
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.repost-media {
+  margin-top: 8px;
+}
+.repost-media img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.gram-category-tag.repost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+}
+.composer-repost {
+  flex-direction: column;
+  gap: 6px;
+}
+.composer-repost[hidden] {
+  display: none;
+}
+.composer-repost-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.composer-repost-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.composer-repost .repost-card {
+  margin: 0;
+  cursor: default;
+}
+.uview-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.uview-tabs button[aria-selected="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* ---- Linfa (linfa.ts, plant.ts): the plant a persona's Linfa grows, on their profile ---- */
+:root {
+  /* the plant keeps its own greens whatever the accent: a slate or plum tree would look dead */
+  --linfa-bark: #7b5b3c;
+  --linfa-leaf-0: #4c8a2a;
+  --linfa-leaf-1: #6ba23f;
+  --linfa-leaf-2: #37701c;
+  --linfa-fresh: #a4d466;
+  --linfa-soil: #cdb994;
+  --linfa-root: #b08a5c;
+  --linfa-petal: #fff3d6;
+  --linfa-heart: #e2952a;
+}
+[data-theme="dark"] {
+  --linfa-bark: #a88763;
+  --linfa-leaf-0: #7db656;
+  --linfa-leaf-1: #9bd06f;
+  --linfa-leaf-2: #5d9840;
+  --linfa-fresh: #c6ee90;
+  --linfa-soil: #40362a;
+  --linfa-root: #6e5a41;
+  --linfa-petal: #fff3d6;
+  --linfa-heart: #f0ad4e;
+}
+.linfa-plant {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.linfa-plant .linfa-branch,
+.linfa-plant .linfa-root {
+  fill: none;
+  stroke: var(--linfa-bark);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.linfa-plant .linfa-root {
+  stroke: var(--linfa-root);
+  opacity: 0.75;
+}
+.linfa-plant .linfa-soil {
+  fill: var(--linfa-soil);
+}
+.linfa-plant .linfa-leaf.t0 { fill: var(--linfa-leaf-0); }
+.linfa-plant .linfa-leaf.t1 { fill: var(--linfa-leaf-1); }
+.linfa-plant .linfa-leaf.t2 { fill: var(--linfa-leaf-2); }
+.linfa-plant .linfa-leaf.fresh { fill: var(--linfa-fresh); }
+.linfa-plant .linfa-seed ellipse { fill: var(--linfa-bark); }
+.linfa-plant .linfa-seed path {
+  fill: none;
+  stroke: var(--linfa-soil);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+.linfa-plant .linfa-bloom .petal { fill: var(--linfa-petal); }
+.linfa-plant .linfa-bloom .heart { fill: var(--linfa-heart); }
+
+/* the plant grows in when it is shown: wood first, level by level, then the leaves open; after that it sways */
+@media (prefers-reduced-motion: no-preference) {
+  .linfa-plant .linfa-branch,
+  .linfa-plant .linfa-root {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: linfa-draw 0.42s ease-out forwards;
+    animation-delay: calc(var(--d) * 0.16s);
+  }
+  .linfa-plant .linfa-leaf,
+  .linfa-plant .linfa-bloom > * {
+    transform-origin: 0 0;
+    animation: linfa-open 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+    animation-delay: calc(0.25s + var(--d) * 0.16s);
+  }
+  .linfa-plant .linfa-bloom > * { animation-delay: 1.5s; }
+  .linfa-plant .linfa-crown {
+    transform-origin: 130px 200px; /* the foot of the trunk, in the picture's own units */
+    animation: linfa-sway 7s ease-in-out 1.6s infinite alternate;
+  }
+  .linfa-plant .linfa-leaf.fresh {
+    animation: linfa-open 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards, linfa-fresh 2.8s ease-in-out 2s infinite alternate;
+    animation-delay: calc(0.25s + var(--d) * 0.16s), 2s;
+  }
+}
+@keyframes linfa-draw { to { stroke-dashoffset: 0; } }
+@keyframes linfa-open { from { transform: scale(0); } }
+@keyframes linfa-sway { from { transform: rotate(-0.7deg); } to { transform: rotate(0.7deg); } }
+@keyframes linfa-fresh { to { filter: brightness(1.12); } }
+
+/* the Linfa panel on a profile: the plant in its patch of light, and what it is made of */
+.linfa-panel {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px 22px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border-light);
+  border-radius: 22px;
+  background: radial-gradient(120% 90% at 18% 0%, color-mix(in srgb, var(--linfa-leaf-1) 16%, transparent), transparent 62%), var(--card-footer-bg);
+}
+.linfa-pot {
+  flex: 0 0 190px;
+  width: 190px;
+  height: 190px;
+}
+.linfa-info {
+  flex: 1;
+  min-width: 0;
+}
+.linfa-stage {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text-main);
+}
+.linfa-count {
+  margin-top: 2px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.linfa-count b {
+  color: var(--text-main);
+  font-size: 1.05rem;
+}
+.linfa-week {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--linfa-leaf-1) 22%, transparent);
+  color: var(--linfa-leaf-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+[data-theme="dark"] .linfa-week {
+  color: var(--linfa-leaf-1);
+}
+.linfa-bar {
+  height: 6px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.linfa-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--linfa-leaf-0);
+}
+.linfa-next {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.linfa-parts {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.linfa-parts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-top: 1px solid var(--border-light);
+}
+.linfa-parts b {
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+.linfa-how {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.linfa-how summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.linfa-how p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+.linfa-section h2 {
+  margin: 0 0 10px;
+  font-size: 1.5rem;
+}
+@media (max-width: 560px) {
+  .linfa-panel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+  .linfa-pot {
+    flex-basis: auto;
+    align-self: center;
+  }
+}
+.repost-inner {
+  display: block;
+  margin-top: 4px;
+}
