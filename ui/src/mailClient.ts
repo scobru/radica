@@ -3,9 +3,24 @@
 // address validation, and interoperability with the official Freenet Mail protocol.
 
 import { safeStorage } from "./storage.ts";
-import { sanitizeMailAlias, type FreenetMailIdentity } from "./freenetMail.ts";
+import {
+  sanitizeMailAlias,
+  encryptFreenetMailV1,
+  decryptFreenetMailV1,
+  type FreenetMailIdentity,
+} from "./freenetMail.ts";
+import { fromBase58, toBase58 } from "./whoiam.ts";
+import { ContractKey } from "@freenetorg/freenet-stdlib";
 
 export type MailFolder = "inbox" | "sent" | "drafts";
+
+export interface FmailSendResult {
+  success: boolean;
+  message?: MailMessage;
+  networkDelivered?: boolean;
+  networkDetails?: string;
+  error?: string;
+}
 
 export interface MailContact {
   name: string;        // Friendly display name, e.g. "Alice", "Scobru"
@@ -69,9 +84,25 @@ export function isValidMailAddress(address: string): boolean {
 
 /**
  * Normalize an address to extract the clean recipient address.
+ * Handles display brackets (Name <address>) and multi-line Contact Cards (<inboxAddress>\nverify: <words>).
  */
 export function normalizeMailAddress(address: string): string {
   const trimmed = address.trim();
+  if (!trimmed) return "";
+
+  // If multi-line or contains contact card verification words
+  if (trimmed.includes("\n") || trimmed.includes("verify:")) {
+    const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (line.toLowerCase().startsWith("verify:")) continue;
+      const bracketMatch = line.match(/<([^>]+)>/);
+      const candidate = bracketMatch ? bracketMatch[1].trim() : line;
+      if (isValidMailAddress(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
   const match = trimmed.match(/<([^>]+)>/);
   return match ? match[1].trim() : trimmed;
 }
@@ -409,17 +440,19 @@ export function getUnreadMailCount(messages: MailMessage[]): number {
 }
 
 /**
- * Send an email message and store it. If sending to self, also copies to inbox.
+ * Send an email message, store it, and optionally dispatch real post-quantum E2EE delivery
+ * to the recipient's Freenet Mail inbox contract on the Freenet network.
  */
-export function sendMailMessage(
+export async function sendMailMessage(
   pubkey: string,
   identity: FreenetMailIdentity,
   to: string,
   subject: string,
   content: string,
   replyToId?: string,
-  knownPeers: Record<string, { display_name?: string; fmail_address?: string }> = {}
-): { success: boolean; message?: MailMessage; error?: string } {
+  knownPeers: Record<string, { display_name?: string; fmail_address?: string }> = {},
+  freenet?: any
+): Promise<FmailSendResult> {
   let cleanTo = normalizeMailAddress(to);
   if (!cleanTo) {
     return { success: false, error: "Recipient address cannot be empty." };
@@ -433,7 +466,7 @@ export function sendMailMessage(
   } else if (!isValidMailAddress(cleanTo)) {
     return {
       success: false,
-      error: `Could not resolve recipient "${cleanTo}". Please enter a valid Freenet Mail address (alias@36chars) or pick a contact.`,
+      error: `Could not resolve recipient "${cleanTo}". Please enter a valid Freenet Mail address or contact token.`,
     };
   }
 
@@ -478,7 +511,8 @@ export function sendMailMessage(
   const isSelf =
     cleanTo === myFullAddress ||
     cleanTo === identity.address ||
-    cleanTo.endsWith(`@${identity.address}`);
+    cleanTo.endsWith(`@${identity.address}`) ||
+    (identity.inboxAddress && (cleanTo === identity.inboxAddress || cleanTo.endsWith(`@${identity.inboxAddress}`)));
 
   if (isSelf) {
     const inboxCopy: MailMessage = {
@@ -491,7 +525,138 @@ export function sendMailMessage(
   }
 
   saveMailStore(pubkey, store);
-  return { success: true, message: sentMessage };
+
+  // Attempt real network delivery if sending to a native Freenet Mail contract (32-byte Base58 = 43..44 chars)
+  let targetContractId = cleanTo;
+  if (targetContractId.includes("@")) {
+    targetContractId = targetContractId.split("@")[1];
+  }
+
+  let networkDelivered = false;
+  let networkDetails = "Stored in local mailbox.";
+
+  const getContractFn = freenet ? (freenet.getByInstance || freenet.appContract) : undefined;
+  const updateContractFn = freenet ? (freenet.updateRaw || freenet.updateAppContract) : undefined;
+
+  if (targetContractId.length >= 43 && targetContractId.length <= 44 && getContractFn && updateContractFn) {
+    try {
+      const raw = await getContractFn.call(freenet, targetContractId);
+      if (raw) {
+        const inboxObj = JSON.parse(new TextDecoder().decode(raw));
+        if (inboxObj && Array.isArray(inboxObj.owner_ek_bytes) && inboxObj.owner_ek_bytes.length > 0) {
+          const recipientEk = new Uint8Array(inboxObj.owner_ek_bytes);
+          const { deltaJson } = encryptFreenetMailV1(
+            recipientEk,
+            identity.dsaSk,
+            identity.dsaVk,
+            targetContractId,
+            subject,
+            content,
+            identity.alias
+          );
+          const key = ContractKey.fromInstanceId(targetContractId);
+          await updateContractFn.call(freenet, key, new TextEncoder().encode(deltaJson));
+          networkDelivered = true;
+          networkDetails = "Delivered to recipient's Freenet Mail inbox contract on the network.";
+        } else {
+          networkDetails = "Recipient inbox contract found, but has no valid post-quantum encapsulation key.";
+        }
+      } else {
+        networkDetails = "Recipient inbox contract not found on the network (they may need to publish their inbox first).";
+      }
+    } catch (netErr: any) {
+      console.warn("[MailClient] Network send attempt:", netErr);
+      networkDetails = `Network dispatch note: ${netErr?.message || netErr}`;
+    }
+  } else if (targetContractId.length >= 43 && targetContractId.length <= 44) {
+    networkDetails = "Freenet network client offline or not ready. Message stored locally in Sent.";
+  }
+
+  return {
+    success: true,
+    message: sentMessage,
+    networkDelivered,
+    networkDetails,
+  };
+}
+
+/**
+ * Sync incoming messages from the native Freenet Mail inbox contract on the network.
+ */
+export async function syncFreenetMailInbox(
+  pubkey: string,
+  identity: FreenetMailIdentity,
+  freenet: any
+): Promise<{ newCount: number; error?: string }> {
+  const getContractFn = freenet ? (freenet.getByInstance || freenet.appContract) : undefined;
+  if (!getContractFn) {
+    return { newCount: 0, error: "Freenet network client not available." };
+  }
+  if (!identity.inboxAddress) {
+    return { newCount: 0, error: "Inbox contract address not available." };
+  }
+
+  try {
+    const rawState = await getContractFn.call(freenet, identity.inboxAddress);
+    if (!rawState) {
+      return { newCount: 0 };
+    }
+
+    const parsedInbox = JSON.parse(new TextDecoder().decode(rawState));
+    if (!parsedInbox || !Array.isArray(parsedInbox.messages) || parsedInbox.messages.length === 0) {
+      return { newCount: 0 };
+    }
+
+    const store = loadMailStore(pubkey, identity);
+    let newCount = 0;
+
+    for (const msg of parsedInbox.messages) {
+      if (!msg.content || !Array.isArray(msg.content)) continue;
+      const contentBytes = new Uint8Array(msg.content);
+      const dec = decryptFreenetMailV1(identity.kemDk, contentBytes);
+      if (!dec) continue;
+
+      const assignHash = msg.token_assignment?.assignment_hash
+        ? toBase58(new Uint8Array(msg.token_assignment.assignment_hash))
+        : undefined;
+
+      const msgId = assignHash ? `fmail_${assignHash}` : `fmail_${dec.time}_${dec.from}`;
+
+      // Check if already in store
+      const exists = store.messages.some(
+        (m) =>
+          m.id === msgId ||
+          (m.subject === dec.title && m.content === dec.content && m.from.includes(dec.from))
+      );
+      if (exists) continue;
+
+      const newMsg: MailMessage = {
+        id: msgId,
+        from: dec.from.includes("@") ? dec.from : `${dec.from} <${dec.from}>`,
+        fromAddress: dec.from,
+        to: `${identity.alias}@${identity.inboxAddress}`,
+        subject: dec.title,
+        content: dec.content,
+        timestamp: new Date(dec.time).getTime() || Date.now(),
+        read: false,
+        folder: "inbox",
+        threadId: dec.thread_id,
+        replyToId: dec.in_reply_to,
+      };
+
+      store.messages.push(newMsg);
+      newCount++;
+    }
+
+    if (newCount > 0) {
+      saveMailStore(pubkey, store);
+    }
+
+    return { newCount };
+  } catch (err: any) {
+    console.warn("[MailClient] syncFreenetMailInbox error:", err);
+    return { newCount: 0, error: err?.message || String(err) };
+  }
 }
 
 /**
