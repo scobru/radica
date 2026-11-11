@@ -687,6 +687,39 @@
           </div>
         </div>
 
+        <!-- Section: Freenet Mail Identity (Post-Quantum) -->
+        <div class="identity-section" id="identity-fmail-section" style="display: none; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.03);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <h4 style="margin: 0;">
+              <span class="btn-icon-text">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>Freenet Mail Identity (Post-Quantum)</span>
+              </span>
+            </h4>
+            <span class="identity-badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4);">● ML-KEM-768 / ML-DSA-65</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+            Your decentralized email inbox on Freenet, derived deterministically from this persona. You can open and read your mail directly in the official <b>Freenet Mail</b> app with full interoperability.
+          </p>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Mail Address:</div>
+          <div class="identity-code-box" id="fmail-address-val" title="Click to copy mail address" style="font-family: monospace; font-size: 0.85rem; color: #a5b4fc; cursor: pointer;">...</div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="fmail-copy-recovery-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Recovery Key</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="fmail-download-backup-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Backup (.json)</span>
+            </button>
+            <a id="fmail-open-app-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-primary btn-sm btn-icon-text" style="text-decoration: none;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>Open Freenet Mail App</span>
+            </a>
+          </div>
+          <span id="fmail-status-msg" style="font-size: 0.8rem; color: var(--success); margin-top: 6px; display: block;"></span>
+        </div>
+
         <!-- Section: Sign in with Viso -->
         <div class="identity-section">
           <h4>

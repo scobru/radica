@@ -9,6 +9,7 @@ import { ASOCIAL_SITE, ASOCIAL_REPO } from "./asocial.ts";
 import { FH_SITE, FH_REPO } from "./fh.ts";
 import { FREEHOLE_SITE, FREEHOLE_REPO, WORMHOLE_SITE, WORMHOLE_REPO } from "./wormhole.ts";
 import { FREETREE_SITE, FREETREE_REPO } from "./freetree.ts";
+import { FREENET_MAIL_CONTAINER_KEY } from "./freenetMail.ts";
 import { escapeHtml as esc } from "./html.ts";
 
 export const SUPPORT_URL = "https://buymeacoffee.com/scobru";
@@ -30,6 +31,7 @@ export interface EcosystemApp {
 
 export const ECOSYSTEM: EcosystemApp[] = [
   { name: "River", what: "group chat; Radica's private rooms are River rooms", repo: "https://github.com/freenet/river", author: "Freenet core" },
+  { name: "Freenet Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core" },
   { name: "Viso", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru" },
   { name: "FreeTunes", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru" },
   { name: "FreePolls", what: "anonymous polls in posts and chat", key: FREEPOLLS_SITE, repo: "https://github.com/scobru/freepolls", author: "by @scobru" },

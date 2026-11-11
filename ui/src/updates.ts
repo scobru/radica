@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-11", text: "Freenet Mail interoperability: your persona now derives a post-quantum Freenet Mail identity (ML-KEM-768 encryption, ML-DSA-65 signatures) with full portability. View your 36-character mail address, copy your fmail-key-1: recovery key or download a backup file in Identity & Key Management, and open Freenet Mail on your node with zero lock-in." },
   { date: "2026-11-10", text: "Full width layout: choose between standard 1280px width and full width in Identity, via the top corner button, or from the chat 3-dots menu. The feed, chat and pages expand across your entire screen on laptops and wide displays." },
   { date: "2026-11-10", text: "Broadcast channels: the invite link now lets you into the channel's discussion room too, so the Comments button works for subscribers. If you joined before, ask the founder for a new link. Moderators: reports from the AI helper now show in the queue, marked (AI helper)." },
   { date: "2026-11-10", text: "Moderation: an AI helper may now read public posts and report likely spam, scams, threats, illegal content and doxxing to the moderators' queue, marked [AI]. It hides nothing and blocks nobody: a person decides. It never reads chats or private rooms." },

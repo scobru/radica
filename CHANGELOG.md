@@ -1,3 +1,10 @@
+5.3.0 / 2026-11-11
+==================
+
+  * **NEW** Freenet Mail Interoperability (Post-Quantum Post-Delivery): Every persona automatically derives a deterministic Freenet Mail identity (ML-KEM-768 for message decapsulation and ML-DSA-65 for signing) from its master secret.
+  * **NEW** Recovery Key & Backup Export: One-click export of `fmail-key-1:<base58>` recovery keys and `identity-backup-v2.json` files compatible with the official Dioxus Freenet Mail client (`contracts/facade`).
+  * **NEW** Ecosystem Integration: Added Freenet Mail to companion apps footer and updates card with the official stable container contract (`122f6AR7PyF8d8mhczuNQM4xrLtBf5t8g2iB7PEVT7KC`).
+
 5.2.0 / 2026-11-02
 ==================
 

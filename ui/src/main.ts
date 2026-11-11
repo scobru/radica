@@ -16,6 +16,12 @@ import { freetreeCard, freetreeProfileCard, parseFreetreeInput } from "./freetre
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
 import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
+import {
+  deriveMailIdentity,
+  downloadIdentityBackup,
+  FREENET_MAIL_CONTAINER_KEY,
+  type FreenetMailIdentity,
+} from "./freenetMail.ts";
 import "./chat.css";
 import "./messengerChat.css";
 import { createMessengerChat, type ChatLayoutMode } from "./messengerChat.ts";
@@ -169,6 +175,15 @@ const localCreateMsg = document.getElementById("local-create-msg") as HTMLElemen
 const importKeyInput = document.getElementById("import-key-input") as HTMLInputElement;
 const importKeyBtn = document.getElementById("import-key-btn") as HTMLButtonElement;
 const localImportMsg = document.getElementById("local-import-msg") as HTMLElement;
+
+// Freenet Mail Elements
+const identityFmailSection = document.getElementById("identity-fmail-section") as HTMLElement | null;
+const fmailAddressVal = document.getElementById("fmail-address-val") as HTMLElement | null;
+const fmailCopyRecoveryBtn = document.getElementById("fmail-copy-recovery-btn") as HTMLButtonElement | null;
+const fmailDownloadBackupBtn = document.getElementById("fmail-download-backup-btn") as HTMLButtonElement | null;
+const fmailOpenAppLink = document.getElementById("fmail-open-app-link") as HTMLAnchorElement | null;
+const fmailStatusMsg = document.getElementById("fmail-status-msg") as HTMLElement | null;
+let currentFmailIdentity: FreenetMailIdentity | null = null;
 
 // Navbar Elements
 const freenetDot = document.getElementById("freenet-dot") as HTMLElement;
@@ -8372,6 +8387,32 @@ function renderIdentityModal() {
   visoStatusMsg.textContent = "";
   localCreateMsg.textContent = "";
   localImportMsg.textContent = "";
+
+  // Update Freenet Mail section
+  if (identityFmailSection) {
+    if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
+      try {
+        const alias = currentIdentity.personaName || personaName(currentIdentity.pubkey) || "radica";
+        currentFmailIdentity = deriveMailIdentity(alias, currentIdentity.secretKey);
+        identityFmailSection.style.display = "block";
+        if (fmailAddressVal) {
+          fmailAddressVal.textContent = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
+        }
+        if (fmailOpenAppLink) {
+          fmailOpenAppLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
+        }
+        if (fmailStatusMsg) {
+          fmailStatusMsg.textContent = "";
+        }
+      } catch (err) {
+        console.warn("[Freenet Mail] identity derivation error:", err);
+        identityFmailSection.style.display = "none";
+      }
+    } else {
+      identityFmailSection.style.display = "none";
+    }
+  }
+
   renderSupporterStatus();
 }
 
@@ -8412,6 +8453,42 @@ idDownloadKeyBtn.addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
+
+if (fmailCopyRecoveryBtn) {
+  fmailCopyRecoveryBtn.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    try {
+      await navigator.clipboard.writeText(currentFmailIdentity.recoveryKey);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Recovery Key copied! Paste it in Freenet Mail -> Restore identity.";
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+    } catch {
+      prompt("Copy your Freenet Mail recovery key:", currentFmailIdentity.recoveryKey);
+    }
+  });
+}
+
+if (fmailDownloadBackupBtn) {
+  fmailDownloadBackupBtn.addEventListener("click", () => {
+    if (!currentFmailIdentity) return;
+    downloadIdentityBackup(currentFmailIdentity.alias, currentFmailIdentity.seeds, "Radica decentralized identity");
+    if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Backup JSON downloaded! Upload it in Freenet Mail -> Restore identity.";
+    setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+  });
+}
+
+if (fmailAddressVal) {
+  fmailAddressVal.addEventListener("click", async () => {
+    if (!currentFmailIdentity) return;
+    const full = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
+    try {
+      await navigator.clipboard.writeText(full);
+      if (fmailStatusMsg) fmailStatusMsg.textContent = `✓ Mail address copied: ${full}`;
+      setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+    } catch {
+      prompt("Copy mail address:", full);
+    }
+  });
+}
 
 const handleSignOut = async () => {
   const isLocal = currentIdentity?.type === "local";
