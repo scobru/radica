@@ -313,6 +313,21 @@ export function foldReports(entries: LogEntry[], curator: string): Map<string, s
   return reported;
 }
 
+/** Posts Radica's AI moderation helper is holding (`<author>:<post id>` set), from the public `reports` log: a
+ *  `report` entry by one of `aiReporters` with `hold: true`, newest per reporter+target wins. Unlike a moderator's
+ *  own report, this is not on anyone's blocklist, so a human "Dismiss" cannot touch it the same way; the caller is
+ *  expected to also drop any target a moderator dismissed (see FreenetNetwork.aiHeldTargets). */
+export function foldAiHolds(entries: LogEntry[], aiReporters: readonly string[]): Set<string> {
+  const held = new Map<string, boolean>(); // `<reporter>|<target>` -> currently held
+  for (const { e, b } of bodies(entries)) {
+    if (!aiReporters.includes(e.author) || b.type !== "report" || typeof b.target !== "string") continue;
+    held.set(`${e.author}|${b.target}`, b.on !== false && b.hold === true);
+  }
+  const out = new Set<string>();
+  for (const [key, isHeld] of held) if (isHeld) out.add(key.slice(key.indexOf("|") + 1));
+  return out;
+}
+
 /** Posts a moderator set aside without removing them (`dismiss` entries on their `blocklist/<curator>` log), newest wins. */
 export function foldDismissed(entries: LogEntry[], curator: string): Set<string> {
   const dismissed = new Set<string>();

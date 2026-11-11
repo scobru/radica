@@ -1,4 +1,4 @@
-import { RADICA_DEFAULT_MODS, RADICA_MAINTAINER, type SecretChatSession } from "./types.ts";
+import { AI_REPORTERS, RADICA_DEFAULT_MODS, RADICA_MAINTAINER, type SecretChatSession } from "./types.ts";
 import { visoGhostkeyOf, visoProfileOf } from "./viso.ts";
 import { ANNOUNCE_POW_BITS, COMMENT_POW_BITS, postIdWithPow, solvePoW } from "./pow.ts";
 import type {
@@ -43,7 +43,7 @@ import {
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldAiHolds, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -987,6 +987,18 @@ export class FreenetClient {
   /** Moderator: set a report aside without removing the post. Every moderator sees it, since each reads the others' lists. */
   public dismissReport(target: string): Promise<void> {
     return this.logAppend(`blocklist/${this.me}`, { type: "dismiss", target });
+  }
+
+  /** Posts (`<author>:<post id>`) Radica's AI moderation helper is currently holding: hidden the same way a
+   *  moderator's own report hides a post, for anyone following Radica's moderation, but the author still sees
+   *  their own. A moderator's Dismiss (on the hold's queue item, same as for any report) lifts it; the AI's own
+   *  signed key is what it can retract, not anyone's blocklist, so a dismiss is tracked separately here. */
+  public aiHeldTargets(): Set<string> {
+    const held = foldAiHolds(this.logEntries("reports"), AI_REPORTERS);
+    if (!held.size) return held;
+    for (const m of [RADICA_MAINTAINER, ...this.modsOf(RADICA_MAINTAINER)])
+      for (const t of foldDismissed(this.logEntries(`blocklist/${m}`), m)) held.delete(t);
+    return held;
   }
 
   /** Hide a community (`c_<slug>`) on my own blocklist, or show it again: whoever follows my list stops seeing it in lists,

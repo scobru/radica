@@ -53,6 +53,13 @@ Terms the code and its reviews use. Keep them exact.
 - **BIP-39 Fingerprint Words** — 6 English words extracted from `blake3(dsaVk || kemEk)` matching native Freemail's `fingerprint_words(&vk, &ek)`. The first 3 words form the short key displayed in native Freemail's footer (`key: word1-word2-word3`).
 - **Mail Notifications** — integration with `NotificationItem` (type: `"mail"`) where unread emails trigger sound chimes, activity bell badges, and direct navigation into message view with bidirectional read status sync.
 
+## Moderation
+
+- **Hold** — a post the AI moderation helper (`attester/src/moderator.js`) hides at once, no timeout, for everyone following Radica's moderation, by flagging its own public report `{type: "report", target, hold: true}` on the `reports` log. Unlike an ordinary report, which only queues the post for a human, a hold acts immediately; the author still sees their own post (`freenet.aiHeldTargets()`, `ui/src/logfold.ts`'s `foldAiHolds`). Only for `threat`, `illegal`, `doxxing`, and `scam` when the model says `confidence: "high"`; `spam` is never held.
+- **Second opinion** — before holding (never before reporting), the bot re-asks the model about that one post alone, so a post cannot talk it into holding the ones around it in the same batch (`moderator.js`'s `confirmsHold`).
+- **Category circuit breaker** — once at least 3 of a category's past holds are decided and half or more were Dismissed (a false positive) rather than Removed (confirmed), the bot stops holding for that category, back to report-only, until a human's decisions change the ratio (`categoryDisabled`, `recordHoldOutcome`). Tracked per category in the bot's own state (`attester` data dir, `moderated.json`), from reading the maintainer's and moderators' own blocklists for a `report` (Remove) or `dismiss` (Dismiss) entry on each held target (`holdOutcome`).
+- **Retraction** — if a held post is edited and the new text no longer deserves it, the bot publishes `{type: "report", target, on: false}` on its own next pass, lifting the hold and the report together.
+
 ## Decisions
 
 - Freenet Mail v1/v2 Dual-Format Interoperability (2026-11): Native Freenet Mail (v0.2.x) runs on the v1 contract system and rejects 36-char compact addresses (`invalid inbox address`). Radica computes and displays both formats: the 44-char `ContractInstanceId` for native Freemail compatibility, and the 36-char address for Radica P2P.
@@ -63,3 +70,4 @@ Terms the code and its reviews use. Keep them exact.
 - Both chat views stay (Messenger and Classic, 2026-11): shared chat behaviour lives in Conversation state, not in either view.
 - Supporter badges come only from the ZK flow (2026-11): the manual flow (direct ETH/BTC addresses, receipts signed by hand) is gone, so issuing does not depend on the maintainer. BTC donations are no longer offered; receipts issued before keep verifying.
 - Durable keys travel in one package per persona, not one node entry per key (2026-11): the delegate cannot list its keys, and one read at sign-in is enough. On restore the page wins when it already holds a key; the node only fills in what is missing.
+- AI moderation holds are a flag on the bot's own report, not a blocklist action (2026-11): the bot's key stays a non-moderator with no power beyond its own signed entry, so a hold can only ever be as strong as one report, and a human's Dismiss/Remove on the same queue item resolves it exactly like any other report.

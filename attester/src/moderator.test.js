@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
+import {
+  recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody, retractBody, budget,
+  shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, modsOf, HOLD_CATEGORIES,
+} from "./moderator.js";
 
 const NOW = 1_800_000_000_000;
 const A = "ab".repeat(32), B = "cd".repeat(32);
@@ -38,9 +41,10 @@ test("buildMessages: a post cannot close its own tag", () => {
   assert.equal(user.match(/<\/post>/g).length, 1);
 });
 
-test("parseVerdicts: keeps only checked verdicts", () => {
-  const ok = '```json\n[{"i":1,"category":"scam","reason":"fake   giveaway\\nlink"},{"i":9,"category":"spam","reason":"x"},{"i":0,"category":"rude","reason":"x"},{"i":1,"category":"spam","reason":"twice"}]\n```';
-  assert.deepEqual(parseVerdicts(ok, 3), [{ i: 1, category: "scam", reason: "fake giveaway link" }]);
+test("parseVerdicts: keeps only checked verdicts, confidence defaults to low", () => {
+  const ok = '```json\n[{"i":1,"category":"scam","confidence":"high","reason":"fake   giveaway\\nlink"},{"i":9,"category":"spam","reason":"x"},{"i":0,"category":"rude","reason":"x"},{"i":1,"category":"spam","reason":"twice"}]\n```';
+  assert.deepEqual(parseVerdicts(ok, 3), [{ i: 1, category: "scam", confidence: "high", reason: "fake giveaway link" }]);
+  assert.deepEqual(parseVerdicts('[{"i":0,"category":"spam","reason":"x"}]', 3), [{ i: 0, category: "spam", confidence: "low", reason: "x" }]);
   assert.deepEqual(parseVerdicts("[]", 3), []);
   assert.equal(parseVerdicts("I cannot help with that", 3), null);
   assert.equal(parseVerdicts("[not json]", 3), null);
@@ -53,17 +57,77 @@ test("parseVerdicts: an answer flagging most of a batch is refused whole", () =>
   assert.equal(parseVerdicts(all, 3).length, 3); // a tiny batch can be all bad
 });
 
-test("reportBody: marked as AI and capped", () => {
+test("confirmsHold: the lone re-check must still name the same category", () => {
+  assert.ok(confirmsHold([{ i: 0, category: "threat", confidence: "low", reason: "x" }], "threat"));
+  assert.ok(!confirmsHold([{ i: 0, category: "spam", confidence: "low", reason: "x" }], "threat"));
+  assert.ok(!confirmsHold([], "threat"));
+  assert.ok(!confirmsHold(null, "threat")); // an unreadable second opinion never confirms a hold
+});
+
+test("reportBody: marked as AI, capped, hold omitted unless asked for", () => {
   const b = reportBody({ key: `${A}:1` }, { category: "threat", reason: "r".repeat(300) });
   assert.equal(b.type, "report");
   assert.equal(b.target, `${A}:1`);
   assert.ok(b.reason.startsWith("[AI] threat: ") && b.reason.length === 200);
+  assert.equal(b.hold, undefined);
+  assert.equal(reportBody({ key: `${A}:1` }, { category: "threat", reason: "r" }, true).hold, true);
 });
 
-test("budget: counts within a day and starts over on the next", () => {
-  const limits = { requests: 40, reports: 20 };
+test("retractBody: lifts an earlier report by target", () => {
+  assert.deepEqual(retractBody(`${A}:1`), { type: "report", target: `${A}:1`, on: false });
+});
+
+test("budget: counts within a day and starts over on the next, tracks holds too", () => {
+  const limits = { requests: 40, reports: 20, holds: 5 };
   const day = new Date(NOW).toISOString().slice(0, 10);
-  assert.deepEqual(budget({ day, requests: 39, reports: 25 }, limits, NOW), { used: { day, requests: 39, reports: 25 }, requestsLeft: 1, reportsLeft: 0 });
-  assert.equal(budget({ day: "2000-01-01", requests: 40, reports: 20 }, limits, NOW).requestsLeft, 40);
+  assert.deepEqual(
+    budget({ day, requests: 39, reports: 25, holds: 2 }, limits, NOW),
+    { used: { day, requests: 39, reports: 25, holds: 2 }, requestsLeft: 1, reportsLeft: 0, holdsLeft: 3 }
+  );
+  assert.equal(budget({ day: "2000-01-01", requests: 40, reports: 20, holds: 5 }, limits, NOW).requestsLeft, 40);
   assert.equal(budget(undefined, limits, NOW).reportsLeft, 20);
+  assert.equal(budget(undefined, { requests: 1, reports: 1 }, NOW).holdsLeft, 0); // no holds limit configured: none allowed
+});
+
+test("shouldHold: threat/illegal/doxxing always, scam only when sure, spam never, a disabled category never", () => {
+  for (const c of HOLD_CATEGORIES) assert.ok(shouldHold(c, "low"));
+  assert.ok(shouldHold("scam", "high"));
+  assert.ok(!shouldHold("scam", "low"));
+  assert.ok(!shouldHold("spam", "high"));
+  assert.ok(!shouldHold("threat", "low", new Set(["threat"])));
+});
+
+test("categoryDisabled: needs a minimum sample, then half or more dismissed turns it off", () => {
+  let stats = {};
+  assert.ok(!categoryDisabled(stats, "scam")); // nothing decided yet
+  stats = recordHoldOutcome(stats, "scam", "dismissed");
+  stats = recordHoldOutcome(stats, "scam", "dismissed");
+  assert.ok(!categoryDisabled(stats, "scam")); // below the minimum sample
+  stats = recordHoldOutcome(stats, "scam", "removed");
+  assert.ok(categoryDisabled(stats, "scam")); // 2 of 3 dismissed
+  assert.ok(!categoryDisabled(stats, "threat")); // untouched category stays on
+  let confirmed = recordHoldOutcome({}, "threat", "removed");
+  confirmed = recordHoldOutcome(confirmed, "threat", "removed");
+  confirmed = recordHoldOutcome(confirmed, "threat", "removed");
+  assert.ok(!categoryDisabled(confirmed, "threat")); // all confirmed: stays on
+});
+
+test("modsOf: newest 'mod' entry per target wins, defaults seeded, order does not matter", () => {
+  const e = (target, on, ts) => ({ author: A, ts, body: JSON.stringify({ type: "mod", target, on }) });
+  assert.deepEqual(modsOf([e(B, true, 1)], ["default1"]), new Set(["default1", B]));
+  assert.deepEqual(modsOf([e(B, true, 2), e(B, false, 1)], []), new Set([B])); // out-of-order, newest (ts 2) wins
+  assert.deepEqual(modsOf([e("default1", false, 1)], ["default1"]), new Set()); // a default can be removed too
+  assert.deepEqual(modsOf(null, ["default1"]), new Set(["default1"]));
+});
+
+test("holdOutcome: the newest report/dismiss entry for a target wins, withdrawn counts as none", () => {
+  const e = (body, ts) => ({ author: B, ts, body: JSON.stringify(body) });
+  const target = `${A}:1`;
+  assert.equal(holdOutcome([e({ type: "report", target }, 1)], target), "removed");
+  assert.equal(holdOutcome([e({ type: "dismiss", target }, 1)], target), "dismissed");
+  assert.equal(holdOutcome([e({ type: "dismiss", target }, 1), e({ type: "report", target }, 2)], target), "removed");
+  assert.equal(holdOutcome([e({ type: "report", target }, 1), e({ type: "report", target, on: false }, 2)], target), null);
+  assert.equal(holdOutcome([e({ type: "report", target: `${A}:2` }, 1)], target), null);
+  assert.equal(holdOutcome([], target), null);
+  assert.equal(holdOutcome(null, target), null);
 });
