@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -504,6 +504,19 @@ test("logfold: dismissals count only the moderator's own entries, newest wins", 
     entry(mallory, 4, { type: "dismiss", target: "a:p3" }), // not the moderator: ignored
   ];
   assert.deepEqual([...foldDismissed(log, owner)], ["a:p1"]);
+});
+
+test("logfold: an AI reporter's hold is the newest entry for that target, only from a listed AI reporter", () => {
+  const ai = owner;
+  const log = [
+    entry(ai, 1, { type: "report", target: "a:p1", hold: true }),
+    entry(ai, 2, { type: "report", target: "a:p2", hold: true }),
+    entry(ai, 3, { type: "report", target: "a:p2", hold: false }), // the bot lifted its own hold (not retracted outright)
+    entry(mod, 4, { type: "report", target: "a:p3", hold: true }), // not a listed AI reporter: ignored
+    entry(ai, 5, { type: "report", target: "a:p4" }), // reported, never held
+  ];
+  assert.deepEqual([...foldAiHolds(log, [ai])].sort(), ["a:p1"]);
+  assert.deepEqual([...foldAiHolds(log, [])], []); // an empty reporter list holds nothing
 });
 
 test("compactLog: one state entry per author and subject; an inbox leaves its conversations and cleared notifications behind", () => {

@@ -53,16 +53,30 @@ Optional, off by default. With `OPENROUTER_API_KEY` set, the same process also r
 or doxxing, and adds a report for those to the public `reports` log: the queue the moderators see in Blocklists. Its
 reports start with `[AI]`.
 
-It only reports. Its key (`/data/moderator.key`, printed at start as `reports as <pubkey>`) is separate from the
-attester's, is no moderator and sits on nobody's blocklist, so nothing is hidden until a person removes the post. Keep
-it that way: do not name this key a moderator. It never reads chats or private rooms.
+Its key (`/data/moderator.key`, printed at start as `reports as <pubkey>`) is separate from the attester's, is no
+moderator and sits on nobody's blocklist. Do not name this key a moderator. It never reads chats or private rooms.
+
+For `threat`, `illegal` and `doxxing` (and `scam` only when the model says `confidence: high`), its report also
+**holds** the post: hidden at once, no timeout, for everyone following Radica's moderation (same reach as a
+moderator's own Remove), while the author still sees their own post and the queue shows it first, marked
+"⏸ held by the AI helper". Before holding (never before reporting) it asks the model a second time about that one
+post alone, so a post cannot talk it into holding the ones around it. A moderator's **Dismiss** lifts the hold at
+once; **Remove** replaces it with their own, permanent one. If the author edits a held post and it no longer
+deserves the report, the bot retracts it on its own next pass.
+
+If a category's holds keep getting Dismissed rather than Removed — half or more of at least 3 decided — the bot
+stops holding for that category (back to report-only) until a human changes that; it never affects the other
+categories, and a category with no decided holds yet is never judged.
 
 Settings (environment):
 
 - `OPENROUTER_API_KEY`: the key. On CapRover: App Configs → Environmental Variables. Never commit it.
 - `MOD_MODEL` (default `openrouter/free`), `MOD_POLL_MS` (default 15 minutes).
-- `MOD_DAILY_REQUESTS` (default 40; ten posts go in one request) and `MOD_DAILY_REPORTS` (default 20): a ceiling per
-  day, so a flood of posts or a post written to fool the model cannot use up the quota or fill the queue.
+- `MOD_DAILY_REQUESTS` (default 40; ten posts go in one request, plus one more for each post it double-checks before
+  holding), `MOD_DAILY_REPORTS` (default 20) and `MOD_DAILY_HOLDS` (default 5): a ceiling per day, so a flood of
+  posts or a post written to fool the model cannot use up the quota, fill the queue, or hide too much at once.
+- `RADICA_MAINTAINER`, `RADICA_DEFAULT_MODS` (comma separated): whose blocklists decide a hold's outcome. Defaults to
+  Radica's own (`ui/src/types.ts`); only change these to point the bot at a different deployment's moderation.
 
 The text of public posts goes to OpenRouter and to the model it picks (see TERMS.md, section 6).
 

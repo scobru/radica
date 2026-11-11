@@ -1363,7 +1363,9 @@ function renderModDashboard() {
   // a report weighs what a dislike from that person would: people I trust (and the moderators) count, fresh keys do not
   const wot = getWebOfTrust();
   const mods = new Set([DEFAULT_CURATOR, ...freenet.modsOf(DEFAULT_CURATOR)]);
-  const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : AI_REPORTERS.includes(pk) ? 1 : wot.dislikeWeight(pk)));
+  const held = freenet.aiHeldTargets();
+  const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : AI_REPORTERS.includes(pk) ? 1 : wot.dislikeWeight(pk)))
+    .sort((a, b) => Number(held.has(b.target)) - Number(held.has(a.target)));
   const [heard, strangers] = [queue.filter((it) => it.score > 0), queue.filter((it) => it.score === 0)];
   document.getElementById("mod-queue-count")!.textContent = queue.length ? `(${queue.length})` : "";
   updateBlocklistsBadge();
@@ -1411,7 +1413,7 @@ function renderModDashboard() {
           : (it.reasons.length ? `<small style="color: var(--text-muted);">${it.reasons.map((r) => `“${escapeHtml(r)}”`).join(" · ")}</small>` : "");
 
         return `<div style="border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
-          <div style="font-size: 0.8rem;"><a href="#" data-act="profile" data-author="${escapeHtml(author)}"><b>${escapeHtml(getAuthorDisplayName(author))}</b></a>
+          <div style="font-size: 0.8rem;">${held.has(it.target) ? `<span title="Hidden on its own: Dismiss shows it again, Remove removes it" style="color: var(--primary); font-weight: 600;">⏸ held by the AI helper</span> · ` : ""}<a href="#" data-act="profile" data-author="${escapeHtml(author)}"><b>${escapeHtml(getAuthorDisplayName(author))}</b></a>
             <small style="color: var(--text-muted);">· ${it.reporters} report${it.reporters === 1 ? "" : "s"}${it.trusted ? `, ${it.trusted} from people you trust` : ""}${postId.startsWith("comm_") ? " · comment" : ""}</small></div>
           <div style="font-size: 0.85rem; white-space: pre-wrap; overflow-wrap: anywhere;">${escapeHtml(preview)}</div>
           ${reportersHtml}
@@ -1997,6 +1999,7 @@ function renderTimeline() {
     for (const k of freenet.reportedBy(c).keys()) reported.add(k);
     for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
   }
+  for (const t of freenet.aiHeldTargets()) reported.add(t);
   // reports made before they named the media: take it from the reported post, when it is here
   for (const p of timelinePosts) if (reported.has(`${p.author}:${p.id}`)) { const h = postMediaHash(p); if (h) reportedMedia.add(h); }
 
@@ -2641,6 +2644,7 @@ async function sharedPost(ref: RepostRef): Promise<Parameters<typeof repostBody>
   // what the reader hid stays hidden: a repost is no way around a blocklist or a report
   if (ref.author !== me && isHiddenAuthor(ref.author)) return "A post by someone hidden on this device.";
   if (ref.author !== me && [...moderationCurators(), me ?? ""].some((c) => freenet.reportedBy(c).has(`${ref.author}:${ref.id}`))) return "This post was reported and is hidden.";
+  if (ref.author !== me && freenet.aiHeldTargets().has(`${ref.author}:${ref.id}`)) return "This post was reported and is hidden.";
   let post = timelinePosts.find((p) => p.id === ref.id && p.author === ref.author);
   if (!post) {
     post = (await freenet.getFeed(ref.author).catch(() => null))?.posts?.[ref.id];
@@ -10100,10 +10104,11 @@ async function init() {
   };
 
   await updateMyPostsAndScopeCounts();
-  renderIdentityModal();
   renderFollowingList();
   renderDiscoveredPeers();
-  await durable.ready;
+  await durable.ready; // renderIdentityModal derives & caches the Freenet Mail identity from the saved alias,
+  // which lives in durable storage: rendering it before this resolves poisons the cache with the "user_…" fallback
+  renderIdentityModal();
   updateNotificationsBadge();
   void maybeShowWelcome();
   void refreshSupporters();

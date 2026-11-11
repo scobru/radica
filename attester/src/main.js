@@ -15,7 +15,10 @@ import { ContractCodeT } from "@freenetorg/freenet-stdlib/common";
 import { RelatedContractsT } from "@freenetorg/freenet-stdlib/client-request";
 import { CHAIN_ID, RPC_URLS, SUPPORT, SEMAPHORE, GROUPS } from "../../donate-app/src/config.js";
 import { CLAIMS_LOG, RECEIPTS_LOG, judgeClaim, issueReceipt, signEntry, bytesToHex, hexToBytes } from "./core.js";
-import { REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, reportBody, budget } from "./moderator.js";
+import {
+  REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody,
+  retractBody, budget, shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, modsOf, CATEGORIES,
+} from "./moderator.js";
 
 const env = process.env;
 const NODE_WS = env.FREENET_WS || "ws://127.0.0.1:7509/v1/contract/command";
@@ -28,7 +31,14 @@ const FEED_WASM = env.FEED_WASM || new URL("../../ui/src/wasm/contract.wasm", im
 const MOD_KEY = env.OPENROUTER_API_KEY || "";
 const MOD_MODEL = env.MOD_MODEL || "openrouter/free";
 const MOD_POLL_MS = Number(env.MOD_POLL_MS || 15 * 60_000);
-const MOD_LIMITS = { requests: Number(env.MOD_DAILY_REQUESTS || 40), reports: Number(env.MOD_DAILY_REPORTS || 20) };
+const MOD_LIMITS = {
+  requests: Number(env.MOD_DAILY_REQUESTS || 40),
+  reports: Number(env.MOD_DAILY_REPORTS || 20),
+  holds: Number(env.MOD_DAILY_HOLDS || 5),
+};
+// Whose blocklists decide a hold's outcome (same set Radica's own moderation queue reads; see ui/src/types.ts).
+const MOD_MAINTAINER = env.RADICA_MAINTAINER || "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b";
+const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split(",") : ["3ac3e7f1f7535888597dbd8b25e362fa153eb10bfedd1e2df1b50299d7f2bf98"];
 const TIMEOUT_MS = 45_000;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -141,7 +151,10 @@ async function pass(api, sk, st) {
 }
 
 const modFile = join(DATA, "moderated.json");
-const loadMod = async () => (existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : { judged: [], used: null });
+const loadMod = async () =>
+  existsSync(modFile)
+    ? JSON.parse(await readFile(modFile, "utf8"))
+    : { judged: [], used: null, heldTargets: {}, categoryStats: {} };
 
 async function askModel(posts) {
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -154,17 +167,47 @@ async function askModel(posts) {
   return (await r.json()).choices?.[0]?.message?.content ?? "";
 }
 
-/** Read the recent public posts, ask the model about the ones not judged yet, report the flagged ones. */
+/** Checks the maintainer's and every mod's own blocklist log once for what they decided about each held target,
+ *  folding any decision found into `categoryStats` and returning the targets to stop tracking (they are decided). */
+async function resolveHeldOutcomes(api, heldTargets, categoryStats) {
+  if (!Object.keys(heldTargets).length) return { categoryStats, resolved: [] };
+  const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
+  const mods = modsOf(maintainerLog, MOD_DEFAULT_MODS);
+  const entries = [...maintainerLog];
+  for (const m of mods) entries.push(...Object.values((await getEntries(api, `blocklist/${m}`)) ?? {}));
+  const resolved = [];
+  for (const [target, category] of Object.entries(heldTargets)) {
+    const outcome = holdOutcome(entries, target);
+    if (!outcome) continue;
+    categoryStats = recordHoldOutcome(categoryStats, category, outcome);
+    resolved.push(target);
+  }
+  return { categoryStats, resolved };
+}
+
+/** Read the recent public posts, ask the model about the ones not judged yet, report (and sometimes hold) the
+ *  flagged ones. Before any of that: fold in what moderators decided about posts the bot is already holding, since
+ *  that decides whether each category keeps holding (see moderator.js's categoryDisabled) and retracts the hold
+ *  from the bot's own tracking once a human has acted on it (the "reports" log entry itself is theirs to keep). */
 async function modPass(api, modSk) {
   const mod = await loadMod();
   const judged = new Set(mod.judged);
+  const heldTargets = { ...(mod.heldTargets ?? {}) };
+  let categoryStats = mod.categoryStats ?? {};
+
+  const resolution = await resolveHeldOutcomes(api, heldTargets, categoryStats);
+  categoryStats = resolution.categoryStats;
+  for (const target of resolution.resolved) delete heldTargets[target];
+  const disabled = new Set(CATEGORIES.filter((c) => categoryDisabled(categoryStats, c)));
+  if (resolution.resolved.length) log(`[mod] ${resolution.resolved.length} held post(s) decided by a moderator` + (disabled.size ? `; holding is off for: ${[...disabled].join(", ")}` : ""));
+
   const posts = [];
   const authors = recentAuthors(await getEntries(api, "directory"));
   const edits = postEdits(await getEntries(api, "post-edits"));
   for (let i = 0; i < authors.length; i += 4) // four feeds at a time: a missing one takes the whole timeout
     for (const [k, raw] of (await Promise.all(authors.slice(i, i + 4).map((a) => getFeed(api, a)))).entries()) posts.push(...freshPosts(raw, authors[i + k], judged, Date.now(), edits));
-  let { used, requestsLeft, reportsLeft } = budget(mod.used, MOD_LIMITS);
-  let flagged = 0;
+  let { used, requestsLeft, reportsLeft, holdsLeft } = budget(mod.used, MOD_LIMITS);
+  let flagged = 0, held = 0, retracted = 0;
   for (let i = 0; i < posts.length && requestsLeft > 0; i += BATCH, requestsLeft--) {
     const batch = posts.slice(i, i + BATCH);
     used.requests++;
@@ -175,18 +218,47 @@ async function modPass(api, modSk) {
       log("[mod] model unreachable:", e.message || e);
     }
     if (verdicts) {
+      const flaggedKeys = new Set(verdicts.map((v) => batch[v.i].key));
       for (const v of verdicts) {
         if (reportsLeft <= 0) break;
-        await append(api, REPORTS_LOG, await signEntry(modSk, REPORTS_LOG, APP, reportBody(batch[v.i], v)));
-        log("[mod] reported", batch[v.i].key, v.category, v.reason);
+        const post = batch[v.i];
+        let hold = shouldHold(v.category, v.confidence, disabled);
+        if (hold && holdsLeft > 0) {
+          used.requests++; // the second opinion is its own model call, within the same daily request budget
+          let second = null;
+          try {
+            second = parseVerdicts(await askModel([post]), 1);
+          } catch (e) {
+            log("[mod] second opinion unreachable:", e.message || e);
+          }
+          hold = confirmsHold(second, v.category);
+        } else {
+          hold = false; // cap reached or the category does not hold: report only
+        }
+        await append(api, REPORTS_LOG, await signEntry(modSk, REPORTS_LOG, APP, reportBody(post, v, hold)));
+        log(`[mod] ${hold ? "held" : "reported"}`, post.key, v.category, v.reason);
         used.reports++, reportsLeft--, flagged++;
+        if (hold) {
+          heldTargets[post.key] = v.category;
+          used.holds++, holdsLeft--, held++;
+        } else {
+          delete heldTargets[post.key]; // a milder re-judgment of a post held before lifts the hold too
+        }
       }
-      for (const p of batch) judged.add(p.mark); // an unreadable answer leaves the batch for a later pass
+      // an edited post that no longer deserves its old hold/report retracts it; one this pass never reached stays as is
+      for (const p of batch) {
+        judged.add(p.mark);
+        if (p.edited && heldTargets[p.key] !== undefined && !flaggedKeys.has(p.key)) {
+          await append(api, REPORTS_LOG, await signEntry(modSk, REPORTS_LOG, APP, retractBody(p.key)));
+          delete heldTargets[p.key];
+          retracted++;
+        }
+      }
     }
     // shortcut: every judged post is kept forever (a few bytes each), prune by age if the file ever gets big
-    await writeFile(modFile, JSON.stringify({ judged: [...judged], used }));
+    await writeFile(modFile, JSON.stringify({ judged: [...judged], used, heldTargets, categoryStats }));
   }
-  log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported, ${used.requests}/${MOD_LIMITS.requests} requests today`);
+  log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${used.requests}/${MOD_LIMITS.requests} requests, ${used.holds}/${MOD_LIMITS.holds} holds today`);
 }
 
 const sk = await loadKey();
