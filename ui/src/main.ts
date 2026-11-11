@@ -9528,6 +9528,8 @@ if (mailSendBtn) {
 
       if (res.networkDelivered) {
         showToast("✓ Mail sent & delivered to Freenet network!", "info");
+      } else if (res.networkDetails?.startsWith("Network dispatch note:")) {
+        showToast(`⚠ Saved locally, network delivery failed: ${res.networkDetails.replace("Network dispatch note: ", "")}`, "warning");
       } else if (res.networkDetails) {
         showToast(`✓ Mail sent (${res.networkDetails})`, "info");
       } else {
