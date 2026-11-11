@@ -75,8 +75,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794247438.8672135,
-    "ast_hash": "7b107d93bc2866c409f285504c55d9d4",
+    "mtime": 1794392627.8349953,
+    "ast_hash": "df9d342000bf1fe1af5c5c8492ddec82",
     "semantic_hash": ""
   },
   "ui/index.html": {
@@ -1372,6 +1372,11 @@
   "ui/tests/freenetMail.test.ts": {
     "mtime": 1794391901.1718383,
     "ast_hash": "762486a3d67bbcf49c66c7d883a95f9c",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1794392602.1595569,
+    "ast_hash": "ff3a141064ad2e8226a3085e8b4deb70",
     "semantic_hash": ""
   }
 }

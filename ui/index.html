@@ -42,6 +42,12 @@
           <span>Chat</span>
           <span class="badge" id="chat-badge" style="display: none;">0</span>
         </button>
+        <!-- Mail Navbar Button -->
+        <button class="rail-btn" id="open-mail-btn" title="Freenet Mail (g m)">
+          <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <span>Mail</span>
+          <span class="badge" id="mail-badge" style="display: none;">0</span>
+        </button>
         <!-- Notifications Navbar Button -->
         <button class="rail-btn" id="open-notifs-btn" title="Activity & Notifications">
           <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -607,6 +613,172 @@
       </div>
     </div>
         <!-- Activity, Identity, Updates and Blocklists: pages of the main column like the chat (main.ts shows one at a time) -->
+    <!-- Radica Mail Modal -->
+    <div id="mail-modal" class="rail-page mail-page" style="display: none;">
+      <div class="modal-card mail-modal-card">
+        <!-- Header -->
+        <div class="mail-header">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <span>Freenet Mail</span>
+            </h3>
+            <span class="mail-address-badge" id="mail-user-address-chip" title="Click to copy your decentralized mail address">
+              <span id="mail-user-address-display">Loading...</span>
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </span>
+            <span class="identity-badge" style="background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px;">● Post-Quantum E2EE</span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-new-btn">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Compose</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-refresh-btn" title="Refresh mailbox">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <span>Refresh</span>
+            </button>
+            <a id="mail-companion-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-sm btn-icon-text" title="Open official Freenet Mail app">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>External App</span>
+            </a>
+            <button type="button" class="btn-secondary btn-sm" id="mail-close-btn" title="Close Mail">✕</button>
+          </div>
+        </div>
+
+        <!-- Body: Sidebar + Main Area -->
+        <div class="mail-body" id="mail-body-container">
+          <!-- Left sidebar: Folders & Message List -->
+          <div class="mail-sidebar">
+            <!-- Folders navigation -->
+            <div class="mail-folders-nav">
+              <button type="button" class="mail-folder-btn active" data-folder="inbox" id="mail-folder-inbox-btn">
+                <span class="btn-icon-text">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                  <span>Inbox</span>
+                </span>
+                <span class="badge" id="mail-inbox-badge" style="display: none;">0</span>
+              </button>
+              <button type="button" class="mail-folder-btn" data-folder="sent" id="mail-folder-sent-btn">
+                <span class="btn-icon-text">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  <span>Sent</span>
+                </span>
+                <span class="badge" id="mail-sent-badge" style="display: none;">0</span>
+              </button>
+              <button type="button" class="mail-folder-btn" data-folder="drafts" id="mail-folder-drafts-btn">
+                <span class="btn-icon-text">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Drafts</span>
+                </span>
+                <span class="badge" id="mail-drafts-badge" style="display: none;">0</span>
+              </button>
+            </div>
+
+            <!-- Search input -->
+            <div class="mail-search-bar">
+              <input type="text" id="mail-search-input" placeholder="Search emails..." />
+              <button type="button" id="mail-search-clear-btn" style="display: none;">✕</button>
+            </div>
+
+            <!-- Emails list -->
+            <div class="mail-list" id="mail-list"></div>
+          </div>
+
+          <!-- Right main area: Read View / Compose View / Empty View -->
+          <div class="mail-main-view">
+            <!-- Read View -->
+            <div id="mail-read-view" class="mail-view-pane" style="display: none;">
+              <div class="mail-read-toolbar">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button type="button" class="btn-secondary btn-sm mail-mobile-back-btn" id="mail-mobile-back-btn">← List</button>
+                  <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-reply-btn">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                    <span>Reply</span>
+                  </button>
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-toggle-read-btn">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
+                    <span id="mail-toggle-read-label">Mark Unread</span>
+                  </button>
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-delete-btn" style="color: var(--danger);">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <span>Delete</span>
+                  </button>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                  <span>🔒 ML-KEM-768 Verified</span>
+                </div>
+              </div>
+              <div class="mail-read-header">
+                <h2 id="mail-read-subject" style="margin: 0 0 10px 0; font-size: 1.25rem;">Subject</h2>
+                <div class="mail-read-meta">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 0.88rem;"><b>From:</b> <span id="mail-read-from" style="font-family: monospace; color: var(--primary);">...</span></div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted);"><b>To:</b> <span id="mail-read-to" style="font-family: monospace;">...</span></div>
+                  </div>
+                  <div id="mail-read-time" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">...</div>
+                </div>
+              </div>
+              <div class="mail-read-body" id="mail-read-body"></div>
+            </div>
+
+            <!-- Compose View -->
+            <div id="mail-compose-view" class="mail-view-pane" style="display: none;">
+              <div class="mail-compose-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button type="button" class="btn-secondary btn-sm mail-mobile-back-btn" id="mail-compose-mobile-back-btn">← List</button>
+                  <h3 id="mail-compose-title" style="margin: 0; font-size: 1.1rem;">New Message</h3>
+                </div>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">End-to-end encrypted post-quantum mail</span>
+              </div>
+              <div class="mail-compose-form">
+                <div class="mail-form-row">
+                  <label for="mail-to-input">To:</label>
+                  <input type="text" id="mail-to-input" placeholder="recipient@address or address alone..." spellcheck="false" autocomplete="off" />
+                </div>
+                <div class="mail-form-row">
+                  <label for="mail-subject-input">Subject:</label>
+                  <input type="text" id="mail-subject-input" placeholder="Subject..." />
+                </div>
+                <div class="mail-form-row mail-form-content">
+                  <textarea id="mail-content-input" placeholder="Write your message here..."></textarea>
+                </div>
+                <div class="mail-compose-actions">
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn-primary btn-icon-text" id="mail-send-btn">
+                      <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      <span>Send</span>
+                    </button>
+                    <button type="button" class="btn-secondary btn-icon-text" id="mail-save-draft-btn">
+                      <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      <span>Save Draft</span>
+                    </button>
+                    <button type="button" class="btn-secondary" id="mail-cancel-compose-btn">Cancel</button>
+                  </div>
+                  <span id="mail-compose-status" style="font-size: 0.82rem; color: var(--text-muted);"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty View -->
+            <div id="mail-empty-view" class="mail-view-pane">
+              <div class="mail-empty-illustration">
+                <svg viewBox="0 0 24 24" class="svg-icon" style="width: 56px; height: 56px; opacity: 0.35;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <h4 style="margin: 12px 0 6px 0;">No Conversation Selected</h4>
+                <p style="margin: 0 0 16px 0; color: var(--text-muted); font-size: 0.88rem; max-width: 360px;">
+                  Select an email from the list on the left to read it, or compose a new post-quantum encrypted message.
+                </p>
+                <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-empty-compose-btn">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Compose Message</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Activity & Notifications Modal -->
     <div id="notifs-modal" class="rail-page" style="display: none;">
       <div class="modal-card" style="max-width: 500px;">
@@ -1618,6 +1790,7 @@
             <div class="shortcuts-grid">
               <div class="shortcut-row"><span class="shortcut-label">Home / Timeline</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>h</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Chat &amp; Direct Messages</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>c</kbd></span></div>
+              <div class="shortcut-row"><span class="shortcut-label">Mail &amp; Inbox</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>m</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Notifications &amp; Activity</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>n</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Identity &amp; Keys</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>i</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">My Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>p</kbd></span></div>

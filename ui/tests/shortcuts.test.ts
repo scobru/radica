@@ -108,7 +108,7 @@ test("shortcuts: handleGotoKey dispatches to navigation targets", () => {
   assert.equal(clicked.pop(), "open-chat-btn");
 
   assert.equal(handleGotoKey("m"), true);
-  assert.equal(clicked.pop(), "open-chat-btn");
+  assert.equal(clicked.pop(), "open-mail-btn");
 
   assert.equal(handleGotoKey("n"), true);
   assert.equal(clicked.pop(), "open-notifs-btn");

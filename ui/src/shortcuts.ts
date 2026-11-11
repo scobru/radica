@@ -75,6 +75,7 @@ export type ActiveView =
   | "feed"
   | "notifs"
   | "chat"
+  | "mail"
   | "identity"
   | "updates"
   | "greenhouse"
@@ -95,6 +96,7 @@ export function getActiveView(): ActiveView {
 
   if (isVisible("notifs-modal")) return "notifs";
   if (isVisible("chat-modal")) return "chat";
+  if (isVisible("mail-modal")) return "mail";
   if (isVisible("identity-modal")) return "identity";
   if (isVisible("updates-modal")) return "updates";
   if (isVisible("greenhouse-modal")) return "greenhouse";
@@ -169,10 +171,14 @@ export function handleGotoKey(key: string): boolean {
       document.getElementById("rail-home-btn")?.click();
       return true;
     }
-    case "c":
-    case "m": {
+    case "c": {
       closeOtherPages("chat-modal");
       document.getElementById("open-chat-btn")?.click();
+      return true;
+    }
+    case "m": {
+      closeOtherPages("mail-modal");
+      document.getElementById("open-mail-btn")?.click();
       return true;
     }
     case "n": {

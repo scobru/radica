@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794392223.582214,
-    "ast_hash": "d93279875af7891ebc172afa433e8489",
+    "mtime": 1794394397.072973,
+    "ast_hash": "82e17841050331a5445475b83111be6f",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794392491.007059,
-    "ast_hash": "08069528039ad25f2fb89844c593f11d",
+    "mtime": 1794404885.4853075,
+    "ast_hash": "d22729c2ffde72ad9db88178cd9f308a",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794392627.8349953,
-    "ast_hash": "df9d342000bf1fe1af5c5c8492ddec82",
+    "mtime": 1794404943.0088284,
+    "ast_hash": "64130309856b29b92491f5c02d34a742",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794392106.9206529,
-    "ast_hash": "2766ee62bb6831de4eedbaa351b31dae",
+    "mtime": 1794394210.9118276,
+    "ast_hash": "ffc4cfbbe3c536047b1be7fe58328b42",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794392481.899238,
-    "ast_hash": "c6415b7f30e1941f47acf284a0208c44",
+    "mtime": 1794404873.8962455,
+    "ast_hash": "d0796c82601965e20aab448c684a955e",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -1255,13 +1255,13 @@
     "semantic_hash": ""
   },
   "ui/src/shortcuts.ts": {
-    "mtime": 1793992470.6861238,
-    "ast_hash": "ab1be77918c577843842b6d83eb7eecd",
+    "mtime": 1794394522.275711,
+    "ast_hash": "9f7363edb515833350ecc202344472a8",
     "semantic_hash": ""
   },
   "ui/tests/shortcuts.test.ts": {
-    "mtime": 1793992481.4439497,
-    "ast_hash": "7395cf12989a431dcaf6cbef187d8ce7",
+    "mtime": 1794394434.5743861,
+    "ast_hash": "7a63f60889c92244bfa880e8267e1358",
     "semantic_hash": ""
   },
   "ui/src/freetree.ts": {
@@ -1377,6 +1377,16 @@
   "AGENTS.md": {
     "mtime": 1794392602.1595569,
     "ast_hash": "ff3a141064ad2e8226a3085e8b4deb70",
+    "semantic_hash": ""
+  },
+  "ui/src/mailClient.ts": {
+    "mtime": 1794394039.5781214,
+    "ast_hash": "dda4ac23d1c38d36a108f9aff098b0b5",
+    "semantic_hash": ""
+  },
+  "ui/tests/mailClient.test.ts": {
+    "mtime": 1794394043.9904754,
+    "ast_hash": "0dbe0a361971fcef6ef90146a6377598",
     "semantic_hash": ""
   }
 }

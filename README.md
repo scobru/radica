@@ -75,8 +75,10 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Trusted issuers**: Radica accepts receipts from any key in `RECEIPT_ISSUERS` (the attester, plus backups), so no single key is required, and a leaked key is simply removed.
 - **Opt-in supporters wall**: supporters can appear on the public Community supporters list, grouped by tier; every client verifies each receipt before showing it.
 
-### 10. ✉️ Freenet Mail Interoperability (Post-Quantum)
-- **Zero Lock-In Email**: Every Radica persona deterministically derives a decentralized post-quantum email identity compatible with the official [`freenet/mail`](https://github.com/freenet/mail) application:
+### 10. ✉️ Radica Mail & Freenet Mail Interoperability (Post-Quantum)
+- **Built-in Mail Client**: A dedicated Mail navigation rail view (`g m`) with full split-pane Inbox, Sent, and Drafts management, real-time search filtering, unread badges, and responsive viewports.
+- **In-App Compose & Reply**: Read end-to-end encrypted emails, compose messages to any Freenet Mail address, reply to threads with automatic `Re:` subject handling and quoted body formatting, and save drafts locally.
+- **Zero Lock-In Interoperability**: Every Radica persona deterministically derives a decentralized post-quantum email identity compatible with the official [`freenet/mail`](https://github.com/freenet/mail) application:
   - 🔑 **Post-Quantum Crypto**: ML-KEM-768 for encrypted message decapsulation and ML-DSA-65 for signing and verification.
   - 📋 **Universal Recovery Key**: Export official `fmail-key-1:<base58>` recovery keys or JSON backups (`identity-backup-v2.json`) directly from Identity & Key Management.
   - 🌐 **Cross-App Sync**: Users can import their recovery key into the native Freenet Mail Dioxus client and access the exact same inbox contract on the decentralized network.
@@ -99,6 +101,8 @@ radica/
 │   │   ├── whoiam.ts            # Viso / Whoiam decentralized SSO identity bridge
 │   │   ├── moderation.ts        # Desert Ant Labs WASM loader & text/PII censorship
 │   │   ├── freenetMail.ts       # Freenet Mail post-quantum seeds & recovery key codec
+│   │   ├── mailClient.ts        # Built-in mail store, reply threading & mailbox manager
+│   │   ├── mail.css             # Responsive dual-pane layout & post-quantum mail styling
 │   │   ├── freenet.ts           # Freenet client, P2P broadcast channel & room key cache
 │   │   ├── types.ts             # Contract state & delta interface declarations
 │   │   ├── icons.ts             # SVG icon definitions & helpers

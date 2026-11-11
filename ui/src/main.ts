@@ -24,6 +24,20 @@ import {
 } from "./freenetMail.ts";
 import "./chat.css";
 import "./messengerChat.css";
+import "./mail.css";
+import {
+  loadMailStore,
+  filterMailMessages,
+  getUnreadMailCount,
+  sendMailMessage,
+  saveDraftMessage,
+  deleteMailMessage,
+  setMailReadStatus,
+  formatMailDate,
+  buildReplyDraft,
+  type MailMessage,
+  type MailFolder,
+} from "./mailClient.ts";
 import { createMessengerChat, type ChatLayoutMode } from "./messengerChat.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
@@ -184,6 +198,62 @@ const fmailDownloadBackupBtn = document.getElementById("fmail-download-backup-bt
 const fmailOpenAppLink = document.getElementById("fmail-open-app-link") as HTMLAnchorElement | null;
 const fmailStatusMsg = document.getElementById("fmail-status-msg") as HTMLElement | null;
 let currentFmailIdentity: FreenetMailIdentity | null = null;
+
+// Radica Mail App Elements
+const mailModal = document.getElementById("mail-modal") as HTMLElement;
+const openMailBtn = document.getElementById("open-mail-btn") as HTMLButtonElement | null;
+const mailBadge = document.getElementById("mail-badge") as HTMLElement | null;
+const mailUserAddressChip = document.getElementById("mail-user-address-chip") as HTMLElement | null;
+const mailUserAddressDisplay = document.getElementById("mail-user-address-display") as HTMLElement | null;
+const mailNewBtn = document.getElementById("mail-new-btn") as HTMLButtonElement | null;
+const mailRefreshBtn = document.getElementById("mail-refresh-btn") as HTMLButtonElement | null;
+const mailCompanionLink = document.getElementById("mail-companion-link") as HTMLAnchorElement | null;
+const mailCloseBtn = document.getElementById("mail-close-btn") as HTMLButtonElement | null;
+
+const mailFolderInboxBtn = document.getElementById("mail-folder-inbox-btn") as HTMLButtonElement | null;
+const mailFolderSentBtn = document.getElementById("mail-folder-sent-btn") as HTMLButtonElement | null;
+const mailFolderDraftsBtn = document.getElementById("mail-folder-drafts-btn") as HTMLButtonElement | null;
+
+const mailInboxBadge = document.getElementById("mail-inbox-badge") as HTMLElement | null;
+const mailSentBadge = document.getElementById("mail-sent-badge") as HTMLElement | null;
+const mailDraftsBadge = document.getElementById("mail-drafts-badge") as HTMLElement | null;
+
+const mailSearchInput = document.getElementById("mail-search-input") as HTMLInputElement | null;
+const mailSearchClearBtn = document.getElementById("mail-search-clear-btn") as HTMLButtonElement | null;
+const mailList = document.getElementById("mail-list") as HTMLElement | null;
+const mailBodyContainer = document.getElementById("mail-body-container") as HTMLElement | null;
+
+const mailReadView = document.getElementById("mail-read-view") as HTMLElement | null;
+const mailComposeView = document.getElementById("mail-compose-view") as HTMLElement | null;
+const mailEmptyView = document.getElementById("mail-empty-view") as HTMLElement | null;
+
+const mailReadSubject = document.getElementById("mail-read-subject") as HTMLElement | null;
+const mailReadFrom = document.getElementById("mail-read-from") as HTMLElement | null;
+const mailReadTo = document.getElementById("mail-read-to") as HTMLElement | null;
+const mailReadTime = document.getElementById("mail-read-time") as HTMLElement | null;
+const mailReadBody = document.getElementById("mail-read-body") as HTMLElement | null;
+
+const mailReplyBtn = document.getElementById("mail-reply-btn") as HTMLButtonElement | null;
+const mailToggleReadBtn = document.getElementById("mail-toggle-read-btn") as HTMLButtonElement | null;
+const mailToggleReadLabel = document.getElementById("mail-toggle-read-label") as HTMLElement | null;
+const mailDeleteBtn = document.getElementById("mail-delete-btn") as HTMLButtonElement | null;
+const mailMobileBackBtn = document.getElementById("mail-mobile-back-btn") as HTMLButtonElement | null;
+const mailComposeMobileBackBtn = document.getElementById("mail-compose-mobile-back-btn") as HTMLButtonElement | null;
+
+const mailComposeTitle = document.getElementById("mail-compose-title") as HTMLElement | null;
+const mailToInput = document.getElementById("mail-to-input") as HTMLInputElement | null;
+const mailSubjectInput = document.getElementById("mail-subject-input") as HTMLInputElement | null;
+const mailContentInput = document.getElementById("mail-content-input") as HTMLTextAreaElement | null;
+const mailSendBtn = document.getElementById("mail-send-btn") as HTMLButtonElement | null;
+const mailSaveDraftBtn = document.getElementById("mail-save-draft-btn") as HTMLButtonElement | null;
+const mailCancelComposeBtn = document.getElementById("mail-cancel-compose-btn") as HTMLButtonElement | null;
+const mailComposeStatus = document.getElementById("mail-compose-status") as HTMLElement | null;
+const mailEmptyComposeBtn = document.getElementById("mail-empty-compose-btn") as HTMLButtonElement | null;
+
+let activeMailFolder: MailFolder = "inbox";
+let activeMailId: string | null = null;
+let activeReplyToId: string | null = null;
+let activeDraftId: string | null = null;
 
 // Navbar Elements
 const freenetDot = document.getElementById("freenet-dot") as HTMLElement;
@@ -4584,6 +4654,7 @@ chatCloseBtn.addEventListener("click", () => {
 // feed (or the profile page) shows again.
 const railPages: [HTMLElement, string][] = [
   [chatModal, "open-chat-btn"],
+  [mailModal, "open-mail-btn"],
   [notifsModal, "open-notifs-btn"],
   [identityModal, "open-identity-btn"],
   [updatesModal, "updates-open-btn"],
@@ -8414,11 +8485,14 @@ function renderIdentityModal() {
   }
 
   renderSupporterStatus();
+  updateMailBadges();
 }
 
 function openIdentityModal() {
   renderIdentityModal();
   identityModal.style.display = "flex";
+  const card = identityModal.querySelector<HTMLElement>(".identity-modal-card");
+  if (card) card.scrollTop = 0;
 }
 
 if (openIdentityBtn) {
@@ -8486,6 +8560,422 @@ if (fmailAddressVal) {
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
     } catch {
       prompt("Copy mail address:", full);
+    }
+  });
+}
+
+// ── Radica Mail: Built-in Client Implementation ──────────────────────────
+
+function getOrDeriveFmailIdentity(): FreenetMailIdentity | null {
+  if (currentFmailIdentity) return currentFmailIdentity;
+  if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
+    try {
+      const alias = currentIdentity.personaName || personaName(currentIdentity.pubkey) || "radica";
+      currentFmailIdentity = deriveMailIdentity(alias, currentIdentity.secretKey);
+      return currentFmailIdentity;
+    } catch (err) {
+      console.warn("[Freenet Mail] derivation error:", err);
+    }
+  }
+  return null;
+}
+
+function updateMailBadges() {
+  if (!currentIdentity) return;
+  const fmail = getOrDeriveFmailIdentity();
+  const store = loadMailStore(currentIdentity.pubkey, fmail);
+  const unreadCount = getUnreadMailCount(store.messages);
+  const sentCount = store.messages.filter((m) => m.folder === "sent").length;
+  const draftsCount = store.messages.filter((m) => m.folder === "drafts").length;
+
+  if (mailBadge) {
+    mailBadge.textContent = String(unreadCount);
+    mailBadge.style.display = unreadCount > 0 ? "inline-block" : "none";
+  }
+  if (mailInboxBadge) {
+    mailInboxBadge.textContent = String(unreadCount);
+    mailInboxBadge.style.display = unreadCount > 0 ? "inline-block" : "none";
+  }
+  if (mailSentBadge) {
+    mailSentBadge.textContent = String(sentCount);
+    mailSentBadge.style.display = sentCount > 0 ? "inline-block" : "none";
+  }
+  if (mailDraftsBadge) {
+    mailDraftsBadge.textContent = String(draftsCount);
+    mailDraftsBadge.style.display = draftsCount > 0 ? "inline-block" : "none";
+  }
+}
+
+function formatMailContent(content: string): string {
+  if (!content) return "";
+  const lines = escapeHtml(content).split("\n");
+  const result: string[] = [];
+  let inQuote = false;
+  let quoteLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("&gt; ") || line === "&gt;") {
+      inQuote = true;
+      quoteLines.push(line.replace(/^&gt;\s?/, ""));
+    } else {
+      if (inQuote) {
+        result.push(`<blockquote>${quoteLines.join("<br/>")}</blockquote>`);
+        quoteLines = [];
+        inQuote = false;
+      }
+      result.push(line);
+    }
+  }
+  if (inQuote) {
+    result.push(`<blockquote>${quoteLines.join("<br/>")}</blockquote>`);
+  }
+  return result.join("<br/>");
+}
+
+function renderMailList() {
+  if (!currentIdentity || !mailList) return;
+  const fmail = getOrDeriveFmailIdentity();
+  const store = loadMailStore(currentIdentity.pubkey, fmail);
+  const query = mailSearchInput?.value || "";
+  const filtered = filterMailMessages(store.messages, activeMailFolder, query);
+
+  if (mailUserAddressDisplay && fmail) {
+    mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 8)}…`;
+  }
+  if (mailCompanionLink) {
+    mailCompanionLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
+  }
+
+  [mailFolderInboxBtn, mailFolderSentBtn, mailFolderDraftsBtn].forEach((btn) => {
+    if (btn) {
+      btn.classList.toggle("active", btn.dataset.folder === activeMailFolder);
+    }
+  });
+
+  updateMailBadges();
+
+  if (filtered.length === 0) {
+    mailList.innerHTML = `
+      <div style="padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+        No messages in ${activeMailFolder}.
+      </div>
+    `;
+    return;
+  }
+
+  mailList.innerHTML = filtered
+    .map((m) => {
+      const isUnread = !m.read && m.folder === "inbox";
+      const isActive = m.id === activeMailId;
+      const peer = m.folder === "sent" ? `To: ${escapeHtml(m.to)}` : escapeHtml(m.from || m.fromAddress);
+      const timeStr = formatMailDate(m.timestamp);
+      const snippet = escapeHtml(m.content.slice(0, 70));
+
+      return `
+        <div class="mail-item-card ${isUnread ? "unread" : ""} ${isActive ? "active" : ""}" data-id="${escapeHtml(m.id)}">
+          <div class="mail-item-header">
+            <span class="mail-item-from">
+              ${isUnread ? `<span class="mail-unread-dot"></span>` : ""}
+              <span>${peer}</span>
+            </span>
+            <span class="mail-item-time">${timeStr}</span>
+          </div>
+          <div class="mail-item-subject">${escapeHtml(m.subject || "(No subject)")}</div>
+          <div class="mail-item-snippet">${snippet}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  mailList.querySelectorAll<HTMLElement>(".mail-item-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const id = card.dataset.id;
+      if (!id) return;
+      const target = store.messages.find((m) => m.id === id);
+      if (target) {
+        if (target.folder === "drafts") {
+          openMailComposer({
+            to: target.to,
+            subject: target.subject,
+            content: target.content,
+            draftId: target.id,
+          });
+        } else {
+          selectMail(target);
+        }
+      }
+    });
+  });
+}
+
+function selectMail(m: MailMessage) {
+  if (!currentIdentity) return;
+  activeMailId = m.id;
+  activeReplyToId = null;
+  activeDraftId = null;
+
+  if (!m.read) {
+    setMailReadStatus(currentIdentity.pubkey, m.id, true);
+    m.read = true;
+    updateMailBadges();
+  }
+
+  if (mailReadView) mailReadView.style.display = "flex";
+  if (mailComposeView) mailComposeView.style.display = "none";
+  if (mailEmptyView) mailEmptyView.style.display = "none";
+  if (mailBodyContainer) mailBodyContainer.classList.add("in-detail");
+
+  if (mailReadSubject) mailReadSubject.textContent = m.subject || "(No subject)";
+  if (mailReadFrom) mailReadFrom.textContent = m.from || m.fromAddress;
+  if (mailReadTo) mailReadTo.textContent = m.to;
+  if (mailReadTime) mailReadTime.textContent = new Date(m.timestamp).toLocaleString();
+  if (mailReadBody) {
+    mailReadBody.innerHTML = formatMailContent(m.content);
+  }
+  if (mailToggleReadLabel) {
+    mailToggleReadLabel.textContent = m.read ? "Mark Unread" : "Mark Read";
+  }
+
+  mailList?.querySelectorAll(".mail-item-card").forEach((el) => {
+    el.classList.toggle("active", (el as HTMLElement).dataset.id === m.id);
+    if ((el as HTMLElement).dataset.id === m.id) {
+      el.classList.remove("unread");
+      el.querySelector(".mail-unread-dot")?.remove();
+    }
+  });
+}
+
+function openMailComposer(opts: { to?: string; subject?: string; content?: string; replyToId?: string; draftId?: string } = {}) {
+  activeMailId = null;
+  activeReplyToId = opts.replyToId || null;
+  activeDraftId = opts.draftId || null;
+
+  if (mailReadView) mailReadView.style.display = "none";
+  if (mailComposeView) mailComposeView.style.display = "flex";
+  if (mailEmptyView) mailEmptyView.style.display = "none";
+  if (mailBodyContainer) mailBodyContainer.classList.add("in-detail");
+
+  if (mailComposeTitle) {
+    mailComposeTitle.textContent = opts.replyToId ? "Reply" : (opts.draftId ? "Edit Draft" : "New Message");
+  }
+  if (mailToInput) mailToInput.value = opts.to || "";
+  if (mailSubjectInput) mailSubjectInput.value = opts.subject || "";
+  if (mailContentInput) mailContentInput.value = opts.content || "";
+  if (mailComposeStatus) mailComposeStatus.textContent = "";
+
+  if (!opts.to && mailToInput) {
+    mailToInput.focus();
+  } else if (mailContentInput) {
+    mailContentInput.focus();
+  }
+}
+
+function openMailModal() {
+  if (!currentIdentity) {
+    showToast("Please sign in or create an identity first.", "info");
+    return;
+  }
+  mailModal.style.display = "flex";
+  renderMailList();
+  if (mailReadView) mailReadView.style.display = "none";
+  if (mailComposeView) mailComposeView.style.display = "none";
+  if (mailEmptyView) mailEmptyView.style.display = "flex";
+  mailBodyContainer?.classList.remove("in-detail");
+}
+
+if (openMailBtn) {
+  openMailBtn.addEventListener("click", openMailModal);
+}
+if (mailCloseBtn) {
+  mailCloseBtn.addEventListener("click", () => {
+    mailModal.style.display = "none";
+  });
+}
+if (mailNewBtn) {
+  mailNewBtn.addEventListener("click", () => openMailComposer());
+}
+if (mailEmptyComposeBtn) {
+  mailEmptyComposeBtn.addEventListener("click", () => openMailComposer());
+}
+if (mailRefreshBtn) {
+  mailRefreshBtn.addEventListener("click", () => {
+    renderMailList();
+    showToast("✓ Mailbox refreshed", "info");
+  });
+}
+if (mailFolderInboxBtn) {
+  mailFolderInboxBtn.addEventListener("click", () => {
+    activeMailFolder = "inbox";
+    renderMailList();
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+if (mailFolderSentBtn) {
+  mailFolderSentBtn.addEventListener("click", () => {
+    activeMailFolder = "sent";
+    renderMailList();
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+if (mailFolderDraftsBtn) {
+  mailFolderDraftsBtn.addEventListener("click", () => {
+    activeMailFolder = "drafts";
+    renderMailList();
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+
+if (mailSearchInput) {
+  mailSearchInput.addEventListener("input", () => {
+    if (mailSearchClearBtn) {
+      mailSearchClearBtn.style.display = mailSearchInput.value ? "block" : "none";
+    }
+    renderMailList();
+  });
+}
+if (mailSearchClearBtn) {
+  mailSearchClearBtn.addEventListener("click", () => {
+    if (mailSearchInput) mailSearchInput.value = "";
+    mailSearchClearBtn.style.display = "none";
+    renderMailList();
+  });
+}
+
+if (mailReplyBtn) {
+  mailReplyBtn.addEventListener("click", () => {
+    if (!currentIdentity || !activeMailId) return;
+    const store = loadMailStore(currentIdentity.pubkey);
+    const current = store.messages.find((m) => m.id === activeMailId);
+    if (!current) return;
+    const reply = buildReplyDraft(current);
+    openMailComposer({
+      to: reply.to,
+      subject: reply.subject,
+      content: reply.content,
+      replyToId: current.id,
+    });
+  });
+}
+
+if (mailToggleReadBtn) {
+  mailToggleReadBtn.addEventListener("click", () => {
+    if (!currentIdentity || !activeMailId) return;
+    const store = loadMailStore(currentIdentity.pubkey);
+    const current = store.messages.find((m) => m.id === activeMailId);
+    if (!current) return;
+    const newStatus = !current.read;
+    setMailReadStatus(currentIdentity.pubkey, current.id, newStatus);
+    current.read = newStatus;
+    if (mailToggleReadLabel) {
+      mailToggleReadLabel.textContent = newStatus ? "Mark Unread" : "Mark Read";
+    }
+    updateMailBadges();
+    renderMailList();
+  });
+}
+
+if (mailDeleteBtn) {
+  mailDeleteBtn.addEventListener("click", () => {
+    if (!currentIdentity || !activeMailId) return;
+    if (confirm("Delete this message?")) {
+      deleteMailMessage(currentIdentity.pubkey, activeMailId);
+      activeMailId = null;
+      renderMailList();
+      if (mailReadView) mailReadView.style.display = "none";
+      if (mailEmptyView) mailEmptyView.style.display = "flex";
+      mailBodyContainer?.classList.remove("in-detail");
+      showToast("Message deleted.", "info");
+    }
+  });
+}
+
+if (mailSendBtn) {
+  mailSendBtn.addEventListener("click", () => {
+    if (!currentIdentity) return;
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) {
+      showToast("Identity not ready.", "error");
+      return;
+    }
+    const to = mailToInput?.value || "";
+    const subject = mailSubjectInput?.value || "";
+    const content = mailContentInput?.value || "";
+
+    const res = sendMailMessage(currentIdentity.pubkey, fmail, to, subject, content, activeReplyToId || undefined);
+    if (!res.success) {
+      if (mailComposeStatus) mailComposeStatus.textContent = `❌ ${res.error || "Failed to send"}`;
+      showToast(res.error || "Could not send mail", "error");
+      return;
+    }
+
+    if (activeDraftId) {
+      deleteMailMessage(currentIdentity.pubkey, activeDraftId);
+      activeDraftId = null;
+    }
+
+    showToast("✓ Mail sent!", "info");
+    activeMailFolder = "sent";
+    renderMailList();
+    if (res.message) {
+      selectMail(res.message);
+    }
+  });
+}
+
+if (mailSaveDraftBtn) {
+  mailSaveDraftBtn.addEventListener("click", () => {
+    if (!currentIdentity) return;
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    const to = mailToInput?.value || "";
+    const subject = mailSubjectInput?.value || "";
+    const content = mailContentInput?.value || "";
+
+    saveDraftMessage(currentIdentity.pubkey, fmail, to, subject, content, activeDraftId || undefined);
+    showToast("✓ Draft saved", "info");
+    activeMailFolder = "drafts";
+    renderMailList();
+  });
+}
+
+if (mailCancelComposeBtn) {
+  mailCancelComposeBtn.addEventListener("click", () => {
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+
+if (mailMobileBackBtn) {
+  mailMobileBackBtn.addEventListener("click", () => {
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+if (mailComposeMobileBackBtn) {
+  mailComposeMobileBackBtn.addEventListener("click", () => {
+    mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+
+if (mailUserAddressChip) {
+  mailUserAddressChip.addEventListener("click", async () => {
+    const fmail = getOrDeriveFmailIdentity();
+    if (!fmail) return;
+    const full = `${fmail.alias}@${fmail.address}`;
+    try {
+      await navigator.clipboard.writeText(full);
+      showToast(`✓ Copied mail address: ${full}`, "info");
+    } catch {
+      prompt("Copy your Freenet Mail address:", full);
     }
   });
 }
