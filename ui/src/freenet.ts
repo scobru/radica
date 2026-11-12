@@ -708,9 +708,12 @@ export class FreenetClient {
   /** How many posts each feed this node has read holds (all of them, not only the newest the timeline shows). */
   private postTotals = new Map<string, number>();
 
-  /** Another Freenet app's contract by its instance id, or null when the network does not have it. */
-  public appContract(instance: string): Promise<Uint8Array | null> {
-    return this.net.getByInstance(instance);
+  /** Another Freenet app's contract by its instance id, or null when the network does not have it. Pass `fetchCode`
+   *  before updating a contract this node has never held (see `FreenetNetwork.getRaw`): mailClient.ts's
+   *  `getContractFn.call(freenet, id, true)` reaches this method, not `net.getByInstance` directly, so without this
+   *  forwarding the flag never made it to the actual request and an update kept timing out as if it had no effect. */
+  public appContract(instance: string, fetchCode = false): Promise<Uint8Array | null> {
+    return this.net.getByInstance(instance, fetchCode);
   }
 
   /** Another app's contract, written by its own rules (FreePolls polls created and answered here). */
