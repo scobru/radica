@@ -88,3 +88,7 @@ delegate/target/
 
 # Moderation model, fetched by ui/scripts/fetch-moderation-model.mjs
 ui/public/moderation/model/moderator.tflite
+
+# Pix Agent
+.pi/
+.pi-lens/

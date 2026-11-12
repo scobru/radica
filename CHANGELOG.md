@@ -1,6 +1,12 @@
+5.4.0 / 2026-11-12
+==================
+
+  * **MOVED** Media Explore to sidebar: the Media scope has been moved from the feed scope bar to the left rail (More menu, shortcut **g v**). It opens an Instagram-style thumbnail grid of all network images and videos. The feed scope bar is now shorter on mobile (no Media button). Category filters stay in the feed; in Media view they are hidden automatically since only media posts are shown.
+
 5.3.0 / 2026-11-11
 ==================
 
+  * **FIX** Mail send timeout & local save + signature confirmation: sending to a native Freenet Mail contract (43-44 char inbox address) no longer times out while fetching WASM code; failed network delivery now always saves the message locally to Sent. Added an explicit "Sign & Send" confirmation before dispatch so you know the message will be signed with your ML-DSA-65 key — matching native Freemail's UX.
   * **FIX & NEW** Native Freenet Mail Network Delivery & Token Interoperability:
     - **Live Network Dispatch**: Fixed an issue where emails sent from Radica to native Freenet Mail (v0.2.x) accounts remained only in local storage. Radica now performs real post-quantum cryptographic network dispatch via `freenet.updateAppContract` directly into the recipient's Inbox contract on the Freenet network, using ML-KEM-768 key encapsulation, HKDF-SHA256, XChaCha20-Poly1305 payload encryption, ML-DSA-65 signatures, and `UpdateInbox::AddMessages` deltas.
     - **Native Inbox Contract ID (44 chars)**: Deterministically derives and exposes the official 44-character Base58 `ContractInstanceId` (`deriveInboxContractAddress`), resolving the format rejection errors reported when attempting to send from native Freemail into Radica using 36-character addresses.

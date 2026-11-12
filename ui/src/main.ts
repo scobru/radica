@@ -116,7 +116,7 @@ import { METRIC_LABELS, countsOf, nextUp, reached, type Counts } from "./milesto
 import { growRoots } from "./rootsfx.ts";
 import { fillFreetunes, freetunesCard, freetunesProfileCard, fillFreetunesProfile, localFreetunesArtist, localFreetunesReleases } from "./freetunes.ts";
 import { createPoll, fillFreepolls, freepollsCard, freepollsLink, type PollNet } from "./freepolls.ts";
-import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris } from "./media.ts";
+import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris, MEDIA_PREFIX } from "./media.ts";
 import { playVideo, prepareVideo, publishVideo, videoPosterUrl, videoRef } from "./video.ts";
 import { LANGS, READER_LANG_KEY, availableLangs, readerLang, translatableFrom, translateText } from "./translate.ts";
 import { openGifPicker } from "./gifPicker.ts";
@@ -145,7 +145,7 @@ let lastPageKey = "";
 let activeTagFilter: string | null = null;
 let searchQuery: string = "";
 let currentFeedSort: FeedSort = "recent";
-let currentFeedScope: "explore" | "following" | "myposts" | "saved" = "explore";
+let currentFeedScope: "explore" | "following" | "myposts" | "saved" | "media" = "explore";
 let feedAuthor: string | null = null; // "myposts" showing someone else's posts (opened from their profile)
 let currentMediaNsfw = false;
 // the scanner misreads pale animals and faces (seal 70%, ferret 71%, a clothed face 53%): 50-80% posts blurred, 80%+ is refused
@@ -355,6 +355,7 @@ const scopeFollowingCount = document.getElementById("scope-following-count") as 
 const scopeMyPostsBtn = document.getElementById("scope-myposts-btn") as HTMLButtonElement;
 const scopeMyPostsCount = document.getElementById("scope-myposts-count") as HTMLElement;
 const scopeSavedBtn = document.getElementById("scope-saved-btn") as HTMLButtonElement;
+const openMediaBtn = document.getElementById("open-media-btn") as HTMLButtonElement;
 
 const activeFilterBanner = document.getElementById("active-filter-banner") as HTMLElement;
 const activeFilterTag = document.getElementById("active-filter-tag") as HTMLElement;
@@ -983,6 +984,190 @@ const guideModal = document.getElementById("guide-modal") as HTMLElement;
 document.getElementById("guide-open-btn")!.addEventListener("click", () => (guideModal.style.display = "flex"));
 document.getElementById("guide-close-btn")!.addEventListener("click", () => (guideModal.style.display = "none"));
 
+const mediaModal = document.getElementById("media-modal") as HTMLElement;
+document.getElementById("open-media-btn")!.addEventListener("click", () => {
+  mediaModal.style.display = "flex";
+  showQuickPost();
+  renderMediaGrid();
+});
+document.getElementById("media-close-btn")!.addEventListener("click", () => (mediaModal.style.display = "none"));
+
+// --- Moments quick post bar ---
+const mediaQuickPost = document.getElementById("media-quick-post") as HTMLElement;
+const mediaFileInput = document.getElementById("media-file-input") as HTMLInputElement;
+const mediaCameraBtn = document.getElementById("media-camera-btn") as HTMLButtonElement;
+const mediaGalleryBtn = document.getElementById("media-gallery-btn") as HTMLButtonElement;
+const mediaCaptionInput = document.getElementById("media-caption-input") as HTMLInputElement;
+const mediaCaptionCount = document.getElementById("media-caption-count") as HTMLElement;
+const mediaPublishBtn = document.getElementById("media-publish-btn") as HTMLButtonElement;
+const mediaPreviewArea = document.getElementById("media-preview-area") as HTMLElement;
+const mediaPreviewImg = document.getElementById("media-preview-img") as HTMLImageElement;
+const mediaRemovePreview = document.getElementById("media-remove-preview") as HTMLButtonElement;
+const mediaUploadProgress = document.getElementById("media-upload-progress") as HTMLElement;
+
+let mediaStagedFile: File | null = null;
+let mediaStagedBlobUrl: string | null = null;
+
+function showQuickPost() {
+  mediaQuickPost.style.display = "block";
+}
+function hideQuickPost() {
+  mediaQuickPost.style.display = "none";
+  mediaStagedFile = null;
+  if (mediaStagedBlobUrl) { URL.revokeObjectURL(mediaStagedBlobUrl); mediaStagedBlobUrl = null; }
+  mediaPreviewArea.style.display = "none";
+  mediaPreviewImg.src = "";
+  mediaCaptionInput.value = "";
+  mediaCaptionCount.textContent = "";
+  mediaPublishBtn.disabled = true;
+  mediaUploadProgress.style.display = "none";
+  mediaUploadProgress.textContent = "";
+  currentMediaNsfw = false;
+  currentMediaNsfwScore = 0;
+}
+
+function updatePublishState() {
+  const hasCaption = mediaCaptionInput.value.trim().length > 0;
+  const hasFile = mediaStagedFile !== null;
+  mediaPublishBtn.disabled = !(hasCaption && hasFile);
+  mediaCaptionCount.textContent = `${mediaCaptionInput.value.length}/400`;
+}
+
+mediaCameraBtn.addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    await video.play();
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    stream.getTracks().forEach(t => t.stop());
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], "camera.jpg", { type: "image/jpeg" });
+      stageMediaFile(file);
+    }, "image/jpeg", 0.85);
+  } catch (err) {
+    showToast("Impossible to access camera: " + (err as Error).message, "error");
+  }
+});
+
+mediaGalleryBtn.addEventListener("click", () => mediaFileInput.click());
+
+mediaFileInput.addEventListener("change", () => {
+  const f = mediaFileInput.files?.[0];
+  if (f) stageMediaFile(f);
+  mediaFileInput.value = "";
+});
+
+function stageMediaFile(file: File) {
+  if (!file.type.startsWith("image/")) return showToast("Solo immagini", "warning");
+  mediaStagedFile = file;
+  if (mediaStagedBlobUrl) URL.revokeObjectURL(mediaStagedBlobUrl);
+  mediaStagedBlobUrl = URL.createObjectURL(file);
+  mediaPreviewImg.src = mediaStagedBlobUrl;
+  mediaPreviewArea.style.display = "block";
+  updatePublishState();
+  // NSFW scan, same gate as the main composer
+  currentMediaNsfwScore = 0;
+  currentMediaNsfw = false;
+  void analyzeImageFile(file).then((res) => {
+    if (!mediaStagedFile) return; // user removed it meanwhile
+    if (res.score >= NSFW_BLOCK) {
+      currentMediaNsfw = true;
+      mediaPublishBtn.disabled = true;
+      showToast("Media blocked: explicit content (" + Math.round(res.score * 100) + "% confidence).", "error");
+    } else {
+      currentMediaNsfwScore = res.score;
+      updatePublishState();
+    }
+  }).catch((e) => console.warn("image scan failed:", e));
+}
+
+mediaRemovePreview.addEventListener("click", () => {
+  if (mediaStagedBlobUrl) { URL.revokeObjectURL(mediaStagedBlobUrl); mediaStagedBlobUrl = null; }
+  mediaStagedFile = null;
+  mediaPreviewArea.style.display = "none";
+  updatePublishState();
+});
+
+mediaCaptionInput.addEventListener("input", updatePublishState);
+
+mediaPublishBtn.addEventListener("click", async () => {
+  if (!currentIdentity || !mediaStagedFile) return;
+  const ownWords = mediaCaptionInput.value.trim();
+  if (!ownWords) return;
+
+  // Moderation: same checks as the main composer
+  if (currentMediaNsfw || currentMediaNsfwScore >= NSFW_BLOCK) {
+    showToast("Publishing Prohibited: Media contains explicit or adult content.", "error");
+    return;
+  }
+  if (!okToPublish(ownWords)) return;
+
+  // Anti-flood cooldown
+  const isTrustedAuthor = amVouched();
+  const requiredCooldownMs = isTrustedAuthor ? POST_COOLDOWN_MS : 15000;
+  const now = Date.now();
+  if (lastPostTime > 0 && now - lastPostTime < requiredCooldownMs) {
+    const waitSec = Math.ceil((requiredCooldownMs - (now - lastPostTime)) / 1000);
+    showToast("Please wait " + waitSec + "s before publishing another post.", "warning");
+    return;
+  }
+  recentPostTimestamps = recentPostTimestamps.filter((t) => now - t < 60000);
+  if (recentPostTimestamps.length >= MAX_POSTS_PER_MINUTE) {
+    showToast("Rate Limit Exceeded: Maximum 10 posts per minute.", "warning");
+    return;
+  }
+  const normalizedCaption = ownWords.toLowerCase().replace(/\s+/g, " ");
+  if (recentPostContents.includes(normalizedCaption)) {
+    showToast("Duplicate Post Detected: You recently published this exact message.", "warning");
+    return;
+  }
+
+  mediaPublishBtn.disabled = true;
+  mediaUploadProgress.style.display = "block";
+  mediaUploadProgress.textContent = "Publishing on Freenet…";
+  try {
+    // Read the file and upload to media contract
+    const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(mediaStagedFile!);
+    });
+    const bytes = new Uint8Array(await arrayBuffer);
+    const hash = await freenet.putMedia(bytes);
+    // Publish post with the image hash (must carry the radica-media: prefix)
+    const mediaUri = MEDIA_PREFIX + hash;
+
+    // Proof-of-Work for newcomers
+    let powProof: PoWProof | undefined;
+    if (!vouchedForAll) {
+      powProof = await solvePoW(currentIdentity.pubkey, now, POST_POW_BITS, "post");
+    }
+
+    const finalCaption = withMentionKeys(mediaCaptionInput, ownWords);
+    const post = await freenet.publishPost(currentIdentity, "moment", finalCaption, mediaUri, undefined, undefined, undefined, false, 0, powProof);
+    timelinePosts.unshift(post); // show it at once, no wait for a reload
+    lastPostTime = now;
+    recentPostTimestamps.push(now);
+    recentPostContents.push(normalizedCaption);
+    if (recentPostContents.length > 5) recentPostContents.shift();
+    hideQuickPost();
+    showToast("Published in Moments", "info");
+    renderMediaGrid();
+  } catch (err: any) {
+    showToast("Errore: " + (err?.message || String(err)), "error");
+    mediaPublishBtn.disabled = false;
+  }
+  mediaUploadProgress.style.display = "none";
+});
+
+// showQuickPost() is called from the open-media-btn handler above
+
 /** What I am writing in the composer, kept until I publish it (or empty it). */
 const draftKey = (pk: string) => `radica_draft_${pk}`;
 let draftTimer = 0;
@@ -1161,9 +1346,14 @@ async function checkMilestones(posts: Post[]) {
 document.addEventListener("click", (e) => {
   const img = (e.target as HTMLElement).closest(".gram-media img, .uview-post-thumb img, .comment-media img") as HTMLImageElement | null;
   if (!img || img.closest(".nsfw-shielded:not(.revealed)")) return;
+  const thumbEl = (e.target as HTMLElement).closest(".uview-post-thumb") as HTMLElement | null;
+  const postId = thumbEl?.dataset.postId ?? img.dataset.postId;
+  const author = thumbEl?.dataset.author ?? img.dataset.author;
+  const post = timelinePosts.find((p) => p.id === postId && p.author === author);
+  const caption = post?.caption || "";
   const box = document.createElement("div");
   box.className = "lightbox";
-  box.innerHTML = `<img src="${safeUrl(img.src)}" alt="Post media" />`;
+  box.innerHTML = `<img src="${safeUrl(img.src)}" alt="Post media" /><div class="lightbox-caption">${escapeHtml(caption)}</div>`;
   const close = () => {
     box.remove();
     document.removeEventListener("keydown", onKey);
@@ -1837,6 +2027,13 @@ async function reloadPosts() {
     timelinePosts = Object.values(myFeed.posts || {}).sort((a, b) => b.timestamp - a.timestamp);
   } else if (currentFeedScope === "saved") {
     timelinePosts = savedPosts(currentIdentity.pubkey);
+  } else if (currentFeedScope === "media") {
+    // Instagram-style explore of only media (images/videos)
+    timelinePosts = await freenet.getExploreTimeline(currentIdentity, {
+      prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+      skip: isHiddenAuthor,
+    });
+    void checkMilestones(timelinePosts);
   }
   await yieldToMain(); // gathering the posts and drawing them are separate tasks
   renderTimeline();
@@ -1978,6 +2175,7 @@ function restoreScrollAnchor(anchor: { id: string; top: number }) {
 }
 
 function renderTimeline() {
+  postsContainer.classList.remove("media-grid");
   if (!currentIdentity) return;
 
   const me = currentIdentity.pubkey;
@@ -2021,9 +2219,12 @@ function renderTimeline() {
     if (currentFeedScope === "following") {
       const isTrusted = p.author === me || topWot.isTrusted(p.author);
       if (!isTrusted) return false;
+    } else if (currentFeedScope === "media") {
+      // Only posts with images or videos
+      if (!p.media_uri) return false;
     }
 
-    if (currentFeedScope !== "myposts" && currentFeedScope !== "saved") {
+    if (currentFeedScope !== "myposts" && currentFeedScope !== "saved" && currentFeedScope !== "media") {
       const c = commOf(p);
       if (c && c.deleted_post_ids.includes(p.id)) return false;
       if (!activeCommunity && c && !isJoined(c) && p.author !== me) return false;
@@ -2052,6 +2253,35 @@ function renderTimeline() {
   const filtered = currentFeedSort === "recent" || currentFeedScope === "saved" ? visible : sortPosts(visible, currentFeedSort, likers, (p) => freenet.postDislikers(p.author, p.id), nowMs, { like: (k) => topWot.likeWeight(k), dislike: (k) => topWot.dislikeWeight(k) });
 
   updateCategoryCounts();
+
+  if (currentFeedScope === "media") {
+    // ponytail: Instagram-style grid of post media (images/videos only)
+    const mediaPosts = visible.filter((p) => p.media_uri && !videoRef(p.media_uri));
+    if (mediaPosts.length === 0) {
+      postsContainer.innerHTML = `<div class="empty-state"><p>No images or videos yet. Share one from the composer or explore more posts.</p></div>`;
+      return;
+    }
+    const items = mediaPosts.slice(0, POSTS_PER_PAGE).map((p) => {
+      const thumb = mediaUris(p.media_uri)[0];
+      return {
+        key: `${p.author}:${p.id}`,
+        html: `<div class="gram-card media-item" data-post-id="${p.id}" data-author="${p.author}">
+          <div class="uview-post-thumb" style="width:100%; aspect-ratio:4/5; overflow:hidden; cursor:pointer"
+               data-media="${thumb}"
+               data-author="${p.author}"
+               data-post-id="${p.id}"
+               tabindex="0" role="button"
+               onerror="this.style.display='none'">
+            <img ${mediaAttr(thumb)} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>
+          </div>
+          <div class="uview-post-body" style="padding:4px"><div class="uview-post-text" style="font-size:0.75rem;color:var(--text-muted)">${formatTimeAgo(p.timestamp)}</div></div>
+        </div>`,
+      };
+    });
+    postsContainer.classList.add("media-grid");
+    reconcileItems(postsContainer, items, (el) => el.id || undefined);
+    return;
+  }
 
   if (filtered.length === 0) {
     if (currentFeedScope === "saved") {
@@ -2491,6 +2721,132 @@ function renderTimeline() {
       }
     });
     moreObserver.observe(moreBtn);
+  }
+}
+
+/**
+ * Render the media grid (Instagram-style thumbnail grid) inside the media modal.
+ */
+function renderMediaGrid() {
+  const gridContainer = document.getElementById("media-grid-container") as HTMLElement;
+  if (!gridContainer) return;
+
+  // Clear previous content
+  gridContainer.innerHTML = '';
+
+  // Fetch media posts from the timeline
+  const mediaPosts = timelinePosts.filter((p) => p.media_uri && !videoRef(p.media_uri));
+  if (mediaPosts.length === 0) {
+    const emptyMsg = document.createElement("div");
+    emptyMsg.className = "media-empty";
+    emptyMsg.textContent = "No media posts yet. Share one from the composer or explore more posts.";
+    gridContainer.appendChild(emptyMsg);
+    return;
+  }
+
+  // Render media items
+  mediaPosts.slice(0, 20).forEach((post: Post) => {
+    const thumb = mediaUris(post.media_uri)[0];
+    const item = document.createElement("div");
+    item.className = "media-item";
+    item.dataset.postId = post.id;
+    item.dataset.author = post.author;
+
+    // Thumbnail: use the media observer to load Freenet media references
+    const thumbWrap = document.createElement("div");
+    thumbWrap.className = "uview-post-thumb";
+    thumbWrap.dataset.postId = post.id;
+    thumbWrap.dataset.author = post.author;
+    const img = document.createElement("img");
+    img.alt = "";
+    img.className = "media-thumb";
+    img.loading = "lazy";
+    img.decoding = "async";
+    const h = mediaRef(thumb);
+    if (h) {
+      img.dataset.media = h;
+    } else {
+      img.src = safeUrl(thumb);
+    }
+    img.onerror = () => { img.style.display = "none"; };
+    thumbWrap.appendChild(img);
+    item.appendChild(thumbWrap);
+
+    // Info
+    const info = document.createElement("div");
+    info.className = "media-info";
+
+    // Category tag: show the post's first hashtag if it has one, else its category
+    const TAG_RE = /#[a-zA-Z0-9_À-ſ]+/;
+    const tagMatch = post.caption.match(TAG_RE);
+    const tagText = tagMatch ? tagMatch[0] : "#" + (post.category || "general");
+    const category = document.createElement("span");
+    category.className = "media-category";
+    category.textContent = tagText;
+    info.appendChild(category);
+
+    // Action button
+    const action = document.createElement("span");
+    action.className = "media-actions";
+    action.textContent = "View →";
+    info.appendChild(action);
+
+    // Like button: overlay on the thumbnail (top-right corner), like Instagram
+    const isLiked = !!post.likes?.[currentIdentity?.pubkey ?? ""]?.liked;
+    const likeCount = likers(post).length;
+    const likeBtn = document.createElement("button");
+    likeBtn.className = "media-like-overlay" + (isLiked ? " liked" : "");
+    likeBtn.type = "button";
+    likeBtn.title = isLiked ? "Unlike this post" : "Like this post";
+    likeBtn.innerHTML = `<svg class="icon-md" aria-hidden="true" viewBox="0 0 24 24" fill="${isLiked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    <span class="like-count">${likeCount}</span>`;
+    likeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void toggleLikeInGrid(likeBtn, post);
+    });
+    item.appendChild(likeBtn);
+
+    // Clicking the photo opens the lightbox (handled globally on .uview-post-thumb img)
+    // "View" opens the full post
+    action.addEventListener("click", (e) => { e.stopPropagation(); void showMyPost(post.id, post.author); });
+
+    item.appendChild(info);
+    gridContainer.appendChild(item);
+  });
+
+  // Start loading the media images
+  showMedia(gridContainer);
+}
+
+/** Toggle a like from the Moments grid without leaving the grid. */
+async function toggleLikeInGrid(btn: HTMLElement, post: Post) {
+  if (!currentIdentity) return;
+  const identity = currentIdentity;
+  const currentlyLiked = !!post.likes?.[identity.pubkey]?.liked;
+  const newLiked = !currentlyLiked;
+  // Optimistic update
+  const optimisticPost: Post = { ...post, likes: { ...post.likes, [identity.pubkey]: { liked: newLiked, ts: Date.now(), sig: "" } } };
+  const newCount = likers(optimisticPost).length;
+  const heartIcon = btn.querySelector(".icon-md") as SVGSVGElement;
+  const countSpan = btn.querySelector(".like-count")!;
+  heartIcon.setAttribute("fill", newLiked ? "currentColor" : "none");
+  countSpan.textContent = String(newCount);
+  btn.classList.toggle("liked", newLiked);
+  btn.title = newLiked ? "Unlike this post" : "Like this post";
+  try {
+    await freenet.toggleLike(identity, post.author, post.id);
+    // Update the post in timelinePosts so the count stays correct
+    const idx = timelinePosts.findIndex((p) => p.id === post.id && p.author === post.author);
+    if (idx !== -1) {
+      timelinePosts[idx] = { ...timelinePosts[idx], likes: { ...timelinePosts[idx].likes, [identity.pubkey]: { liked: newLiked, ts: Date.now(), sig: "" } } };
+    }
+  } catch (err) {
+    // Revert on failure
+    heartIcon.setAttribute("fill", currentlyLiked ? "currentColor" : "none");
+    countSpan.textContent = String(likers(post).length);
+    btn.classList.toggle("liked", currentlyLiked);
+    btn.title = currentlyLiked ? "Unlike this post" : "Like this post";
+    console.error("Failed to toggle like in grid:", err);
   }
 }
 
@@ -4902,6 +5258,7 @@ const railPages: [HTMLElement, string][] = [
   [updatesModal, "updates-open-btn"],
   [guideModal, "guide-open-btn"],
   [greenhouseModal, "greenhouse-open-btn"],
+  [mediaModal, "open-media-btn"],
   [welcomeModal, ""], // first steps: no rail button
   [blocklistsModal, "blocklists-open-btn"],
   [userProfileModal, ""], // someone's profile: no rail button
@@ -8428,6 +8785,7 @@ function updateScopeBtnActive(activeBtn: HTMLButtonElement) {
   scopeFollowingBtn.classList.remove("active");
   scopeMyPostsBtn.classList.remove("active");
   scopeSavedBtn.classList.remove("active");
+  openMediaBtn.classList.remove("active");
   activeBtn.classList.add("active");
 }
 

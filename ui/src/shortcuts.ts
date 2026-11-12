@@ -22,6 +22,7 @@ export const SHORTCUTS_LIST: ShortcutItem[] = [
   { keyLabel: "g u", category: "Navigation", description: "Go to What's New" },
   { keyLabel: "g g", category: "Navigation", description: "Go to Greenhouse" },
   { keyLabel: "g b", category: "Navigation", description: "Go to Blocklists & Moderation" },
+  { keyLabel: "g v", category: "Navigation", description: "Go to Moments" },
   { keyLabel: "?", category: "Navigation", description: "Open Keyboard Shortcuts Help" },
 
   // Feed & Posts
@@ -144,7 +145,7 @@ export function showGotoHud(visible: boolean, customText?: string): void {
     if (visible) {
       hud.innerHTML =
         customText ||
-        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>?</kbd> help`;
+        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>v</kbd> media · <kbd>?</kbd> help`;
       if (hud.style) hud.style.display = "flex";
       gotoTimer = setTimeout(() => {
         showGotoHud(false);
@@ -224,6 +225,11 @@ export function handleGotoKey(key: string): boolean {
     case "b": {
       closeOtherPages("blocklists-modal");
       document.getElementById("blocklists-open-btn")?.click();
+      return true;
+    }
+    case "v": {
+      closeOtherPages();
+      document.getElementById("open-media-btn")?.click();
       return true;
     }
     case "?": {
