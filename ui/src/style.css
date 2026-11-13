@@ -2260,6 +2260,7 @@ body.chat-fullscreen .rail {
   aspect-ratio: 4/5;
   flex: 1;
   display: block;
+  border: none;
 }
 
 #media-grid-container.media-grid .media-info {
@@ -2318,6 +2319,12 @@ body.chat-fullscreen .rail {
 
 #media-grid-container.media-grid .media-like-overlay.liked .icon-md {
   fill: currentColor;
+}
+
+@media (hover: none) {
+  #media-grid-container.media-grid .media-like-overlay {
+    opacity: 1;
+  }
 }
 
 #media-grid-container.media-grid .media-like-overlay.liked {
@@ -3032,34 +3039,6 @@ body {
   background: transparent;
   color: var(--text-main);
   border-bottom-color: var(--primary);
-}
-
-/* composer */
-.composer-card {
-  border: 0;
-  border-radius: 18px;
-  padding: 18px 20px;
-}
-
-.composer-input {
-  border: 0;
-  background: transparent;
-  font-size: 1.05rem;
-  padding: 8px 0;
-  min-height: 64px;
-}
-
-.composer-tab {
-  border: 1px solid var(--border);
-}
-
-.composer-tab.active {
-  border-color: var(--primary);
-}
-
-.btn-primary {
-  border-radius: 999px;
-  font-weight: 600;
 }
 
 /* posts: rows separated by a hairline */

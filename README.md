@@ -66,6 +66,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 8. 📸 Moments Compression & Sandboxed Persistence Engine
 - **Automatic High-Res Downscaling**: Uploaded Moment photos are automatically compressed client-side (max 360px, JPEG quality 0.58), transforming 5-10 MB camera files into lightweight ~2.5-3.8 KB payloads.
+- **Composer unification**: the feed composer is now reused for Moments. Thoughts, Moments and Events all share one composer card with identical styling, so posting looks the same for every post type. The Moment tab only toggles the media and file inputs inside the shared card — no separate moments composer exists any more.
 - **Freenet Shell Hash Persistence (`SafeStorage`)**: Survives sandboxed opaque-origin reloads where browser `localStorage` throws `SecurityError`. Syncs encrypted state to parent shell hash strictly under Freenet's 8,192-char truncation limit.
 - **Resilient Feed Trimming**: Keeps identity, profile, and recent posts/Moments fully persistent across `F5` and `Ctrl+F5` hard reloads without state corruption.
 

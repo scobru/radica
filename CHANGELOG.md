@@ -1,6 +1,10 @@
 5.4.0 / 2026-11-12
 ==================
 
+  * **FIX** Moments quick post bar: after publishing a moment from the Moments media grid the take/choose/caption bar no longer vanishes — it resets and stays open so you can post again without reopening the modal.
+  * **FIX** Moments grid photos: removed the white border around thumbnails.
+  * **FIX** Moments likes on mobile: the like button is now always visible on touch devices (it was hover-only, so invisible and untappable). The second tap also un-likes correctly — the handler re-reads the current post instead of a stale reference.
+  * **NEW** Composer unification: the feed composer is now reused for Moments. Thoughts, Moments and Events all share one composer card with identical styling, so posting looks the same for every post type. The Moment tab only toggles the media and file inputs inside the shared card; no separate moments composer exists any more.
   * **MOVED** Media Explore to sidebar: the Media scope has been moved from the feed scope bar to the left rail (More menu, shortcut **g v**). It opens an Instagram-style thumbnail grid of all network images and videos. The feed scope bar is now shorter on mobile (no Media button). Category filters stay in the feed; in Media view they are hidden automatically since only media posts are shown.
 
 5.3.0 / 2026-11-11

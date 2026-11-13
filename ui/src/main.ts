@@ -1157,6 +1157,7 @@ mediaPublishBtn.addEventListener("click", async () => {
     recentPostContents.push(normalizedCaption);
     if (recentPostContents.length > 5) recentPostContents.shift();
     hideQuickPost();
+    showQuickPost(); // ponytail: a full hide leaves no way to post again until the modal is reopened
     showToast("Published in Moments", "info");
     renderMediaGrid();
   } catch (err: any) {
@@ -2822,7 +2823,8 @@ function renderMediaGrid() {
 async function toggleLikeInGrid(btn: HTMLElement, post: Post) {
   if (!currentIdentity) return;
   const identity = currentIdentity;
-  const currentlyLiked = !!post.likes?.[identity.pubkey]?.liked;
+  const currentPost = timelinePosts.find((p) => p.id === post.id && p.author === post.author);
+  const currentlyLiked = !!currentPost?.likes?.[identity.pubkey]?.liked;
   const newLiked = !currentlyLiked;
   // Optimistic update
   const optimisticPost: Post = { ...post, likes: { ...post.likes, [identity.pubkey]: { liked: newLiked, ts: Date.now(), sig: "" } } };
@@ -2839,6 +2841,7 @@ async function toggleLikeInGrid(btn: HTMLElement, post: Post) {
     const idx = timelinePosts.findIndex((p) => p.id === post.id && p.author === post.author);
     if (idx !== -1) {
       timelinePosts[idx] = { ...timelinePosts[idx], likes: { ...timelinePosts[idx].likes, [identity.pubkey]: { liked: newLiked, ts: Date.now(), sig: "" } } };
+      Object.assign(post.likes, timelinePosts[idx].likes);
     }
   } catch (err) {
     // Revert on failure
