@@ -2253,6 +2253,7 @@ body.chat-fullscreen .rail {
 }
 
 #posts-container.media-grid .media-item .uview-post-thumb,
+#media-grid-container.media-grid .uview-post-thumb,
 #media-grid-container.media-grid .media-thumb {
   width: 100%;
   height: 100%;
@@ -2261,20 +2262,8 @@ body.chat-fullscreen .rail {
   flex: 1;
   display: block;
   border: none;
-}
-
-#media-grid-container.media-grid .media-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-#media-grid-container.media-grid .media-category {
-  font-weight: 600;
-  color: var(--text);
+  background: none;
+  border-radius: 0;
 }
 
 #media-grid-container.media-grid .media-like-overlay {
@@ -2329,6 +2318,46 @@ body.chat-fullscreen .rail {
 
 #media-grid-container.media-grid .media-like-overlay.liked {
   background: rgba(227, 51, 51, 0.9);
+}
+
+#media-grid-container.media-grid .media-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+#media-grid-container.media-grid .media-category {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+/* Mobile: make moment caption text readable and stop it cramping in 3 columns */
+@media (max-width: 480px) {
+  #media-grid-container.media-grid .media-info {
+    padding: 4px 6px;
+    font-size: 0.7rem;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  #media-grid-container.media-grid .media-category {
+    font-size: 0.7rem;
+    color: var(--text-main);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  #media-grid-container.media-grid .media-actions {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
 }
 
 .heart.icon-sm {
@@ -2947,11 +2976,42 @@ body {
   cursor: zoom-out;
 }
 .lightbox .lightbox-caption {
-  margin-top: 10px;
-  font-size: 0.8rem;
+  margin-top: 14px;
+  font-size: 0.85rem;
   color: var(--text-muted);
   text-align: center;
   max-width: 60vw;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  display: inline-block;
+}
+
+/* Lightbox caption at the bottom, readable on mobile */
+@media (max-width: 480px) {
+  .lightbox {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .lightbox .lightbox-caption {
+    position: absolute;
+    bottom: 14px;
+    left: 10px;
+    right: 10px;
+    margin-top: 0;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    text-align: center;
+    max-width: 90vw;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 6px 10px;
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+    z-index: 1001;
+  }
 }
 .lightbox img { max-width: 96vw; max-height: 96vh; object-fit: contain; }
 

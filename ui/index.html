@@ -1231,7 +1231,10 @@
     <div id="welcome-modal" class="rail-page" style="display: none;">
       <div class="modal-card welcome" style="max-width: 560px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h3 style="margin: 0;">Welcome to Radica 🌱</h3>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M2 12a6 6 0 1 0 12 0 6 6 0 0 0 12 0"/><path d="M6 12a8 8 0 0 1 8 8 8 8 0 0 1-8 8 6 6 0 0 0 0 12"/><path d="M2 12v2a4 4 0 0 0 8 0v2"/></svg>
+            <span>Welcome to Radica 🌱</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="welcome-skip-btn" title="Skip: you can do all this later">Skip</button>
         </div>
         <ol class="welcome-steps" aria-label="Steps"><li data-step="1">Name</li><li data-step="2">People</li><li data-step="3">First post</li></ol>
@@ -1255,7 +1258,10 @@
     <div id="guide-modal" class="rail-page" style="display: none;">
       <div class="modal-card guide" style="max-width: 640px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h3 style="margin: 0;">How Radica works</h3>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>How Radica works</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="guide-close-btn">✕</button>
         </div>
         <p class="guide-intro">Radica has no company and no central moderators. Everything is signed by its author and stored on Freenet, and what you see is decided on your own device: by who you follow, whose blocklists you trust, and a few checks that run on your computer.</p>
@@ -1432,11 +1438,15 @@
     <div id="updates-modal" class="rail-page" style="display: none;">
       <div class="modal-card" style="max-width: 600px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="button" class="btn-secondary btn-sm updates-tab-btn active" id="updates-tab-news-btn">What's New</button>
-            <button type="button" class="btn-secondary btn-sm updates-tab-btn" id="updates-tab-eco-btn">Ecosystem &amp; Support</button>
-          </div>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M18 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2z"/><polyline points="7 5 12 10 17 5"/></svg>
+            <span>What's New</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="updates-close-btn">✕</button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+          <button type="button" class="btn-secondary btn-sm updates-tab-btn active" id="updates-tab-news-btn">News</button>
+          <button type="button" class="btn-secondary btn-sm updates-tab-btn" id="updates-tab-eco-btn">Ecosystem &amp; Support</button>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.82rem; color: var(--text-muted);">
           <span>Radica decentralized social</span>
@@ -1466,7 +1476,10 @@
     <div id="greenhouse-modal" class="rail-page" style="display: none;">
       <div class="modal-card" style="max-width: 600px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="margin: 0;">Greenhouse</h3>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M2 12a6 6 0 1 0 12 0 6 6 0 0 0 12 0"/><path d="M6 12a8 8 0 0 1 8 8 8 8 0 0 1-8 8 6 6 0 0 0 0 12"/><path d="M2 12v2a4 4 0 0 0 8 0v2"/></svg>
+            <span>Greenhouse</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
         </div>
         <p style="font-size: 0.85rem; margin: 0 0 8px;">Supporters plant ideas and bugs here and vote on them until they close. The votes show what the community thinks: <b>they are a guide, not a promise</b> that something will be built.</p>
@@ -1493,7 +1506,10 @@
     <div id="media-modal" class="rail-page" style="display: none;">
       <div class="modal-card" style="max-width: 800px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-    <h3 style="margin: 0;">Moments</h3>
+    <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>Moments</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="media-close-btn">✕</button>
         </div>
         <!-- Quick post bar (mobile-first) -->
@@ -1523,7 +1539,10 @@
     <div id="blocklists-modal" class="rail-page" style="display: none;">
       <div class="modal-card" style="max-width: 560px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0;" id="blocklists-modal-title">Blocklists</h3>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;" id="blocklists-modal-title">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+            <span>Blocklists</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="blocklists-close-btn">✕</button>
         </div>
         <div class="composer-tabs blocklists-tabs" id="blocklists-tabs" style="margin-bottom: 16px; display: none;">

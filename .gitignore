@@ -92,3 +92,4 @@ ui/public/moderation/model/moderator.tflite
 # Pix Agent
 .pi/
 .pi-lens/
+.cache/
