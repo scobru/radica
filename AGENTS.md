@@ -10,10 +10,24 @@ Whenever a new feature, integration, protocol, or significant improvement is int
 * **Always add an entry to `UPDATES`**: Add a new entry with the current ISO date (`YYYY-MM-DD`) at the very top of the `UPDATES` array in `ui/src/updates.ts`.
 * **Description**: Write a clear, user-facing summary of what the feature does, how users access it, and why it matters.
 
-### 2. Repository Documentation
+### 2. Repository Documentation & In-App Guide
+* **`ui/index.html` (`#guide-modal`)**: When introducing a new user-facing capability, add or update a concise `<details>` section in the in-app Guide.
 * **`CHANGELOG.md`**: Add the new version / feature entry under the current release heading (or bump to a new version block).
 * **`README.md`**: When adding a new capability, companion app integration (e.g., Freenet Mail, FreeTunes, River), or cryptographic protocol, document it under the Key Features or Ecosystem sections.
 * **`CONTEXT.md`**: Record any new domain language terms, invariants, or architectural decisions.
+
+---
+
+## 🛡️ Mandatory Rule: Content Moderation (Local, AI & Manual)
+
+Every feature that **creates, publishes, or displays user-generated content** (posts, articles, boards, events, media, comments, audio/video) MUST integrate all three layers of Radica moderation:
+1. **Local On-Device Model & Text Checks (`ui/src/moderation.ts`)**:
+   * Run `analyzeImageFile(...)` on uploaded images/covers and propagate `isNsfw` / `nsfwScore`.
+   * Run `analyzeTextContent(...)` / `maskProfanity(...)` on text content when appropriate, respecting the reader's `maskBadWords` setting.
+2. **AI Helper & Trusted Curator / WoT Filtering**:
+   * Filter out hidden/blocked authors (`isHiddenAuthor`), posts reported/removed by trusted curators (`freenet.reportedBy`), reported media (`freenet.reportedMediaBy`), and AI helper holds (`freenet.aiHeldTargets()`), while still allowing authors to see their own posts.
+3. **Manual Moderation Controls**:
+   * Expose **Report** (`freenet.reportPost`) and **Hide Author** actions directly in the feature's reader/detail/card UI.
 
 ---
 

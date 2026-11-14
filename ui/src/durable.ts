@@ -24,6 +24,7 @@ export const DURABLE_PREFIXES = [
   "radica_mail_alias_", // Radica Mail custom handle
   "radica_mail_contacts_", // Radica Mail address book contacts
   "radica_mail_welcomed_", // Flag to prevent duplicate welcome mail on fresh loads
+  "radica_article_drafts_", // Long-form article drafts
 ];
 
 /** The delegate refuses values over 256 KB. */

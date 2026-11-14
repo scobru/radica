@@ -34,6 +34,9 @@ Terms the code and its reviews use. Keep them exact.
 - **Repost** — an ordinary post whose caption carries the permalink of another post (`#post=<id>&author=<key>`), after the reposter's own words if any. The caption is signed, so the feed contract has no repost field. The reader's app draws the shared post inside the reposter's card (`repost.ts`).
 - **Plain repost** — a repost with no words of its own. Reposting one shares the post it shares, not the repost.
 - **User Wall** (`#user=<pubkey>` / `#wall=<pubkey>`) — a shareable permalink to any persona's public profile Wall (`openUserProfile` / `openAuthorWallInFeed`), formatted inline in posts and chat by `caption.ts` as `↪ <Name>'s Wall`.
+- **Long-Form Article** (`radica-article:<hash>`, `ui/src/articles.ts`, `ui/src/articlesPage.ts`, `#articles-modal`) — a signed `"thought"` post whose caption references an `ArticlePayload` JSON stored in `media-contract`, rendered as an editorial preview card in the Feed and opened in a distraction-free Markdown Reader (`#article=<postId>&author=<pubkey>`), with durable local drafts (`radica_article_drafts_`) and optional newsletter dispatch via Radica Mail.
+- **Music · FreeTunes Stream & Global Mini-Player** (`ui/src/audioPlayer.ts`, `ui/src/musicPage.ts`, `#music-modal`, `#global-audio-player`) — SoundCloud-style discovery stream over FreeTunes' public directory (`freetunesDirectory()`) paired with a persistent bottom audio mini-player across all Radica views.
+- **Moments Reels** (`ui/src/reels.ts`, `ui/src/reelsPlayer.ts`, `radica-video-blob:<hash>`) — vertical short-video player mode inside Moments (`#media-modal`) with keyboard navigation and full local/AI/curator/manual moderation.
 
 ## Linfa
 

@@ -239,3 +239,26 @@ test("layout: user profile modal puts the feed-style Wall first and includes Sha
   assert.match(mainTs, /copyUserWallLink/);
   assert.match(mainTs, /openAuthorWallInFeed/);
 });
+
+test("mail: contacts folder button, address book view, and contact management controls", () => {
+  const indexHtml = read("../index.html");
+  const mainTs = read("../src/main.ts");
+  const mailCss = read("../src/mail.css");
+
+  for (const id of [
+    "mail-folder-contacts-btn",
+    "mail-contacts-badge",
+    "mail-contacts-view",
+    "mail-contacts-list",
+    "mail-contacts-add-btn",
+    "mail-contacts-mobile-back-btn",
+  ]) {
+    assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
+  }
+
+  assert.match(mainTs, /renderMailContacts/);
+  assert.match(mainTs, /deleteMailContact/);
+  assert.match(mailCss, /\.mail-contact-card/);
+  assert.match(mailCss, /\.mail-contact-del-btn/);
+  assert.match(mailCss, /\.mail-suggestion-del-btn/);
+});

@@ -1,6 +1,33 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **NEW** Curated Boards (CRUD) & Profile Moments / Video Channel (`TASK-007`: `ui/src/boards.ts`, `ui/index.html`, `ui/src/main.ts`, `ui/src/style.css`, `ui/tests/boards.test.ts`):
+    * Added `#board-picker-modal` and `📌 Board` post action so users can create public or private curated collections, attach personal notes, edit board metadata/visibility, remove individual items, delete boards, and share `#board=<id>&author=<pubkey>` permalinks (rendered as clean summary cards in Feed and Profile).
+    * Added `🖼️ Moments`, `📺 Videos` (YouTube-style Channel grid), and `📌 Boards` tabs inside `#user-profile-modal` (`#uview-tabs`) with full local/AI/curator moderation filtering.
+
+  * **NEW** Music · FreeTunes Stream & Persistent Global Audio Mini-Player (`TASK-008`: `ui/src/audioPlayer.ts`, `ui/src/musicPage.ts`, `ui/src/freetunes.ts`, `ui/index.html`, `ui/src/main.ts`, `ui/src/shortcuts.ts`, `ui/src/style.css`, `ui/tests/audioPlayer.test.ts`):
+    * Added `#music-modal` (`#open-music-btn`, shortcut `g y`) displaying releases from FreeTunes' public directory (`freenet.freetunesDirectory()`) in a SoundCloud-style stream with cover art, deterministic waveform tracklists, search, `Following Artists` filter, `Share` to Feed, and `Hide Artist` moderation.
+    * Added a persistent docked `#global-audio-player` bar (Play/Pause, Prev/Next, Seekbar, Volume, Queue count) that keeps playing uninterrupted across all Radica views while pausing any inline feed players.
+
+  * **NEW** Vertical Short-Video Reels inside Moments (`TASK-006`: `ui/src/reels.ts`, `ui/src/reelsPlayer.ts`, `ui/index.html`, `ui/src/main.ts`, `ui/src/style.css`, `ui/tests/reels.test.ts`):
+    * Added a `🎬 Reels` filter mode inside `#media-modal` (Moments) with a vertical video player, `↑`/`↓` keyboard and button navigation, mute toggle, likes, comments, `radica-video-blob:` support, and full local/AI/curator/manual moderation.
+
+  * **NEW** Long-Form Articles & Decentralized Newsletters (`TASK-004`: `ui/src/articles.ts`, `ui/src/articlesPage.ts`, `ui/src/durable.ts`, `ui/index.html`, `ui/src/main.ts`, `ui/src/shortcuts.ts`, `ui/src/style.css`, `ui/tests/articles.test.ts`):
+    * Added native long-form Markdown publishing and reading on Freenet without modifying `radica_contract.wasm`: full `ArticlePayload` JSON objects are stored via `media-contract` (`radica-article:<hash>`) and linked from signed `"thought"` posts.
+    * Added `#articles-modal` rail page (`#open-articles-btn`, shortcut `g a`) with **All Articles**, **Following**, **My Articles**, and **Drafts** filters, live search, a distraction-free **Reader** view (supporting `#article=<postId>&author=<pubkey>` permalinks), and a **Markdown Composer** with cover image upload, Write/Preview tabs, and live reading-time calculation.
+    * Registered `radica_article_drafts_` in `durable.ts` so article drafts survive browser reloads.
+    * Integrated **Newsletter Dispatch via Radica Mail** (`mailClient.ts`), allowing authors to send published article summaries and permalinks directly to selected Radica Mail contacts.
+
+  * **NEW** Freenet Mail Contacts Management & Address Book (`ui/index.html`, `ui/src/mail.css`, `ui/src/mailClient.ts`, `ui/src/main.ts`, `ui/tests/mailClient.test.ts`, `ui/tests/templateNesting.test.ts`):
+    * Added a dedicated **Contacts** folder (`#mail-folder-contacts-btn`, `#mail-contacts-badge`) in the Radica Mail folders sidebar displaying the total count of saved contacts.
+    * Implemented the **Address Book** view (`#mail-contacts-view`, `#mail-contacts-list`, `#mail-contacts-add-btn`) allowing users to view, search, and manage all saved contacts with names, handles, and monospace contact tokens/addresses.
+    * Added complete contact card actions:
+      * ✉️ **Send**: Opens the compose editor pre-filled with the recipient's address and handle.
+      * 📋 **Copy**: Copies the 44-character contact token or inbox address directly to clipboard with visual confirmation.
+      * 🗑️ **Delete / Remove**: Removes contacts from local storage (`deleteMailContact`) with immediate UI update, badge decrement, and feedback toast.
+    * Integrated inline 1-click contact deletion (`.mail-suggestion-del-btn`) directly within the Compose recipient auto-complete dropdown (`mail-to-suggestions`).
+    * Added full test coverage in `ui/tests/mailClient.test.ts` and `ui/tests/templateNesting.test.ts`.
+
   * **FIX** Native Freemail Interoperability: Direct Reply Routing via Inbox Contract Token (`ui/src/mailClient.ts`, `ui/tests/mailClient.test.ts`):
     * Resolved an issue where replying to a Radica email from the official Freenet Mail app failed because Radica set its unencrypted payload `from` field to a local persona alias (`"usernickname"`).
     * When sending to native Freenet Mail contracts, Radica now populates `from` with the sender's 44-character native inbox contract instance ID (`identity.inboxAddress`), allowing official Freenet Mail to auto-populate its recipient field on Reply and route replies directly back to Radica without requiring manual address replacement.

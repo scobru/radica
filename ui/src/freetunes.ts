@@ -266,7 +266,7 @@ const releases = new Map<string, Promise<FtRelease | null>>();
 const coverUrls = new Map<string, Promise<string | null>>();
 const once = (t: EventTarget, ev: string) => new Promise<void>((r) => t.addEventListener(ev, () => r(), { once: true }));
 
-function loadCachedRelease(id: string, get: Fetch): Promise<FtRelease | null> {
+export function loadCachedRelease(id: string, get: Fetch): Promise<FtRelease | null> {
   let p = releases.get(id);
   if (!p) {
     p = get(id).then((s) => (s ? parseRelease(s) : null)).catch(() => null);
@@ -276,7 +276,7 @@ function loadCachedRelease(id: string, get: Fetch): Promise<FtRelease | null> {
   return p;
 }
 
-function loadCoverUrl(addr: string, get: Fetch): Promise<string | null> {
+export function loadCoverUrl(addr: string, get: Fetch): Promise<string | null> {
   let p = coverUrls.get(addr);
   if (!p) {
     p = get(addr)
@@ -289,7 +289,7 @@ function loadCoverUrl(addr: string, get: Fetch): Promise<string | null> {
 }
 
 function pauseOtherFtAudio(except: HTMLAudioElement): void {
-  document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio, #cm-shared-audio").forEach((a) => {
+  document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio, #cm-shared-audio, #global-audio-el").forEach((a) => {
     if (a !== except) a.pause();
   });
 }
@@ -389,7 +389,7 @@ export function fillFreetunes(
         });
         audio.pause();
         status.textContent = "Loading…";
-        void stream(
+        void streamFreetunesTrack(
           audio,
           tr.chunks,
           get,
@@ -621,7 +621,7 @@ export function fillFreetunesProfile(root: ParentNode, get: Fetch): void {
             if (metaEl) metaEl.textContent = "Unavailable";
             return;
           }
-          void stream(
+          void streamFreetunesTrack(
             audio,
             tr.chunks,
             get,
@@ -650,7 +650,7 @@ async function chunk(get: Fetch, id: string): Promise<Uint8Array> {
 }
 
 /** Play a track while its chunks arrive (each is a valid MP3 piece); without MediaSource for MP3, download it all first. */
-async function stream(
+export async function streamFreetunesTrack(
   a: HTMLAudioElement,
   chunks: string[],
   get: Fetch,

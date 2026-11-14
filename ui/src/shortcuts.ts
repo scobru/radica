@@ -87,6 +87,8 @@ export type ActiveView =
   | "greenhouse"
   | "blocklists"
   | "communities"
+  | "articles"
+  | "music"
   | "tree"
   | "profile"
   | "guide"
@@ -111,6 +113,8 @@ export function getActiveView(): ActiveView {
   if (isVisible("greenhouse-modal")) return "greenhouse";
   if (isVisible("blocklists-modal")) return "blocklists";
   if (isVisible("communities-modal")) return "communities";
+  if (isVisible("articles-modal")) return "articles";
+  if (isVisible("music-modal")) return "music";
   if (isVisible("tree-modal")) return "tree";
   if (isVisible("user-profile-modal")) return "profile";
   if (isVisible("guide-modal")) return "guide";
@@ -241,6 +245,16 @@ export function handleGotoKey(key: string): boolean {
     case "r": {
       closeOtherPages("communities-modal");
       document.getElementById("open-communities-btn")?.click();
+      return true;
+    }
+    case "a": {
+      closeOtherPages("articles-modal");
+      document.getElementById("open-articles-btn")?.click();
+      return true;
+    }
+    case "y": {
+      closeOtherPages("music-modal");
+      document.getElementById("open-music-btn")?.click();
       return true;
     }
     case "f":

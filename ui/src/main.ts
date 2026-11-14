@@ -16,6 +16,25 @@ import {
   type RedditFlairFilter,
   type RedditViewMode,
 } from "./communitiesPage.ts";
+import { parseArticleCaption, renderArticleFeedCardHtml } from "./articles.ts";
+import { createArticlesPage } from "./articlesPage.ts";
+import { createMusicPage } from "./musicPage.ts";
+import { createReelsPlayer } from "./reelsPlayer.ts";
+import { isVideoReelPost, parseBlobVideoRef } from "./reels.ts";
+import {
+  addItemToBoard,
+  boardPermalink,
+  createBoard,
+  filterVisibleBoards,
+  loadLocalBoards,
+  parseBoardHash,
+  parseBoardPostCaption,
+  removeItemFromBoard,
+  renderBoardSummaryCardHtml,
+  saveLocalBoards,
+  serializeBoardPostCaption,
+  type CuratedBoard,
+} from "./boards.ts";
 import { getIdentity, personaName } from "./crypto";
 import { linkify, plainMentions, renderCaption, renderPost, renderComment, mentionsIn, nodeOrigin, renderChatText, setMaskBadWords, trendingTags } from "./caption.ts";
 import { deltaPrefixOf, pageHref, deltaCard, fillDelta } from "./delta.ts";
@@ -274,10 +293,12 @@ const modalFmailDoneBtn = document.getElementById("modal-fmail-done-btn") as HTM
 const mailFolderInboxBtn = document.getElementById("mail-folder-inbox-btn") as HTMLButtonElement | null;
 const mailFolderSentBtn = document.getElementById("mail-folder-sent-btn") as HTMLButtonElement | null;
 const mailFolderDraftsBtn = document.getElementById("mail-folder-drafts-btn") as HTMLButtonElement | null;
+const mailFolderContactsBtn = document.getElementById("mail-folder-contacts-btn") as HTMLButtonElement | null;
 
 const mailInboxBadge = document.getElementById("mail-inbox-badge") as HTMLElement | null;
 const mailSentBadge = document.getElementById("mail-sent-badge") as HTMLElement | null;
 const mailDraftsBadge = document.getElementById("mail-drafts-badge") as HTMLElement | null;
+const mailContactsBadge = document.getElementById("mail-contacts-badge") as HTMLElement | null;
 
 const mailSearchInput = document.getElementById("mail-search-input") as HTMLInputElement | null;
 const mailSearchClearBtn = document.getElementById("mail-search-clear-btn") as HTMLButtonElement | null;
@@ -287,6 +308,10 @@ const mailBodyContainer = document.getElementById("mail-body-container") as HTML
 const mailReadView = document.getElementById("mail-read-view") as HTMLElement | null;
 const mailComposeView = document.getElementById("mail-compose-view") as HTMLElement | null;
 const mailEmptyView = document.getElementById("mail-empty-view") as HTMLElement | null;
+const mailContactsView = document.getElementById("mail-contacts-view") as HTMLElement | null;
+const mailContactsList = document.getElementById("mail-contacts-list") as HTMLElement | null;
+const mailContactsAddBtn = document.getElementById("mail-contacts-add-btn") as HTMLButtonElement | null;
+const mailContactsMobileBackBtn = document.getElementById("mail-contacts-mobile-back-btn") as HTMLButtonElement | null;
 
 const mailReadSubject = document.getElementById("mail-read-subject") as HTMLElement | null;
 const mailReadFrom = document.getElementById("mail-read-from") as HTMLElement | null;
@@ -371,6 +396,10 @@ const scopeSavedBtn = document.getElementById("scope-saved-btn") as HTMLButtonEl
 const openMediaBtn = document.getElementById("open-media-btn") as HTMLButtonElement;
 const communitiesModal = document.getElementById("communities-modal") as HTMLElement;
 const openCommunitiesBtn = document.getElementById("open-communities-btn") as HTMLButtonElement | null;
+const articlesModal = document.getElementById("articles-modal") as HTMLElement;
+const openArticlesBtn = document.getElementById("open-articles-btn") as HTMLButtonElement | null;
+const musicModal = document.getElementById("music-modal") as HTMLElement;
+const openMusicBtn = document.getElementById("open-music-btn") as HTMLButtonElement | null;
 const commRedditViewBtn = document.getElementById("comm-reddit-view-btn") as HTMLButtonElement | null;
 
 const activeFilterBanner = document.getElementById("active-filter-banner") as HTMLElement;
@@ -1007,7 +1036,7 @@ document.getElementById("guide-open-btn")!.addEventListener("click", () => (guid
 document.getElementById("guide-close-btn")!.addEventListener("click", () => (guideModal.style.display = "none"));
 
 const mediaModal = document.getElementById("media-modal") as HTMLElement;
-let currentMomentsFilter: "all" | "photos" | "videos" | "following" = "all";
+let currentMomentsFilter: "all" | "photos" | "videos" | "reels" | "following" = "all";
 document.getElementById("moments-toolbar")?.addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".moments-filter-btn");
   if (!btn) return;
@@ -1024,7 +1053,10 @@ document.getElementById("open-media-btn")!.addEventListener("click", () => {
   showQuickPost();
   renderMediaGrid();
 });
-document.getElementById("media-close-btn")!.addEventListener("click", () => (mediaModal.style.display = "none"));
+document.getElementById("media-close-btn")!.addEventListener("click", () => {
+  reelsPlayer.hide();
+  mediaModal.style.display = "none";
+});
 
 // --- Moments quick post bar ---
 const mediaQuickPost = document.getElementById("media-quick-post") as HTMLElement;
@@ -2556,6 +2588,14 @@ function renderTimeline() {
 
         <div class="gram-content">
           ${(() => {
+            const articleRef = parseArticleCaption(caption);
+            if (articleRef) {
+              return renderArticleFeedCardHtml(post, articleRef);
+            }
+            const boardRef = parseBoardPostCaption(caption);
+            if (boardRef) {
+              return renderBoardSummaryCardHtml(boardRef, safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0");
+            }
             const own = repostRef(caption) ? repostText(caption) : caption; // a repost: the shared post's card stands for its link
             const { html, card } = renderPost(own, getAuthorDisplayName);
             const from = html ? translatableFrom(own) : null;
@@ -2604,10 +2644,18 @@ function renderTimeline() {
           <details class="post-more">
             <summary class="action-btn" title="More actions" aria-label="More actions">${renderIcon("moreHorizontal", { className: "icon-sm" })}</summary>
             <div class="post-more-menu">
-          <button class="action-btn save-post-btn ${saved ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${saved ? "Remove from Saved" : "Save this post for later (kept on this device)"}" aria-pressed="${saved}">
+          ${
+            !parseBoardPostCaption(caption)
+              ? `<button class="action-btn save-post-btn ${saved ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${saved ? "Remove from Saved" : "Save this post for later (kept on this device)"}" aria-pressed="${saved}">
             <span>${renderIcon("bookmark", { className: "icon-sm" })}</span>
             <span><span class="action-label"> ${saved ? "Saved" : "Save"}</span></span>
           </button>
+          <button class="action-btn save-to-board-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Save to Curated Board">
+            <span>📌</span>
+            <span><span class="action-label"> Board</span></span>
+          </button>`
+              : ""
+          }
           ${
             !isMyPost
               ? `<button class="action-btn talk-btn btn-icon-text" data-author="${escapeHtml(post.author)}" title="Direct Message" aria-label="Talk">
@@ -2825,6 +2873,15 @@ function renderMediaGrid() {
 
   // Clear previous content
   gridContainer.innerHTML = "";
+  if (currentMomentsFilter === "reels") {
+    gridContainer.style.display = "none";
+    const emptyEl = document.getElementById("media-empty");
+    if (emptyEl) emptyEl.style.display = "none";
+    reelsPlayer.show();
+    return;
+  }
+  gridContainer.style.display = "";
+  reelsPlayer.hide();
 
   const me = currentIdentity?.pubkey ?? "";
   const hidden = new Set(hiddenUsers());
@@ -3335,6 +3392,15 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
     void handleJoinFromInviteUrl(href);
     return;
   }
+  if (/#board=[^&]+/.test(href)) {
+    const u = new URL(href, window.location.href);
+    const boardHash = parseBoardHash(u.hash);
+    if (boardHash?.owner) {
+      e.preventDefault();
+      void openUserProfile(boardHash.owner, "boards");
+      return;
+    }
+  }
   if (/#post=[^&]+/.test(href)) {
     e.preventDefault();
     try {
@@ -3513,6 +3579,20 @@ function initCardListeners() {
       }
     } else if ((el = hit(".delete-post-btn"))) {
       void deletePostFromCard(el);
+    } else if ((el = hit(".board-item-chip"))) {
+      const pid = el.dataset.postId;
+      const auth = el.dataset.author;
+      if (pid) void showMyPost(pid, auth);
+    } else if ((el = hit(".board-copy-link-btn"))) {
+      const bid = el.dataset.boardId;
+      const own = el.dataset.owner;
+      if (bid && own) {
+        const url = `${window.location.origin}${window.location.pathname}${boardPermalink(own, bid)}`;
+        void navigator.clipboard.writeText(url).then(
+          () => showToast("Board link copied!", "info"),
+          () => showToast("Copy failed", "error"),
+        );
+      }
     } else if ((el = hit(".save-post-btn"))) {
       const post = timelinePosts.find((p) => p.id === el!.dataset.postId && p.author === el!.dataset.author);
       if (post && currentIdentity) {
@@ -5132,7 +5212,7 @@ async function openAuthorWallInFeed(pubkey: string) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-async function openUserProfile(pubkey: string) {
+async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" | "moments" | "videos" | "boards" = "posts") {
   markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
   // open at once with what is known; the feed (bio, posts) may take a few seconds to come from the network
@@ -5271,15 +5351,219 @@ async function openUserProfile(pubkey: string) {
   // What they wrote and what they reposted are two tabs (a repost is a post that shares another: repost.ts).
   const captionOf = (p: Post) => freenet.postEdit(pubkey, p.id)?.caption ?? p.caption;
   const authorPosts = Object.values(feed.posts).sort((a, b) => b.timestamp - a.timestamp);
-  const byTab = { posts: authorPosts.filter((p) => !repostRef(captionOf(p))), reposts: authorPosts.filter((p) => repostRef(captionOf(p))) };
+  const videoPosts = authorPosts.filter(isVideoReelPost);
+  const postBoards = authorPosts.map((p) => parseBoardPostCaption(captionOf(p))).filter((b): b is CuratedBoard => Boolean(b));
+  const localAuthorBoards = loadLocalBoards(pubkey);
+  const mergedBoardsMap = new Map<string, CuratedBoard>();
+  for (const b of [...postBoards, ...localAuthorBoards]) mergedBoardsMap.set(b.id, b);
+  const hiddenSet = new Set(hiddenUsers());
+  const mePk = currentIdentity?.pubkey || "";
+  for (const c of [...moderationCurators(), ...(mePk ? [mePk] : [])]) {
+    for (const pk of freenet.blockedBy(c)) hiddenSet.add(pk);
+  }
+  const reportedSet = new Set<string>();
+  for (const c of [...moderationCurators(), ...(mePk ? [mePk] : [])]) {
+    for (const k of freenet.reportedBy(c).keys()) reportedSet.add(k);
+  }
+  for (const t of freenet.aiHeldTargets()) reportedSet.add(t);
+  const authorBoards = filterVisibleBoards([...mergedBoardsMap.values()], {
+    viewerPubkey: mePk,
+    hiddenAuthors: hiddenSet,
+    reportedTargets: reportedSet,
+  }).sort((a, b) => b.updatedAt - a.updatedAt);
+
+  const momentPosts = authorPosts.filter((p) => !repostRef(captionOf(p)) && Boolean(p.media_uri));
+  const byTab = {
+    posts: authorPosts.filter((p) => !repostRef(captionOf(p))),
+    reposts: authorPosts.filter((p) => repostRef(captionOf(p))),
+    moments: momentPosts,
+    videos: videoPosts,
+    boards: authorBoards,
+  };
   drawUviewPosts = (tab) => {
     uviewTabs.querySelectorAll<HTMLElement>("button").forEach((b) => {
       const t = b.dataset.tab as keyof typeof byTab;
       b.setAttribute("aria-selected", String(t === tab));
-      b.textContent = `${t === "posts" ? "Posts" : "Reposts"} (${byTab[t].length})`;
+      const label =
+        t === "posts"
+          ? "Posts"
+          : t === "reposts"
+            ? "Reposts"
+            : t === "moments"
+              ? "🖼️ Moments"
+              : t === "videos"
+                ? "📺 Videos"
+                : "📌 Boards";
+      b.textContent = `${label} (${byTab[t].length})`;
     });
+    const shouldMask = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
+
+    if (tab === "videos") {
+      if (videoPosts.length === 0) {
+        uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">No videos published on this channel yet.</div>`;
+        return;
+      }
+      uviewPostsGallery.innerHTML = `<div class="uview-channel-grid">${videoPosts
+        .map((p) => {
+          const likes = Object.values(p.likes ?? {}).filter((l) => l.liked).length;
+          const comments = Object.values(p.comments ?? {}).filter((c) => c.text !== "").length;
+          const cap = captionOf(p) || "Video";
+          const vref = videoRef(p.media_uri);
+          const badge = vref ? "Moment Video" : "Blob Video";
+          return `<div class="uview-video-card" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(pubkey)}">
+            <div class="uview-video-thumb">
+              <span class="uview-video-badge">${badge}</span>
+              <button type="button" class="btn-primary btn-sm uview-watch-btn" data-post-id="${escapeHtml(p.id)}" data-media="${escapeHtml(p.media_uri || "")}">▶ Watch</button>
+            </div>
+            <div class="uview-video-info">
+              <div class="uview-video-title">${renderCaption(cap.slice(0, 110), getAuthorDisplayName)}</div>
+              <div class="uview-post-meta"><span>♥ ${likes} · 💬 ${comments} · ${formatTimeAgo(p.timestamp)}</span></div>
+            </div>
+          </div>`;
+        })
+        .join("")}</div>`;
+      uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".uview-watch-btn").forEach((btn) => {
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const uri = btn.dataset.media;
+          if (uri && videoRef(uri)) {
+            playVideoFullscreen(uri);
+          } else if (btn.dataset.postId) {
+            userProfileModal.style.display = "none";
+            void showMyPost(btn.dataset.postId, pubkey);
+          }
+        });
+      });
+      return;
+    }
+
+    if (tab === "boards") {
+      const headerHtml = isSelf
+        ? `<div class="uview-boards-bar"><button type="button" class="btn-primary btn-sm" id="uview-new-board-btn">+ New Board</button></div>`
+        : "";
+      if (authorBoards.length === 0) {
+        uviewPostsGallery.innerHTML = `${headerHtml}<div style="font-size: 0.85rem; color: var(--text-muted);">No curated boards yet.</div>`;
+      } else {
+        uviewPostsGallery.innerHTML = `${headerHtml}<div class="uview-boards-list">${authorBoards
+          .map((b) => renderBoardSummaryCardHtml(b, shouldMask, isSelf))
+          .join("")}</div>`;
+      }
+      document.getElementById("uview-new-board-btn")?.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openBoardPickerModal(null);
+      });
+      if (isSelf && currentIdentity) {
+        const me = currentIdentity;
+        uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-edit-btn").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const card = btn.closest(".board-card");
+            const form = card?.querySelector<HTMLFormElement>(".board-edit-form");
+            if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
+          });
+        });
+        uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-edit-cancel-btn").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const form = btn.closest<HTMLFormElement>(".board-edit-form");
+            if (form) form.style.display = "none";
+          });
+        });
+        uviewPostsGallery.querySelectorAll<HTMLFormElement>(".board-edit-form").forEach((form) => {
+          form.addEventListener("submit", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const bid = form.dataset.boardId;
+            if (!bid) return;
+            const title = form.querySelector<HTMLInputElement>(".board-edit-title")?.value.trim() || "";
+            if (!title) return showToast("Board title cannot be empty.", "error");
+            const desc = form.querySelector<HTMLInputElement>(".board-edit-desc")?.value.trim() || "";
+            const vis = (form.querySelector<HTMLSelectElement>(".board-edit-vis")?.value === "private" ? "private" : "public") as "public" | "private";
+            const local = loadLocalBoards(me.pubkey);
+            const idx = local.findIndex((b) => b.id === bid);
+            const existing = idx >= 0 ? local[idx] : authorBoards.find((b) => b.id === bid);
+            if (!existing) return;
+            const updated: CuratedBoard = { ...existing, title, description: desc, visibility: vis, updatedAt: Date.now() };
+            if (idx >= 0) local[idx] = updated;
+            else local.unshift(updated);
+            saveLocalBoards(me.pubkey, local);
+            if (updated.visibility === "public") {
+              void freenet.publishPost(me, "thought", serializeBoardPostCaption(updated)).catch(() => {});
+            }
+            showToast(`Updated board "${updated.title}".`, "info");
+            void openUserProfile(pubkey, "boards");
+          });
+        });
+        uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-item-remove-btn").forEach((btn) => {
+          btn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const bid = btn.dataset.boardId;
+            const pid = btn.dataset.postId;
+            const auth = btn.dataset.author;
+            if (!bid || !pid || !auth) return;
+            const local = loadLocalBoards(me.pubkey);
+            const idx = local.findIndex((b) => b.id === bid);
+            const existing = idx >= 0 ? local[idx] : authorBoards.find((b) => b.id === bid);
+            if (!existing) return;
+            const updated = removeItemFromBoard(existing, auth, pid);
+            if (idx >= 0) local[idx] = updated;
+            else local.unshift(updated);
+            saveLocalBoards(me.pubkey, local);
+            if (updated.visibility === "public") {
+              void freenet.publishPost(me, "thought", serializeBoardPostCaption(updated)).catch(() => {});
+            }
+            showToast("Removed item from board.", "info");
+            void openUserProfile(pubkey, "boards");
+          });
+        });
+        uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-delete-btn").forEach((btn) => {
+          btn.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            const bid = btn.dataset.boardId;
+            if (!bid || !confirm("Delete this board? (Saved posts themselves are not deleted.)")) return;
+            const local = loadLocalBoards(me.pubkey).filter((b) => b.id !== bid);
+            saveLocalBoards(me.pubkey, local);
+            const snapshotPosts = authorPosts.filter((p) => parseBoardPostCaption(captionOf(p))?.id === bid);
+            for (const sp of snapshotPosts) {
+              timelinePosts = timelinePosts.filter((p) => p.id !== sp.id);
+              await freenet.deletePost(me, sp.id).catch(() => {});
+            }
+            showToast("Board deleted.", "info");
+            void openUserProfile(pubkey, "boards");
+          });
+        });
+      }
+      uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-item-chip").forEach((btn) => {
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const pid = btn.dataset.postId;
+          const auth = btn.dataset.author;
+          if (pid) {
+            userProfileModal.style.display = "none";
+            void showMyPost(pid, auth);
+          }
+        });
+      });
+      uviewPostsGallery.querySelectorAll<HTMLButtonElement>(".board-copy-link-btn").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const bid = btn.dataset.boardId;
+          const own = btn.dataset.owner;
+          if (!bid || !own) return;
+          const url = `${window.location.origin}${window.location.pathname}${boardPermalink(own, bid)}`;
+          try {
+            await navigator.clipboard.writeText(url);
+            showToast("Board link copied!", "info");
+          } catch {
+            showToast("Could not copy link.", "error");
+          }
+        });
+      });
+      return;
+    }
+
     if (byTab[tab].length === 0) {
-      uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">${tab === "posts" ? "No posts yet." : "Nothing reposted yet."}</div>`;
+      uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">${tab === "posts" ? "No posts yet." : tab === "moments" ? "No moments yet." : "Nothing reposted yet."}</div>`;
       return;
     }
     const displayName = name || getAuthorDisplayName(pubkey);
@@ -5298,7 +5582,11 @@ async function openUserProfile(pubkey: string) {
             ${comm}
           </div>
           <div class="uview-post-body">
-            ${own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : ""}
+            ${(() => {
+              const bRef = own ? parseBoardPostCaption(own) : null;
+              if (bRef) return renderBoardSummaryCardHtml(bRef, shouldMask, false);
+              return own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : "";
+            })()}
             ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" /></div>` : ""}
             ${tab === "reposts" ? repostCard(caption) : ""}
             <div class="uview-post-meta">
@@ -5312,7 +5600,7 @@ async function openUserProfile(pubkey: string) {
     showMedia(uviewPostsGallery);
     fillReposts(uviewPostsGallery);
   };
-  drawUviewPosts("posts");
+  drawUviewPosts(initialTab);
 
   userProfileModal.style.display = "flex";
 }
@@ -5379,11 +5667,118 @@ const openProfilePost = (e: Event) => {
 };
 uviewPostsGallery.addEventListener("click", openProfilePost);
 /** Draw one tab of the open profile (set by openUserProfile, which knows whose posts they are). */
-let drawUviewPosts: (tab: "posts" | "reposts") => void = () => {};
+let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards") => void = () => {};
 const uviewTabs = document.getElementById("uview-tabs") as HTMLElement;
 uviewTabs.addEventListener("click", (e) => {
   const tab = (e.target as Element).closest<HTMLElement>("button")?.dataset.tab;
-  if (tab === "posts" || tab === "reposts") drawUviewPosts(tab);
+  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards") drawUviewPosts(tab);
+});
+
+const boardPickerModal = document.getElementById("board-picker-modal") as HTMLElement | null;
+const boardPickerCloseBtn = document.getElementById("board-picker-close-btn") as HTMLButtonElement | null;
+const boardPickerExisting = document.getElementById("board-picker-existing") as HTMLElement | null;
+const boardNewTitle = document.getElementById("board-new-title") as HTMLInputElement | null;
+const boardNewDesc = document.getElementById("board-new-desc") as HTMLInputElement | null;
+const boardItemNote = document.getElementById("board-item-note") as HTMLInputElement | null;
+const boardNewVisibility = document.getElementById("board-new-visibility") as HTMLSelectElement | null;
+const boardCreateSaveBtn = document.getElementById("board-create-save-btn") as HTMLButtonElement | null;
+let boardPickerTargetPost: Post | null = null;
+
+function openBoardPickerModal(post: Post | null) {
+  if (!currentIdentity) {
+    showToast("Sign in first to save to a Board.", "warning");
+    return;
+  }
+  if (!boardPickerModal || !boardPickerExisting) return;
+  boardPickerTargetPost = post;
+  if (boardNewTitle) boardNewTitle.value = "";
+  if (boardNewDesc) boardNewDesc.value = "";
+  if (boardItemNote) boardItemNote.value = "";
+  const boards = loadLocalBoards(currentIdentity.pubkey);
+  boardPickerExisting.innerHTML = boards.length
+    ? boards
+        .map(
+          (b) =>
+            `<button type="button" class="btn-secondary btn-sm board-pick-btn" data-board-id="${escapeHtml(b.id)}">` +
+              `<span>📌 ${escapeHtml(b.title)}</span>` +
+              `<small>${b.visibility === "private" ? "🔒" : "🌐"} ${b.items.length}</small>` +
+            `</button>`
+        )
+        .join("")
+    : `<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">No boards yet. Create your first one below!</div>`;
+
+  boardPickerExisting.querySelectorAll<HTMLButtonElement>(".board-pick-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!currentIdentity) return;
+      const bid = btn.dataset.boardId;
+      const list = loadLocalBoards(currentIdentity.pubkey);
+      const idx = list.findIndex((b) => b.id === bid);
+      if (idx === -1) return;
+      if (boardPickerTargetPost) {
+        list[idx] = addItemToBoard(list[idx], {
+          postId: boardPickerTargetPost.id,
+          author: boardPickerTargetPost.author,
+          captionPreview: boardPickerTargetPost.caption || "",
+          mediaUri: boardPickerTargetPost.media_uri,
+          note: boardItemNote?.value.trim() || undefined,
+          addedAt: Date.now(),
+        });
+      }
+      saveLocalBoards(currentIdentity.pubkey, list);
+      if (list[idx].visibility === "public") {
+        void freenet.publishPost(currentIdentity, "thought", serializeBoardPostCaption(list[idx])).catch(() => {});
+      }
+      boardPickerModal.style.display = "none";
+      showToast(`Saved to "${list[idx].title}"!`, "info");
+      if (userProfileModal.style.display !== "none") drawUviewPosts("boards");
+    };
+  });
+
+  boardPickerModal.style.display = "flex";
+}
+
+boardPickerCloseBtn?.addEventListener("click", () => {
+  if (boardPickerModal) boardPickerModal.style.display = "none";
+});
+
+boardCreateSaveBtn?.addEventListener("click", async () => {
+  if (!currentIdentity || !boardPickerModal) return;
+  const title = boardNewTitle?.value.trim() || "";
+  if (!title) {
+    showToast("Enter a board title.", "warning");
+    return;
+  }
+  const desc = boardNewDesc?.value.trim() || "";
+  const vis = (boardNewVisibility?.value === "private" ? "private" : "public") as "public" | "private";
+  let board = createBoard(currentIdentity.pubkey, title, desc, vis);
+  if (boardPickerTargetPost) {
+    board = addItemToBoard(board, {
+      postId: boardPickerTargetPost.id,
+      author: boardPickerTargetPost.author,
+      captionPreview: boardPickerTargetPost.caption || "",
+      mediaUri: boardPickerTargetPost.media_uri,
+      note: boardItemNote?.value.trim() || undefined,
+      addedAt: Date.now(),
+    });
+  }
+  const existing = loadLocalBoards(currentIdentity.pubkey);
+  saveLocalBoards(currentIdentity.pubkey, [board, ...existing]);
+  if (board.visibility === "public") {
+    void freenet.publishPost(currentIdentity, "thought", serializeBoardPostCaption(board)).catch(() => {});
+  }
+  boardPickerModal.style.display = "none";
+  showToast(`Created board "${board.title}"!`, "info");
+  if (userProfileModal.style.display !== "none") drawUviewPosts("boards");
+});
+
+document.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>(".save-to-board-btn");
+  if (!btn) return;
+  const pid = btn.dataset.postId;
+  const author = btn.dataset.author;
+  if (!pid || !author) return;
+  const post = timelinePosts.find((p) => p.id === pid && p.author === author);
+  if (post) openBoardPickerModal(post);
 });
 uviewPostsGallery.addEventListener("keydown", (e) => {
   if ((e as KeyboardEvent).key === "Enter") openProfilePost(e);
@@ -5544,6 +5939,8 @@ const railPages: [HTMLElement, string][] = [
   [mediaModal, "open-media-btn"],
   [document.getElementById("tree-modal") as HTMLElement, "open-tree-btn"],
   [communitiesModal, "open-communities-btn"],
+  [articlesModal, "open-articles-btn"],
+  [musicModal, "open-music-btn"],
   [welcomeModal, ""], // first steps: no rail button
   [blocklistsModal, "blocklists-open-btn"],
   [userProfileModal, ""], // someone's profile: no rail button
@@ -6196,7 +6593,8 @@ function stepBackInRadica(): boolean {
   }
   if (isOpen(mailModal) && mailBodyContainer?.classList.contains("in-detail")) {
     mailBodyContainer.classList.remove("in-detail");
-    if (mailReadView) mailReadView.style.display = "none";
+    if (mailContactsView) mailContactsView.style.display = "none";
+  if (mailReadView) mailReadView.style.display = "none";
     if (mailComposeView) mailComposeView.style.display = "none";
     if (mailEmptyView) mailEmptyView.style.display = "flex";
     return true;
@@ -8481,6 +8879,30 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
   const hash = fromHash ? fromHash.replace(/^#/, "") : "";
   if (!hash) return;
   const params = new URLSearchParams(hash);
+  const articleId = params.get("article");
+  const articleAuthor = params.get("author") || undefined;
+  if (articleId && articleAuthor) {
+    try {
+      const cached = await freenet.getFeed(articleAuthor).catch(() => null);
+      if (!cached?.posts?.[articleId]) await freenet.refresh(articleAuthor, true, true);
+      closeRailPages(articlesModal);
+      await articlesPage.openReader({ postId: articleId, author: articleAuthor });
+    } catch (err) {
+      console.warn("Could not navigate to article from hash:", err);
+    }
+    return;
+  }
+
+  const boardHash = parseBoardHash(hash);
+  if (boardHash?.owner) {
+    try {
+      await openUserProfile(boardHash.owner, "boards");
+    } catch (err) {
+      console.warn("Could not navigate to board from hash:", err);
+    }
+    return;
+  }
+
   const postId = params.get("post");
   const author = params.get("author") || undefined;
   if (postId) {
@@ -9268,6 +9690,8 @@ function updateScopeBtnActive(activeBtn: HTMLButtonElement) {
   scopeSavedBtn.classList.remove("active");
   openMediaBtn.classList.remove("active");
   openCommunitiesBtn?.classList.remove("active");
+  openArticlesBtn?.classList.remove("active");
+  openMusicBtn?.classList.remove("active");
   activeBtn.classList.add("active");
 }
 
@@ -9813,6 +10237,274 @@ function renderCommunitiesPage() {
 
 openCommunitiesBtn?.addEventListener("click", () => {
   openCommunitiesPage(activeCommunity ?? selectedRedditCommunity);
+});
+
+const articlesPage = createArticlesPage({
+  getIdentity: () => currentIdentity,
+  getAllPosts: () => {
+    const me = currentIdentity?.pubkey || "";
+    const reported = new Set<string>();
+    const reportedMedia = new Set<string>();
+    for (const c of trustedCurators()) {
+      for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+      for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
+    }
+    for (const t of freenet.aiHeldTargets()) reported.add(t);
+
+    const byKey = new Map<string, Post>();
+    const add = (p: Post) => {
+      if (!p || isHiddenAuthor(p.author)) return;
+      if (p.author !== me) {
+        if (reported.has(`${p.author}:${p.id}`)) return;
+        const mh = postMediaHash(p);
+        if (mh && reportedMedia.has(mh)) return;
+      }
+      byKey.set(`${p.author}:${p.id}`, p);
+    };
+    for (const p of timelinePosts) add(p);
+    for (const p of Object.values(freenet.peerCache || {})) add(p);
+    return [...byKey.values()];
+  },
+  getFollowing: () => new Set(followingKeys),
+  getAuthorName: (pk) => getAuthorDisplayName(pk),
+  getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),
+  getMediaUrl: async (uri) => {
+    if (!uri) return undefined;
+    const ref = mediaRef(uri);
+    if (ref) return await mediaUrl(ref, (h) => freenet.getMedia(h));
+    return uri;
+  },
+  getArticleBytes: (hash) => freenet.getMedia(hash),
+  putArticleBytes: (bytes) => freenet.putMedia(bytes),
+  publishArticlePost: (caption, coverUri, isNsfw, nsfwScore) => {
+    if (!currentIdentity) throw new Error("Not signed in");
+    return freenet.publishPost(currentIdentity, "thought", caption, coverUri, undefined, undefined, undefined, isNsfw, nsfwScore);
+  },
+  compressCoverImage: (file) => compressPostImageFile(file, 1024, 0.8),
+  getMailIdentity: () => getOrDeriveFmailIdentity(),
+  openUserWall: (pk) => void openUserProfile(pk),
+  openPostInFeed: (postId, author) => void showMyPost(postId, author),
+  toggleLike: async (author, postId) => {
+    if (!currentIdentity) {
+      showToast("Sign in first to like.", "warning");
+      return;
+    }
+    await freenet.toggleLike(currentIdentity, author, postId);
+    const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
+    if (idx !== -1) {
+      const currentlyLiked = Boolean(timelinePosts[idx].likes?.[currentIdentity.pubkey]?.liked);
+      timelinePosts[idx] = {
+        ...timelinePosts[idx],
+        likes: {
+          ...timelinePosts[idx].likes,
+          [currentIdentity.pubkey]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+        },
+      };
+    }
+    renderTimeline();
+  },
+  reportArticle: async (author, postId) => {
+    await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
+  },
+  hideAuthor: (author) => {
+    if (!author || author === currentIdentity?.pubkey) return;
+    setUserHidden(author, true);
+    renderTimeline();
+    showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
+  },
+  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
+  getAppBaseUrl: () => `${window.location.origin}${window.location.pathname}`,
+  showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
+  closeModal: () => {
+    articlesModal.style.display = "none";
+  },
+  onPublished: () => renderTimeline(),
+  getFreenetClient: () => freenet,
+});
+
+openArticlesBtn?.addEventListener("click", () => {
+  closeRailPages(articlesModal);
+  articlesPage.openList();
+});
+
+const musicPage = createMusicPage({
+  loadDirectory: () => freenet.freetunesDirectory(),
+  getRawContract: (id) => freenet.appContract(id),
+  getMyPubkey: () => currentIdentity?.pubkey || "",
+  getHiddenAuthors: () => new Set(hiddenUsers()),
+  getFollowing: () => new Set(followingKeys),
+  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
+  openUserWall: (pk) => void openUserProfile(pk),
+  toggleFollow: async (pk) => {
+    if (!currentIdentity) {
+      showToast("Sign in first to follow artists.", "warning");
+      return followingKeys.includes(pk);
+    }
+    const nowFollowing = await freenet.toggleFollow(currentIdentity, pk);
+    followingKeys = nowFollowing ? [...new Set([...followingKeys, pk])] : followingKeys.filter((k) => k !== pk);
+    renderFollowingList();
+    renderTimeline();
+    showToast(nowFollowing ? `Following ${getAuthorDisplayName(pk)}` : `Unfollowed ${getAuthorDisplayName(pk)}`, "info");
+    return nowFollowing;
+  },
+  shareReleaseToFeed: (item) => {
+    musicModal.style.display = "none";
+    const link = `#/r/${item.id}.${item.params}`;
+    postCaption.value = `🎵 Listening to **${item.title}** by ${item.artist}\n\n${link}`;
+    postCaption.dispatchEvent(new Event("input"));
+    setTimeout(() => postCaption.focus(), 50);
+  },
+  hideAuthor: (pk) => {
+    if (!pk || pk === currentIdentity?.pubkey) return;
+    setUserHidden(pk, true);
+    renderTimeline();
+    showToast(`Hidden ${getAuthorDisplayName(pk)} on this device.`, "info");
+  },
+  showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
+  closeModal: () => {
+    musicModal.style.display = "none";
+  },
+});
+
+openMusicBtn?.addEventListener("click", () => {
+  closeRailPages(musicModal);
+  musicPage.open();
+});
+
+const reelsPlayer = createReelsPlayer({
+  getPosts: () => {
+    const byKey = new Map<string, Post>();
+    for (const p of timelinePosts) if (p) byKey.set(`${p.author}:${p.id}`, p);
+    for (const p of Object.values(freenet.peerCache || {})) if (p) byKey.set(`${p.author}:${p.id}`, p);
+    return [...byKey.values()];
+  },
+  getMyPubkey: () => currentIdentity?.pubkey || "",
+  getHiddenAuthors: () => {
+    const hidden = new Set(hiddenUsers());
+    const me = currentIdentity?.pubkey ?? "";
+    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
+    for (const c of curators) for (const pk of freenet.blockedBy(c)) hidden.add(pk);
+    return hidden;
+  },
+  getReportedTargets: () => {
+    const reported = new Set<string>();
+    const me = currentIdentity?.pubkey ?? "";
+    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
+    for (const c of curators) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+    for (const t of freenet.aiHeldTargets()) reported.add(t);
+    return reported;
+  },
+  getReportedMedia: () => {
+    const rm = new Set<string>();
+    const me = currentIdentity?.pubkey ?? "";
+    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
+    for (const c of curators) for (const h of freenet.reportedMediaBy(c)) rm.add(h);
+    return rm;
+  },
+  getFollowing: () => new Set(followingKeys),
+  getAuthorName: (pk) => getAuthorDisplayName(pk),
+  getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),
+  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
+  mountVideo: (post, onProgress, onReady) => {
+    const vref = videoRef(post.media_uri);
+    if (vref) {
+      const { video } = playVideo(post.media_uri!, (h) => freenet.getMedia(h), onProgress, onReady);
+      return {
+        video,
+        cleanup: () => {
+          video.pause();
+          video.removeAttribute("src");
+          video.load();
+        },
+      };
+    }
+    const bref = parseBlobVideoRef(post.caption);
+    let cancelled = false;
+    let blobUrl = "";
+    if (bref) {
+      void freenet.getMedia(bref.hash).then((bytes) => {
+        if (cancelled) return;
+        if (!bytes) {
+          onProgress(0, 0, 1);
+          return;
+        }
+        blobUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "video/mp4" }));
+        const v = document.createElement("video");
+        v.src = blobUrl;
+        onReady(v);
+      });
+    } else {
+      onProgress(0, 0, 1);
+    }
+    return {
+      cleanup: () => {
+        cancelled = true;
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      },
+    };
+  },
+  toggleLike: async (author, postId) => {
+    if (!currentIdentity) {
+      showToast("Sign in first to like.", "warning");
+      return;
+    }
+    await freenet.toggleLike(currentIdentity, author, postId);
+    const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
+    if (idx !== -1) {
+      const currentlyLiked = Boolean(timelinePosts[idx].likes?.[currentIdentity.pubkey]?.liked);
+      timelinePosts[idx] = {
+        ...timelinePosts[idx],
+        likes: {
+          ...timelinePosts[idx].likes,
+          [currentIdentity.pubkey]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+        },
+      };
+    }
+    renderTimeline();
+  },
+  openComments: (postId, author) => {
+    reelsPlayer.hide();
+    mediaModal.style.display = "none";
+    void showMyPost(postId, author);
+  },
+  openUserWall: (pk) => void openUserProfile(pk),
+  reportPost: async (author, postId) => {
+    await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
+  },
+  hideAuthor: (author) => {
+    if (!author || author === currentIdentity?.pubkey) return;
+    setUserHidden(author, true);
+    renderTimeline();
+    showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
+  },
+  showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
+  onExit: () => {
+    document.querySelector<HTMLButtonElement>('.moments-filter-btn[data-mfilter="all"]')?.click();
+  },
+});
+
+document.addEventListener("keydown", (e) => {
+  if (mediaModal.style.display !== "none" && currentMomentsFilter === "reels") {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      reelsPlayer.step(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      reelsPlayer.step(-1);
+    }
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement | null)?.closest<HTMLElement>(".open-article-reader-btn");
+  if (!btn) return;
+  const postId = btn.dataset.articlePostId;
+  const author = btn.dataset.articleAuthor;
+  const hash = btn.dataset.articleHash;
+  if (postId && author) {
+    closeRailPages(articlesModal);
+    void articlesPage.openReader({ postId, author, hash });
+  }
 });
 
 commRedditViewBtn?.addEventListener("click", () => {
@@ -10816,6 +11508,7 @@ function updateMailBadges() {
   const unreadCount = getUnreadMailCount(store.messages);
   const sentCount = store.messages.filter((m) => m.folder === "sent").length;
   const draftsCount = store.messages.filter((m) => m.folder === "drafts").length;
+  const contactsCount = loadMailContacts(currentIdentity.pubkey).length;
 
   if (mailBadge) {
     mailBadge.textContent = String(unreadCount);
@@ -10832,6 +11525,10 @@ function updateMailBadges() {
   if (mailDraftsBadge) {
     mailDraftsBadge.textContent = String(draftsCount);
     mailDraftsBadge.style.display = draftsCount > 0 ? "inline-block" : "none";
+  }
+  if (mailContactsBadge) {
+    mailContactsBadge.textContent = String(contactsCount);
+    mailContactsBadge.style.display = contactsCount > 0 ? "inline-block" : "none";
   }
   if (prevMailUnread !== -1 && unreadCount > prevMailUnread) {
     playPopSound();
@@ -10880,7 +11577,7 @@ function renderMailList() {
     mailCompanionLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
   }
 
-  [mailFolderInboxBtn, mailFolderSentBtn, mailFolderDraftsBtn].forEach((btn) => {
+  [mailFolderInboxBtn, mailFolderSentBtn, mailFolderDraftsBtn, mailFolderContactsBtn].forEach((btn) => {
     if (btn) {
       btn.classList.toggle("active", btn.dataset.folder === activeMailFolder);
     }
@@ -11070,6 +11767,7 @@ function renderMailToSuggestions(filter = "") {
             <span class="mail-suggestion-addr">${escapeHtml(s.address)}</span>
           </div>
           <span class="mail-suggestion-tag">${s.source === "self" ? "You" : s.source === "contact" ? "Contact" : "Radica Peer"}</span>
+          ${s.source === "contact" ? `<button type="button" class="mail-suggestion-del-btn" data-del-addr="${escapeHtml(s.address)}" title="Remove contact">✕</button>` : ""}
         </div>
       `
     )
@@ -11089,6 +11787,7 @@ function renderMailToSuggestions(filter = "") {
 
   mailToSuggestions.querySelectorAll<HTMLElement>(".mail-suggestion-item:not(.mail-suggestion-add-contact)").forEach((item) => {
     item.addEventListener("mousedown", (e) => {
+      if ((e.target as HTMLElement).closest(".mail-suggestion-del-btn")) return;
       e.preventDefault();
       const addr = item.dataset.address;
       const name = item.dataset.name;
@@ -11097,6 +11796,20 @@ function renderMailToSuggestions(filter = "") {
         mailToSuggestions.style.display = "none";
         mailSubjectInput?.focus();
       }
+    });
+  });
+
+  mailToSuggestions.querySelectorAll<HTMLButtonElement>(".mail-suggestion-del-btn").forEach((btn) => {
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const addr = btn.dataset.delAddr;
+      if (!addr || !currentIdentity) return;
+      deleteMailContact(currentIdentity.pubkey, addr);
+      updateMailBadges();
+      renderMailToSuggestions(mailToInput?.value || "");
+      if (activeMailFolder === "contacts") renderMailContacts();
+      showToast("Contact removed.", "info");
     });
   });
 
@@ -11156,10 +11869,85 @@ if (mailRefreshBtn) {
     renderMailList();
   });
 }
+function renderMailContacts() {
+  if (!currentIdentity || !mailContactsList) return;
+  const contacts = loadMailContacts(currentIdentity.pubkey);
+  const query = (mailSearchInput?.value || "").trim().toLowerCase();
+  const filtered = query
+    ? contacts.filter((c) => c.name.toLowerCase().includes(query) || c.address.toLowerCase().includes(query))
+    : contacts;
+
+  updateMailBadges();
+
+  if (filtered.length === 0) {
+    mailContactsList.innerHTML = `
+      <div style="padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+        ${query ? "No contacts match your search." : "No saved contacts yet. Click ➕ Add Contact to import a Freenet Mail address or token."}
+      </div>
+    `;
+    return;
+  }
+
+  mailContactsList.innerHTML = filtered
+    .map((c) => {
+      const initial = escapeHtml((c.name || c.address || "?").charAt(0).toUpperCase());
+      return `
+        <div class="mail-contact-card" data-address="${escapeHtml(c.address)}">
+          <div class="mail-contact-left">
+            <div class="mail-contact-avatar">${initial}</div>
+            <div class="mail-contact-info">
+              <span class="mail-contact-name">${escapeHtml(c.name)}</span>
+              <span class="mail-contact-addr" title="${escapeHtml(c.address)}">${escapeHtml(c.address)}</span>
+            </div>
+          </div>
+          <div class="mail-contact-actions">
+            <button type="button" class="btn-secondary btn-sm mail-contact-send-btn" data-name="${escapeHtml(c.name)}" data-addr="${escapeHtml(c.address)}" title="Send Mail">✉️</button>
+            <button type="button" class="btn-secondary btn-sm mail-contact-copy-btn" data-addr="${escapeHtml(c.address)}" title="Copy Address">📋</button>
+            <button type="button" class="btn-secondary btn-sm mail-contact-del-btn" data-addr="${escapeHtml(c.address)}" title="Delete Contact">🗑️</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  mailContactsList.querySelectorAll<HTMLButtonElement>(".mail-contact-send-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.name || "";
+      const addr = btn.dataset.addr || "";
+      if (mailContactsView) mailContactsView.style.display = "none";
+      openMailComposer({ to: name ? `${name} <${addr}>` : addr });
+    });
+  });
+
+  mailContactsList.querySelectorAll<HTMLButtonElement>(".mail-contact-copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const addr = btn.dataset.addr || "";
+      if (!addr) return;
+      try {
+        await navigator.clipboard.writeText(addr);
+        showToast("✓ Contact address copied!", "info");
+      } catch {
+        showToast("Could not copy address.", "error");
+      }
+    });
+  });
+
+  mailContactsList.querySelectorAll<HTMLButtonElement>(".mail-contact-del-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const addr = btn.dataset.addr || "";
+      if (!addr || !currentIdentity) return;
+      deleteMailContact(currentIdentity.pubkey, addr);
+      renderMailContacts();
+      showToast("Contact removed.", "info");
+    });
+  });
+}
+
 if (mailFolderInboxBtn) {
   mailFolderInboxBtn.addEventListener("click", () => {
     activeMailFolder = "inbox";
     renderMailList();
+    if (mailContactsView) mailContactsView.style.display = "none";
     if (mailReadView) mailReadView.style.display = "none";
     if (mailComposeView) mailComposeView.style.display = "none";
     if (mailEmptyView) mailEmptyView.style.display = "flex";
@@ -11170,6 +11958,7 @@ if (mailFolderSentBtn) {
   mailFolderSentBtn.addEventListener("click", () => {
     activeMailFolder = "sent";
     renderMailList();
+    if (mailContactsView) mailContactsView.style.display = "none";
     if (mailReadView) mailReadView.style.display = "none";
     if (mailComposeView) mailComposeView.style.display = "none";
     if (mailEmptyView) mailEmptyView.style.display = "flex";
@@ -11180,10 +11969,37 @@ if (mailFolderDraftsBtn) {
   mailFolderDraftsBtn.addEventListener("click", () => {
     activeMailFolder = "drafts";
     renderMailList();
+    if (mailContactsView) mailContactsView.style.display = "none";
     if (mailReadView) mailReadView.style.display = "none";
     if (mailComposeView) mailComposeView.style.display = "none";
     if (mailEmptyView) mailEmptyView.style.display = "flex";
     mailBodyContainer?.classList.remove("in-detail");
+  });
+}
+if (mailFolderContactsBtn) {
+  mailFolderContactsBtn.addEventListener("click", () => {
+    activeMailFolder = "contacts";
+    [mailFolderInboxBtn, mailFolderSentBtn, mailFolderDraftsBtn, mailFolderContactsBtn].forEach((btn) => {
+      if (btn) btn.classList.toggle("active", btn === mailFolderContactsBtn);
+    });
+    renderMailContacts();
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailComposeView) mailComposeView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "none";
+    if (mailContactsView) mailContactsView.style.display = "flex";
+    mailBodyContainer?.classList.add("in-detail");
+  });
+}
+if (mailContactsAddBtn) {
+  mailContactsAddBtn.addEventListener("click", () => {
+    openMailContactModal("");
+  });
+}
+if (mailContactsMobileBackBtn) {
+  mailContactsMobileBackBtn.addEventListener("click", () => {
+    mailBodyContainer?.classList.remove("in-detail");
+    if (mailContactsView) mailContactsView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
   });
 }
 

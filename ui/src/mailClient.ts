@@ -16,7 +16,7 @@ import {
 import { fromBase58, toBase58 } from "./whoiam.ts";
 import { ContractKey } from "@freenetorg/freenet-stdlib";
 
-export type MailFolder = "inbox" | "sent" | "drafts";
+export type MailFolder = "inbox" | "sent" | "drafts" | "contacts";
 
 export interface FmailSendResult {
   success: boolean;

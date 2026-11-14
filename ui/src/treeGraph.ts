@@ -5,6 +5,7 @@ import { plainMentions } from "./caption.ts";
 import { plantSvg } from "./plant.ts";
 import { freepollsLink } from "./freepolls.ts";
 import { repostCountsOf } from "./repost.ts";
+import { parseArticleCaption } from "./articles.ts";
 import { likers, type Community, type Post, type PostCategory } from "./types.ts";
 
 export type TreeViewMode = "full" | "canopy" | "roots";
@@ -174,6 +175,7 @@ const CATEGORY_BOUGHS: Record<PostCategory, { id: string; slug: string; label: s
   moment: { id: "bough:moment", slug: "moments", label: "Moments" },
   event: { id: "bough:event", slug: "events", label: "Events" },
 };
+const ARTICLE_BOUGH = { id: "bough:article", slug: "articles", label: "Articles" };
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const round1 = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : 0);
@@ -434,7 +436,7 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
     if (p.community_id && boughBuckets.has(p.community_id)) {
       boughBuckets.get(p.community_id)!.posts.push(p);
     } else {
-      const cat = CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought;
+      const cat = parseArticleCaption(p.caption) ? ARTICLE_BOUGH : (CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought);
       if (!boughBuckets.has(cat.id)) {
         boughBuckets.set(cat.id, {
           slug: cat.slug,

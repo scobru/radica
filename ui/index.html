@@ -69,6 +69,14 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Communities</span>
           </button>
+          <button class="rail-btn" id="open-articles-btn" title="Articles &amp; Newsletters (g a)">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            <span>Articles</span>
+          </button>
+          <button class="rail-btn" id="open-music-btn" title="Music · FreeTunes Stream (g y)">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>Music</span>
+          </button>
           <button class="rail-btn" id="greenhouse-open-btn" title="Greenhouse: ideas and bugs, voted by the community">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
@@ -631,6 +639,9 @@
             <div class="uview-tabs" id="uview-tabs" role="tablist" aria-label="Their posts">
               <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="posts" aria-selected="true">Posts</button>
               <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="reposts" aria-selected="false">Reposts</button>
+              <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="moments" aria-selected="false">🖼️ Moments</button>
+              <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="videos" aria-selected="false">📺 Videos</button>
+              <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="boards" aria-selected="false">📌 Boards</button>
             </div>
             <div id="uview-posts-gallery" class="uview-posts"></div>
           </div>
@@ -723,6 +734,13 @@
                   <span>Drafts</span>
                 </span>
                 <span class="badge" id="mail-drafts-badge" style="display: none;">0</span>
+              </button>
+              <button type="button" class="mail-folder-btn" data-folder="contacts" id="mail-folder-contacts-btn">
+                <span class="btn-icon-text">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span>Contacts</span>
+                </span>
+                <span class="badge" id="mail-contacts-badge" style="display: none;">0</span>
               </button>
             </div>
 
@@ -822,6 +840,29 @@
                   </div>
                   <span id="mail-compose-status" style="font-size: 0.82rem; color: var(--text-muted);"></span>
                 </div>
+              </div>
+            </div>
+
+            <!-- Contacts & Address Book View -->
+            <div id="mail-contacts-view" class="mail-view-pane" style="display: none;">
+              <div class="mail-contacts-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button type="button" class="btn-secondary btn-sm mail-mobile-back-btn" id="mail-contacts-mobile-back-btn">← Folders</button>
+                  <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Contacts & Address Book</span>
+                  </h3>
+                </div>
+                <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-contacts-add-btn">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Add Contact</span>
+                </button>
+              </div>
+              <div class="mail-contacts-body">
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 14px;">
+                  Manage your saved Freenet Mail contacts. Send messages, copy tokens, or remove contacts from your local address book.
+                </p>
+                <div id="mail-contacts-list" class="mail-contacts-list"></div>
               </div>
             </div>
 
@@ -1373,6 +1414,20 @@
           <p><b>An offensive community</b> is up to its own moderators, and, when they do nothing, to <b>Radica's moderators</b> (named by the maintainer): they can <b>hide a community</b> (the 🛡️ button in its header, or Moderation → Hidden communities) for everyone who follows Radica's moderation, and ban whoever runs it. A hidden community leaves their lists, their search and their timelines, and so do its posts; what the people banned by Radica write in a community's chat is hidden too. Nothing is deleted from the network: someone who stops following the maintainer's list sees it all again. r/radica cannot be hidden.</p>
         </details>
 
+        <details><summary>📰 Articles &amp; Newsletters</summary>
+          <p>Write long-form <b>Markdown articles</b> from the <b>Articles</b> page (shortcut <code>g a</code>) with a title, subtitle, tags, cover image, live preview, and estimated reading time.</p>
+          <p>Drafts are saved locally in durable node storage so they survive browser reloads. When you publish, the full article payload is stored in Freenet's media contract and linked from a signed feed post, opening in a distraction-free Reader (<code>#article=…&amp;author=…</code>). You can also dispatch summaries and permalinks as a <b>newsletter via Radica Mail</b> to your saved contacts.</p>
+        </details>
+
+        <details><summary>🎵 Music (FreeTunes Stream) &amp; 🎬 Moments Reels</summary>
+          <p>Open <b>Music</b> from the left rail (shortcut <code>g y</code>) to browse and stream releases published on <b>FreeTunes</b> in a SoundCloud-style feed with tracklists, queue controls, <b>+ Follow</b> artist filtering, and a persistent bottom mini-player that keeps playing as you navigate Radica.</p>
+          <p>Inside <b>Moments</b> (shortcut <code>g v</code>), switch to the <b>🎬 Reels</b> filter for a vertical short-video player with keyboard navigation (<code>↑</code>/<code>↓</code>) and mobile fullscreen swipe, likes, comments, and moderation controls.</p>
+        </details>
+
+        <details><summary>📌 Curated Boards &amp; Profile Tabs (🖼️ Moments / 📺 Videos)</summary>
+          <p>Save any post or Moment to a <b>Curated Board</b> from the post menu (<code>📌 Board</code>) with optional personal notes and public (<code>#board=…</code>) or private visibility. Open any <b>User Profile</b> to filter their <b>🖼️ Moments</b>, browse their <b>📺 Videos</b> channel grid, or manage your <b>📌 Boards</b> (create, edit title/description/visibility, remove items, or delete).</p>
+        </details>
+
         <details><summary>🌐 Translation</summary>
           <p>Posts, comments and messages in another language show <b>Translate</b>: the text is translated on your computer, into the language you pick on the Identity page. Nothing leaves your device; the first time downloads the language model (about 22 MB).</p>
           <p>You can also translate <b>what you write</b> before publishing it: the 🌐 menu next to the post, comment and chat boxes. Links, @mentions, #tags and code stay as you wrote them, and <b>↩ Undo</b> brings your words back.</p>
@@ -1604,8 +1659,10 @@
           <button type="button" class="moments-filter-btn active" data-mfilter="all">All Moments</button>
           <button type="button" class="moments-filter-btn" data-mfilter="photos">Photos</button>
           <button type="button" class="moments-filter-btn" data-mfilter="videos">Videos</button>
+          <button type="button" class="moments-filter-btn" data-mfilter="reels">🎬 Reels</button>
           <button type="button" class="moments-filter-btn" data-mfilter="following">Following</button>
         </div>
+        <div id="moments-reels-container" class="moments-reels-container" style="display: none;"></div>
         <div id="media-grid-container" class="media-grid"></div>
         <p id="media-empty" style="text-align: center; padding: 40px 0; color: var(--text-muted); display: none;">No media posts yet.</p>
       </div>
@@ -1753,6 +1810,142 @@
             <div id="reddit-sidebar-content"></div>
           </aside>
         </div>
+      </div>
+    </div>
+
+    <!-- Long-Form Articles & Newsletters Rail Page (TASK-004) -->
+    <div id="articles-modal" class="rail-page" style="display: none;">
+      <div class="modal-card articles-page-card">
+        <div class="communities-page-header">
+          <div class="communities-header-title-wrap">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              <span>Articles &amp; Newsletters</span>
+            </h3>
+            <span class="communities-subtitle">Long-form Markdown essays stored on Freenet with optional Radica Mail newsletter dispatch</span>
+          </div>
+          <div class="communities-header-actions">
+            <span class="moments-count-pill" id="articles-count-pill">0 articles</span>
+            <button type="button" class="btn-primary btn-sm btn-icon-text" id="articles-new-btn" title="Write a new article">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>New Article</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm" id="articles-close-btn" title="Close Articles">✕</button>
+          </div>
+        </div>
+
+        <div id="articles-list-view">
+          <div class="articles-toolbar">
+            <input type="search" id="articles-search-input" class="comm-page-search" placeholder="Search articles by title, tag, or author…" autocomplete="off" />
+            <div class="articles-filter-tabs" id="articles-filter-tabs" role="tablist">
+              <button type="button" class="articles-filter-btn active" data-filter="all">All Articles</button>
+              <button type="button" class="articles-filter-btn" data-filter="following">Following</button>
+              <button type="button" class="articles-filter-btn" data-filter="mine">My Articles</button>
+              <button type="button" class="articles-filter-btn" data-filter="drafts">Drafts</button>
+            </div>
+          </div>
+          <div id="articles-grid" class="articles-grid"></div>
+        </div>
+
+        <div id="articles-reader-view" class="articles-reader-view" style="display: none;"></div>
+
+        <div id="articles-compose-view" class="articles-compose-view" style="display: none;">
+          <div class="article-compose-topbar">
+            <button type="button" class="btn-secondary btn-sm" id="articles-compose-back-btn">← Back</button>
+            <div class="article-compose-meta-right">
+              <span id="article-compose-draft-status" class="article-draft-status"></span>
+              <span id="article-compose-stats" class="article-compose-stats">0 words · 1 min read</span>
+            </div>
+          </div>
+
+          <div class="article-compose-form">
+            <input type="text" id="article-compose-title" class="article-compose-title-input" placeholder="Article title…" maxlength="160" />
+            <input type="text" id="article-compose-subtitle" class="article-compose-subtitle-input" placeholder="Subtitle or short summary (optional)…" maxlength="280" />
+            <div class="article-compose-row">
+              <input type="text" id="article-compose-tags" class="comment-input" placeholder="Tags (e.g. freenet, privacy, essays)" />
+              <label class="btn-secondary btn-sm article-cover-label">
+                <span>Cover Image</span>
+                <input type="file" id="article-compose-cover-input" accept="image/*" style="display: none;" />
+              </label>
+            </div>
+            <div id="article-compose-cover-preview" class="article-compose-cover-preview" style="display: none;"></div>
+
+            <div class="article-compose-editor-bar">
+              <div class="article-compose-mode-tabs">
+                <button type="button" class="composer-tab active" id="article-compose-tab-write">Write</button>
+                <button type="button" class="composer-tab" id="article-compose-tab-preview">Preview</button>
+              </div>
+              <div class="article-md-toolbar">
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="## Heading\n">H2</button>
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="**bold**"><strong>B</strong></button>
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="*italic*"><em>I</em></button>
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="\n> Quote\n">Quote</button>
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="&#10;```&#10;code&#10;```&#10;">Code</button>
+                <button type="button" class="btn-secondary btn-sm article-md-tool" data-snippet="[link text](https://)">Link</button>
+              </div>
+            </div>
+
+            <textarea id="article-compose-body" class="article-compose-body" rows="14" placeholder="Write your article in Markdown…"></textarea>
+            <div id="article-compose-preview" class="article-reader-body article-compose-preview" style="display: none;"></div>
+
+            <div class="article-compose-footer">
+              <label class="article-nl-opt">
+                <input type="checkbox" id="article-compose-newsletter-check" />
+                <span>Also send as newsletter via Radica Mail</span>
+              </label>
+              <div class="article-compose-footer-btns">
+                <button type="button" class="btn-secondary btn-sm" id="article-compose-save-draft-btn">Save Draft</button>
+                <button type="button" class="btn-primary" id="article-compose-publish-btn">Publish Article</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="article-newsletter-panel" class="article-nl-panel" style="display: none;">
+          <div class="article-nl-card">
+            <h4 style="margin: 0 0 8px;">✉ Dispatch Newsletter via Radica Mail</h4>
+            <div class="article-nl-subject"><strong>Subject:</strong> <span id="article-newsletter-subject"></span></div>
+            <pre id="article-newsletter-preview" class="article-nl-preview"></pre>
+            <div class="article-nl-rec-head">
+              <strong>Recipients (Radica Mail Contacts)</strong>
+              <button type="button" class="btn-secondary btn-sm" id="article-newsletter-select-all">Toggle All</button>
+            </div>
+            <div id="article-newsletter-recipients" class="article-nl-recipients"></div>
+            <input type="text" id="article-newsletter-extra" class="comment-input" placeholder="Extra Freenet Mail addresses (comma-separated, optional)" />
+            <div class="article-nl-actions">
+              <button type="button" class="btn-secondary btn-sm" id="article-newsletter-cancel-btn">Cancel</button>
+              <button type="button" class="btn-primary btn-sm" id="article-newsletter-send-btn">Send Newsletter</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SoundCloud-style FreeTunes Stream Rail Page (TASK-008) -->
+    <div id="music-modal" class="rail-page" style="display: none;">
+      <div class="modal-card music-page-card">
+        <div class="communities-page-header">
+          <div class="communities-header-title-wrap">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <span>Music · FreeTunes Stream</span>
+            </h3>
+            <span class="communities-subtitle">Browse &amp; stream releases published on FreeTunes with continuous playback</span>
+          </div>
+          <div class="communities-header-actions">
+            <span class="moments-count-pill" id="music-count-pill">0 releases</span>
+            <button type="button" class="btn-secondary btn-sm" id="music-refresh-btn" title="Refresh FreeTunes directory">↻ Refresh</button>
+            <button type="button" class="btn-secondary btn-sm" id="music-close-btn" title="Close Music">✕</button>
+          </div>
+        </div>
+        <div class="articles-toolbar">
+          <input type="search" id="music-search-input" class="comm-page-search" placeholder="Search releases or artists on FreeTunes…" autocomplete="off" />
+          <div class="articles-filter-tabs" id="music-filter-tabs" role="tablist">
+            <button type="button" class="music-filter-btn articles-filter-btn active" data-filter="all">All Releases</button>
+            <button type="button" class="music-filter-btn articles-filter-btn" data-filter="following">Following Artists</button>
+          </div>
+        </div>
+        <div id="music-releases-list" class="music-releases-list"></div>
       </div>
     </div>
 
@@ -2452,6 +2645,55 @@
     <!-- HUD indicator for two-key sequence -->
     <div id="keyboard-goto-hud" class="keyboard-hud" style="display: none;" role="status" aria-live="polite"></div>
 
+    <!-- Curated Board Picker Modal (TASK-007) -->
+    <div id="board-picker-modal" class="modal-overlay" style="display: none; z-index: 2500;" role="dialog" aria-modal="true" aria-label="Save to Board">
+      <div class="modal-card" style="max-width: 460px;">
+        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">📌 Save to Board</h3>
+          <button type="button" class="btn-secondary btn-sm" id="board-picker-close-btn">✕</button>
+        </div>
+        <div id="board-picker-existing" class="board-picker-existing"></div>
+        <div class="board-picker-new">
+          <label for="board-new-title" style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;">Or create a new Board</label>
+          <input type="text" id="board-new-title" class="input" placeholder="Board title (e.g. Freenet Art, Rust Reads)" maxlength="80" style="width:100%;margin-bottom:8px;" />
+          <input type="text" id="board-new-desc" class="input" placeholder="Short description (optional)" maxlength="280" style="width:100%;margin-bottom:8px;" />
+          <input type="text" id="board-item-note" class="input" placeholder="Personal note for this item (optional)" maxlength="240" style="width:100%;margin-bottom:8px;" />
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <select id="board-new-visibility" class="input" style="width:auto;">
+              <option value="public">🌐 Public (shareable)</option>
+              <option value="private">🔒 Private (local)</option>
+            </select>
+            <button type="button" class="btn-primary btn-sm" id="board-create-save-btn">+ Create &amp; Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
+    <!-- Persistent Global Audio Mini-Player (TASK-008) -->
+    <div id="global-audio-player" class="global-audio-player" style="display: none;" role="region" aria-label="Global audio player">
+      <audio id="global-audio-el" preload="none"></audio>
+      <div class="gap-info">
+        <div id="gap-cover" class="gap-cover">♪</div>
+        <div class="gap-text">
+          <div id="gap-title" class="gap-title">No track</div>
+          <div id="gap-artist" class="gap-artist">FreeTunes</div>
+        </div>
+      </div>
+      <div class="gap-controls">
+        <button type="button" class="btn-secondary btn-sm" id="gap-prev-btn" title="Previous track">⏮</button>
+        <button type="button" class="btn-primary btn-sm" id="gap-play-btn" title="Play / Pause">▶</button>
+        <button type="button" class="btn-secondary btn-sm" id="gap-next-btn" title="Next track">⏭</button>
+      </div>
+      <div class="gap-progress-wrap">
+        <input type="range" id="gap-seek" class="gap-seek" min="0" max="1000" value="0" aria-label="Seek" />
+        <span id="gap-time" class="gap-time">0:00 / 0:00</span>
+      </div>
+      <div class="gap-right">
+        <input type="range" id="gap-volume" class="gap-volume" min="0" max="1" step="0.05" value="0.85" aria-label="Volume" />
+        <span id="gap-queue-pill" class="moments-count-pill">0/0</span>
+        <button type="button" class="btn-secondary btn-sm" id="gap-close-btn" title="Close player">✕</button>
+      </div>
+    </div>
   </body>
 </html>

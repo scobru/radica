@@ -144,7 +144,7 @@
 
 /* Sidebar */
 .mail-sidebar {
-  width: 320px;
+  width: 344px;
   flex-shrink: 0;
   border-right: 1px solid var(--mail-border);
   display: flex;
@@ -155,27 +155,39 @@
 
 .mail-folders-nav {
   display: flex;
-  padding: 10px 12px;
-  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  gap: 4px;
   border-bottom: 1px solid var(--mail-border);
   background: var(--mail-bg);
 }
 
 .mail-folder-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
+  gap: 4px;
+  padding: 6px 6px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 0.79rem;
   font-weight: 500;
   color: var(--mail-muted);
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s ease;
+}
+
+.mail-folder-btn .btn-icon-text {
+  gap: 4px;
+}
+
+.mail-folder-btn .badge {
+  font-size: 0.68rem;
+  padding: 1px 5px;
 }
 
 .mail-folder-btn:hover {
@@ -304,6 +316,7 @@
 /* Main Area */
 .mail-main-view {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -540,6 +553,137 @@
 /* Mobile Back Button */
 .mail-mobile-back-btn {
   display: none;
+}
+
+/* Contacts & Address Book */
+.mail-contacts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--mail-border);
+  background: var(--mail-surface);
+}
+
+.mail-contacts-header > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.mail-contacts-body {
+  padding: 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.mail-contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mail-contact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--mail-surface);
+  border: 1px solid var(--mail-border);
+  gap: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mail-contact-card:hover {
+  border-color: var(--mail-active);
+  background: var(--mail-active-item);
+}
+
+.mail-contact-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mail-contact-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25));
+  border: 1px solid var(--mail-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--mail-active);
+  flex-shrink: 0;
+}
+
+.mail-contact-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mail-contact-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-contact-addr {
+  font-family: monospace;
+  font-size: 0.76rem;
+  color: var(--mail-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-contact-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mail-contact-del-btn {
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.mail-contact-del-btn:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: #ef4444 !important;
+}
+
+.mail-suggestion-del-btn {
+  background: none;
+  border: none;
+  color: var(--mail-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.mail-suggestion-del-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
 }
 
 @media (max-width: 768px) {

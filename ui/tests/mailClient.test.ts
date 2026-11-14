@@ -382,3 +382,43 @@ test("sendMailMessage to native contract: passes sender inboxAddress so native F
   const resolved = resolveFreemailSenderAddress(decrypted.from, wireMsg.sender_vk);
   assert.equal(resolved.fromAddress, `user@${alice.inboxAddress}`);
 });
+
+test("contacts: adding and removing contacts from address book", () => {
+  const pk = "test_user_contacts_crud";
+  const contact1 = { name: "Alice PostQuantum", address: "alice@111111111111111111111111111111111111" };
+  const contact2 = { name: "Bob Freemail", address: "bob@222222222222222222222222222222222222" };
+  const contact3 = { name: "Carol Token", address: "AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs" };
+
+  // Initial is empty
+  assert.equal(loadMailContacts(pk).length, 0);
+
+  // Add 3 contacts
+  saveMailContact(pk, contact1);
+  saveMailContact(pk, contact2);
+  saveMailContact(pk, contact3);
+
+  let current = loadMailContacts(pk);
+  assert.equal(current.length, 3);
+  assert.equal(current[0].name, "Alice PostQuantum");
+  assert.equal(current[1].name, "Bob Freemail");
+  assert.equal(current[2].name, "Carol Token");
+
+  // Remove contact 2
+  deleteMailContact(pk, contact2.address);
+  current = loadMailContacts(pk);
+  assert.equal(current.length, 2);
+  assert.ok(!current.some((c) => c.address === contact2.address));
+  assert.ok(current.some((c) => c.address === contact1.address));
+  assert.ok(current.some((c) => c.address === contact3.address));
+
+  // Remove contact 1
+  deleteMailContact(pk, contact1.address);
+  current = loadMailContacts(pk);
+  assert.equal(current.length, 1);
+  assert.equal(current[0].address, contact3.address);
+
+  // Remove contact 3
+  deleteMailContact(pk, contact3.address);
+  current = loadMailContacts(pk);
+  assert.equal(current.length, 0);
+});
