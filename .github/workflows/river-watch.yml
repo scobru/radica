@@ -1,14 +1,16 @@
 name: River watch
 
-# Once a day: has River re-keyed its room contract? If so, open an issue (once) with what Radica must update.
+# Once a day: has River re-keyed its room contract? If so, attempt to bump river-wasm, rebuild, test, and open a PR;
+# fall back to opening an Issue if the upstream Rust API changed and broke the build/tests.
 on:
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   watch:
@@ -19,11 +21,67 @@ jobs:
         with:
           python-version: "3.12"
       - id: cmp
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/river-watch.py >> "$GITHUB_OUTPUT"
+
       - if: steps.cmp.outputs.behind == 'true'
+        id: check_existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "River room contract moved to v${{ steps.cmp.outputs.version }}"
+          BRANCH: "river-watch/v${{ steps.cmp.outputs.version }}"
+        run: |
+          open_issues=$(gh issue list --state open --search "\"$TITLE\" in:title" --json title --jq "map(select(.title == env.TITLE)) | length")
+          open_prs=$(gh pr list --head "$BRANCH" --state open --json number --jq "length")
+          if [ "$open_issues" != "0" ] || [ "$open_prs" != "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true'
+        id: try_update
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/river-watch.py --apply
+          cargo build --manifest-path river-wasm/Cargo.toml --target wasm32-unknown-unknown --release
+          cp river-wasm/target/wasm32-unknown-unknown/release/radica_river.wasm ui/src/wasm/river.wasm
+          npm --prefix ui ci
+          node --experimental-strip-types --test ui/tests/river.test.ts ui/tests/riverPointer.test.ts ui/tests/riverRooms.test.ts
+
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true' && steps.try_update.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: "river-watch/v${{ steps.cmp.outputs.version }}"
+          VERSION: "${{ steps.cmp.outputs.version }}"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add river-wasm/Cargo.toml ui/src/wasm/river.wasm ui/src/wasm/river_room_contract.wasm ui/src/riverPointer.ts ui/tests/riverPointer.test.ts
+          if [ -f river-wasm/Cargo.lock ]; then git add river-wasm/Cargo.lock; fi
+          git commit -m "chore(river): bump River room contract to v$VERSION"
+          git push -u origin "$BRANCH"
+          gh pr create --title "chore(river): bump River room contract to v$VERSION" --body-file river-watch.md
+
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true' && steps.try_update.outcome != 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: "River room contract moved to v${{ steps.cmp.outputs.version }}"
         run: |
-          open=$(gh issue list --state open --search "\"$TITLE\" in:title" --json title --jq "map(select(.title == env.TITLE)) | length")
-          if [ "$open" = "0" ]; then gh issue create --title "$TITLE" --body-file river-watch.md; fi
+          git reset --hard && git clean -fd -e river-watch.md
+          printf '\n> ⚠️ Automatic `river-wasm` build/tests failed (likely an upstream `river-core` API change requiring manual adjustment).\n' >> river-watch.md
+          gh issue create --title "$TITLE" --body-file river-watch.md
