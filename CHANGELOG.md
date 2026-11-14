@@ -1,6 +1,16 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **FIX** Native Freemail Interoperability: Direct Reply Routing via Inbox Contract Token (`ui/src/mailClient.ts`, `ui/tests/mailClient.test.ts`):
+    * Resolved an issue where replying to a Radica email from the official Freenet Mail app failed because Radica set its unencrypted payload `from` field to a local persona alias (`"usernickname"`).
+    * When sending to native Freenet Mail contracts, Radica now populates `from` with the sender's 44-character native inbox contract instance ID (`identity.inboxAddress`), allowing official Freenet Mail to auto-populate its recipient field on Reply and route replies directly back to Radica without requiring manual address replacement.
+    * Updated `resolveFreemailSenderAddress` to handle bare 43..44 character contract IDs cleanly as `user@<inboxAddress>` rather than duplicating `<inboxAddress>@<inboxAddress>`.
+  * **FIX & UI** Responsive Wall & Profile Modal for 13.3" Laptops & Compact Viewports (`ui/src/style.css`, `ui/tests/templateNesting.test.ts`):
+    * Resolved layout overcrowding and clipping on 13.3" laptop screens (effective viewport ~1093×614 or 1280×720) where `.uview-modal-card` took 100% width against the left rail and the tall Linfa plant illustration clipped downstream cards (e.g. River broadcast channel).
+    * Added fluid responsive sizing under `@media (max-width: 1200px)`: `.uview-modal-card` scales to `min(920px, calc(100vw - 80px))` with compact padding (`18px 20px`), layout gap drops to `16px`, and the right column drops to `260px`.
+    * Compact Linfa sidebar presentation: `.uview-aside-col .linfa-pot` is scaled down to `110px–130px` (from `190px`) with compact typography and padding so cards below Linfa remain visible.
+    * Added `@media (max-height: 800px)` breakpoint converting `.uview-aside-col` to `position: static` so users on shorter screens can scroll naturally to all cards without bottom cards getting stuck offscreen.
+
   * **FIX** Living Tree (`#tree-modal`) 'Watch Grow' Animation & Timeline Staggering (`ui/src/treeGraph.ts`, `ui/src/treePage.ts`):
     * Resolved an issue where clicking `▶ Watch Grow` caused the time scrubber to scan while the tree visual remained frozen in its initial state and abruptly popped in all branches at the final frame.
     * Removed ancient static genesis timestamps of seed communities (such as the default 2024 date) from activity timeline calculation (`minTs` / `maxTs`), ensuring timeline bounds match actual post/comment timestamps.

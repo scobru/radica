@@ -21,6 +21,7 @@ import {
   getRecipientSuggestions,
   resolveMailAlias,
   syncFreenetMailInbox,
+  resolveFreemailSenderAddress,
   type MailMessage,
 } from "../src/mailClient.ts";
 import { deriveMailIdentity, encryptFreenetMailV1 } from "../src/freenetMail.ts";
@@ -335,4 +336,49 @@ test("isValidMailAddress & parseFmailContactInput: supports Freenet Mail contact
   assert.equal(contacts.length, 1);
   assert.equal(contacts[0].address, aliasToken);
   assert.equal(contacts[0].name, "scobru");
+});
+
+test("sendMailMessage to native contract: passes sender inboxAddress so native Freemail can reply", async () => {
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(0x77));
+  const bob = deriveMailIdentity("bob", new Uint8Array(32).fill(0x88));
+  const alicePubkey = "77".repeat(32);
+
+  let capturedDelta: any = null;
+  const mockFreenet = {
+    getByInstance: async () =>
+      new TextEncoder().encode(
+        JSON.stringify({
+          owner_ek_bytes: Array.from(bob.kemEk),
+          settings: { minimum_tier: "Min10" },
+          messages: [],
+        })
+      ),
+    updateRawRelatedStateAndDelta: async (_key: any, _relBytes: any, _allocBytes: any, deltaBytes: Uint8Array) => {
+      capturedDelta = JSON.parse(new TextDecoder().decode(deltaBytes));
+    },
+  };
+
+  const res = await sendMailMessage(
+    alicePubkey,
+    alice,
+    bob.inboxAddress,
+    "Hello Native Freemail",
+    "Body message",
+    undefined,
+    {},
+    mockFreenet
+  );
+
+  assert.equal(res.success, true);
+  assert.ok(capturedDelta);
+  const wireMsg = capturedDelta.AddMessages.messages[0];
+  const { decryptFreenetMailV1 } = await import("../src/freenetMail.ts");
+  const decrypted = decryptFreenetMailV1(bob.kemDk, new Uint8Array(wireMsg.content));
+  assert.ok(decrypted);
+  // Sender 'from' must be Alice's inboxAddress (native Freemail reply token)
+  assert.equal(decrypted.from, alice.inboxAddress);
+
+  // resolveFreemailSenderAddress handles bare inbox address without creating duplicate <inbox>@<inbox>
+  const resolved = resolveFreemailSenderAddress(decrypted.from, wireMsg.sender_vk);
+  assert.equal(resolved.fromAddress, `user@${alice.inboxAddress}`);
 });

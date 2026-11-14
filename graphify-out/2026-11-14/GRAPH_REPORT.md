@@ -1,11 +1,11 @@
 # Graph Report - radica  (2026-11-14)
 
 ## Corpus Check
-- 261 files · ~791,035 words
+- 261 files · ~792,303 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3150 nodes · 8445 edges · 109 communities (98 shown, 11 thin omitted)
+- 3150 nodes · 8445 edges · 108 communities (97 shown, 11 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 144 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
@@ -142,7 +142,7 @@
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (109 total, 11 thin omitted)
+## Communities (108 total, 11 thin omitted)
 
 ### Community 0 - "main.ts"
 Cohesion: 0.00
@@ -233,8 +233,8 @@ Cohesion: 0.05
 Nodes (73): enc, issueReceipt(), judgeClaim(), logEntryMessage(), SCOPE_FIELD, signEntry(), CFG, donor (+65 more)
 
 ### Community 23 - "feedsize.ts"
-Cohesion: 0.14
-Nodes (21): Linfa, SeasonInfo, stageOf(), Bloom, Branch, clamp(), curve(), [CX, GROUND] (+13 more)
+Cohesion: 0.15
+Nodes (20): Linfa, SeasonInfo, Bloom, Branch, clamp(), curve(), [CX, GROUND], end() (+12 more)
 
 ### Community 24 - "Contributor Covenant Code of Conduct"
 Cohesion: 0.16
@@ -313,7 +313,7 @@ Cohesion: 0.07
 Nodes (94): generateDefaultAvatar(), nodeOrigin(), renderCaption(), renderComment(), renderPost(), trendingTags(), escapeHtml(), safeUrl() (+86 more)
 
 ### Community 46 - "handleJoinFromInviteUrl"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (4): readEncPubs(), dedupeChat(), MessengerActiveState, ChatMessage
 
 ### Community 47 - "rootsfx.ts"
@@ -469,8 +469,8 @@ Cohesion: 0.26
 Nodes (12): stageRepost(), hasUserReposted(), repostBody(), repostCaption(), repostCard(), repostCountsOf(), repostLink(), repostRef (+4 more)
 
 ### Community 111 - "linfa.ts"
-Cohesion: 0.22
-Nodes (11): Gain, gains(), linfaGreenhouseWeight(), linfaOf(), PlantSeason, POINTS, seasonOf(), STAGES (+3 more)
+Cohesion: 0.21
+Nodes (12): Gain, gains(), linfaGreenhouseWeight(), linfaOf(), PlantSeason, POINTS, seasonOf(), stageOf() (+4 more)
 
 ### Community 114 - "heavyUrl"
 Cohesion: 0.29
@@ -494,7 +494,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Cert` connect `lib.rs` to `NotificationItem`, `createMessengerChat`, `moderation.ts`, `signOut`, `parseChatMedia`, `translate.ts`, `updates.ts`?**
   _High betweenness centrality (0.067) - this node is a cross-community bridge._
-- **Why does `FreenetClient` connect `moderation.ts` to `whoiam.ts`, `compilerOptions`, `SafeStorage`, `feature_request.md`, `compilerOptions`, `nodeOrigin`, `createMessengerChat`, `messengerLogic.ts`, `handleJoinFromInviteUrl`, `caption.test.ts`, `createMessengerChat`, `createMessengerChat`, `translate.ts`, `ChatMessage`, `freenetMail.ts`, `conversationState.ts`, `orto.ts`, `riverPointer.ts`, `media.ts`?**
+- **Why does `FreenetClient` connect `moderation.ts` to `riverPointer.ts`, `ChatMessage`, `nodeOrigin`, `whoiam.ts`, `createMessengerChat`, `media.ts`, `compilerOptions`, `conversationState.ts`, `messengerLogic.ts`, `SafeStorage`, `handleJoinFromInviteUrl`, `feature_request.md`, `caption.test.ts`, `createMessengerChat`, `compilerOptions`, `orto.ts`, `createMessengerChat`, `translate.ts`?**
   _High betweenness centrality (0.051) - this node is a cross-community bridge._
 - **Why does `freshPosts()` connect `attachCardListeners` to `riverPointer.ts`?**
   _High betweenness centrality (0.038) - this node is a cross-community bridge._

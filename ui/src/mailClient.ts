@@ -522,8 +522,14 @@ export function resolveFreemailSenderAddress(
         : null;
   if (vkBytes && vkBytes.length === 1952) {
     const senderInbox = deriveInboxContractAddress(vkBytes);
-    const alias = sanitizeMailAlias(cleanRaw.split("@")[0]) || "user";
+    const isBareInbox = cleanRaw === senderInbox || (!cleanRaw.includes("@") && cleanRaw.length >= 43);
+    const alias = isBareInbox ? "user" : (sanitizeMailAlias(cleanRaw.split("@")[0]) || "user");
     const fullAddress = `${alias}@${senderInbox}`;
+    return { fromAddress: fullAddress, fromDisplay: fullAddress };
+  }
+
+  if (!cleanRaw.includes("@") && cleanRaw.length >= 43 && cleanRaw.length <= 44) {
+    const fullAddress = `user@${cleanRaw}`;
     return { fromAddress: fullAddress, fromDisplay: fullAddress };
   }
 
@@ -661,6 +667,12 @@ export async function sendMailMessage(
             : [];
           const existingAssignments = [...cachedAssignments, ...existingOnInbox];
 
+          // For network delivery to native Freenet Mail inbox contracts, the 'from' field
+          // in the plaintext DecryptedMessage MUST be the sender's 44-character native inbox
+          // contract address (or contact token). Native Freemail populates the recipient on
+          // "Reply" directly from 'message.from'. If it contains only a local persona alias,
+          // native Freemail cannot resolve it and replies fail.
+          const senderFrom = identity.inboxAddress || identity.alias;
           const encrypted = encryptFreenetMailV1(
             recipientEk,
             identity.dsaSk,
@@ -668,7 +680,7 @@ export async function sendMailMessage(
             targetContractId,
             subject,
             content,
-            identity.alias,
+            senderFrom,
             { tier: requiredTier, existingAssignments }
           );
 
