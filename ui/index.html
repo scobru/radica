@@ -54,39 +54,49 @@
           <span>Activity</span>
           <span class="badge notif-badge" id="notif-badge" style="display: none;">0</span>
         </button>
-        <!-- Identity & Key Management Navbar Button -->
-        <button class="rail-btn" id="open-identity-btn" title="Identity & Keys">
-          <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
-          <span>Identity</span>
-        </button>
         <span class="rail-sep" aria-hidden="true"></span>
-        <!-- secondary places: in the rail on computers, behind More on phones (display: contents keeps the rail as it was) -->
+        <!-- Core features + Settings on desktop; secondary/illustrative pages grouped in rail-utility-group (behind More on desktop, merged into More grid on phones) -->
         <div class="rail-more-group" id="rail-more-group">
           <button class="rail-btn" id="open-media-btn" title="Moments (g v)">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             <span>Moments</span>
           </button>
-          <button class="rail-btn" id="updates-open-btn" title="What's new">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
-            <span>Updates</span>
+          <button class="rail-btn" id="open-tree-btn" title="Living Tree: visual graph of Radica (g f)">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 22v-8"/><path d="M12 14c-4 0-7-3-7-7 0-3.5 3-6 7-6s7 2.5 7 6c0 4-3 7-7 7z"/><path d="M12 18c-3 1.5-5 3-7 3"/><path d="M12 18c3 1.5 5 3 7 3"/><circle cx="9" cy="7" r="1"/><circle cx="15" cy="8" r="1"/><circle cx="12" cy="5" r="1"/></svg>
+            <span>Tree</span>
           </button>
-          <button class="rail-btn" id="greenhouse-open-btn" title="Greenhouse: ideas and bugs, voted by supporters">
+          <button class="rail-btn" id="open-communities-btn" title="Communities r/forums (g r)">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Communities</span>
+          </button>
+          <button class="rail-btn" id="greenhouse-open-btn" title="Greenhouse: ideas and bugs, voted by the community">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
           </button>
-          <button class="rail-btn" id="blocklists-open-btn" title="Blocklists &amp; Moderation">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
-            <span>Blocklists</span>
-            <span class="badge notif-badge" id="blocklists-badge" style="display: none;">0</span>
-          </button>
-          <button class="rail-btn" id="guide-open-btn" title="How Radica works">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
-            <span>Guide</span>
-          </button>
+          <span class="rail-sep rail-sep-desktop" aria-hidden="true"></span>
           <button class="rail-btn" id="settings-open-btn" title="Settings &amp; Appearance">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Settings</span>
           </button>
+          <div class="rail-utility-group" id="rail-utility-group">
+            <button class="rail-btn" id="open-identity-btn" title="Identity & Keys">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
+              <span>Identity</span>
+            </button>
+            <button class="rail-btn" id="blocklists-open-btn" title="Blocklists &amp; Moderation">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+              <span>Blocklists</span>
+              <span class="badge notif-badge" id="blocklists-badge" style="display: none;">0</span>
+            </button>
+            <button class="rail-btn" id="updates-open-btn" title="What's new">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
+              <span>Updates</span>
+            </button>
+            <button class="rail-btn" id="guide-open-btn" title="How Radica works">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
+              <span>Guide</span>
+            </button>
+          </div>
           <!-- phones only, and only where the page may go full screen (main.ts shows it) -->
           <button class="rail-btn" id="fullscreen-btn" title="Full screen" style="display: none;">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
@@ -110,7 +120,7 @@
             <div class="feed-sub" id="freenet-status-container">
               <span class="status-dot" id="freenet-dot"></span>
               <span id="freenet-status-label">Connecting to Node...</span>
-              <span>· <span id="roots-count">0</span> roots</span>
+              <button type="button" class="feed-tree-chip" id="feed-open-tree-btn" title="Explore Radica's Living Tree graph (g f)">· <span id="roots-count">0</span> roots 🌿</button>
             </div>
           </div>
           <input type="text" id="feed-search-input" class="nav-search-input" placeholder="Search posts or #tags..." />
@@ -189,7 +199,7 @@
         <div id="trending-tags" class="trending-tags" aria-label="Trending hashtags" hidden></div>
         <!-- Active Tag Filter Banner -->
         <div id="active-filter-banner" class="active-filter-banner" style="display: none;">
-          <span>Filtered by tag: <b id="active-filter-tag">#tag</b></span>
+          <span><span id="active-filter-prefix">Filtered by tag:</span> <b id="active-filter-tag">#tag</b></span>
           <button id="clear-filter-btn" class="btn-secondary btn-sm btn-icon-text" style="padding: 2px 8px;">
             <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             <span>Clear Filter</span>
@@ -215,6 +225,10 @@
             <button class="btn-secondary btn-sm btn-icon-text" id="comm-chat-btn">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               <span>Community Chat</span>
+            </button>
+            <button class="btn-secondary btn-sm btn-icon-text" id="comm-reddit-view-btn" title="Open in Reddit-style Communities view">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Reddit View</span>
             </button>
             <button class="btn-secondary btn-sm" id="comm-edit-btn" style="display: none;">Edit</button>
             <button class="btn-secondary btn-sm btn-icon-text" id="comm-mod-btn" style="display: none;">
@@ -322,6 +336,7 @@
               <p class="pp-counts"><b id="pp-posts-count">0</b> posts · <b id="pp-roots-count">0</b> roots</p>
             </div>
             <div class="pp-actions" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <button type="button" class="btn-secondary btn-icon-text" id="pp-share-wall-btn" title="Copy a direct link to your Wall">🔗 <span>Share my Wall</span></button>
               <button type="button" class="btn-secondary pp-view-public" id="pp-view-public-btn" title="View your public profile as others see it">View public profile</button>
               <button type="button" class="btn-secondary pp-edit" id="pp-edit-btn">Edit profile</button>
             </div>
@@ -579,7 +594,7 @@
         </div>
         <!-- Someone's profile: a page of the main column too -->
         <div id="user-profile-modal" class="rail-page" style="display: none;">
-      <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-card uview-modal-card">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
           <div style="display: flex; gap: 14px; align-items: center;">
             <img src="" class="avatar" id="uview-avatar" style="width: 64px; height: 64px; margin: 0;" />
@@ -603,33 +618,41 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span>Send Message</span>
           </button>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="uview-share-wall-btn" title="Copy direct link to this Wall">🔗 <span>Share Wall</span></button>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="uview-open-wall-feed-btn" title="Open this person's Wall in the main feed">📰 <span>View in Feed</span></button>
           <button class="btn-secondary btn-sm btn-icon-text" id="uview-hide-btn"></button>
           <button class="btn-secondary btn-sm" id="uview-block-btn" title="Add to your public blocklist, which people who trust you will follow"></button>
           <button class="btn-secondary btn-sm" id="uview-trust-btn" title="Hide everyone this person blocks"></button>
           <button class="btn-secondary btn-sm" id="uview-mod-btn" style="display: none;" title="Their removals and blocks apply to everyone who follows your blocklist"></button>
         </div>
 
-        <!-- Their Linfa: the plant this node counts from what it holds (linfa.ts, plant.ts) -->
-        <div id="uview-linfa" class="uview-linfa"></div>
-        <div id="uview-channel" class="uview-channel"></div>
+        <div class="uview-layout">
+          <div class="uview-wall-col">
+            <div class="uview-tabs" id="uview-tabs" role="tablist" aria-label="Their posts">
+              <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="posts" aria-selected="true">Posts</button>
+              <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="reposts" aria-selected="false">Reposts</button>
+            </div>
+            <div id="uview-posts-gallery" class="uview-posts"></div>
+          </div>
 
-        <div id="uview-ecosystem-loader" class="uview-ecosystem-loader" style="display: none;">
-          <div class="boot-bar" style="width: 60px; height: 3px;"><span></span></div>
-          <span>Checking connected apps &amp; blogs from Freenet…</span>
-        </div>
-        <div id="uview-blog" class="uview-blog"></div>
-        <div id="uview-orto-blog" class="uview-blog"></div>
-        <div id="uview-asocial" class="uview-blog"></div>
-        <div id="uview-freetunes" class="uview-blog"></div>
-        <div id="uview-fh" class="uview-blog"></div>
-        <div id="uview-freetree" class="uview-blog"></div>
-        <div id="uview-sites" class="uview-sites"></div>
+          <aside class="uview-aside-col" aria-label="Profile details &amp; connected apps">
+            <!-- Their Linfa: the plant this node counts from what it holds (linfa.ts, plant.ts) -->
+            <div id="uview-linfa" class="uview-linfa"></div>
+            <div id="uview-channel" class="uview-channel"></div>
 
-        <div class="uview-tabs" id="uview-tabs" role="tablist" aria-label="Their posts">
-          <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="posts" aria-selected="true">Posts</button>
-          <button type="button" class="btn-secondary btn-sm" role="tab" data-tab="reposts" aria-selected="false">Reposts</button>
+            <div id="uview-ecosystem-loader" class="uview-ecosystem-loader" style="display: none;">
+              <div class="boot-bar" style="width: 60px; height: 3px;"><span></span></div>
+              <span>Checking connected apps &amp; blogs from Freenet…</span>
+            </div>
+            <div id="uview-blog" class="uview-blog"></div>
+            <div id="uview-orto-blog" class="uview-blog"></div>
+            <div id="uview-asocial" class="uview-blog"></div>
+            <div id="uview-freetunes" class="uview-blog"></div>
+            <div id="uview-fh" class="uview-blog"></div>
+            <div id="uview-freetree" class="uview-blog"></div>
+            <div id="uview-sites" class="uview-sites"></div>
+          </aside>
         </div>
-        <div id="uview-posts-gallery" class="uview-posts"></div>
       </div>
     </div>
         <!-- Activity, Identity, Updates and Blocklists: pages of the main column like the chat (main.ts shows one at a time) -->
@@ -1124,6 +1147,46 @@
           <button class="btn-secondary btn-sm" id="settings-close-btn">✕</button>
         </div>
 
+        <!-- Account, Safety & Guide Quick-Navigation Hub -->
+        <div class="identity-section">
+          <h4>Account, Safety &amp; Guide</h4>
+          <p>Quick access to your cryptographic identity, blocklists, changelog, and Radica documentation.</p>
+          <div class="settings-hub-grid">
+            <button type="button" class="settings-hub-card" id="settings-to-identity-btn">
+              <span class="settings-hub-card-top">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
+                <strong>Identity &amp; Keys</strong>
+                <kbd>g i</kbd>
+              </span>
+              <span class="settings-hub-card-desc">Keys, Viso SSO, Freenet Mail &amp; Supporter badge</span>
+            </button>
+            <button type="button" class="settings-hub-card" id="settings-to-blocklists-btn">
+              <span class="settings-hub-card-top">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+                <strong>Blocklists &amp; Moderation</strong>
+                <kbd>g b</kbd>
+              </span>
+              <span class="settings-hub-card-desc">Muted users, word filters &amp; moderation queue</span>
+            </button>
+            <button type="button" class="settings-hub-card" id="settings-to-updates-btn">
+              <span class="settings-hub-card-top">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
+                <strong>Updates</strong>
+                <kbd>g u</kbd>
+              </span>
+              <span class="settings-hub-card-desc">What's new, changelog &amp; companion dApps</span>
+            </button>
+            <button type="button" class="settings-hub-card" id="settings-to-guide-btn">
+              <span class="settings-hub-card-top">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
+                <strong>Guide</strong>
+                <kbd>g g</kbd>
+              </span>
+              <span class="settings-hub-card-desc">How Radica, Web of Trust &amp; Linfa work</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Section: Interface width -->
         <div class="identity-section">
           <h4>
@@ -1212,18 +1275,6 @@
             <span>View Shortcuts (?)</span>
           </button>
         </div>
-
-        <!-- Link back to Identity Modal -->
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 10px; margin-top: 14px; gap: 12px; flex-wrap: wrap;">
-          <div>
-            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;">Identity, Keys &amp; Freenet Mail</div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Manage your Viso persona, backup private keys, or export mail recovery tokens.</div>
-          </div>
-          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="settings-to-identity-btn">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
-            <span>Open Identity</span>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -1283,7 +1334,7 @@
             <li><b>Answering counts most</b>: a comment on someone's post 3, being reposted 3, a comment received 2, a like received 1, a like given ½. One answer per person and post.</li>
             <li><b>Posting grows the first leaves only</b>: one for each day you post, thirty at most. The rest comes from other people.</li>
             <li><b>It flows through roots</b>: the people you follow count whole, their friends half, strangers a quarter and only a little in all. So two readers can see two different plants on the same profile.</li>
-            <li><b>Ages</b>: seed, seedling, sapling, young tree, tree, elder tree. Lighter leaves are what grew in the last week.</li>
+            <li><b>Ages</b>: seed, seedling, sapling, young tree, tree, elder tree. Lighter leaves are what grew in the last week. Once your plant reaches <b>sapling</b> (with replies or likes from your network), you can also plant and vote in the <b>🌱 Greenhouse</b> without a supporter badge.</li>
           </ul>
           <p><b>Repost</b> (under a post) shares it on your feed, with your own words if you add any. The author is told, and your reposts have their own tab on your profile.</p>
         </details>
@@ -1393,18 +1444,19 @@
             <li><b>No newcomer limits</b>: you post without the anti-bot proof of work (once you are on the public wall), with a 2-second pause between posts instead of 15, and you can start threads in communities open only to vouched members.</li>
             <li><b>Trusted by everyone</b>, if you are on the public supporters wall: every reader counts you as Trusted, so your posts show in their Following tab and your dislikes weigh 1.5 instead of 0.</li>
             <li>The <b>✨ Supporter</b> badge on your posts and profile.</li>
-            <li>A voice in the <b>🌱 Greenhouse</b>: here the tier counts, see below.</li>
+            <li>A voice in the <b>🌱 Greenhouse</b> from day one (without waiting to grow your Linfa): here the tier counts, see below.</li>
           </ul>
           <p>Off the wall, nobody else can tell you donated: the perks on your own device still apply, the badge and the trust for others do not.</p>
           <p><b>Already have a Freenet GhostKey?</b> Identity → Support → <b>👻 Verify with GhostKey</b>: your GhostKey (kept by your Freenet node) signs a proof that it vouches for this identity, or the proof you already made in Viso is reused. You get the same perks as a supporter, with the <b>👻 GhostKey</b> badge, and your Greenhouse vote weighs like 🌳 Oak. The proof is public and shows which GhostKey it is, never who you are; Remove takes it back.</p>
         </details>
 
         <details><summary>🌱 Greenhouse</summary>
-          <p>Where supporters and GhostKey holders suggest what Radica should do next. A supporter or GhostKey holder <b>plants a seed</b>: a 💡 feature or a 🐛 bug, open for 3 to 30 days. Everyone eligible votes until it closes; then it shows 🌱 Sprouted (more for than against) or 🥀 Withered.</p>
+          <p>Where the community suggests what Radica should do next. Anyone who has grown their <b>🌱 Linfa</b> to at least <b>Sapling</b> (12 points, with replies or likes from trusted peers in the reader's network), or holds a <b>Supporter badge</b> or <b>Freenet GhostKey</b>, can <b>plant a seed</b>: a 💡 feature or a 🐛 bug, open for 3 to 30 days. Everyone eligible votes until it closes; then it shows 🌱 Sprouted (more for than against) or 🥀 Withered.</p>
           <ul>
-            <li><b>Votes weigh by tier</b>: 🌱 Sprout 1, 🌿 Root 2, 🌳 Oak and 👻 GhostKey 3. You can change your vote, or take it back by pressing it again.</li>
+            <li><b>Votes weigh by supporter tier or Linfa age</b> (whichever is higher): 🌱 Sprout, Sapling and Young tree <b>1</b>; 🌿 Root and Tree <b>2</b>; 🌳 Oak, 👻 GhostKey and Elder tree <b>3</b>. You can change your vote, or take it back by pressing it again.</li>
+            <li><b>Anti-spam without a paywall</b>: for Linfa participants, only activity backed by replies, likes or reposts from the reader's web of trust counts, and unilateral activity (liking or commenting without community response) is capped, so a bot farm of strangers cannot plant or vote.</li>
             <li>A <b>bug</b> takes only ▲ ("me too"): a bug is there or it is not.</li>
-            <li>Each seed and vote carries the supporter's receipt, so every reader checks it on their own device: your tier is visible to others.</li>
+            <li>A supporter's seed or vote carries their receipt, so every reader checks it on their own device (your tier is visible to others); a Linfa seed or vote is verified by each reader from the author's signed posts and comments.</li>
             <li>The maintainer marks what became of a seed: Considering, Planned, Done or Not now.</li>
           </ul>
           <p>Anyone can read the Greenhouse. The votes show what the community thinks: <b>they guide, they do not decide</b>.</p>
@@ -1482,10 +1534,10 @@
           </h3>
           <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
         </div>
-        <p style="font-size: 0.85rem; margin: 0 0 8px;">Supporters plant ideas and bugs here and vote on them until they close. The votes show what the community thinks: <b>they are a guide, not a promise</b> that something will be built.</p>
+        <p style="font-size: 0.85rem; margin: 0 0 8px;">Community members (with <b>🌱 Sapling+ Linfa</b>) and supporters plant ideas and bugs here and vote on them until they close. The votes show what the community thinks: <b>they are a guide, not a promise</b> that something will be built.</p>
         <p class="testnet-note">⚠️ <b>In testing.</b> The Greenhouse and supporter badges run on a test network for now: seeds and votes may be reset when Radica moves to Base mainnet.</p>
         <p id="greenhouse-weights" style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 12px;"></p>
-        <p id="greenhouse-gate" style="font-size: 0.85rem; margin: 0 0 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">Anyone can read. Planting and voting are for supporters and Freenet GhostKey holders: see <b>Identity → Support Radica</b>.</p>
+        <p id="greenhouse-gate" style="font-size: 0.85rem; margin: 0 0 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network), or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).</p>
         <form id="greenhouse-form" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 16px;">
           <div style="display: flex; gap: 8px;">
             <select name="kind" aria-label="Kind"><option value="feature">💡 Feature</option><option value="bug">🐛 Bug</option></select>
@@ -1496,7 +1548,7 @@
             <label style="font-size: 0.85rem;">Open for <select name="days" id="greenhouse-days"></select></label>
             <button type="submit" class="btn-primary btn-sm">Plant</button>
           </div>
-          <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">What you plant or vote carries your supporter receipt, so others can check it: your tier becomes visible.</p>
+          <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Supporters' seeds and votes carry their receipt so others can check their tier; otherwise each reader checks your Linfa from your signed activity.</p>
         </form>
         <div id="greenhouse-list" style="display: flex; flex-direction: column; gap: 10px;"><div class="greenhouse-loader" role="status" aria-live="polite"><div class="boot-bar"><span></span></div><p>Loading Greenhouse proposals…</p></div></div>
       </div>
@@ -1556,6 +1608,151 @@
         </div>
         <div id="media-grid-container" class="media-grid"></div>
         <p id="media-empty" style="text-align: center; padding: 40px 0; color: var(--text-muted); display: none;">No media posts yet.</p>
+      </div>
+    </div>
+
+    <!-- Living Tree: Interactive Botanical Network Graph & Visual Navigator -->
+    <div id="tree-modal" class="rail-page" style="display: none;">
+      <div class="modal-card tree-page-card">
+        <div class="tree-page-header">
+          <div class="tree-header-title-wrap">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 22v-8"/><path d="M12 14c-4 0-7-3-7-7 0-3.5 3-6 7-6s7 2.5 7 6c0 4-3 7-7 7z"/><path d="M12 18c-3 1.5-5 3-7 3"/><path d="M12 18c3 1.5 5 3 7 3"/><circle cx="9" cy="7" r="1"/><circle cx="15" cy="8" r="1"/><circle cx="12" cy="5" r="1"/></svg>
+              <span>Living Tree</span>
+            </h3>
+            <span class="tree-subtitle">Visual botanical map of Radica — personas as roots, posts as branches, replies as leaves</span>
+          </div>
+          <div class="tree-header-actions">
+            <span class="moments-count-pill" id="tree-stage-pill">Seed</span>
+            <button type="button" class="btn-secondary btn-sm" id="tree-close-btn" title="Close Living Tree">✕</button>
+          </div>
+        </div>
+
+        <div class="tree-toolbar">
+          <div class="tree-pill-group" role="group" aria-label="Tree lens">
+            <button type="button" class="tree-filter-btn active" data-tree-mode="full">🌿 Full Tree</button>
+            <button type="button" class="tree-filter-btn" data-tree-mode="canopy">🍃 Canopy</button>
+            <button type="button" class="tree-filter-btn" data-tree-mode="roots">🪺 Roots</button>
+          </div>
+          <div class="tree-pill-group" role="group" aria-label="Network scope">
+            <button type="button" class="tree-filter-btn active" data-tree-scope="all">All Network</button>
+            <button type="button" class="tree-filter-btn" data-tree-scope="following">Following</button>
+          </div>
+          <select id="tree-comm-select" class="tree-comm-select" aria-label="Filter by community bough">
+            <option value="">All boughs &amp; communities</option>
+          </select>
+          <input type="search" id="tree-search-input" class="tree-search-input" placeholder="Highlight @person, #tag, post…" autocomplete="off" aria-label="Search the Living Tree" />
+        </div>
+
+        <div class="tree-growth-bar">
+          <button type="button" class="btn-secondary btn-xs" id="tree-play-growth-btn" aria-pressed="false">▶ Watch Grow</button>
+          <input type="range" id="tree-time-slider" class="tree-time-slider" min="0" max="100" value="100" aria-label="Network growth timeline" />
+          <span class="tree-time-label" id="tree-time-label">Now · 100%</span>
+        </div>
+
+        <div class="tree-workspace">
+          <div class="tree-canvas-wrap" id="tree-canvas-wrap">
+            <div class="tree-zoom-controls">
+              <button type="button" class="btn-secondary btn-xs" id="tree-zoom-in-btn" title="Zoom in" aria-label="Zoom in">+</button>
+              <button type="button" class="btn-secondary btn-xs" id="tree-zoom-out-btn" title="Zoom out" aria-label="Zoom out">−</button>
+              <button type="button" class="btn-secondary btn-xs" id="tree-zoom-reset-btn" title="Reset view" aria-label="Reset zoom and pan">Reset</button>
+            </div>
+            <div id="tree-svg-container" class="tree-svg-container"></div>
+          </div>
+          <aside class="tree-inspector" id="tree-inspector" aria-label="Node inspector"></aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dedicated Communities (Reddit-style r/slug) Rail Page -->
+    <div id="communities-modal" class="rail-page" style="display: none;">
+      <div class="modal-card communities-page-card">
+        <div class="communities-page-header">
+          <div class="communities-header-title-wrap">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Communities</span>
+            </h3>
+            <span class="communities-subtitle">Decentralized r/forums with upvote ranking, flairs &amp; community moderation</span>
+          </div>
+          <div class="communities-header-actions">
+            <span class="moments-count-pill" id="communities-count-pill">0 communities</span>
+            <button type="button" class="btn-primary btn-sm btn-icon-text" id="comm-page-new-btn" title="Create a new community">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>New Community</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm" id="communities-close-btn" title="Close Communities">✕</button>
+          </div>
+        </div>
+
+        <div class="comm-page-topbar">
+          <input type="search" id="comm-page-search" class="comm-page-search" placeholder="Search r/communities or threads, or type a new name to create…" autocomplete="off" aria-label="Search communities or threads" />
+          <div id="comm-page-pills" class="comm-page-pills" role="tablist" aria-label="Communities switcher"></div>
+        </div>
+
+        <div id="reddit-sub-hero" class="reddit-sub-hero" style="display: none;"></div>
+
+        <div class="reddit-layout">
+          <div class="reddit-main-col">
+            <div id="reddit-create-box" class="reddit-create-box">
+              <div class="reddit-create-head">
+                <select id="reddit-post-comm-select" class="reddit-post-comm-select" aria-label="Select community to post in"></select>
+                <div class="reddit-flair-tabs" id="reddit-flair-tabs" role="group" aria-label="Thread flair">
+                  <button type="button" class="reddit-flair-tab active" data-rflair="thought">💬 Discussion</button>
+                  <button type="button" class="reddit-flair-tab" data-rflair="moment">📸 Media</button>
+                  <button type="button" class="reddit-flair-tab" data-rflair="event">📅 Event</button>
+                </div>
+              </div>
+              <input type="text" id="reddit-post-title" class="reddit-post-title-input" placeholder="Thread title (or main topic)…" maxlength="200" />
+              <textarea id="reddit-post-body" class="reddit-post-body-input" rows="2" placeholder="Text (optional) — add details, links, or #tags…"></textarea>
+              <div id="reddit-event-fields" class="reddit-event-fields" style="display: none;">
+                <input type="text" id="reddit-event-location" class="comment-input" placeholder="Event location (optional)" maxlength="120" />
+                <input type="date" id="reddit-event-date" class="comment-input" aria-label="Event date" />
+              </div>
+              <div id="reddit-post-preview" class="reddit-post-preview" style="display: none;">
+                <img id="reddit-post-preview-img" alt="Preview" />
+                <button type="button" id="reddit-post-remove-img" class="moments-preview-remove" title="Remove image">✕</button>
+              </div>
+              <div class="reddit-create-actions">
+                <div class="reddit-create-media-btns">
+                  <input type="file" id="reddit-post-file" accept="image/*" style="display: none;" />
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="reddit-post-img-btn" title="Attach image">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <span>Image</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-primary btn-sm" id="reddit-publish-btn">Post Thread</button>
+              </div>
+            </div>
+
+            <div class="reddit-toolbar" id="reddit-toolbar">
+              <div class="reddit-sort-group" role="group" aria-label="Sort threads">
+                <button type="button" class="reddit-sort-btn active" data-rsort="hot">🔥 Hot</button>
+                <button type="button" class="reddit-sort-btn" data-rsort="new">⏱ New</button>
+                <button type="button" class="reddit-sort-btn" data-rsort="top24h">🏆 Top 24h</button>
+                <button type="button" class="reddit-sort-btn" data-rsort="top7d">Top 7d</button>
+                <button type="button" class="reddit-sort-btn" data-rsort="topAll">Top All</button>
+              </div>
+              <div class="reddit-filter-group" role="group" aria-label="Filter by flair">
+                <button type="button" class="reddit-filter-btn active" data-rfilter="all">All</button>
+                <button type="button" class="reddit-filter-btn" data-rfilter="thought">💬</button>
+                <button type="button" class="reddit-filter-btn" data-rfilter="moment">📸</button>
+                <button type="button" class="reddit-filter-btn" data-rfilter="event">📅</button>
+                <button type="button" class="reddit-filter-btn" data-rfilter="poll">📊</button>
+              </div>
+              <div class="reddit-view-group" role="group" aria-label="Layout density">
+                <button type="button" class="reddit-view-btn active" data-rview="card" title="Card view">Card</button>
+                <button type="button" class="reddit-view-btn" data-rview="compact" title="Compact list view">Compact</button>
+              </div>
+            </div>
+
+            <div id="reddit-threads-container" class="reddit-threads-list"></div>
+          </div>
+
+          <aside class="reddit-sidebar-col" aria-label="Community info and directory">
+            <div id="reddit-sidebar-content"></div>
+          </aside>
+        </div>
       </div>
     </div>
 
@@ -2041,6 +2238,9 @@
         </div>
         <p class="ms-note">Counted from what your node sees: on Freenet there is no central counter.</p>
         <ul id="milestones-list" class="ms-list"></ul>
+        <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+          <button type="button" class="btn-secondary btn-sm" id="milestones-open-tree-btn">🌿 Explore Living Tree Graph</button>
+        </div>
       </div>
     </div>
 
@@ -2201,6 +2401,7 @@
               <div class="shortcut-row"><span class="shortcut-label">Saved Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>s</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">What's New</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>u</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Greenhouse</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>g</kbd></span></div>
+              <div class="shortcut-row"><span class="shortcut-label">Communities (r/...)</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>r</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Blocklists</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>b</kbd></span></div>
             </div>
           </div>

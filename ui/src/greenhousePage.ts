@@ -1,5 +1,5 @@
 // The Greenhouse page: plant a seed (an idea or a bug), vote on the open ones, and (the maintainer) mark what became of
-// them. Only supporters plant and vote; anyone can read. main.ts calls initGreenhouse once.
+// them. Supporters, GhostKey holders, and members with Sapling+ Linfa plant and vote; anyone can read. main.ts calls initGreenhouse once.
 import { freenet } from "./freenet.ts";
 import { safeStorage } from "./storage";
 import { escapeHtml } from "./html.ts";
@@ -9,8 +9,16 @@ import { foldGreenhouse, greenhouseTokens, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT
 import { RADICA_MAINTAINER } from "./types.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 
+export interface GreenhouseLinfaInfo {
+  weights: Map<string, number>;
+  myStage?: string;
+  myTotal?: number;
+}
+
 let whoAmI: () => string | null = () => null;
 let displayName: (pubkey: string) => string = (pk) => pk.slice(0, 8);
+let linfaForAuthors: (authors: string[]) => Promise<GreenhouseLinfaInfo> = async () => ({ weights: new Map() });
+let myLinfaWeight = 0;
 const verified = new Map<string, SupporterTier | null>(); // `${author}|${token}` -> tier, or null when it does not verify
 
 const myGhostkey = (): string | null => {
@@ -74,30 +82,47 @@ export async function renderGreenhouse(): Promise<void> {
   const list = document.getElementById("greenhouse-list");
   if (!list) return;
   const me = whoAmI() ?? "";
-  const tierOf = await tiers();
-  const canVote = !!tierOf(me);
+  const entries = freenet.greenhouseEntries();
+  const authors = [...new Set([...entries.map((e) => e.author), ...(me ? [me] : [])])];
+  const [tierOf, linfaInfo] = await Promise.all([
+    tiers(),
+    linfaForAuthors(authors).catch(() => ({ weights: new Map<string, number>() }) as GreenhouseLinfaInfo),
+  ]);
+  myLinfaWeight = me ? (linfaInfo.weights.get(me) ?? 0) : 0;
+  const canVote = Boolean(tierOf(me) || myLinfaWeight > 0);
   const form = document.getElementById("greenhouse-form") as HTMLFormElement | null;
   const gate = document.getElementById("greenhouse-gate");
   if (form) form.style.display = canVote ? "flex" : "none";
-  if (gate) gate.style.display = canVote ? "none" : "";
-  const seeds = foldGreenhouse(freenet.greenhouseEntries(), tierOf, me, RADICA_MAINTAINER);
+  if (gate) {
+    gate.style.display = canVote ? "none" : "";
+    if (!canVote) {
+      const progress = linfaInfo.myStage ? ` (your plant: <b>${escapeHtml(linfaInfo.myStage)}</b>, ${Math.floor(linfaInfo.myTotal ?? 0)} / 12 Linfa)` : "";
+      gate.innerHTML = `Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network)${progress}, or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).`;
+    }
+  }
+  const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0);
   list.innerHTML = seeds.length ? seeds.map((s) => seedHtml(s, canVote, me === RADICA_MAINTAINER)).join("") : `<p style="color: var(--text-muted); font-size: 0.85rem;">Nothing planted yet.</p>`;
 }
 
 async function append(body: object): Promise<void> {
   const token = myToken();
-  if (!token && !myGhostkey() && whoAmI() !== RADICA_MAINTAINER) return;
-  await freenet.greenhouseAppend(token ? { ...body, receipt: token } : body); // a GhostKey's proof is on the ghostkeys log
+  if (!token && !myGhostkey() && whoAmI() !== RADICA_MAINTAINER && myLinfaWeight <= 0) return;
+  await freenet.greenhouseAppend(token ? { ...body, receipt: token } : body); // a GhostKey's proof is on the ghostkeys log, and Linfa is checked from signed posts
   await renderGreenhouse();
 }
 
-export function initGreenhouse(deps: { whoAmI: () => string | null; displayName: (pubkey: string) => string }): void {
+export function initGreenhouse(deps: {
+  whoAmI: () => string | null;
+  displayName: (pubkey: string) => string;
+  linfaForAuthors?: (authors: string[]) => Promise<GreenhouseLinfaInfo>;
+}): void {
   whoAmI = deps.whoAmI;
   displayName = deps.displayName;
+  if (deps.linfaForAuthors) linfaForAuthors = deps.linfaForAuthors;
   const days = document.getElementById("greenhouse-days") as HTMLSelectElement | null;
   if (days) days.innerHTML = SEED_DAYS.map((d) => `<option value="${d}"${d === 14 ? " selected" : ""}>${d} days</option>`).join("");
   const weights = document.getElementById("greenhouse-weights");
-  if (weights) weights.textContent = `Votes weigh by supporter tier: 🌱 Sprout ${TIER_WEIGHT.sprout}, 🌿 Root ${TIER_WEIGHT.root}, 🌳 Oak ${TIER_WEIGHT.oak}; 👻 GhostKey ${TIER_WEIGHT.oak}.`;
+  if (weights) weights.textContent = `Votes weigh by supporter tier or Linfa age (whichever is higher): 🌱 Sprout / Sapling / Young tree ${TIER_WEIGHT.sprout}, 🌿 Root / Tree ${TIER_WEIGHT.root}, 🌳 Oak / 👻 GhostKey / 🌲 Elder tree ${TIER_WEIGHT.oak}.`;
 
   const form = document.getElementById("greenhouse-form") as HTMLFormElement | null;
   form?.addEventListener("submit", async (e) => {

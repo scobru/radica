@@ -53,3 +53,30 @@ test("each author's newest receipt is the one checked", () => {
   const tokens = greenhouseTokens([entry("alice", 1, { type: "seed", receipt: "old" }), entry("alice", 2, { type: "vote", receipt: "new" })]);
   assert.equal(tokens.get("alice"), "new");
 });
+
+test("non-supporters with Sapling+ Linfa can plant and vote, taking the max of supporter tier and Linfa weight", () => {
+  const linfaSeed = entry("dan", t0, { type: "seed", kind: "feature", title: "Linfa proposal", days: 7 });
+  const id = `dan:${linfaSeed.id}`;
+  const linfaWeights: Record<string, number> = {
+    dan: 1,     // non-supporter, Sapling -> weight 1
+    erin: 2,    // non-supporter, Tree -> weight 2
+    alice: 3,   // sprout (tier weight 1) + Elder tree (linfa weight 3) -> max(1, 3) = 3
+    mallory: 0, // non-supporter, Seed -> ignored
+  };
+  const out = foldGreenhouse(
+    [
+      linfaSeed,
+      entry("mallory", t0, { type: "seed", kind: "feature", title: "Spam seed", days: 7 }),
+      entry("erin", t0 + 1, { type: "vote", seed: id, v: 1 }),
+      entry("alice", t0 + 2, { type: "vote", seed: id, v: 1 }),
+      entry("mallory", t0 + 3, { type: "vote", seed: id, v: 1 }),
+    ],
+    tierOf,
+    "dan",
+    "boss",
+    (a) => linfaWeights[a] ?? 0
+  );
+  assert.equal(out.length, 1);
+  assert.equal(out[0].title, "Linfa proposal");
+  assert.deepEqual([out[0].up, out[0].down, out[0].voters], [5, 0, 2]);
+});

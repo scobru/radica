@@ -94,6 +94,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Counted, never stored**: each profile shows a plant whose Linfa (sap) the reader's node adds up from the signed posts, comments and likes it holds. There is no score in any contract, so nobody can write themselves a number.
 - **Answering beats posting**: a comment on someone's post counts 3, being reposted 3, a comment received 2, a like received 1, a like given ½. Posting alone grows the first leaves only (one point per day posted, thirty at most).
 - **Sybil-resistant by Web-of-Trust**: each act is weighed by the reader's trust in the other side (followed 1, friend of a friend ½, stranger ¼) and strangers together are capped, so a crowd of new identities cannot grow a tree. Two readers can therefore see two different plants.
+- **Unlocks 🌱 Greenhouse governance**: once your plant reaches **Sapling** (`12+` points backed by genuine replies/likes from the reader's network via `linfaGreenhouseWeight`), you can plant proposals/bugs and vote in the Greenhouse without spending money or holding a supporter badge (Sapling/Young tree weight `1`, Tree `2`, Elder tree `3`; combined with supporter tiers via `Math.max`).
 - **One plant per persona**: a procedural SVG whose whole shape comes from the persona's key. It grows from seed to elder tree without reshuffling; the leaves of the last week are drawn lighter.
 
 ### 13. 🖼️ Moments Gallery (Media Explore)
@@ -105,9 +106,19 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Moderation holds**: a reposted post by someone you hide or block, or a reported post, stays hidden.
 - **Reposts tab** on every profile, beside Posts.
 
-### 13. ⚙️ Dedicated Settings & Frontend Customization
-- **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) are organized into a dedicated Settings view (`g ,`), keeping Identity & Key Management strictly focused on cryptographic persona management and key portability.
+### 13. ⚙️ Dedicated Settings, Decluttered Rail & Wall-First Profiles
+- **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) and a quick-navigation **Account, Safety & Guide** hub live in Settings (`g ,`), keeping the primary left rail compact (`Feed`, `Chat`, `Mail`, `Activity`, `Moments`, `Tree`, `Communities`, `Greenhouse`, `Settings`) while tucking utility/illustrative pages (`Identity`, `Blocklists`, `Updates`, `Guide`) cleanly under `More`.
+- **Wall-First Profiles & Shareable Wall Links (`#user=<pubkey>`)**: Public profiles show a persona's Wall (`Posts` / `Reposts`) immediately on the left with Linfa, channels, and companion Freenet apps in a sticky right sidebar, alongside 1-click **Share Wall** (`#user=<pubkey>`, formatted automatically as `↪ Name's Wall`) and **View in Feed** controls.
 - **Instant Synchronization**: Theme accents (Radici, Ocean, Plum, Slate) and full-width layout changes persist across reloads and sync seamlessly with the node.
+
+### 14. 🌳 Living Tree: Visual Network & Conversation Graph
+- **An Evolving Social Organism**: Opens from the left rail (`Tree`, shortcut `g f`) or the roots counter in the header, evolving across six stages (`Seed` to `Ancient Yggdrasil`) as more personas, communities, posts, and replies appear on your node.
+- **Roots, Branches & Leaves**: Underground roots map known personas across your Web-of-Trust; upper boughs represent communities (`r/...`) and post categories; branches represent posts sized by engagement; and replies sprout as leaves along each post's branch.
+- **Visual Navigation & Time-Lapse**: Includes `Full Tree` / `Canopy` / `Roots` lenses, a `▶ Watch Grow` time-lapse scrubber, search highlighting, sap filament tracing between authors and their posts/comments, pan & zoom, and an inspector panel to jump straight to any post, profile, or community.
+
+### 15. 🗣️ Reddit-Style Communities (`r/slug`)
+- **Dedicated Forum Page (`g r`)**: Open **Communities** from the left rail (`More` -> `Communities`, shortcut `g r`, or **Reddit View** in any community banner) for a classic forum layout (`r/all` and per-community `r/slug` views) without altering the main timeline filter.
+- **Upvote Gutters, Ranking & Flairs**: Threads feature left-hand upvote/downvote score columns (`computeNetScore`), `Hot` / `New` / `Top 24h` / `Top 7d` / `Top All` sorting (`communitiesPage.ts`), flair filters (`Discussion`, `Media`, `Event`, `Poll`), `Card` / `Compact` density modes, an inline thread composer & collapsible comments, and a right-hand `About Community`, `Community Etiquette`, `Moderators`, and `Communities Directory` sidebar.
 
 ---
 
@@ -129,9 +140,12 @@ radica/
 │   │   ├── freenetMail.ts       # Freenet Mail post-quantum seeds & recovery key codec
 │   │   ├── mailClient.ts        # Built-in mail store, reply threading & mailbox manager
 │   │   ├── mail.css             # Responsive dual-pane layout & post-quantum mail styling
+│   │   ├── communitiesPage.ts   # Pure helpers for Reddit-style Communities view (net score, hot/top ranking, title/body split, flairs)
 │   │   ├── repost.ts            # Reposts: a post whose caption carries the shared post's permalink
 │   │   ├── linfa.ts             # Linfa: a profile's score, counted from signed acts and weighed by trust
 │   │   ├── plant.ts             # The plant a Linfa grows: procedural SVG seeded by the persona's key
+│   │   ├── treeGraph.ts         # Living Tree: botanical network graph layout, SVG & inspector renderer
+│   │   ├── treePage.ts          # Living Tree interactive canvas controller (pan/zoom, time-lapse)
 │   │   ├── freenet.ts           # Freenet client, P2P broadcast channel & room key cache
 │   │   ├── nativeRooms.ts       # Pure native E2EE room descriptors, invite link codecs & channel filters
 │   │   ├── types.ts             # Contract state & delta interface declarations

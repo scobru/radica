@@ -196,12 +196,20 @@ function resolve(
     if (url.startsWith("/")) {
       href = `${nodeOrigin()}${url}`;
     }
+    const plainUserRef = /#(?:user|wall)=([0-9a-f]{64})/.exec(url);
+    if (plainUserRef && !customLabel) {
+      return { href, label: `\u21AA ${nameOf(plainUserRef[1])}'s Wall` };
+    }
     return { href, label: customLabel ?? webLabel(url) };
   }
   const [, id, path] = m;
   // a Radica permalink: who wrote the post says more than a contract id
   const ref = /#post=[^&\s]+(?:&author=([0-9a-f]{64}))?/.exec(path);
   if (ref && !customLabel) return { href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`, label: ref[1] ? `\u21AA post by ${nameOf(ref[1])}` : "\u21AA Radica post" };
+  const userRef = /#(?:user|wall)=([0-9a-f]{64})/.exec(path);
+  if (userRef && !customLabel) {
+    return { href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`, label: `\u21AA ${nameOf(userRef[1])}'s Wall` };
+  }
   return {
     href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`,
     label: customLabel ?? `freenet:${short(id)}${path ? "/" + pathLabel(path) : ""}`,

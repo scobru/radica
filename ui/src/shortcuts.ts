@@ -23,6 +23,8 @@ export const SHORTCUTS_LIST: ShortcutItem[] = [
   { keyLabel: "g g", category: "Navigation", description: "Go to Greenhouse" },
   { keyLabel: "g b", category: "Navigation", description: "Go to Blocklists & Moderation" },
   { keyLabel: "g v", category: "Navigation", description: "Go to Moments" },
+  { keyLabel: "g f", category: "Navigation", description: "Go to Living Tree (Network Graph)" },
+  { keyLabel: "g r", category: "Navigation", description: "Go to Communities (r/...)" },
   { keyLabel: "?", category: "Navigation", description: "Open Keyboard Shortcuts Help" },
 
   // Feed & Posts
@@ -84,6 +86,8 @@ export type ActiveView =
   | "updates"
   | "greenhouse"
   | "blocklists"
+  | "communities"
+  | "tree"
   | "profile"
   | "guide"
   | "shortcuts"
@@ -106,6 +110,8 @@ export function getActiveView(): ActiveView {
   if (isVisible("updates-modal")) return "updates";
   if (isVisible("greenhouse-modal")) return "greenhouse";
   if (isVisible("blocklists-modal")) return "blocklists";
+  if (isVisible("communities-modal")) return "communities";
+  if (isVisible("tree-modal")) return "tree";
   if (isVisible("user-profile-modal")) return "profile";
   if (isVisible("guide-modal")) return "guide";
 
@@ -145,7 +151,7 @@ export function showGotoHud(visible: boolean, customText?: string): void {
     if (visible) {
       hud.innerHTML =
         customText ||
-        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>v</kbd> media · <kbd>?</kbd> help`;
+        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>r</kbd> communities · <kbd>f</kbd> tree · <kbd>v</kbd> media · <kbd>?</kbd> help`;
       if (hud.style) hud.style.display = "flex";
       gotoTimer = setTimeout(() => {
         showGotoHud(false);
@@ -230,6 +236,17 @@ export function handleGotoKey(key: string): boolean {
     case "v": {
       closeOtherPages();
       document.getElementById("open-media-btn")?.click();
+      return true;
+    }
+    case "r": {
+      closeOtherPages("communities-modal");
+      document.getElementById("open-communities-btn")?.click();
+      return true;
+    }
+    case "f":
+    case "l": {
+      closeOtherPages("tree-modal");
+      document.getElementById("open-tree-btn")?.click();
       return true;
     }
     case "?": {
@@ -607,6 +624,14 @@ export function handleKeyboardShortcut(e: KeyboardEvent): boolean {
       if (publishBtn && !publishBtn.disabled) {
         e.preventDefault();
         publishBtn.click();
+        return true;
+      }
+    }
+    if (target?.id === "reddit-post-title" || target?.id === "reddit-post-body") {
+      const redditBtn = document.getElementById("reddit-publish-btn") as HTMLButtonElement | null;
+      if (redditBtn && !redditBtn.disabled) {
+        e.preventDefault();
+        redditBtn.click();
         return true;
       }
     }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { linfaOf, stageOf, seasonOf, POINTS, POST_DAYS_CAP, STRANGER_CAP, STAGES, WEEK_MS, type Trust } from "../src/linfa.ts";
+import { linfaOf, linfaGreenhouseWeight, stageOf, seasonOf, POINTS, POST_DAYS_CAP, STRANGER_CAP, STAGES, WEEK_MS, type Trust } from "../src/linfa.ts";
 import type { Post } from "../src/types.ts";
 
 const DAY = 86_400_000;
@@ -136,4 +136,33 @@ test("seasons: dormancy and vitality change with inactivity, total Linfa preserv
   assert.equal(l.season.season, "spring");
   assert.equal(l.season.daysInactive, 1);
   assert.equal(l.season.vitality, 1);
+});
+
+test("linfaGreenhouseWeight blocks unilateral farming and stranger Sybil rings, and scales genuine stages", () => {
+  // Unilateral farming: posting every day + commenting/liking ROOT posts with zero feedback received
+  const unilateral = [
+    ...Array.from({ length: 20 }, (_, i) => post(ME, { ts: NOW - (i + 1) * DAY })),
+    ...Array.from({ length: 10 }, (_, i) => post(ROOT, { ts: old + i, comments: [[ME, old + i]], likes: [[ME, old + i]] })),
+  ];
+  assert.ok(linfaOf(unilateral, ME, trust, NOW).total >= 12);
+  assert.equal(linfaGreenhouseWeight(unilateral, ME, trust, NOW), 0);
+
+  // Stranger Sybil ring: 100 strangers liking and commenting on ME's posts
+  const strangers: [string, number][] = Array.from({ length: 100 }, (_, i) => [(i + 10).toString(16).padStart(64, "0"), old]);
+  const sybilRing = [post(ME, { likes: strangers, comments: strangers })];
+  assert.ok(linfaOf(sybilRing, ME, trust, NOW).total >= 12);
+  assert.equal(linfaGreenhouseWeight(sybilRing, ME, trust, NOW), 0);
+
+  // Genuine community member: Sapling (weight 1), Tree (weight 2), Elder tree (weight 3)
+  const saplingPosts = [
+    post(ME, { ts: old, likes: [[ROOT, old]], comments: [[ROOT, old]] }), // trustedReceived = 3, posting = 1
+    ...Array.from({ length: 3 }, (_, i) => post(ROOT, { ts: old + i, comments: [[ME, old + i]] })), // given = 9 -> effective = 13
+  ];
+  assert.equal(linfaGreenhouseWeight(saplingPosts, ME, trust, NOW), 1);
+
+  const treePosts = Array.from({ length: 60 }, (_, i) => post(ME, { ts: old + i, comments: [[ROOT, old + i]] })); // trustedReceived = 120
+  assert.equal(linfaGreenhouseWeight(treePosts, ME, trust, NOW), 2);
+
+  const elderPosts = Array.from({ length: 150 }, (_, i) => post(ME, { ts: old + i, comments: [[ROOT, old + i]] })); // trustedReceived = 300
+  assert.equal(linfaGreenhouseWeight(elderPosts, ME, trust, NOW), 3);
 });

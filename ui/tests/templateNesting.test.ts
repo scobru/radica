@@ -119,6 +119,8 @@ test("ui consistency: sidebar rail icons match page and modal headers", () => {
     ["notifs", /id="open-notifs-btn"/, "notifs-modal", /id="notifs-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
     ["identity", /id="open-identity-btn"/, "identity-modal", /id="identity-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
     ["media", /id="open-media-btn"/, "media-modal", /id="media-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["tree", /id="open-tree-btn"/, "tree-modal", /id="tree-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["communities", /id="open-communities-btn"/, "communities-modal", /id="communities-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
     ["updates", /id="updates-open-btn"/, "updates-modal", /id="updates-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
     ["greenhouse", /id="greenhouse-open-btn"/, "greenhouse-modal", /id="greenhouse-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
     ["blocklists", /id="blocklists-open-btn"/, "blocklists-modal", /id="blocklists-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
@@ -181,4 +183,57 @@ test("moments: header, composer, filter toolbar, and card grid styling", () => {
   assert.match(mainTs, /media-caption-snippet/);
   assert.match(mainTs, /media-multi-badge/);
   assert.match(mainTs, /media-empty/);
+});
+
+test("layout: desktop rail caps max-height across all tabs, prevents button flex-shrink, and groups utility pages", () => {
+  const indexHtml = read("../index.html");
+  const styleCss = read("../src/style.css");
+  const mainTs = read("../src/main.ts");
+
+  // Desktop rail cap & scrolling apply universally (not gated to body.chat-open / body.mail-open)
+  assert.match(
+    styleCss,
+    /@media\s*\(min-width:\s*769px\)\s*\{[\s\S]*?\.rail\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*36px\);[^}]*overflow-y:\s*auto;/
+  );
+  assert.doesNotMatch(styleCss, /body\.chat-open\s+\.rail\s*\{[^}]*max-height/);
+  assert.match(styleCss, /\.rail-btn\s*\{[^}]*flex-shrink:\s*0;/);
+
+  // Utility/illustrative buttons live inside #rail-utility-group
+  const utilityMatch = indexHtml.match(/id="rail-utility-group"([\s\S]*?)<!-- phones only/);
+  assert.ok(utilityMatch, "Expected #rail-utility-group container inside index.html");
+  for (const id of ["open-identity-btn", "blocklists-open-btn", "updates-open-btn", "guide-open-btn"]) {
+    assert.ok(utilityMatch[1].includes(`id="${id}"`), `Expected #${id} inside #rail-utility-group`);
+  }
+
+  // Settings modal provides the quick-navigation hub to those four sections (with unique IDs)
+  for (const id of [
+    "settings-to-identity-btn",
+    "settings-to-blocklists-btn",
+    "settings-to-updates-btn",
+    "settings-to-guide-btn",
+  ]) {
+    const matches = indexHtml.match(new RegExp(`id="${id}"`, "g")) ?? [];
+    assert.equal(matches.length, 1, `Expected #settings-modal to contain unique #${id}`);
+  }
+  assert.match(mainTs, /settings-to-blocklists-btn/);
+  assert.match(mainTs, /settings-to-updates-btn/);
+  assert.match(mainTs, /settings-to-guide-btn/);
+});
+
+test("layout: user profile modal puts the feed-style Wall first and includes Share Wall / View in Feed controls", () => {
+  const indexHtml = read("../index.html");
+  const styleCss = read("../src/style.css");
+  const mainTs = read("../src/main.ts");
+
+  const wallColIdx = indexHtml.indexOf('class="uview-wall-col"');
+  const asideColIdx = indexHtml.indexOf('class="uview-aside-col"');
+  assert.ok(wallColIdx > 0 && asideColIdx > wallColIdx, "Expected .uview-wall-col before .uview-aside-col inside #user-profile-modal");
+
+  for (const id of ["uview-share-wall-btn", "uview-open-wall-feed-btn", "pp-share-wall-btn"]) {
+    assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
+  }
+
+  assert.match(styleCss, /\.uview-layout\s*\{[^}]*grid-template-columns:/);
+  assert.match(mainTs, /copyUserWallLink/);
+  assert.match(mainTs, /openAuthorWallInFeed/);
 });

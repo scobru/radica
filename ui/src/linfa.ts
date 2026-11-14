@@ -123,6 +123,35 @@ export function linfaOf(posts: Post[], who: string, trust: Trust, now = Date.now
   return { ...all, total, week: total - (before.given + before.received + before.posting), lastActiveTs, season };
 }
 
+/** Minimum trusted interactions received before Linfa counts in Greenhouse (blocks unilateral bots and Sybil rings). */
+export const MIN_TRUSTED_RECEIVED = 2;
+
+/**
+ * Sybil-resistant Greenhouse vote weight derived from `who`'s Linfa.
+ * Ignores Tier-0 strangers and caps unilateral activity (`given`, `posting`) relative to trusted feedback received,
+ * returning 0 below Sapling (12), 1 for Sapling/Young tree (12+), 2 for Tree (120+), and 3 for Elder tree (300+).
+ */
+export function linfaGreenhouseWeight(posts: Post[], who: string, trust: Trust, now = Date.now()): number {
+  const { acts, postDays } = gains(posts, who);
+  let trustedReceived = 0;
+  let given = 0;
+  for (const a of acts) {
+    if (a.ts > now) continue;
+    const tier = trust(a.from);
+    if (tier === 0) continue;
+    const pts = a.points * TRUST_WEIGHT[tier];
+    if (a.part === "received") trustedReceived += pts;
+    else given += pts;
+  }
+  if (trustedReceived < MIN_TRUSTED_RECEIVED) return 0;
+  const posting = postDays.filter((ts) => ts <= now).length * POINTS.postDay;
+  const effective = trustedReceived + Math.min(given, trustedReceived * 3) + Math.min(posting, trustedReceived * 2);
+  if (effective >= 300) return 3;
+  if (effective >= 120) return 2;
+  if (effective >= 12) return 1;
+  return 0;
+}
+
 /** The plant's ages. Not the supporter tiers (Sprout, Root, Oak): those are bought, these are grown. */
 export const STAGES = [
   { at: 0, name: "Seed" },

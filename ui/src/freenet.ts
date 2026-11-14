@@ -727,6 +727,16 @@ export class FreenetClient {
     return this.net.updateRaw(key, delta);
   }
 
+  /** Send a related contract state alongside a delta update (used for Freenet Mail AFT token delivery). */
+  public updateAppContractWithRelated(
+    key: ContractKey,
+    relatedToInstance: Uint8Array,
+    relatedState: Uint8Array,
+    delta: Uint8Array
+  ): Promise<void> {
+    return this.net.updateRawRelatedStateAndDelta(key, relatedToInstance, relatedState, delta);
+  }
+
   /** Universal Freenet URI (freenet:<contract_key_base58>) for a feed, media, or log contract. */
   public async getContractUri(id: ContractId): Promise<string> {
     const k = await contractKey(id);

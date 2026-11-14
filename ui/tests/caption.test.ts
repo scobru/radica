@@ -211,6 +211,19 @@ test("caption: a Radica permalink shows who wrote the post, not the contract id"
   assert.match(renderCaption("freenet:Ex88TLxyzAbcL2Sw/#post=post_1"), />↪ Radica post<\/a>$/);
 });
 
+test("caption: user and wall permalinks format cleanly with display name", () => {
+  const pk = "b".repeat(64);
+  const byUser = renderCaption(`freenet:Ex88TLxyzAbcL2Sw/#user=${pk}`, (k) => (k === pk ? "holdmylatte" : k));
+  assert.match(byUser, />↪ holdmylatte&#39;s Wall<\/a>$/);
+  assert.match(byUser, /href="[^"]+\/v1\/contract\/web\/Ex88TLxyzAbcL2Sw\/#user=b{64}"/);
+
+  const byWall = renderCaption(`freenet:Ex88TLxyzAbcL2Sw/#wall=${pk}`, (k) => (k === pk ? "holdmylatte" : k));
+  assert.match(byWall, />↪ holdmylatte&#39;s Wall<\/a>$/);
+
+  const byWebUrl = renderCaption(`https://radica.example/#user=${pk}`, (k) => (k === pk ? "holdmylatte" : k));
+  assert.match(byWebUrl, />↪ holdmylatte&#39;s Wall<\/a>$/);
+});
+
 test("caption: # headings at the start of a line, while #tags stay tags", () => {
   const html = renderCaption("# Pasta and Breadcrumbs\n\n**PRESENTATION**\n### Step one\nlove #italy");
   assert.match(html, /<strong class="md-h md-h1">Pasta and Breadcrumbs<\/strong>/);

@@ -7,7 +7,10 @@ import {
   sanitizeMailAlias,
   encryptFreenetMailV1,
   decryptFreenetMailV1,
+  deriveInboxContractAddress,
   INBOX_V1_CODE_HASH,
+  type AftTier,
+  type AftTokenAssignment,
   type FreenetMailIdentity,
 } from "./freenetMail.ts";
 import { fromBase58, toBase58 } from "./whoiam.ts";
@@ -103,27 +106,35 @@ export function isValidMailAddress(address: string): boolean {
 
 /**
  * Normalize an address to extract the clean recipient address.
- * Handles display brackets (Name <address>) and multi-line Contact Cards (<inboxAddress>\nverify: <words>).
+ * Handles display brackets (`Name <address>`), `fmail:` prefixes, and both
+ * multi-line and single-line collapsed Contact Cards (`<inboxAddress> verify: <words>`).
  */
 export function normalizeMailAddress(address: string): string {
   const trimmed = address.trim();
   if (!trimmed) return "";
 
-  // If multi-line or contains contact card verification words
-  if (trimmed.includes("\n") || trimmed.includes("verify:")) {
-    const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (line.toLowerCase().startsWith("verify:")) continue;
-      const bracketMatch = line.match(/<([^>]+)>/);
-      const candidate = bracketMatch ? bracketMatch[1].trim() : line;
-      if (isValidMailAddress(candidate)) {
-        return candidate;
-      }
+  const lines = trimmed
+    .split(/\r?\n/)
+    .map((l) =>
+      l
+        .trim()
+        .replace(/^fmail:/i, "")
+        .replace(/\s*verify:\s*[a-zA-Z\-]+.*$/i, "")
+        .trim()
+    )
+    .filter((l) => l.length > 0 && !l.toLowerCase().startsWith("verify:"));
+
+  for (const line of lines) {
+    const bracketMatch = line.match(/<([^>]+)>/);
+    const candidate = (bracketMatch ? bracketMatch[1] : line).trim();
+    if (isValidMailAddress(candidate)) {
+      return candidate;
     }
   }
 
-  const match = trimmed.match(/<([^>]+)>/);
-  return match ? match[1].trim() : trimmed;
+  const fallback = lines[0] ?? trimmed;
+  const match = fallback.match(/<([^>]+)>/);
+  return (match ? match[1] : fallback).trim().replace(/^fmail:/i, "");
 }
 
 const CONTACTS_STORAGE_PREFIX = "radica_fmail_contacts_";
@@ -238,22 +249,23 @@ export function parseFmailContactInput(
   if (!trimmed) return null;
 
   // 1. Check if formatted as "DisplayName <address/token>"
-  const bracketMatch = trimmed.match(/^([^<]+)<([^>]+)>$/);
+  const bracketMatch = trimmed.match(/^([^<]+)<([^>]+)>/);
   if (bracketMatch) {
     const name = bracketMatch[1].trim();
-    const addr = bracketMatch[2].trim();
+    const addr = normalizeMailAddress(bracketMatch[2]);
     if (isValidMailAddress(addr)) {
       const aliasPart = addr.includes("@") ? addr.split("@")[0] : undefined;
       return { name: name || defaultName?.trim() || aliasPart || "Contact", address: addr };
     }
   }
 
-  // 2. Direct address or token
-  if (isValidMailAddress(trimmed)) {
-    const aliasPart = trimmed.includes("@") ? trimmed.split("@")[0] : undefined;
+  // 2. Direct address or Contact Card token (handles verify: clause & fmail: prefix)
+  const norm = normalizeMailAddress(trimmed);
+  if (isValidMailAddress(norm)) {
+    const aliasPart = norm.includes("@") ? norm.split("@")[0] : undefined;
     return {
-      name: defaultName?.trim() || aliasPart || `Contact (${trimmed.substring(0, 6)}…)`,
-      address: trimmed,
+      name: defaultName?.trim() || aliasPart || `Contact (${norm.substring(0, 6)}…)`,
+      address: norm,
     };
   }
 
@@ -451,6 +463,77 @@ export function filterMailMessages(messages: MailMessage[], folder: MailFolder, 
   return list.sort((a, b) => b.timestamp - a.timestamp);
 }
 
+const AFT_ASSIGNMENTS_PREFIX = "radica_fmail_aft_assignments_";
+
+function loadAftAssignments(inboxAddress: string): AftTokenAssignment[] {
+  if (!inboxAddress) return [];
+  try {
+    const parsed = JSON.parse(safeStorage.getItem(`${AFT_ASSIGNMENTS_PREFIX}${inboxAddress}`) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAftAssignments(inboxAddress: string, assignments: AftTokenAssignment[]): void {
+  if (!inboxAddress) return;
+  const deduped: AftTokenAssignment[] = [];
+  const seen = new Set<string>();
+  for (const a of assignments) {
+    if (!a || !a.tier || !a.time_slot) continue;
+    const key = `${a.tier}:${Math.floor(Date.parse(a.time_slot) / 1000)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(a);
+  }
+  safeStorage.setItem(`${AFT_ASSIGNMENTS_PREFIX}${inboxAddress}`, JSON.stringify(deduped.slice(-200)));
+  safeStorage.flush();
+}
+
+function bytesEqual(a: unknown, b: Uint8Array): boolean {
+  if (!Array.isArray(a) || a.length !== b.length) return false;
+  for (let i = 0; i < b.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Resolve a full sender email address (`alias@inboxAddress`) and display string
+ * using the decrypted `from` label and the outer message's 1952-byte ML-DSA-65 `sender_vk`.
+ */
+export function resolveFreemailSenderAddress(
+  rawFrom: string,
+  senderVk?: number[] | Uint8Array | null
+): { fromAddress: string; fromDisplay: string } {
+  const cleanRaw = (rawFrom || "").trim();
+  if (cleanRaw.includes("@")) {
+    const candidate = normalizeMailAddress(cleanRaw);
+    if (isValidMailAddress(candidate)) {
+      return { fromAddress: candidate, fromDisplay: candidate };
+    }
+  }
+
+  const vkBytes =
+    senderVk instanceof Uint8Array
+      ? senderVk
+      : Array.isArray(senderVk) && senderVk.length === 1952
+        ? new Uint8Array(senderVk)
+        : null;
+  if (vkBytes && vkBytes.length === 1952) {
+    const senderInbox = deriveInboxContractAddress(vkBytes);
+    const alias = sanitizeMailAlias(cleanRaw.split("@")[0]) || "user";
+    const fullAddress = `${alias}@${senderInbox}`;
+    return { fromAddress: fullAddress, fromDisplay: fullAddress };
+  }
+
+  const fallback = cleanRaw || "unknown";
+  return {
+    fromAddress: fallback,
+    fromDisplay: fallback.includes("@") ? fallback : `${fallback} <${fallback}>`,
+  };
+}
+
 /**
  * Count unread messages in the inbox.
  */
@@ -556,25 +639,55 @@ export async function sendMailMessage(
 
   const getContractFn = freenet ? (freenet.getByInstance || freenet.appContract) : undefined;
   const updateContractFn = freenet ? (freenet.updateRaw || freenet.updateAppContract) : undefined;
+  const updateRelatedFn = freenet
+    ? (freenet.updateRawRelatedStateAndDelta || freenet.updateAppContractWithRelated)
+    : undefined;
 
-  if (targetContractId.length >= 43 && targetContractId.length <= 44 && getContractFn && updateContractFn) {
+  if (targetContractId.length >= 43 && targetContractId.length <= 44 && getContractFn && (updateRelatedFn || updateContractFn)) {
     try {
       const raw = await getContractFn.call(freenet, targetContractId, true); // fetchCode: this node may never have held the recipient's inbox contract, and an UPDATE needs its WASM cached locally
       if (raw) {
         const inboxObj = JSON.parse(new TextDecoder().decode(raw));
         if (inboxObj && Array.isArray(inboxObj.owner_ek_bytes) && inboxObj.owner_ek_bytes.length > 0) {
           const recipientEk = new Uint8Array(inboxObj.owner_ek_bytes);
-          const { deltaJson } = encryptFreenetMailV1(
+          const rawTier = inboxObj?.settings?.minimum_tier;
+          const requiredTier: AftTier = typeof rawTier === "string" ? (rawTier as AftTier) : "Min10";
+
+          const cachedAssignments = loadAftAssignments(identity.inboxAddress);
+          const existingOnInbox: AftTokenAssignment[] = Array.isArray(inboxObj.messages)
+            ? inboxObj.messages
+                .filter((m: any) => bytesEqual(m?.sender_vk, identity.dsaVk) && m?.token_assignment)
+                .map((m: any) => m.token_assignment as AftTokenAssignment)
+            : [];
+          const existingAssignments = [...cachedAssignments, ...existingOnInbox];
+
+          const encrypted = encryptFreenetMailV1(
             recipientEk,
             identity.dsaSk,
             identity.dsaVk,
             targetContractId,
             subject,
             content,
-            identity.alias
+            identity.alias,
+            { tier: requiredTier, existingAssignments }
           );
+
+          if (identity.inboxAddress) {
+            saveAftAssignments(identity.inboxAddress, [...existingAssignments, encrypted.tokenAssignment]);
+          }
+
           const key = new ContractKey(fromBase58(targetContractId), fromBase58(INBOX_V1_CODE_HASH));
-          await updateContractFn.call(freenet, key, new TextEncoder().encode(deltaJson));
+          if (updateRelatedFn) {
+            await updateRelatedFn.call(
+              freenet,
+              key,
+              encrypted.tokenRecordInstanceBytes,
+              new TextEncoder().encode(encrypted.tokenAllocationRecordJson),
+              new TextEncoder().encode(encrypted.deltaJson)
+            );
+          } else {
+            await updateContractFn!.call(freenet, key, new TextEncoder().encode(encrypted.deltaJson));
+          }
           networkDelivered = true;
           networkDetails = "Delivered to recipient's Freenet Mail inbox contract on the network.";
         } else {
@@ -629,6 +742,7 @@ export async function syncFreenetMailInbox(
     const store = loadMailStore(pubkey, identity);
     const deletedIds = deletedMailIds(pubkey);
     let newCount = 0;
+    let updatedExisting = false;
 
     for (const msg of parsedInbox.messages) {
       if (!msg.content || !Array.isArray(msg.content)) continue;
@@ -643,18 +757,32 @@ export async function syncFreenetMailInbox(
       const msgId = assignHash ? `fmail_${assignHash}` : `fmail_${dec.time}_${dec.from}`;
       if (deletedIds.has(msgId)) continue; // deleted locally: the contract still holds it, don't bring it back
 
-      // Check if already in store
-      const exists = store.messages.some(
+      const { fromAddress, fromDisplay } = resolveFreemailSenderAddress(dec.from, msg.sender_vk);
+
+      // Check if already in store (and repair bare sender addresses synced before sender_vk derivation)
+      const existing = store.messages.find(
         (m) =>
           m.id === msgId ||
-          (m.subject === dec.title && m.content === dec.content && m.from.includes(dec.from))
+          (m.subject === dec.title &&
+            m.content === dec.content &&
+            (m.from.includes(dec.from) || m.fromAddress === fromAddress))
       );
-      if (exists) continue;
+      if (existing) {
+        if (
+          fromAddress.includes("@") &&
+          (!existing.fromAddress.includes("@") || !isValidMailAddress(existing.fromAddress))
+        ) {
+          existing.fromAddress = fromAddress;
+          existing.from = fromDisplay;
+          updatedExisting = true;
+        }
+        continue;
+      }
 
       const newMsg: MailMessage = {
         id: msgId,
-        from: dec.from.includes("@") ? dec.from : `${dec.from} <${dec.from}>`,
-        fromAddress: dec.from,
+        from: fromDisplay,
+        fromAddress,
         to: `${identity.alias}@${identity.inboxAddress}`,
         subject: dec.title,
         content: dec.content,
@@ -669,7 +797,7 @@ export async function syncFreenetMailInbox(
       newCount++;
     }
 
-    if (newCount > 0) {
+    if (newCount > 0 || updatedExisting) {
       saveMailStore(pubkey, store);
     }
 

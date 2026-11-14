@@ -33,13 +33,13 @@ Radica is open-source software for a decentralized social network on [Freenet](h
 
 ## 5. Greenhouse
 
-Greenhouse votes show what supporters think. They are **a guide, not a promise**: the maintainers decide what is built, when, and whether at all.
+Greenhouse votes show what supporters, GhostKey holders, and active community members (Sapling+ Linfa) think. They are **a guide, not a promise**: the maintainers decide what is built, when, and whether at all.
 
 ## 6. Privacy
 
 - Radica **does not collect personal data on any server** and has no analytics or trackers.
 - Your key, settings and drafts stay on your device and on your own Freenet node.
-- **Public by design:** posts, comments, community messages, your profile, your follows, Greenhouse seeds and votes (with your supporter tier), and, if you choose to appear there, your entry on the supporters wall.
+- **Public by design:** posts, comments, community messages, your profile, your follows, Greenhouse seeds and votes (with your supporter tier when applicable), and, if you choose to appear there, your entry on the supporters wall.
 - **Private messages and private rooms** are end-to-end encrypted: only their participants can read them. Their existence and timing may still be visible on the network.
 - Translation, image and video checks run **on your device**; nothing you read or write is sent elsewhere for them.
 - The maintainers may run an automated helper that reads **public posts** and sends their text to a third-party AI service (OpenRouter, and the model provider it picks) to spot spam, scams, threats, illegal content and doxxing. It only adds a report, marked `[AI]`, to the public moderators' queue: it hides nothing and blocks nobody, a person decides. It never reads direct messages, private rooms or secret chats.

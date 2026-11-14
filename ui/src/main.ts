@@ -5,7 +5,17 @@ import { parseRoomInviteParams } from "./nativeRooms.ts";
 import { ecosystemFooter, ecosystemCard } from "./ecosystem";
 import { closeModal, installModalDismiss } from "./modals";
 import { initShortcuts, toggleShortcutsModal } from "./shortcuts";
-import { findCommunities, type CommunitySort } from "./communityFinder";
+import { findCommunities, slugOf, type CommunitySort } from "./communityFinder";
+import {
+  computeNetScore,
+  sortRedditThreads,
+  splitThreadTitleAndBody,
+  flairInfoForPost,
+  formatThreadComposeCaption,
+  type RedditSort,
+  type RedditFlairFilter,
+  type RedditViewMode,
+} from "./communitiesPage.ts";
 import { getIdentity, personaName } from "./crypto";
 import { linkify, plainMentions, renderCaption, renderPost, renderComment, mentionsIn, nodeOrigin, renderChatText, setMaskBadWords, trendingTags } from "./caption.ts";
 import { deltaPrefixOf, pageHref, deltaCard, fillDelta } from "./delta.ts";
@@ -81,7 +91,7 @@ import {
   restart,
 } from "./whoiam";
 import { freenet } from "./freenet";
-import { linfaOf } from "./linfa.ts";
+import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
@@ -115,6 +125,8 @@ import { WebOfTrust, type TrustBadgeInfo } from "./wot.ts";
 import { solvePoW, COMMENT_POW_BITS, POST_POW_BITS, POST_POW_SINCE, postHasPow, type PoWProof } from "./pow.ts";
 import { METRIC_LABELS, countsOf, nextUp, reached, type Counts } from "./milestones.ts";
 import { growRoots } from "./rootsfx.ts";
+import { initTreePage, openTreePage, refreshTreePageIfOpen } from "./treePage.ts";
+import type { TreePeerInput } from "./treeGraph.ts";
 import { fillFreetunes, freetunesCard, freetunesProfileCard, fillFreetunesProfile, localFreetunesArtist, localFreetunesReleases } from "./freetunes.ts";
 import { createPoll, fillFreepolls, freepollsCard, freepollsLink, type PollNet } from "./freepolls.ts";
 import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris, MEDIA_PREFIX } from "./media.ts";
@@ -357,8 +369,12 @@ const scopeMyPostsBtn = document.getElementById("scope-myposts-btn") as HTMLButt
 const scopeMyPostsCount = document.getElementById("scope-myposts-count") as HTMLElement;
 const scopeSavedBtn = document.getElementById("scope-saved-btn") as HTMLButtonElement;
 const openMediaBtn = document.getElementById("open-media-btn") as HTMLButtonElement;
+const communitiesModal = document.getElementById("communities-modal") as HTMLElement;
+const openCommunitiesBtn = document.getElementById("open-communities-btn") as HTMLButtonElement | null;
+const commRedditViewBtn = document.getElementById("comm-reddit-view-btn") as HTMLButtonElement | null;
 
 const activeFilterBanner = document.getElementById("active-filter-banner") as HTMLElement;
+const activeFilterPrefix = document.getElementById("active-filter-prefix") as HTMLElement | null;
 const activeFilterTag = document.getElementById("active-filter-tag") as HTMLElement;
 const clearFilterBtn = document.getElementById("clear-filter-btn") as HTMLButtonElement;
 
@@ -434,6 +450,8 @@ const uviewBio = document.getElementById("uview-bio") as HTMLElement;
 const uviewChannel = document.getElementById("uview-channel") as HTMLElement | null;
 const uviewFollowBtn = document.getElementById("uview-follow-btn") as HTMLButtonElement;
 const uviewTalkBtn = document.getElementById("uview-talk-btn") as HTMLButtonElement;
+const uviewShareWallBtn = document.getElementById("uview-share-wall-btn") as HTMLButtonElement | null;
+const uviewOpenWallFeedBtn = document.getElementById("uview-open-wall-feed-btn") as HTMLButtonElement | null;
 const uviewHideBtn = document.getElementById("uview-hide-btn") as HTMLButtonElement;
 
 // Authors I hid: only on this device, their posts vanish from every feed here.
@@ -2060,6 +2078,8 @@ async function reloadPosts() {
   renderTimeline();
   renderTrending();
   updateMyPostsAndScopeCounts();
+  if (currentFeedScope === "explore") treeExplorePosts = timelinePosts;
+  refreshTreePageIfOpen();
 }
 
 /** Joined communities only: the sidebar, composer and feed show these, the rest are found by name. */
@@ -2198,6 +2218,7 @@ function restoreScrollAnchor(anchor: { id: string; top: number }) {
 function renderTimeline() {
   postsContainer.classList.remove("media-grid");
   if (!currentIdentity) return;
+  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
 
   const me = currentIdentity.pubkey;
   // ponytail: build hidden author set and community map once per render instead of per-post JSON.parse + linear scans
@@ -2331,7 +2352,7 @@ function renderTimeline() {
   }
 
   // Page the feed: a long feed is drawn 20 posts at a time. Any change of filter starts again from the first page.
-  const pageKey = [currentFeedScope, currentFeedSort, activeCommunity?.id, currentCategory, activeTagFilter, searchQuery].join("|");
+  const pageKey = [currentFeedScope, feedAuthor ?? "", currentFeedSort, activeCommunity?.id, currentCategory, activeTagFilter, searchQuery].join("|");
   const isFeedSwitch = pageKey !== lastPageKey;
   if (isFeedSwitch) {
     lastPageKey = pageKey;
@@ -2970,7 +2991,7 @@ function renderMediaGrid() {
     const footerBar = document.createElement("div");
     footerBar.className = "media-footer-bar";
 
-    const TAG_RE = /#[a-zA-Z0-9_À-ſ]+/;
+    const TAG_RE = /#[a-zA-Z0-9_\u00C0-\u017F]+/;
     const tagMatch = rawCaption.match(TAG_RE);
     const tagText = tagMatch ? tagMatch[0] : "#" + (post.category || "moment");
     const category = document.createElement("span");
@@ -3327,6 +3348,12 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
         return;
       }
     } catch {}
+  }
+  const userMatch = /#(?:user|wall)=([0-9a-f]{64})/i.exec(href);
+  if (userMatch) {
+    e.preventDefault();
+    void openUserProfile(userMatch[1].toLowerCase());
+    return;
   }
   if (window.parent === window) return; // normal page: the browser follows the link
   e.preventDefault();
@@ -3704,16 +3731,18 @@ async function globalRemove(author: string, id: string, media?: string | null) {
 }
 
 async function modDeleteFromCard(btn: HTMLElement) {
-  if (!currentIdentity || !activeCommunity) return;
+  const commId = btn.dataset.commId || activeCommunity?.id;
+  const targetComm = allCommunities.find((c) => c.id === commId) || activeCommunity;
+  if (!currentIdentity || !targetComm) return;
   const postId = btn.dataset.postId!;
   const author = btn.dataset.author!;
-  if (!confirm(`Moderator Action: Remove this post from r/${activeCommunity.slug}?`)) return;
+  if (!confirm(`Moderator Action: Remove this post from r/${targetComm.slug}?`)) return;
 
-  const res = await freenet.modDeletePost(currentIdentity, activeCommunity.id, postId, author);
+  const res = await freenet.modDeletePost(currentIdentity, targetComm.id, postId, author);
   alert(res.msg);
   if (res.success) {
-    if (!activeCommunity.deleted_post_ids.includes(postId)) {
-      activeCommunity.deleted_post_ids.push(postId);
+    if (!targetComm.deleted_post_ids.includes(postId)) {
+      targetComm.deleted_post_ids.push(postId);
     }
     renderTimeline();
   }
@@ -3726,6 +3755,7 @@ async function deletePostFromCard(btn: HTMLElement) {
 
   const prev = [...timelinePosts];
   timelinePosts = timelinePosts.filter((p) => p.id !== postId);
+  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
   const card = document.getElementById(`card-${postId}`);
   if (card) {
     card.style.transition = "opacity 0.2s, transform 0.2s";
@@ -3781,6 +3811,7 @@ async function toggleLikeFromCard(target: HTMLElement) {
 
   paintReactionsBy(optimisticPost);
   updateNotificationsBadge();
+  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
 
   freenet.toggleLike(identity, author, postId).catch((err) => {
     console.error("Failed to toggle like:", err);
@@ -3793,6 +3824,7 @@ async function toggleLikeFromCard(target: HTMLElement) {
       paintReactionsBy(post);
     }
     updateNotificationsBadge();
+    if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
   });
 }
 
@@ -3835,6 +3867,7 @@ async function toggleDislikeFromCard(btn: HTMLElement) {
     dislikeBtn.innerHTML = `<span>${newDisliked ? renderIcon("thumbsDownFilled", { className: "icon-sm", ariaLabel: "Disliked" }) : renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" })}</span> <span><span class="action-count">${nextDislikers.length}</span><span class="action-label"> ${nextDislikers.length === 1 ? "Dislike" : "Dislikes"}</span></span>`;
   }
   if (optimisticPost) paintReactionsBy(optimisticPost);
+  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
 
   freenet.toggleDislike(identity, author, postId).catch((err) => {
     console.error("Failed to toggle dislike:", err);
@@ -4037,6 +4070,7 @@ async function submitCommentFromCard(target: HTMLFormElement) {
       renderTimeline();
     }
     updateNotificationsBadge();
+    if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
   }
 
   freenet.addComment(identity, author, postId, finalText, !vouchedForAll).then((realComment) => {
@@ -4052,6 +4086,7 @@ async function submitCommentFromCard(target: HTMLFormElement) {
           `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(postId)}" data-author="${escapeHtml(author)}" data-key="${escapeHtml(realKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>`
         );
       }
+      if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
     }
   }).catch((err) => {
     console.error("Failed to add comment:", err);
@@ -4064,6 +4099,7 @@ async function submitCommentFromCard(target: HTMLFormElement) {
       if (countBtn) {
         countBtn.innerHTML = `<span>${renderIcon("messageSquare", { className: "icon-sm" })}</span> <span><span class="action-count">${visibleCommentCount(optimisticPost)}</span><span class="action-label"> ${visibleCommentCount(optimisticPost) === 1 ? "Comment" : "Comments"}</span></span>`;
       }
+      if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
     }
   });
 }
@@ -5050,6 +5086,52 @@ function renderProfileChannelCard(bio: string, authorPubkey: string, authorName:
   </div>`.trim();
 }
 
+async function copyUserWallLink(pubkey: string) {
+  const loc = window.location;
+  const baseUrl = `${loc.protocol}//${loc.host}${loc.pathname}`;
+  const wallUrl = `${baseUrl}#user=${encodeURIComponent(pubkey)}`;
+  try {
+    await navigator.clipboard.writeText(wallUrl);
+    showToast("✓ Wall link copied! Paste it in any post or chat.", "info");
+  } catch {
+    showToast(`Wall link: ${wallUrl}`, "info", 6000);
+  }
+}
+
+async function openAuthorWallInFeed(pubkey: string) {
+  userProfileModal.style.display = "none";
+  closeRailPages();
+  showProfilePage(false);
+  activeCommunity = null;
+  if (communityHeaderBanner) communityHeaderBanner.style.display = "none";
+  composerCommunitySelect.value = "";
+  activeTagFilter = null;
+  searchQuery = "";
+  feedSearchInput.value = "";
+  currentCategory = "all";
+  document.querySelectorAll(".cat-btn").forEach((b) => b.classList.toggle("active", (b as HTMLElement).dataset.cat === "all"));
+
+  currentFeedScope = "myposts";
+  updateScopeBtnActive(scopeMyPostsBtn);
+  const isSelf = pubkey === currentIdentity?.pubkey;
+  feedAuthor = isSelf ? null : pubkey;
+  if (!isSelf) {
+    scopeMyPostsBtn.classList.remove("active");
+    if (activeFilterPrefix) activeFilterPrefix.textContent = "Viewing Wall:";
+    if (activeFilterTag) activeFilterTag.textContent = `@${getAuthorDisplayName(pubkey)}`;
+    if (activeFilterBanner) activeFilterBanner.style.display = "flex";
+    const cached = await freenet.getFeed(pubkey).catch(() => null);
+    if (!cached || Object.keys(cached.posts || {}).length === 0) {
+      await freenet.refresh(pubkey, true, true).catch(() => null);
+    }
+  } else if (activeFilterBanner) {
+    activeFilterBanner.style.display = "none";
+  }
+
+  await reloadPosts();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 async function openUserProfile(pubkey: string) {
   markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
@@ -5176,10 +5258,16 @@ async function openUserProfile(pubkey: string) {
     userProfileModal.style.display = "none";
     openChatWithPeer(pubkey);
   };
+  if (uviewShareWallBtn) {
+    uviewShareWallBtn.onclick = () => void copyUserWallLink(pubkey);
+  }
+  if (uviewOpenWallFeedBtn) {
+    uviewOpenWallFeedBtn.onclick = () => void openAuthorWallInFeed(pubkey);
+  }
 
   void showLinfa(uviewLinfa, pubkey);
 
-  // their posts, newest first: the text, the picture, likes and comments; a click opens the post in the feed.
+  // their posts, newest first: rendered as a clean feed-style Wall (posts first, info in the sidebar); a click opens the post in the feed.
   // What they wrote and what they reposted are two tabs (a repost is a post that shares another: repost.ts).
   const captionOf = (p: Post) => freenet.postEdit(pubkey, p.id)?.caption ?? p.caption;
   const authorPosts = Object.values(feed.posts).sort((a, b) => b.timestamp - a.timestamp);
@@ -5194,6 +5282,7 @@ async function openUserProfile(pubkey: string) {
       uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">${tab === "posts" ? "No posts yet." : "Nothing reposted yet."}</div>`;
       return;
     }
+    const displayName = name || getAuthorDisplayName(pubkey);
     uviewPostsGallery.innerHTML = byTab[tab]
       .map((p) => {
         const likes = Object.values(p.likes ?? {}).filter((l) => l.liked).length;
@@ -5201,14 +5290,21 @@ async function openUserProfile(pubkey: string) {
         const edit = freenet.postEdit(pubkey, p.id);
         const caption = captionOf(p);
         const own = tab === "reposts" ? repostText(caption) : caption;
-        const comm = p.community_id ? ` · r/${escapeHtml(p.community_id.replace(/^c_/, ""))}` : "";
+        const comm = p.community_id ? `<span class="gram-badge">r/${escapeHtml(p.community_id.replace(/^c_/, ""))}</span>` : "";
         const editedTag = edit ? ` · <span class="gram-edited" title="Edited ${formatTimeAgo(edit.ts)}">edited</span>` : "";
         return `<div class="uview-post" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(pubkey)}" role="button" tabindex="0" title="Open this post">
-          ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" /></div>` : ""}
+          <div class="uview-post-head">
+            <div><span class="uview-post-author">${escapeHtml(displayName)}</span> <span class="uview-post-time">· ${formatTimeAgo(p.timestamp)}${editedTag}</span></div>
+            ${comm}
+          </div>
           <div class="uview-post-body">
             ${own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : ""}
+            ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" /></div>` : ""}
             ${tab === "reposts" ? repostCard(caption) : ""}
-            <div class="uview-post-meta">${formatTimeAgo(p.timestamp)}${editedTag} · ♥ ${likes} · 💬 ${comments}${comm}</div>
+            <div class="uview-post-meta">
+              <span>♥ ${likes} · 💬 ${comments}</span>
+              <span class="uview-post-open">Open post →</span>
+            </div>
           </div>
         </div>`;
       })
@@ -5446,6 +5542,8 @@ const railPages: [HTMLElement, string][] = [
   [guideModal, "guide-open-btn"],
   [greenhouseModal, "greenhouse-open-btn"],
   [mediaModal, "open-media-btn"],
+  [document.getElementById("tree-modal") as HTMLElement, "open-tree-btn"],
+  [communitiesModal, "open-communities-btn"],
   [welcomeModal, ""], // first steps: no rail button
   [blocklistsModal, "blocklists-open-btn"],
   [userProfileModal, ""], // someone's profile: no rail button
@@ -5454,6 +5552,135 @@ const isOpen = (el: HTMLElement) => el.style.display !== "none" && el.style.disp
 function closeRailPages(except?: HTMLElement) {
   for (const [el] of railPages) if (el !== except && isOpen(el)) el.style.display = "none";
 }
+
+// ---- Living Tree (Albero di Radica): Interactive Botanical Network Graph ----
+const treeModal = document.getElementById("tree-modal") as HTMLElement;
+let treeExplorePosts: Post[] | null = null;
+
+function collectTreePosts(): Post[] {
+  const byKey = new Map<string, Post>();
+  const add = (p: Post) => {
+    if (!p || isHiddenAuthor(p.author)) return;
+    byKey.set(`${p.author}:${p.id}`, p);
+  };
+  for (const p of treeExplorePosts ?? []) add(p);
+  for (const p of timelinePosts) add(p);
+  for (const p of Object.values(freenet.peerCache || {})) add(p);
+  return [...byKey.values()];
+}
+
+function collectTreePeers(posts: Post[]): TreePeerInput[] {
+  const wot = getWebOfTrust();
+  const me = currentIdentity?.pubkey ?? "";
+  const now = Date.now();
+  const postCountBy = new Map<string, number>();
+  const commentCountBy = new Map<string, number>();
+  const firstSeenBy = new Map<string, number>();
+  const lastActiveBy = new Map<string, number>();
+
+  const noteActivity = (pk: string, ts: number) => {
+    if (!pk || !ts) return;
+    firstSeenBy.set(pk, Math.min(firstSeenBy.get(pk) ?? Infinity, ts));
+    lastActiveBy.set(pk, Math.max(lastActiveBy.get(pk) ?? 0, ts));
+  };
+
+  for (const p of posts) {
+    postCountBy.set(p.author, (postCountBy.get(p.author) ?? 0) + 1);
+    noteActivity(p.author, p.timestamp);
+    for (const c of Object.values(p.comments ?? {})) {
+      if (!c || c.text === "") continue;
+      commentCountBy.set(c.author, (commentCountBy.get(c.author) ?? 0) + 1);
+      noteActivity(c.author, c.timestamp);
+    }
+  }
+
+  const allKeys = new Set<string>([
+    ...(me ? [me] : []),
+    ...followingKeys,
+    ...Object.keys(freenet.knownPeers || {}),
+    ...postCountBy.keys(),
+    ...commentCountBy.keys(),
+  ]);
+
+  const supporterSet = new Set([...supporterKeys, ...ghostkeyKeys]);
+  const trustFn = (pk: string) => wot.trustTier(pk);
+
+  return [...allKeys]
+    .filter((pk) => pk && !isHiddenAuthor(pk))
+    .map((pk) => {
+      const postsCnt = postCountBy.get(pk) ?? 0;
+      const commentsCnt = commentCountBy.get(pk) ?? 0;
+      const lastActive = lastActiveBy.get(pk) ?? 0;
+      const joinedAt = firstSeenBy.get(pk) ?? 0;
+      const linfaTotal = postsCnt > 0 || commentsCnt > 0 ? linfaOf(posts, pk, trustFn, now).total : 0;
+      return {
+        pubkey: pk,
+        name: getAuthorDisplayName(pk),
+        trustTier: wot.trustTier(pk),
+        postCount: postsCnt,
+        commentCount: commentsCnt,
+        linfaTotal,
+        fresh: lastActive > 0 && now - lastActive <= 24 * 60 * 60 * 1000,
+        joinedAt: Number.isFinite(joinedAt) ? joinedAt : 0,
+        supporter: supporterSet.has(pk),
+      };
+    });
+}
+
+initTreePage({
+  getPosts: collectTreePosts,
+  getCommunities: () => {
+    const hidden = hiddenCommunityIds();
+    return allCommunities.filter((c) => !hidden.has(c.id));
+  },
+  getPeers: () => collectTreePeers(collectTreePosts()),
+  getMyPubkey: () => currentIdentity?.pubkey ?? "",
+  getMyName: () => (currentIdentity ? getAuthorDisplayName(currentIdentity.pubkey) : "You"),
+  getDisplayName: getAuthorDisplayName,
+  refreshNetwork: async () => {
+    if (!currentIdentity) return;
+    treeExplorePosts = await freenet.getExploreTimeline(currentIdentity, {
+      prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+      skip: isHiddenAuthor,
+    });
+  },
+  onOpenPost: (postId, author) => {
+    closeRailPages();
+    void showMyPost(postId, author);
+  },
+  onOpenProfile: (pubkey) => {
+    void openUserProfile(pubkey);
+  },
+  onOpenCommunity: (commId) => {
+    const comm = allCommunities.find((c) => c.id === commId) ?? null;
+    closeRailPages();
+    showProfilePage(false);
+    selectCommunity(comm);
+  },
+  onOpenMilestones: async () => {
+    if (!currentIdentity) return;
+    renderMilestones(networkCounts(await freenet.getExploreTimeline(currentIdentity)));
+    milestonesModal.style.display = "flex";
+    growRoots();
+  },
+});
+
+document.getElementById("open-tree-btn")?.addEventListener("click", () => {
+  closeRailPages(treeModal);
+  void openTreePage();
+});
+document.getElementById("tree-close-btn")?.addEventListener("click", () => {
+  if (treeModal) treeModal.style.display = "none";
+});
+document.getElementById("feed-open-tree-btn")?.addEventListener("click", () => {
+  closeRailPages(treeModal);
+  void openTreePage();
+});
+document.getElementById("milestones-open-tree-btn")?.addEventListener("click", () => {
+  milestonesModal.style.display = "none";
+  closeRailPages(treeModal);
+  void openTreePage();
+});
 let feedScrollY = 0; // where the feed was when a page covered it: closing the page returns there
 // pressing the button of the page that is open closes it again (before the button's own handler would reopen it)
 document.querySelector(".rail")?.addEventListener(
@@ -5488,7 +5715,9 @@ for (const [page, btnId] of railPages) {
     document.body.classList.toggle("chat-fullscreen", chatOpen && chatModal.classList.contains("fullscreen"));
     if (wasOpen && !open) requestAnimationFrame(() => window.scrollTo({ top: feedScrollY }));
     document.getElementById(btnId)?.classList.toggle("active", isOpen(page));
-    const moreIds = Array.from(document.querySelectorAll("#rail-more-group .rail-btn"), (b) => b.id);
+    const isMobileRail = window.matchMedia("(max-width: 768px)").matches;
+    const moreSelector = isMobileRail ? "#rail-more-group .rail-btn" : "#rail-utility-group .rail-btn";
+    const moreIds = Array.from(document.querySelectorAll(moreSelector), (b) => b.id);
     railMoreBtn?.classList.toggle("active", railPages.some(([el, id]) => moreIds.includes(id) && isOpen(el)));
   }).observe(page, { attributes: true, attributeFilter: ["style"] });
 }
@@ -8247,25 +8476,41 @@ if (sharePostNativeBtn && sharePostLinkInput) {
   });
 }
 
-// Permalink post opening from URL hash: #post=<postId>&author=<pubkey>
+// Permalink post or user wall opening from URL hash: #post=<postId>&author=<pubkey> or #user=<pubkey>
 async function checkUrlPostHash(fromHash = window.location.hash) {
   const hash = fromHash ? fromHash.replace(/^#/, "") : "";
-  if (!hash || !hash.includes("post=")) return;
+  if (!hash) return;
   const params = new URLSearchParams(hash);
   const postId = params.get("post");
   const author = params.get("author") || undefined;
-  if (!postId) return;
-
-  try {
-    if (author) {
-      // someone else's feed is often not cached yet: getFeed answers empty at once, so wait for the network copy
-      const cached = await freenet.getFeed(author).catch(() => null);
-      if (!cached?.posts?.[postId]) await freenet.refresh(author, true, true);
+  if (postId) {
+    try {
+      if (author) {
+        // someone else's feed is often not cached yet: getFeed answers empty at once, so wait for the network copy
+        const cached = await freenet.getFeed(author).catch(() => null);
+        if (!cached?.posts?.[postId]) await freenet.refresh(author, true, true);
+      }
+      chatModal.style.display = "none";
+      await showMyPost(postId, author);
+    } catch (err) {
+      console.warn("Could not navigate to post from hash:", err);
     }
-    chatModal.style.display = "none";
-    await showMyPost(postId, author);
-  } catch (err) {
-    console.warn("Could not navigate to post from hash:", err);
+    return;
+  }
+
+  const userKey = params.get("user") || params.get("wall");
+  if (userKey && /^[0-9a-f]{64}$/i.test(userKey)) {
+    try {
+      const normKey = userKey.toLowerCase();
+      const cached = await freenet.getFeed(normKey).catch(() => null);
+      if (!cached || Object.keys(cached.posts || {}).length === 0) {
+        await freenet.refresh(normKey, true, true);
+      }
+      chatModal.style.display = "none";
+      await openUserProfile(normKey);
+    } catch (err) {
+      console.warn("Could not navigate to user wall from hash:", err);
+    }
   }
 }
 window.addEventListener("hashchange", () => void checkUrlPostHash());
@@ -8577,6 +8822,7 @@ trendingEl.addEventListener("click", (e) => {
 function setTagFilter(tag: string | null) {
   activeTagFilter = tag;
   if (activeTagFilter) {
+    if (activeFilterPrefix) activeFilterPrefix.textContent = "Filtered by tag:";
     activeFilterTag.textContent = `#${activeTagFilter}`;
     activeFilterBanner.style.display = "flex";
   } else {
@@ -8587,6 +8833,14 @@ function setTagFilter(tag: string | null) {
 }
 
 clearFilterBtn.addEventListener("click", () => {
+  if (feedAuthor) {
+    feedAuthor = null;
+    currentFeedScope = "explore";
+    updateScopeBtnActive(scopeExploreBtn);
+    activeFilterBanner.style.display = "none";
+    void reloadPosts();
+    return;
+  }
   setTagFilter(null);
 });
 
@@ -8754,10 +9008,17 @@ function renderCommunities() {
       )
       .join("")}
   `);
+  if (communitiesModal && isOpen(communitiesModal)) {
+    renderCommunitiesPage();
+  }
 }
+
+let moderatingCommunity: Community | null = null;
+let selectedRedditCommunity: Community | null = null;
 
 function openModerationPanel(comm: Community) {
   if (!currentIdentity) return;
+  moderatingCommunity = comm;
   modModalCommTitle.textContent = `r/${comm.slug} - ${comm.name}`;
   modDeletedCount.textContent = comm.deleted_post_ids.length.toString();
 
@@ -8818,7 +9079,8 @@ function openModerationPanel(comm: Community) {
       if (res.success) {
         allCommunities = await loadCommunities();
         const updated = allCommunities.find((c) => c.id === comm.id)!;
-        activeCommunity = updated;
+        if (activeCommunity?.id === comm.id) activeCommunity = updated;
+        if (selectedRedditCommunity?.id === comm.id) selectedRedditCommunity = updated;
         openModerationPanel(updated);
         renderCommunities();
       }
@@ -8881,6 +9143,9 @@ commJoinBtn.addEventListener("click", async () => {
   await freenet.toggleJoinCommunity(currentIdentity, activeCommunity.id);
   allCommunities = await loadCommunities();
   activeCommunity = allCommunities.find((c) => c.id === activeCommunity!.id) || null;
+  if (selectedRedditCommunity && activeCommunity && selectedRedditCommunity.id === activeCommunity.id) {
+    selectedRedditCommunity = activeCommunity;
+  }
   selectCommunity(activeCommunity);
   renderCommunities();
 });
@@ -8899,17 +9164,19 @@ commModCloseBtn.addEventListener("click", () => {
 // Add moderator form
 addModForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!currentIdentity || !activeCommunity) return;
+  const targetComm = moderatingCommunity ?? activeCommunity;
+  if (!currentIdentity || !targetComm) return;
   const modPk = addModPubkeyInput.value.trim();
   if (!modPk) return;
 
-  const res = await freenet.addCommunityModerator(currentIdentity, activeCommunity.id, modPk);
+  const res = await freenet.addCommunityModerator(currentIdentity, targetComm.id, modPk);
   alert(res.msg);
   if (res.success) {
     addModPubkeyInput.value = "";
     allCommunities = await loadCommunities();
-    const updated = allCommunities.find((c) => c.id === activeCommunity!.id)!;
-    activeCommunity = updated;
+    const updated = allCommunities.find((c) => c.id === targetComm.id)!;
+    if (activeCommunity?.id === targetComm.id) activeCommunity = updated;
+    if (selectedRedditCommunity?.id === targetComm.id) selectedRedditCommunity = updated;
     openModerationPanel(updated);
     renderCommunities();
   }
@@ -8970,9 +9237,19 @@ createCommSaveBtn.addEventListener("click", async () => {
       ? await freenet.updateCommunity(currentIdentity, editing, name, desc, reqTrusted)
       : await freenet.createCommunity(currentIdentity, name, slug, desc, undefined, reqTrusted);
     allCommunities = await loadCommunities();
+    const savedComm = allCommunities.find((c) => c.id === comm.id) ?? comm;
     createCommModal.style.display = "none";
-    renderCommunities();
-    selectCommunity(allCommunities.find((c) => c.id === comm.id) ?? comm);
+    if (isOpen(communitiesModal)) {
+      selectedRedditCommunity = savedComm;
+      if (activeCommunity?.id === savedComm.id) {
+        activeCommunity = savedComm;
+        selectCommunity(savedComm, true);
+      }
+      renderCommunities();
+    } else {
+      renderCommunities();
+      selectCommunity(savedComm);
+    }
   } catch (err) {
     console.error("Error saving community:", err);
     alert(editing ? "Could not save the community." : "Could not create community on Freenet.");
@@ -8990,8 +9267,929 @@ function updateScopeBtnActive(activeBtn: HTMLButtonElement) {
   scopeMyPostsBtn.classList.remove("active");
   scopeSavedBtn.classList.remove("active");
   openMediaBtn.classList.remove("active");
+  openCommunitiesBtn?.classList.remove("active");
   activeBtn.classList.add("active");
 }
+
+// --- Dedicated Communities (Reddit-style r/slug) Rail Page ---
+const communitiesCountPill = document.getElementById("communities-count-pill") as HTMLElement;
+const commPageNewBtn = document.getElementById("comm-page-new-btn") as HTMLButtonElement;
+const communitiesCloseBtn = document.getElementById("communities-close-btn") as HTMLButtonElement;
+const commPageSearch = document.getElementById("comm-page-search") as HTMLInputElement;
+const commPagePills = document.getElementById("comm-page-pills") as HTMLElement;
+const redditSubHero = document.getElementById("reddit-sub-hero") as HTMLElement;
+const redditPostCommSelect = document.getElementById("reddit-post-comm-select") as HTMLSelectElement;
+const redditFlairTabs = document.getElementById("reddit-flair-tabs") as HTMLElement;
+const redditPostTitle = document.getElementById("reddit-post-title") as HTMLInputElement;
+const redditPostBody = document.getElementById("reddit-post-body") as HTMLTextAreaElement;
+const redditEventFields = document.getElementById("reddit-event-fields") as HTMLElement;
+const redditEventLocation = document.getElementById("reddit-event-location") as HTMLInputElement;
+const redditEventDate = document.getElementById("reddit-event-date") as HTMLInputElement;
+const redditPostPreview = document.getElementById("reddit-post-preview") as HTMLElement;
+const redditPostPreviewImg = document.getElementById("reddit-post-preview-img") as HTMLImageElement;
+const redditPostRemoveImg = document.getElementById("reddit-post-remove-img") as HTMLButtonElement;
+const redditPostFile = document.getElementById("reddit-post-file") as HTMLInputElement;
+const redditPostImgBtn = document.getElementById("reddit-post-img-btn") as HTMLButtonElement;
+const redditPublishBtn = document.getElementById("reddit-publish-btn") as HTMLButtonElement;
+const redditToolbar = document.getElementById("reddit-toolbar") as HTMLElement;
+const redditThreadsContainer = document.getElementById("reddit-threads-container") as HTMLElement;
+const redditSidebarContent = document.getElementById("reddit-sidebar-content") as HTMLElement;
+
+let redditSort: RedditSort = "hot";
+let redditFlairFilter: RedditFlairFilter = "all";
+let redditViewMode: RedditViewMode = "card";
+let redditComposeFlair: PostCategory = "thought";
+let redditSearchQuery = "";
+let redditStagedFile: File | null = null;
+let redditStagedBlobUrl: string | null = null;
+let redditStagedNsfw = false;
+let redditStagedNsfwScore = 0;
+const expandedRedditComments = new Set<string>();
+
+function clearRedditStagedImage() {
+  if (redditStagedBlobUrl) {
+    URL.revokeObjectURL(redditStagedBlobUrl);
+    redditStagedBlobUrl = null;
+  }
+  redditStagedFile = null;
+  redditStagedNsfw = false;
+  redditStagedNsfwScore = 0;
+  redditPostFile.value = "";
+  redditPostPreview.style.display = "none";
+  redditPostPreviewImg.src = "";
+}
+
+function setRedditComposeFlair(flair: PostCategory) {
+  redditComposeFlair = flair;
+  redditFlairTabs.querySelectorAll<HTMLButtonElement>(".reddit-flair-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.rflair === flair);
+  });
+  redditEventFields.style.display = flair === "event" ? "grid" : "none";
+}
+
+function createCommunityFromPage(prefillName = "") {
+  const candidate = prefillName.trim() || commPageSearch.value.trim();
+  const candidateSlug = slugOf(candidate);
+  const exactFromSearch = candidateSlug ? allCommunities.find((c) => c.slug === candidateSlug) : undefined;
+  const raw =
+    prefillName.trim() ||
+    (candidate && candidateSlug && !exactFromSearch ? candidate.replace(/^r\//i, "") : "") ||
+    (prompt("Enter new community name (e.g. Freenet builders):") ?? "").trim();
+  if (!raw) return;
+  const slug = slugOf(raw);
+  if (!slug) {
+    showToast("Use letters or numbers for the community slug.", "warning");
+    return;
+  }
+  const existing = allCommunities.find((c) => c.slug === slug);
+  if (existing) {
+    selectedRedditCommunity = existing;
+    renderCommunitiesPage();
+    return;
+  }
+  openCreateCommunityDialog(raw.replace(/^r\//i, ""), slug);
+}
+
+function openCommunitiesPage(comm?: Community | null) {
+  closeRailPages(communitiesModal);
+  if (comm !== undefined) {
+    selectedRedditCommunity = comm;
+  } else if (activeCommunity) {
+    selectedRedditCommunity = activeCommunity;
+  }
+  communitiesModal.style.display = "flex";
+  renderCommunitiesPage();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderCommunitiesPage() {
+  if (!communitiesModal || !isOpen(communitiesModal)) return;
+
+  const me = currentIdentity?.pubkey ?? "";
+  const hiddenComms = hiddenCommunityIds();
+  const visibleComms = allCommunities.filter((c) => !hiddenComms.has(c.id));
+  const commById = new Map(visibleComms.map((c) => [c.id, c]));
+
+  if (selectedRedditCommunity) {
+    const fresh = visibleComms.find((c) => c.id === selectedRedditCommunity!.id) ?? null;
+    selectedRedditCommunity = fresh;
+  }
+
+  communitiesCountPill.textContent = `${visibleComms.length} ${visibleComms.length === 1 ? "community" : "communities"}`;
+
+  // Moderation & blocklists filters aligned with main feed
+  const curators = moderationCurators();
+  const hiddenAuthors = new Set(hiddenUsers());
+  if (me) for (const pk of freenet.blockedBy(me)) hiddenAuthors.add(pk);
+  for (const c of curators) for (const pk of freenet.blockedBy(c)) hiddenAuthors.add(pk);
+
+  const reported = new Set<string>();
+  if (me) for (const k of freenet.reportedBy(me).keys()) reported.add(k);
+  for (const c of curators) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+
+  const validPost = (p: Post): boolean => {
+    if (!SAFE_ID.test(p.id) || !HEX64.test(p.author)) return false;
+    if (!p.community_id) return false;
+    const comm = commById.get(p.community_id);
+    if (!comm) return false;
+    if (comm.deleted_post_ids.includes(p.id)) return false;
+    if (p.author !== me && hiddenAuthors.has(p.author)) return false;
+    if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
+    if (p.author !== me && freenet.aiHeldTargets().has(`${p.author}:${p.id}`)) return false;
+    if (p.is_nsfw) return false;
+    return true;
+  };
+
+  const allCommPosts = timelinePosts.filter(validPost);
+  const postCounts = new Map<string, number>();
+  for (const p of allCommPosts) {
+    if (p.community_id) postCounts.set(p.community_id, (postCounts.get(p.community_id) ?? 0) + 1);
+  }
+
+  // Topbar community pills
+  const finder = findCommunities({
+    communities: visibleComms,
+    query: redditSearchQuery,
+    sort: "members",
+    pinned: (c) => isJoined(c) || c.id === selectedRedditCommunity?.id,
+    postsIn: postCounts,
+    limit: 30,
+  });
+  const typedSlug = slugOf(redditSearchQuery);
+  const slugTaken = typedSlug ? allCommunities.some((c) => c.slug === typedSlug) : false;
+
+  const pillsHtml = [
+    `<button type="button" class="comm-pill ${!selectedRedditCommunity ? "active" : ""}" data-comm-id="">🌐 r/all <span class="comm-pill-count">${allCommPosts.length}</span></button>`,
+    ...finder.shown.map((c) => {
+      const active = selectedRedditCommunity?.id === c.id;
+      const joinedDot = isJoined(c) ? `<span class="comm-pill-joined" title="Joined">●</span>` : "";
+      return `<button type="button" class="comm-pill ${active ? "active" : ""}" data-comm-id="${escapeHtml(c.id)}" title="${escapeHtml(c.name)}">${joinedDot}r/${escapeHtml(c.slug)} <span class="comm-pill-count">${postCounts.get(c.id) ?? 0}</span></button>`;
+    }),
+    typedSlug && !slugTaken
+      ? `<button type="button" class="comm-pill comm-pill-create" data-create-slug="${escapeHtml(typedSlug)}">+ Create r/${escapeHtml(typedSlug)}</button>`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  setHtmlIfChanged(commPagePills, pillsHtml);
+
+  // Composer community selector (preserve current pick unless empty or stale)
+  const prevSelectVal = redditPostCommSelect.value;
+  const sortedForSelect = [...visibleComms].sort((a, b) => Number(isJoined(b)) - Number(isJoined(a)) || b.members.length - a.members.length);
+  const preferredCommId =
+    selectedRedditCommunity?.id ||
+    (prevSelectVal && commById.has(prevSelectVal) ? prevSelectVal : sortedForSelect[0]?.id ?? "");
+
+  if (sortedForSelect.length === 0) {
+    setHtmlIfChanged(redditPostCommSelect, `<option value="">No communities yet — create one first</option>`);
+  } else {
+    setHtmlIfChanged(
+      redditPostCommSelect,
+      sortedForSelect
+        .map(
+          (c) =>
+            `<option value="${escapeHtml(c.id)}" ${c.id === preferredCommId ? "selected" : ""}>r/${escapeHtml(c.slug)} — ${escapeHtml(c.name)}</option>`,
+        )
+        .join(""),
+    );
+  }
+
+  // Subreddit-style hero header
+  redditSubHero.style.display = "flex";
+  if (selectedRedditCommunity) {
+    const c = selectedRedditCommunity;
+    const joined = isJoined(c);
+    const isOwner = !!me && c.creator === me;
+    const isMod = !!me && c.moderators.includes(me);
+    const commThreads = postCounts.get(c.id) ?? 0;
+    setHtmlIfChanged(
+      redditSubHero,
+      `
+      <div class="reddit-hero-main">
+        <div class="reddit-hero-badge">r/${escapeHtml(c.slug)}</div>
+        <div class="reddit-hero-titles">
+          <h4 class="reddit-hero-name">${escapeHtml(c.name)}</h4>
+          <p class="reddit-hero-desc">${c.description ? linkify(c.description) : "Decentralized Freenet community forum."}</p>
+          <div class="reddit-hero-meta">
+            <span>👥 <b>${c.members.length}</b> ${c.members.length === 1 ? "member" : "members"}</span>
+            <span>·</span>
+            <span>🧵 <b>${commThreads}</b> ${commThreads === 1 ? "thread" : "threads"}</span>
+            <span>·</span>
+            <span>🛡️ <b>${c.moderators.length}</b> ${c.moderators.length === 1 ? "mod" : "mods"}</span>
+          </div>
+        </div>
+      </div>
+      <div class="reddit-hero-actions">
+        <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rhero-action="join">${joined ? "✓ Joined" : "+ Join"}</button>
+        <button type="button" class="btn-secondary btn-sm" data-rhero-action="chat" title="Open community chat">💬 Chat</button>
+        <button type="button" class="btn-secondary btn-sm" data-rhero-action="feed" title="View in main feed">Feed View</button>
+        ${isOwner ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community info">✏️ Edit</button>` : ""}
+        ${isMod ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="mod" title="Open community moderation tools">🛡️ Mod</button>` : ""}
+        ${amGlobalMod() ? `<button type="button" class="btn-secondary btn-sm danger" data-rhero-action="hide" title="Radica moderator: hide community">🚫 Hide</button>` : ""}
+      </div>
+      `,
+    );
+  } else {
+    setHtmlIfChanged(
+      redditSubHero,
+      `
+      <div class="reddit-hero-main">
+        <div class="reddit-hero-badge">r/all</div>
+        <div class="reddit-hero-titles">
+          <h4 class="reddit-hero-name">All Decentralized Communities</h4>
+          <p class="reddit-hero-desc">Browse popular threads across every community on your Freenet node, or select an r/community pill above.</p>
+          <div class="reddit-hero-meta">
+            <span>🌐 <b>${visibleComms.length}</b> ${visibleComms.length === 1 ? "community" : "communities"}</span>
+            <span>·</span>
+            <span>🧵 <b>${allCommPosts.length}</b> ${allCommPosts.length === 1 ? "thread" : "threads"}</span>
+          </div>
+        </div>
+      </div>
+      <div class="reddit-hero-actions">
+        <button type="button" class="btn-primary btn-sm" data-rhero-action="new">+ Create Community</button>
+      </div>
+      `,
+    );
+  }
+
+  // Toolbar active button states
+  redditToolbar.querySelectorAll<HTMLButtonElement>(".reddit-sort-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.rsort === redditSort);
+  });
+  redditToolbar.querySelectorAll<HTMLButtonElement>(".reddit-filter-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.rfilter === redditFlairFilter);
+  });
+  redditToolbar.querySelectorAll<HTMLButtonElement>(".reddit-view-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.rview === redditViewMode);
+  });
+
+  // Filter & sort threads
+  const qLower = redditSearchQuery.trim().toLowerCase();
+  const threadPool = allCommPosts.filter((p) => {
+    if (selectedRedditCommunity && p.community_id !== selectedRedditCommunity.id) return false;
+    const isPoll = Boolean(freepollsLink(p.caption));
+    if (redditFlairFilter !== "all") {
+      if (redditFlairFilter === "poll" && !isPoll) return false;
+      if (redditFlairFilter !== "poll" && (p.category !== redditFlairFilter || isPoll)) return false;
+    }
+    if (qLower) {
+      const comm = commById.get(p.community_id!);
+      const authorName = getAuthorDisplayName(p.author).toLowerCase();
+      const matchesPost =
+        p.caption.toLowerCase().includes(qLower) ||
+        authorName.includes(qLower) ||
+        (p.location?.toLowerCase().includes(qLower) ?? false) ||
+        (comm ? comm.slug.toLowerCase().includes(qLower) || comm.name.toLowerCase().includes(qLower) : false);
+      if (!matchesPost) return false;
+    }
+    return true;
+  });
+
+  const dislikersOf = (p: Post) => freenet.postDislikers(p.author, p.id);
+  const likesCountOf = (p: Post) => likers(p).length;
+  const sortedThreads = sortRedditThreads(
+    threadPool,
+    redditSort,
+    likesCountOf,
+    (p) => dislikersOf(p).length,
+  );
+
+  // Thread cards
+  if (sortedThreads.length === 0) {
+    setHtmlIfChanged(
+      redditThreadsContainer,
+      `
+      <div class="reddit-empty-state">
+        <div class="reddit-empty-icon">🧵</div>
+        <h4>${selectedRedditCommunity ? `No threads in r/${escapeHtml(selectedRedditCommunity.slug)} yet` : "No community threads match this filter"}</h4>
+        <p>${selectedRedditCommunity ? "Start the conversation using the thread box above!" : "Try clearing your search or flair filter, or create a new thread."}</p>
+      </div>
+      `,
+    );
+  } else {
+    const cardsHtml = sortedThreads
+      .map((post) => {
+        const comm = commById.get(post.community_id!);
+        const edit = freenet.postEdit(post.author, post.id);
+        const rawCaption = edit ? edit.caption : post.caption;
+        const ownText = repostRef(rawCaption) ? repostText(rawCaption) : rawCaption;
+        const { title, body } = splitThreadTitleAndBody(ownText);
+        const postLikers = likers(post);
+        const postDislikers = dislikersOf(post);
+        const netScore = computeNetScore(postLikers.length, postDislikers.length);
+        const isLiked = !!me && postLikers.includes(me);
+        const isDisliked = !!me && postDislikers.includes(me);
+        const isPoll = Boolean(freepollsLink(rawCaption));
+        const flair = flairInfoForPost(post, isPoll);
+        const isMyPost = !!me && post.author === me;
+        const isCommMod = Boolean(comm && me && comm.moderators.includes(me));
+        const saved = !!me && isSaved(me, post);
+        const isExpanded = expandedRedditComments.has(post.id);
+
+        const visibleComments = Object.values(post.comments ?? {})
+          .filter((c) => c && c.text !== "" && (c.author === me || (!hiddenAuthors.has(c.author) && !reported.has(`${c.author}:${c.id}`))))
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        const embedRender = body ? renderPost(body, getAuthorDisplayName) : { html: "", card: renderPost(ownText, getAuthorDisplayName).card };
+        const embedsHtml =
+          embedRender.card +
+          freetunesCard(rawCaption) +
+          freepollsCard(rawCaption) +
+          freenamesCard(rawCaption) +
+          deltaCard(rawCaption) +
+          ortoCard(rawCaption) +
+          asocialCard(rawCaption) +
+          fhCard(rawCaption, nodeOrigin()) +
+          wormholeCard(rawCaption, nodeOrigin()) +
+          freetreeCard(rawCaption, nodeOrigin()) +
+          sporeRadioCard(rawCaption) +
+          repostCard(rawCaption);
+
+        const mediaHtml = post.media_uri
+          ? `<div class="reddit-post-media gram-media">
+              ${
+                videoRef(post.media_uri)
+                  ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">▶ <span>Play video</span></button>`
+                  : postImagesHtml(post.media_uri)
+              }
+            </div>`
+          : "";
+
+        const eventMetaHtml =
+          post.category === "event" && (post.event_date || post.location)
+            ? `<div class="reddit-event-bar">
+                ${post.event_date ? `<span>📅 ${escapeHtml(post.event_date)}</span>` : ""}
+                ${post.location ? `<span>📍 ${escapeHtml(post.location)}</span>` : ""}
+              </div>`
+            : "";
+
+        const showExpandedBody = redditViewMode === "card" || isExpanded;
+
+        return `
+        <article class="reddit-post-card ${redditViewMode === "compact" ? "compact" : ""}" id="reddit-card-${escapeHtml(post.id)}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
+          <div class="reddit-vote-col" aria-label="Thread votes">
+            <button type="button" class="reddit-vote-btn up ${isLiked ? "active" : ""}" data-raction="upvote" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isLiked ? "Remove upvote" : "Upvote"}" aria-label="Upvote">▲</button>
+            <span class="reddit-score ${isLiked ? "up" : isDisliked ? "down" : ""}" title="${postLikers.length} upvotes, ${postDislikers.length} downvotes">${netScore}</span>
+            <button type="button" class="reddit-vote-btn down ${isDisliked ? "active" : ""}" data-raction="downvote" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isDisliked ? "Remove downvote" : "Downvote"}" aria-label="Downvote">▼</button>
+          </div>
+
+          <div class="reddit-post-main">
+            <div class="reddit-post-meta">
+              ${comm ? `<button type="button" class="reddit-comm-chip" data-select-comm="${escapeHtml(comm.id)}" title="Open r/${escapeHtml(comm.slug)}">r/${escapeHtml(comm.slug)}</button>` : ""}
+              <span class="reddit-meta-sep">•</span>
+              <span>Posted by <span class="author-clickable reddit-author-link" data-author="${escapeHtml(post.author)}">${escapeHtml(getAuthorDisplayName(post.author))}</span></span>
+              <span class="reddit-meta-sep">•</span>
+              <span title="${escapeHtml(new Date(post.timestamp).toLocaleString())}">${formatTimeAgo(post.timestamp)}</span>
+              ${edit ? `<span class="reddit-edited-tag">(edited)</span>` : ""}
+              <span class="reddit-flair ${flair.cssClass}">${flair.icon} ${escapeHtml(flair.label)}</span>
+            </div>
+
+            <h4 class="reddit-post-title" data-raction="toggle-comments" data-post-id="${escapeHtml(post.id)}">${title ? renderCaption(title, getAuthorDisplayName) : `<span class="reddit-untitled">${flair.icon} ${escapeHtml(flair.label)} thread</span>`}</h4>
+
+            ${showExpandedBody && body && embedRender.html ? `<div class="reddit-post-text">${embedRender.html}</div>` : ""}
+            ${showExpandedBody ? eventMetaHtml + embedsHtml + mediaHtml : ""}
+
+            <div class="reddit-post-footer">
+              <button type="button" class="reddit-footer-btn ${isExpanded ? "active" : ""}" data-raction="toggle-comments" data-post-id="${escapeHtml(post.id)}">💬 ${visibleComments.length} ${visibleComments.length === 1 ? "Comment" : "Comments"}</button>
+              <button type="button" class="reddit-footer-btn" data-raction="repost" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">🔁 Repost</button>
+              <button type="button" class="reddit-footer-btn ${saved ? "active" : ""}" data-raction="save" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">${saved ? "🔖 Saved" : "🔖 Save"}</button>
+              <button type="button" class="reddit-footer-btn" data-raction="share" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">↗ Share</button>
+              ${isMyPost ? `<button type="button" class="reddit-footer-btn danger" data-raction="delete" data-post-id="${escapeHtml(post.id)}">🗑️ Delete</button>` : ""}
+              ${isCommMod && !isMyPost && comm ? `<button type="button" class="reddit-footer-btn danger" data-raction="mod-delete" data-post-id="${escapeHtml(post.id)}" data-comm-id="${escapeHtml(comm.id)}">🛡️ Mod Remove</button>` : ""}
+            </div>
+
+            ${
+              isExpanded
+                ? `
+              <div class="reddit-comments-section">
+                <form class="comment-form reddit-comment-form" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
+                  <div class="reddit-comment-form-row">
+                    <textarea class="comment-input" rows="1" placeholder="Add a comment to this thread…"></textarea>
+                    <button type="submit" class="btn-primary btn-sm">Reply</button>
+                  </div>
+                </form>
+                <div class="reddit-comments-list">
+                  ${
+                    visibleComments.length === 0
+                      ? `<div class="reddit-no-comments">No comments yet. Be the first to reply!</div>`
+                      : visibleComments
+                          .map((c) => {
+                            const commKey = `${c.author}:${c.id}`;
+                            const cLikers = freenet.commentLikers(post.author, post.id, commKey);
+                            const isCLiked = !!me && cLikers.includes(me);
+                            return `
+                            <div class="reddit-comment-item">
+                              <div class="reddit-comment-head">
+                                <img src="${safeUrl(getAuthorAvatarUrl(c.author))}" alt="" class="reddit-comment-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(c.author)}'" />
+                                <span class="author-clickable reddit-comment-author" data-author="${escapeHtml(c.author)}">${escapeHtml(getAuthorDisplayName(c.author))}</span>
+                                <span class="reddit-comment-time">${formatTimeAgo(c.timestamp)}</span>
+                                <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="Like comment">
+                                  <span class="comment-heart">${isCLiked ? "❤️" : "🤍"}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
+                                </button>
+                                ${c.author === me ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete comment">✕</button>` : ""}
+                              </div>
+                              <div class="reddit-comment-body">${renderComment(c.text, getAuthorDisplayName)}</div>
+                            </div>
+                            `;
+                          })
+                          .join("")
+                  }
+                </div>
+              </div>
+              `
+                : ""
+            }
+          </div>
+        </article>
+        `;
+      })
+      .join("");
+    setHtmlIfChanged(redditThreadsContainer, cardsHtml);
+  }
+
+  showMedia(redditThreadsContainer);
+  fillFreetunes(redditThreadsContainer, (id) => freenet.appContract(id), nodeOrigin(), (pk) => freenet.freetunesArtist(pk));
+  fillFreepolls(redditThreadsContainer, pollNet);
+  fillFreenames(redditThreadsContainer, freenet);
+  fillDelta(redditThreadsContainer, freenet);
+  fillOrto(redditThreadsContainer);
+  fillAsocial(redditThreadsContainer);
+  fillFh(redditThreadsContainer, freenet, nodeOrigin());
+  fillWormhole(redditThreadsContainer);
+  fillReposts(redditThreadsContainer);
+
+  // Right Sidebar: About Community, Rules, Moderators, Directory
+  const aboutCard = selectedRedditCommunity
+    ? (() => {
+        const c = selectedRedditCommunity!;
+        const joined = isJoined(c);
+        return `
+        <div class="reddit-sidebar-card">
+          <h5>About Community</h5>
+          <div class="reddit-about-slug">r/${escapeHtml(c.slug)}</div>
+          <p class="reddit-about-desc">${c.description ? linkify(c.description) : "A peer-to-peer Freenet community with signed moderation logs and local-first threads."}</p>
+          <div class="reddit-about-stats">
+            <div><b>${c.members.length}</b><span>Members</span></div>
+            <div><b>${postCounts.get(c.id) ?? 0}</b><span>Threads</span></div>
+            <div><b>${c.moderators.length}</b><span>Mods</span></div>
+          </div>
+          <div class="reddit-about-btns">
+            <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rside-join="${escapeHtml(c.id)}">${joined ? "✓ Joined" : "Join Community"}</button>
+            <button type="button" class="btn-secondary btn-sm" data-rside-chat="${escapeHtml(c.id)}">💬 Community Chat</button>
+          </div>
+        </div>`;
+      })()
+    : `
+      <div class="reddit-sidebar-card">
+        <h5>About Radica Communities</h5>
+        <p class="reddit-about-desc">Explore topic-based decentralized forums hosted directly on Freenet. Upvote top threads, filter by flair, or launch your own r/community.</p>
+        <div class="reddit-about-stats">
+          <div><b>${visibleComms.length}</b><span>Communities</span></div>
+          <div><b>${allCommPosts.length}</b><span>Threads</span></div>
+        </div>
+        <button type="button" class="btn-primary btn-sm" style="width: 100%;" data-rside-new="1">+ Create Community</button>
+      </div>`;
+
+  const rulesCard = `
+    <div class="reddit-sidebar-card">
+      <h5>Community Etiquette</h5>
+      <ol class="reddit-rules-list">
+        <li>Keep discussions constructive and on-topic.</li>
+        <li>Tag media and events with the right flair.</li>
+        <li>Moderators sign removals on the community's Freenet log.</li>
+        <li>No automated spam or unverified bots.</li>
+      </ol>
+    </div>`;
+
+  const modsCard = selectedRedditCommunity
+    ? `
+      <div class="reddit-sidebar-card">
+        <h5>Moderators (${selectedRedditCommunity.moderators.length})</h5>
+        <div class="reddit-mods-list">
+          ${selectedRedditCommunity.moderators
+            .map((modPk) => {
+              const isSystem = modPk === "system";
+              const name = isSystem ? "Radica Genesis" : getAuthorDisplayName(modPk);
+              const isFounder = modPk === selectedRedditCommunity!.creator;
+              return `
+              <div class="reddit-mod-row">
+                <span class="${isSystem ? "" : "author-clickable"} reddit-mod-name" ${isSystem ? "" : `data-author="${escapeHtml(modPk)}"`}>${escapeHtml(name)}</span>
+                <span class="reddit-mod-role">${isFounder ? "Founder" : "Mod"}</span>
+              </div>`;
+            })
+            .join("")}
+        </div>
+        ${me && selectedRedditCommunity.moderators.includes(me) ? `<button type="button" class="btn-secondary btn-sm" style="width: 100%; margin-top: 8px;" data-rside-mod="${escapeHtml(selectedRedditCommunity.id)}">🛡️ Open Mod Panel</button>` : ""}
+      </div>`
+    : "";
+
+  const directoryItems = [...visibleComms]
+    .sort((a, b) => b.members.length - a.members.length)
+    .slice(0, 12)
+    .map((c) => {
+      const joined = isJoined(c);
+      const isSelected = selectedRedditCommunity?.id === c.id;
+      return `
+      <div class="reddit-dir-item ${isSelected ? "active" : ""}">
+        <button type="button" class="reddit-dir-link" data-rside-select="${escapeHtml(c.id)}">
+          <span class="reddit-dir-slug">r/${escapeHtml(c.slug)}</span>
+          <span class="reddit-dir-meta">${c.members.length} members · ${postCounts.get(c.id) ?? 0} threads</span>
+        </button>
+        <button type="button" class="reddit-dir-join ${joined ? "joined" : ""}" data-rside-join="${escapeHtml(c.id)}">${joined ? "Joined" : "Join"}</button>
+      </div>`;
+    })
+    .join("");
+
+  const directoryCard = `
+    <div class="reddit-sidebar-card">
+      <h5>Communities Directory</h5>
+      <div class="reddit-dir-list">
+        ${directoryItems || `<div class="reddit-no-comments">No communities yet.</div>`}
+      </div>
+    </div>`;
+
+  setHtmlIfChanged(redditSidebarContent, aboutCard + rulesCard + modsCard + directoryCard);
+}
+
+openCommunitiesBtn?.addEventListener("click", () => {
+  openCommunitiesPage(activeCommunity ?? selectedRedditCommunity);
+});
+
+commRedditViewBtn?.addEventListener("click", () => {
+  if (activeCommunity) openCommunitiesPage(activeCommunity);
+  else openCommunitiesPage();
+});
+
+communitiesCloseBtn.addEventListener("click", () => {
+  communitiesModal.style.display = "none";
+});
+
+commPageNewBtn.addEventListener("click", () => {
+  createCommunityFromPage();
+});
+
+commPageSearch.addEventListener("input", () => {
+  redditSearchQuery = commPageSearch.value;
+  renderCommunitiesPage();
+});
+
+commPagePills.addEventListener("click", (e) => {
+  const createBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-create-slug]");
+  if (createBtn) {
+    createCommunityFromPage(commPageSearch.value.trim() || createBtn.dataset.createSlug);
+    return;
+  }
+  const pill = (e.target as HTMLElement).closest<HTMLButtonElement>(".comm-pill[data-comm-id]");
+  if (!pill) return;
+  const id = pill.dataset.commId || "";
+  selectedRedditCommunity = id ? allCommunities.find((c) => c.id === id) ?? null : null;
+  renderCommunitiesPage();
+});
+
+redditSubHero.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-rhero-action]");
+  if (!btn) return;
+  const action = btn.dataset.rheroAction;
+  if (action === "new") {
+    createCommunityFromPage();
+    return;
+  }
+  const comm = selectedRedditCommunity;
+  if (!comm) return;
+
+  if (action === "join") {
+    if (!currentIdentity) return;
+    await freenet.toggleJoinCommunity(currentIdentity, comm.id);
+    allCommunities = await loadCommunities();
+    selectedRedditCommunity = allCommunities.find((c) => c.id === comm.id) ?? null;
+    if (activeCommunity?.id === comm.id) {
+      activeCommunity = selectedRedditCommunity;
+      selectCommunity(activeCommunity, true);
+    }
+    renderCommunities();
+  } else if (action === "chat") {
+    openCommunityChat(comm);
+  } else if (action === "feed") {
+    communitiesModal.style.display = "none";
+    selectCommunity(comm);
+  } else if (action === "edit") {
+    openCreateCommunityDialog("", "", comm);
+  } else if (action === "mod") {
+    openModerationPanel(comm);
+  } else if (action === "hide") {
+    const reason = prompt(`Hide r/${comm.slug} (${comm.name}) for everyone who follows your moderation?\n\nReason (optional):`, "") ?? null;
+    if (reason === null) return;
+    await hideCommunityForAll(comm.id, reason);
+    if (selectedRedditCommunity?.id === comm.id) selectedRedditCommunity = null;
+    renderCommunities();
+    renderTimeline();
+  }
+});
+
+redditFlairTabs.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".reddit-flair-tab");
+  if (!btn) return;
+  const flair = btn.dataset.rflair as PostCategory | undefined;
+  if (flair) setRedditComposeFlair(flair);
+});
+
+redditPostImgBtn.addEventListener("click", () => redditPostFile.click());
+redditPostRemoveImg.addEventListener("click", () => clearRedditStagedImage());
+
+redditPostFile.addEventListener("change", async () => {
+  const file = redditPostFile.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToast("Select an image file.", "warning");
+    redditPostFile.value = "";
+    return;
+  }
+  redditStagedFile = file;
+  if (redditStagedBlobUrl) URL.revokeObjectURL(redditStagedBlobUrl);
+  redditStagedBlobUrl = URL.createObjectURL(file);
+  redditPostPreviewImg.src = redditStagedBlobUrl;
+  redditPostPreview.style.display = "inline-block";
+  redditStagedNsfw = false;
+  redditStagedNsfwScore = 0;
+
+  if (redditComposeFlair === "thought") setRedditComposeFlair("moment");
+
+  try {
+    const res = await analyzeImageFile(file);
+    if (!redditStagedFile) return;
+    if (res.score >= NSFW_BLOCK) {
+      redditStagedNsfw = true;
+      showToast("Image blocked: explicit or adult content detected.", "error");
+    } else {
+      redditStagedNsfwScore = res.score;
+    }
+  } catch (err) {
+    console.warn("reddit image scan failed:", err);
+  }
+});
+
+redditPublishBtn.addEventListener("click", async () => {
+  if (!currentIdentity) return;
+  const commId = redditPostCommSelect.value;
+  if (!commId) {
+    showToast("Create or choose a community first.", "warning");
+    return;
+  }
+
+  const title = redditPostTitle.value.trim();
+  const body = redditPostBody.value.trim();
+  const rawCaption = formatThreadComposeCaption(title, body);
+  if (!rawCaption && !redditStagedFile) {
+    showToast("Write a thread title or attach an image.", "warning");
+    return;
+  }
+  if (redditStagedNsfw || redditStagedNsfwScore >= NSFW_BLOCK) {
+    showToast("Publishing prohibited: image flagged for adult content.", "error");
+    return;
+  }
+  if (rawCaption && !okToPublish(rawCaption)) return;
+
+  const isTrustedAuthor = amVouched();
+  const requiredCooldownMs = isTrustedAuthor ? POST_COOLDOWN_MS : 15000;
+  const now = Date.now();
+  if (lastPostTime > 0 && now - lastPostTime < requiredCooldownMs) {
+    const waitSec = Math.ceil((requiredCooldownMs - (now - lastPostTime)) / 1000);
+    showToast(`Please wait ${waitSec}s before posting again.`, "warning");
+    return;
+  }
+  recentPostTimestamps = recentPostTimestamps.filter((t) => now - t < 60000);
+  if (recentPostTimestamps.length >= MAX_POSTS_PER_MINUTE) {
+    showToast("Rate limit: maximum 10 posts per minute.", "warning");
+    return;
+  }
+  const normalizedCaption = rawCaption.toLowerCase().replace(/\s+/g, " ");
+  if (normalizedCaption && recentPostContents.includes(normalizedCaption)) {
+    showToast("Duplicate post detected.", "warning");
+    return;
+  }
+
+  const idleLabel = redditPublishBtn.textContent || "Post Thread";
+  redditPublishBtn.disabled = true;
+  redditPublishBtn.textContent = "Posting…";
+
+  try {
+    let mediaUri: string | undefined;
+    if (redditStagedFile) {
+      redditPublishBtn.textContent = "Uploading image…";
+      const compressed = await compressPostImageFile(redditStagedFile);
+      const bytes = dataUrlBytes(compressed) ?? new Uint8Array(await redditStagedFile.arrayBuffer());
+      const hash = await freenet.putMedia(bytes);
+      mediaUri = MEDIA_PREFIX + hash;
+    }
+
+    let powProof: PoWProof | undefined;
+    if (!vouchedForAll) {
+      redditPublishBtn.textContent = "Anti-bot PoW…";
+      powProof = await solvePoW(currentIdentity.pubkey, now, POST_POW_BITS, "post");
+    }
+
+    const loc = redditComposeFlair === "event" ? redditEventLocation.value.trim() || undefined : undefined;
+    const evDate = redditComposeFlair === "event" ? redditEventDate.value.trim() || undefined : undefined;
+    const post = await freenet.publishPost(
+      currentIdentity,
+      redditComposeFlair,
+      rawCaption,
+      mediaUri,
+      loc,
+      evDate,
+      commId,
+      false,
+      0,
+      powProof,
+    );
+    timelinePosts.unshift(post);
+    lastPostTime = now;
+    recentPostTimestamps.push(now);
+    if (normalizedCaption) {
+      recentPostContents.push(normalizedCaption);
+      if (recentPostContents.length > 5) recentPostContents.shift();
+    }
+
+    redditPostTitle.value = "";
+    redditPostBody.value = "";
+    redditEventLocation.value = "";
+    redditEventDate.value = "";
+    clearRedditStagedImage();
+    setRedditComposeFlair("thought");
+
+    const targetComm = allCommunities.find((c) => c.id === commId);
+    if (targetComm) selectedRedditCommunity = targetComm;
+    renderCommunitiesPage();
+    renderTimeline();
+    showToast("Thread published!", "info");
+  } catch (err) {
+    console.error("Failed to publish community thread:", err);
+    showToast("Could not publish thread. Please retry.", "error");
+  } finally {
+    redditPublishBtn.disabled = false;
+    redditPublishBtn.textContent = idleLabel;
+  }
+});
+
+redditToolbar.addEventListener("click", (e) => {
+  const sortBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(".reddit-sort-btn");
+  if (sortBtn?.dataset.rsort) {
+    redditSort = sortBtn.dataset.rsort as RedditSort;
+    renderCommunitiesPage();
+    return;
+  }
+  const filterBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(".reddit-filter-btn");
+  if (filterBtn?.dataset.rfilter) {
+    redditFlairFilter = filterBtn.dataset.rfilter as RedditFlairFilter;
+    renderCommunitiesPage();
+    return;
+  }
+  const viewBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(".reddit-view-btn");
+  if (viewBtn?.dataset.rview) {
+    redditViewMode = viewBtn.dataset.rview as RedditViewMode;
+    renderCommunitiesPage();
+  }
+});
+
+redditThreadsContainer.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+
+  const commChip = target.closest<HTMLButtonElement>("[data-select-comm]");
+  if (commChip?.dataset.selectComm) {
+    const comm = allCommunities.find((c) => c.id === commChip.dataset.selectComm) ?? null;
+    if (comm) {
+      selectedRedditCommunity = comm;
+      renderCommunitiesPage();
+    }
+    return;
+  }
+
+  const authorEl = target.closest<HTMLElement>(".author-clickable");
+  if (authorEl?.dataset.author) {
+    openUserProfile(authorEl.dataset.author);
+    return;
+  }
+
+  const videoBtn = target.closest<HTMLButtonElement>(".video-load");
+  if (videoBtn?.dataset.video) {
+    playVideoFullscreen(videoBtn.dataset.video);
+    return;
+  }
+
+  const cLikeBtn = target.closest<HTMLButtonElement>(".comment-like-btn");
+  if (cLikeBtn) {
+    await toggleCommentLikeFromButton(cLikeBtn);
+    if (isOpen(communitiesModal)) renderCommunitiesPage();
+    return;
+  }
+
+  const cDelBtn = target.closest<HTMLButtonElement>(".comment-del-btn");
+  if (cDelBtn) {
+    await deleteCommentFromCard(cDelBtn);
+    if (isOpen(communitiesModal)) renderCommunitiesPage();
+    return;
+  }
+
+  const actionBtn = target.closest<HTMLElement>("[data-raction]");
+  if (!actionBtn) return;
+  const raction = actionBtn.dataset.raction;
+  const postId = actionBtn.dataset.postId;
+  const author = actionBtn.dataset.author;
+
+  if (raction === "toggle-comments" && postId) {
+    if (expandedRedditComments.has(postId)) expandedRedditComments.delete(postId);
+    else expandedRedditComments.add(postId);
+    renderCommunitiesPage();
+  } else if (raction === "upvote" && postId && author) {
+    await toggleLikeFromCard(actionBtn);
+  } else if (raction === "downvote" && postId && author) {
+    await toggleDislikeFromCard(actionBtn);
+  } else if (raction === "share" && postId && author) {
+    await openSharePostModal(postId, author);
+  } else if (raction === "repost" && postId && author) {
+    stageRepost({ id: postId, author });
+    communitiesModal.style.display = "none";
+  } else if (raction === "save" && postId) {
+    if (!currentIdentity) return;
+    const post = timelinePosts.find((p) => p.id === postId);
+    if (!post) return;
+    showToast(toggleSaved(currentIdentity.pubkey, post) ? "Saved: find it under Saved." : "Removed from Saved.", "info");
+    renderCommunitiesPage();
+  } else if (raction === "delete" && postId) {
+    await deletePostFromCard(actionBtn);
+  } else if (raction === "mod-delete" && postId) {
+    await modDeleteFromCard(actionBtn);
+  }
+});
+
+redditThreadsContainer.addEventListener("submit", async (e) => {
+  const form = (e.target as HTMLElement).closest<HTMLFormElement>(".reddit-comment-form");
+  if (!form) return;
+  e.preventDefault();
+  await submitCommentFromCard(form);
+});
+
+redditThreadsContainer.addEventListener("keydown", (e) => {
+  const input = e.target as HTMLTextAreaElement;
+  if (!input.classList.contains("comment-input")) return;
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    input.closest("form")?.requestSubmit();
+  }
+});
+
+redditSidebarContent.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+
+  const authorEl = target.closest<HTMLElement>(".author-clickable");
+  if (authorEl?.dataset.author) {
+    openUserProfile(authorEl.dataset.author);
+    return;
+  }
+
+  if (target.closest("[data-rside-new]")) {
+    createCommunityFromPage();
+    return;
+  }
+
+  const selectBtn = target.closest<HTMLElement>("[data-rside-select]");
+  if (selectBtn?.dataset.rsideSelect) {
+    const comm = allCommunities.find((c) => c.id === selectBtn.dataset.rsideSelect) ?? null;
+    selectedRedditCommunity = comm;
+    renderCommunitiesPage();
+    return;
+  }
+
+  const joinBtn = target.closest<HTMLElement>("[data-rside-join]");
+  if (joinBtn?.dataset.rsideJoin) {
+    if (!currentIdentity) return;
+    const commId = joinBtn.dataset.rsideJoin;
+    await freenet.toggleJoinCommunity(currentIdentity, commId);
+    allCommunities = await loadCommunities();
+    if (selectedRedditCommunity?.id === commId) {
+      selectedRedditCommunity = allCommunities.find((c) => c.id === commId) ?? null;
+    }
+    if (activeCommunity?.id === commId) {
+      activeCommunity = allCommunities.find((c) => c.id === commId) ?? null;
+      selectCommunity(activeCommunity, true);
+    }
+    renderCommunities();
+    return;
+  }
+
+  const chatBtn = target.closest<HTMLElement>("[data-rside-chat]");
+  if (chatBtn?.dataset.rsideChat) {
+    const comm = allCommunities.find((c) => c.id === chatBtn.dataset.rsideChat);
+    if (comm) openCommunityChat(comm);
+    return;
+  }
+
+  const modBtn = target.closest<HTMLElement>("[data-rside-mod]");
+  if (modBtn?.dataset.rsideMod) {
+    const comm = allCommunities.find((c) => c.id === modBtn.dataset.rsideMod);
+    if (comm) openModerationPanel(comm);
+  }
+});
 
 // The rail opens pages of the main column. The profile page opens from my picture, the logo (or the back button) returns to the feed.
 const feedView = document.getElementById("feed-view") as HTMLElement;
@@ -9061,6 +10259,9 @@ const openMyPublicProfile = () => {
 document.getElementById("pp-avatar")?.addEventListener("click", openMyPublicProfile);
 document.getElementById("pp-name")?.addEventListener("click", openMyPublicProfile);
 document.getElementById("pp-view-public-btn")?.addEventListener("click", openMyPublicProfile);
+document.getElementById("pp-share-wall-btn")?.addEventListener("click", () => {
+  if (currentIdentity?.pubkey) void copyUserWallLink(currentIdentity.pubkey);
+});
 document.getElementById("pp-edit-btn")!.addEventListener("click", () => document.getElementById("edit-profile-btn")?.click());
 document.getElementById("pp-backup-btn")!.addEventListener("click", () => document.getElementById("open-identity-btn")?.click());
 // anything picked in the right panel (a community, my posts) shows up in the feed; my picture, name and handle open the profile
@@ -9406,6 +10607,17 @@ if (settingsToIdentityBtn) {
   settingsToIdentityBtn.addEventListener("click", () => {
     settingsModal.style.display = "none";
     openIdentityModal();
+  });
+}
+
+for (const [btnId, targetRailBtnId] of [
+  ["settings-to-blocklists-btn", "blocklists-open-btn"],
+  ["settings-to-updates-btn", "updates-open-btn"],
+  ["settings-to-guide-btn", "guide-open-btn"],
+] as const) {
+  document.getElementById(btnId)?.addEventListener("click", () => {
+    settingsModal.style.display = "none";
+    document.getElementById(targetRailBtnId)?.click();
   });
 }
 
@@ -10433,7 +11645,28 @@ identityPubkeyVal.addEventListener("click", () => {
   }
 });
 
-initGreenhouse({ whoAmI: () => currentIdentity?.pubkey ?? null, displayName: getAuthorDisplayName });
+initGreenhouse({
+  whoAmI: () => currentIdentity?.pubkey ?? null,
+  displayName: getAuthorDisplayName,
+  linfaForAuthors: async (authors) => {
+    if (!currentIdentity) return { weights: new Map() };
+    const [seen, feeds] = await Promise.all([
+      freenet.getExploreTimeline(currentIdentity).catch(() => [] as Post[]),
+      Promise.all(authors.map((a) => freenet.getFeed(a).catch(() => null))),
+    ]);
+    const allPosts = new Map<string, Post>();
+    for (const p of seen) allPosts.set(`${p.author}:${p.id}`, p);
+    for (const f of feeds) if (f?.posts) for (const p of Object.values(f.posts)) allPosts.set(`${p.author}:${p.id}`, p);
+    const list = [...allPosts.values()];
+    const wot = getWebOfTrust();
+    const trust = (k: string) => wot.trustTier(k);
+    const weights = new Map<string, number>();
+    for (const a of authors) weights.set(a, linfaGreenhouseWeight(list, a, trust));
+    const me = currentIdentity.pubkey;
+    const myLinfa = linfaOf(list, me, trust);
+    return { weights, myStage: stageOf(myLinfa.total).name, myTotal: myLinfa.total };
+  },
+});
 
 initSupporterPanel({
   whoAmI: () => currentIdentity?.pubkey ?? null,
@@ -10773,7 +12006,7 @@ async function init() {
     freenetStatusLabel.textContent = "Local-First Storage";
     freenetStatusLabel.title = `Freenet node unreachable: ${freenet.connectError}`;
   }
-  if (postLink.includes("post=")) void checkUrlPostHash(postLink);
+  if (/(?:post|user|wall)=/.test(postLink)) void checkUrlPostHash(postLink);
 
   // Load Timeline (Explore by default so all posts on network are immediately visible)
   bootStep("Loading posts…");
@@ -10793,4 +12026,5 @@ async function init() {
 }
 
 init();
+
 

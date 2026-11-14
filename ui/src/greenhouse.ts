@@ -1,6 +1,7 @@
-// Greenhouse: supporters plant ideas (a feature or a bug) with a closing date, and supporters vote on them, weighted
-// by tier. It shows how the community feels; it does not decide what gets built. Everything lives in the signed
-// `greenhouse` log: each entry carries its author's supporter receipt, so every reader checks it on their own device.
+// Greenhouse: supporters and community members with Sapling+ Linfa plant ideas (a feature or a bug) with a closing
+// date, and eligible members vote on them, weighted by supporter tier or Linfa age. It shows how the community feels;
+// it does not decide what gets built. Everything lives in the signed `greenhouse` log: supporter entries carry a receipt
+// and Linfa entries are checked by each reader on their own device.
 import type { LogEntry } from "./logfold.ts";
 import type { SupporterTier } from "./supporter.ts";
 
@@ -46,14 +47,27 @@ export function greenhouseTokens(entries: LogEntry[]): Map<string, string> {
 
 /**
  * The seeds, open ones first (best score first), then closed ones (newest closing first).
- * `tierOf` gives an author's verified supporter tier: seeds and votes of anyone else are not counted.
+ * `tierOf` gives an author's verified supporter tier and `linfaWeightOf` gives their Linfa weight (0-3):
+ * seeds and votes of anyone with zero effective weight are not counted.
  */
-export function foldGreenhouse(entries: LogEntry[], tierOf: (author: string) => SupporterTier | undefined, me: string, maintainer: string): Seed[] {
+export function foldGreenhouse(
+  entries: LogEntry[],
+  tierOf: (author: string) => SupporterTier | undefined,
+  me: string,
+  maintainer: string,
+  linfaWeightOf: (author: string) => number = () => 0
+): Seed[] {
+  const weightOf = (author: string): number => {
+    const tier = tierOf(author);
+    const tw = tier ? TIER_WEIGHT[tier] : 0;
+    const lw = Math.max(0, Math.min(3, Math.floor(linfaWeightOf(author) || 0)));
+    return Math.max(tw, lw);
+  };
   const sorted = [...entries].sort((a, b) => a.ts - b.ts || a.id.localeCompare(b.id));
   const seeds = new Map<string, Seed>();
   for (const e of sorted) {
     const b = parse(e);
-    if (b?.type !== "seed" || !tierOf(e.author) || (b.kind !== "feature" && b.kind !== "bug")) continue;
+    if (b?.type !== "seed" || weightOf(e.author) <= 0 || (b.kind !== "feature" && b.kind !== "bug")) continue;
     const title = typeof b.title === "string" ? b.title.trim().slice(0, 120) : "";
     if (!title) continue;
     const days = SEED_DAYS.includes(b.days) ? b.days : 14;
@@ -68,11 +82,11 @@ export function foldGreenhouse(entries: LogEntry[], tierOf: (author: string) => 
     const seed = typeof b?.seed === "string" ? seeds.get(b.seed) : undefined;
     if (!seed) continue;
     if (b.type === "status" && e.author === maintainer && (b.status === null || b.status in SEED_STATUSES)) seed.status = b.status ?? undefined;
-    if (b.type === "vote" && tierOf(e.author) && e.ts >= seed.ts && e.ts <= seed.closes && [-1, 0, 1].includes(b.v))
+    if (b.type === "vote" && weightOf(e.author) > 0 && e.ts >= seed.ts && e.ts <= seed.closes && [-1, 0, 1].includes(b.v))
       votes.set(`${e.author}|${seed.id}`, { seed, author: e.author, v: seed.kind === "bug" ? Math.max(0, b.v) : b.v });
   }
   for (const { seed, author, v } of votes.values()) {
-    const w = TIER_WEIGHT[tierOf(author)!];
+    const w = weightOf(author);
     if (v > 0) seed.up += w;
     if (v < 0) seed.down += w;
     if (v) seed.voters++;

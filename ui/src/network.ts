@@ -10,12 +10,13 @@ import {
   FreenetWsApi,
   GetRequest,
   PutRequest,
+  RelatedStateAndDeltaUpdate,
   UpdateData,
   UpdateDataType,
   UpdateRequest,
   WasmContractV1,
 } from "@freenetorg/freenet-stdlib";
-import { ContractCodeT } from "@freenetorg/freenet-stdlib/common";
+import { ContractCodeT, ContractInstanceIdT } from "@freenetorg/freenet-stdlib/common";
 import { RelatedContractsT } from "@freenetorg/freenet-stdlib/client-request";
 import { blake3 } from "@noble/hashes/blake3.js";
 import feedWasmUrl from "./wasm/contract.wasm?url";
@@ -318,6 +319,19 @@ export class FreenetNetwork {
   async updateRaw(key: ContractKey, delta: Uint8Array): Promise<void> {
     const api = await this.connect();
     await withTimeout(api.update(new UpdateRequest(key, new UpdateData(UpdateDataType.DeltaUpdate, new DeltaUpdate(asBytes(delta))))));
+  }
+
+  /** Send a related contract's state inline alongside a delta update (e.g., AFT TokenAllocationRecord + AddMessages). */
+  async updateRawRelatedStateAndDelta(
+    key: ContractKey,
+    relatedToInstance: Uint8Array,
+    relatedState: Uint8Array,
+    delta: Uint8Array
+  ): Promise<void> {
+    const api = await this.connect();
+    const relatedId = new ContractInstanceIdT(Array.from(relatedToInstance));
+    const upd = new RelatedStateAndDeltaUpdate(relatedId, asBytes(relatedState), asBytes(delta));
+    await withTimeout(api.update(new UpdateRequest(key, new UpdateData(UpdateDataType.RelatedStateAndDeltaUpdate, upd))));
   }
 
   /** What a contract holds under the newest earlier generation that has it, without carrying it anywhere. */

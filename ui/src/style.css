@@ -3909,6 +3909,7 @@ body {
 
 .rail-btn {
   position: relative;
+  flex-shrink: 0;
   width: 68px;
   height: 64px;
   display: flex;
@@ -3997,21 +3998,30 @@ body {
   }
 }
 
-/* On desktop the rail stays put (it doubles as nav while chat/mail hide the feed and right panel), but with
-   enough rail buttons its own content is taller than the viewport; left unbounded, that stretches the whole
-   grid row and the page scrolls instead of the chat/mail pane. Cap it to the viewport and let it scroll itself. */
+/* On desktop the rail has the exact same compact geometry across every tab (Feed, Chat, Mail, etc.)
+   and caps its height to the viewport with internal scrolling so bottom buttons like Settings never clip off-screen. */
 @media (min-width: 769px) {
-  body.chat-open .rail,
-  body.chat-fullscreen .rail,
-  body.mail-open .rail {
-    max-height: calc(100dvh - 84px - 24px);
+  .rail {
+    top: 20px;
+    gap: 4px;
+    max-height: calc(100dvh - 36px);
     overflow-y: auto;
+    overflow-x: hidden;
     scrollbar-width: none;
   }
-  body.chat-open .rail::-webkit-scrollbar,
-  body.chat-fullscreen .rail::-webkit-scrollbar,
-  body.mail-open .rail::-webkit-scrollbar {
+  .rail::-webkit-scrollbar {
     display: none;
+  }
+  .rail-btn {
+    width: 68px;
+    height: 52px;
+    gap: 3px;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .rail-btn .svg-icon {
+    width: 20px;
+    height: 20px;
   }
 }
 
@@ -4020,15 +4030,10 @@ body {
   margin-top: 28px;
 }
 
-@media (min-width: 769px) {
-  .rail {
-    top: 24px;
-  }
-}
-
 .rail-brand {
+  flex-shrink: 0;
   color: var(--primary);
-  padding: 6px 0 14px;
+  padding: 4px 0 8px;
   background: none;
   border: 0;
   cursor: pointer;
@@ -4117,9 +4122,10 @@ html[data-fullwidth="true"] #width-toggle-btn {
 }
 
 .rail-sep {
+  flex-shrink: 0;
   width: 32px;
   height: 1px;
-  margin: 8px 0;
+  margin: 4px 0;
   background: var(--border);
 }
 
@@ -4740,48 +4746,126 @@ html[data-fullwidth="true"] #width-toggle-btn {
   }
 }
 
-/* someone's profile: their posts as a list, each opening in the feed */
+/* someone's profile: Wall-first two-column layout (Wall feed first, Linfa & connected apps sidebar on the right) */
+.uview-modal-card {
+  max-width: 1020px !important;
+  width: 100%;
+}
+.uview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 22px;
+  align-items: start;
+}
+.uview-wall-col {
+  min-width: 0;
+}
+.uview-aside-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 20px;
+}
+.uview-aside-col .uview-linfa,
+.uview-aside-col .uview-channel,
+.uview-aside-col .uview-blog,
+.uview-aside-col .uview-sites {
+  margin-top: 0;
+  margin-bottom: 0;
+}
 .uview-posts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 .uview-post {
   display: flex;
-  gap: 12px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
+  background: var(--card-bg);
   cursor: pointer;
   text-align: left;
+  transition: border-color 0.15s ease, transform 0.12s ease;
 }
 .uview-post:hover,
 .uview-post:focus-visible {
   border-color: var(--primary);
+  outline: none;
+}
+.uview-post-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+.uview-post-author {
+  font-weight: 650;
+  color: var(--text-main);
+}
+.uview-post-time {
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 .uview-post .uview-post-thumb {
-  flex: 0 0 72px;
-  width: 72px;
-  height: 72px;
+  width: 100%;
+  max-height: 280px;
+  border-radius: 10px;
+  overflow: hidden;
   padding: 0;
+  border: 1px solid var(--border);
+}
+.uview-post .uview-post-thumb img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  display: block;
 }
 .uview-post-body {
   min-width: 0;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .uview-post-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 8;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 0.9rem;
+  font-size: 0.94rem;
+  line-height: 1.5;
 }
 .uview-post-meta {
-  margin-top: 4px;
-  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
   color: var(--text-muted);
+}
+.uview-post-open {
+  color: var(--primary);
+  font-weight: 600;
+}
+@media (max-width: 820px) {
+  .uview-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .uview-aside-col {
+    position: static;
+  }
 }
 
 /* long keys and names wrap: unbroken they widened the page on phones (the profile's ✕ and the bottom bar went off screen) */
@@ -5978,14 +6062,35 @@ html[data-fullwidth="true"] #width-toggle-btn {
   background: transparent;
 }
 
-/* Secondary places (Updates, Greenhouse, Blocklists, Guide, Full screen): in the rail on computers, behind More on phones */
+/* Secondary places: core features live in the desktop rail; illustrative/account utilities (Identity, Blocklists, Updates, Guide) tuck behind More on desktop too */
 .rail-more-group {
   display: contents;
 }
 .rail-more-btn {
+  display: flex;
+}
+.rail-utility-group {
   display: none;
 }
+@media (min-width: 769px) {
+  .rail.more-open .rail-utility-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding-top: 4px;
+    border-top: 1px dashed var(--border);
+    animation: rail-more-in 160ms ease-out;
+  }
+}
 @media (max-width: 768px) {
+  .rail-sep-desktop {
+    display: none;
+  }
+  .rail-utility-group {
+    display: contents;
+  }
   .rail-more-btn {
     display: flex;
   }
@@ -6020,7 +6125,64 @@ html[data-fullwidth="true"] #width-toggle-btn {
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .rail.more-open .rail-more-group { animation: none; }
+  .rail.more-open .rail-more-group,
+  .rail.more-open .rail-utility-group { animation: none; }
+}
+
+/* Settings quick-navigation hub for Account, Safety & Guide sections */
+.settings-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.settings-hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--btn-secondary-bg);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.settings-hub-card:hover,
+.settings-hub-card:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  transform: translateY(-1px);
+  outline: none;
+}
+.settings-hub-card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.settings-hub-card-top kbd {
+  margin-left: auto;
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-muted);
+}
+.settings-hub-card-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+@media (max-width: 600px) {
+  .settings-hub-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Activity page header: on a narrow screen the buttons go under the title, each on one line */
@@ -6553,4 +6715,1546 @@ kbd {
 .repost-inner {
   display: block;
   margin-top: 4px;
+}
+
+/* --- Dedicated Communities (Reddit-style r/slug) Rail Page --- */
+.communities-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.communities-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.communities-header-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.communities-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.communities-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.comm-page-topbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comm-page-search {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.9rem;
+}
+
+.comm-page-search:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.comm-page-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.comm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.comm-pill:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.comm-pill.active {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+.comm-pill-joined {
+  color: var(--primary);
+  font-size: 0.7rem;
+}
+
+.comm-pill.active .comm-pill-joined {
+  color: var(--on-primary);
+}
+
+.comm-pill-count {
+  font-size: 0.74rem;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.comm-pill-create {
+  border-style: dashed;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.reddit-sub-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--primary-soft) 0%, var(--card-bg) 70%);
+  flex-wrap: wrap;
+}
+
+.reddit-hero-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.reddit-hero-badge {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.reddit-hero-titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reddit-hero-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 650;
+  color: var(--text-main);
+}
+
+.reddit-hero-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.reddit-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.reddit-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reddit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.reddit-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.reddit-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.reddit-create-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.reddit-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reddit-post-comm-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  max-width: 260px;
+}
+
+.reddit-flair-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reddit-flair-tab {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reddit-flair-tab.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.reddit-post-title-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.reddit-post-body-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.88rem;
+  resize: vertical;
+  min-height: 54px;
+}
+
+.reddit-post-title-input:focus,
+.reddit-post-body-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.reddit-event-fields {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.reddit-post-preview {
+  position: relative;
+  width: fit-content;
+  max-width: 260px;
+}
+
+.reddit-post-preview img {
+  max-height: 160px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.reddit-create-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.reddit-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  flex-wrap: wrap;
+}
+
+.reddit-sort-group,
+.reddit-filter-group,
+.reddit-view-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.reddit-sort-btn,
+.reddit-filter-btn,
+.reddit-view-btn {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reddit-sort-btn:hover,
+.reddit-filter-btn:hover,
+.reddit-view-btn:hover {
+  background: var(--btn-secondary-bg);
+  color: var(--text-main);
+}
+
+.reddit-sort-btn.active,
+.reddit-filter-btn.active,
+.reddit-view-btn.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.reddit-threads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reddit-post-card {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.reddit-post-card:hover {
+  border-color: var(--primary);
+}
+
+.reddit-vote-col {
+  width: 46px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 10px 4px;
+  background: var(--card-footer-bg);
+  border-right: 1px solid var(--border-light);
+}
+
+.reddit-vote-btn {
+  width: 28px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reddit-vote-btn.up:hover,
+.reddit-vote-btn.up.active {
+  color: #ff4500;
+  background: rgba(255, 69, 0, 0.12);
+}
+
+.reddit-vote-btn.down:hover,
+.reddit-vote-btn.down.active {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.reddit-score {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+}
+
+.reddit-score.up {
+  color: #ff4500;
+}
+
+.reddit-score.down {
+  color: #6366f1;
+}
+
+.reddit-post-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reddit-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.reddit-comm-chip {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.reddit-comm-chip:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.reddit-author-link {
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.reddit-author-link:hover {
+  text-decoration: underline;
+}
+
+.reddit-flair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--card-footer-bg);
+  color: var(--text-main);
+}
+
+.reddit-flair-thought {
+  background: rgba(62, 122, 32, 0.12);
+  border-color: rgba(62, 122, 32, 0.3);
+  color: var(--primary);
+}
+
+.reddit-flair-moment {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.3);
+  color: #0284c7;
+}
+
+.reddit-flair-event {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #b45309;
+}
+
+.reddit-flair-poll {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.32);
+  color: #9333ea;
+}
+
+.reddit-post-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.06rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--text-main);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.reddit-post-title:hover {
+  color: var(--primary);
+}
+
+.reddit-post-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.reddit-post-text p:first-child {
+  margin-top: 0;
+}
+
+.reddit-post-text p:last-child {
+  margin-bottom: 0;
+}
+
+.reddit-event-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--card-footer-bg);
+}
+
+.reddit-post-media img {
+  max-height: 440px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.reddit-post-card.compact .reddit-vote-col {
+  padding: 6px 4px;
+}
+
+.reddit-post-card.compact .reddit-post-main {
+  padding: 7px 12px;
+  gap: 4px;
+}
+
+.reddit-post-card.compact .reddit-post-title {
+  font-size: 0.95rem;
+}
+
+.reddit-post-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.reddit-footer-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reddit-footer-btn:hover,
+.reddit-footer-btn.active {
+  background: var(--btn-secondary-bg);
+  color: var(--text-main);
+}
+
+.reddit-footer-btn.danger:hover {
+  color: var(--danger);
+  background: rgba(194, 65, 12, 0.12);
+}
+
+.reddit-comments-section {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reddit-comment-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reddit-comment-form-row .comment-input {
+  flex: 1;
+  min-height: 34px;
+}
+
+.reddit-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+
+.reddit-comment-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.85rem;
+}
+
+.reddit-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.reddit-comment-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.reddit-comment-author {
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.reddit-comment-body {
+  line-height: 1.45;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.reddit-no-comments {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.reddit-empty-state {
+  text-align: center;
+  padding: 36px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--empty-state-bg);
+}
+
+.reddit-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 6px;
+}
+
+.reddit-empty-state h4 {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+}
+
+.reddit-empty-state p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.reddit-sidebar-card {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reddit-sidebar-card h5 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.96rem;
+  font-weight: 650;
+  color: var(--text-main);
+}
+
+.reddit-about-slug {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.92rem;
+}
+
+.reddit-about-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.reddit-about-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.reddit-about-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.reddit-about-stats b {
+  font-size: 0.96rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reddit-about-stats span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.reddit-about-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reddit-rules-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.4;
+}
+
+.reddit-mods-list,
+.reddit-dir-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reddit-mod-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.reddit-mod-name {
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reddit-mod-role {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.reddit-dir-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 8px;
+}
+
+.reddit-dir-item.active {
+  background: var(--primary-soft);
+}
+
+.reddit-dir-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.reddit-dir-slug {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reddit-dir-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.reddit-dir-join {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.reddit-dir-join.joined {
+  border-color: var(--border);
+  background: var(--btn-secondary-bg);
+  color: var(--text-main);
+}
+
+@media (max-width: 900px) {
+  .reddit-layout {
+    grid-template-columns: 1fr;
+  }
+  .reddit-event-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Living Tree (Albero di Radica) Visual Graph --- */
+.feed-tree-chip {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.feed-tree-chip:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.tree-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 1120px;
+}
+
+.tree-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tree-header-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tree-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.tree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tree-pill-group {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--card-footer-bg);
+  border: 1px solid var(--border-light);
+}
+
+.tree-filter-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tree-filter-btn:hover {
+  color: var(--text-main);
+}
+
+.tree-filter-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.tree-comm-select,
+.tree-search-input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-main);
+  font-size: 0.82rem;
+}
+
+.tree-search-input {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.tree-growth-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--card-footer-bg);
+  border: 1px solid var(--border-light);
+}
+
+.tree-time-slider {
+  flex: 1;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.tree-time-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 82px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.tree-canvas-wrap {
+  position: relative;
+  min-height: 480px;
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--linfa-leaf-1) 9%, var(--card-bg)) 0%,
+      var(--card-bg) 52%,
+      color-mix(in srgb, var(--linfa-soil) 22%, var(--card-bg)) 54%,
+      color-mix(in srgb, var(--linfa-soil) 40%, var(--bg)) 100%
+    );
+}
+
+.tree-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+.tree-zoom-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  background: color-mix(in srgb, var(--card-bg) 86%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+}
+
+.tree-svg-container {
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+}
+
+.radica-tree-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+}
+
+.tree-soil-horizon {
+  fill: var(--linfa-soil);
+  opacity: 0.55;
+}
+
+.tree-horizon-line {
+  stroke: var(--linfa-root);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+.tree-zone-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  fill: var(--text-muted);
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.tree-trunk-path {
+  fill: var(--linfa-bark);
+}
+
+.tree-trunk-vein {
+  fill: none;
+  stroke: color-mix(in srgb, var(--linfa-fresh) 60%, var(--linfa-bark));
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.65;
+}
+
+.tree-bough {
+  fill: none;
+  stroke: var(--linfa-bark);
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.tree-bough.selected {
+  stroke: var(--primary);
+}
+
+.tree-bough-pill {
+  fill: color-mix(in srgb, var(--card-bg) 92%, transparent);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tree-bough-node.community .tree-bough-pill {
+  stroke: var(--linfa-leaf-2);
+}
+
+.tree-bough-node.selected .tree-bough-pill {
+  fill: var(--primary);
+  stroke: var(--primary);
+}
+
+.tree-bough-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  fill: var(--text-main);
+  pointer-events: none;
+}
+
+.tree-bough-node.selected .tree-bough-label {
+  fill: #fff;
+}
+
+.tree-post-branch {
+  fill: none;
+  stroke: var(--linfa-bark);
+  stroke-linecap: round;
+  opacity: 0.78;
+}
+
+.tree-post-branch.fresh {
+  stroke: var(--linfa-leaf-1);
+}
+
+.tree-post-branch.matched,
+.tree-post-branch.selected {
+  stroke: var(--primary);
+  opacity: 1;
+}
+
+.tree-post-bud {
+  fill: var(--linfa-leaf-0);
+  stroke: var(--card-bg);
+  stroke-width: 1.4;
+  transition: transform 0.15s ease, fill 0.15s ease;
+}
+
+.tree-post-node.cat-moment .tree-post-bud {
+  fill: #e09145;
+}
+
+.tree-post-node.cat-event .tree-post-bud {
+  fill: #6366f1;
+}
+
+.tree-post-node.cat-poll .tree-post-bud {
+  fill: #ec4899;
+}
+
+.tree-post-node.fresh .tree-post-bud {
+  fill: var(--linfa-fresh);
+}
+
+.tree-post-node.matched .tree-post-bud,
+.tree-post-node.selected .tree-post-bud {
+  stroke: var(--primary);
+  stroke-width: 2.4;
+}
+
+.tree-post-count {
+  font-size: 7px;
+  font-weight: 700;
+  fill: #100e0b;
+  pointer-events: none;
+}
+
+.tree-comment-leaf .tree-leaf-shape {
+  fill: var(--linfa-leaf-2);
+  opacity: 0.9;
+  transition: transform 0.15s ease, fill 0.15s ease;
+}
+
+.tree-comment-leaf.fresh .tree-leaf-shape {
+  fill: var(--linfa-fresh);
+}
+
+.tree-comment-leaf.matched .tree-leaf-shape,
+.tree-comment-leaf.selected .tree-leaf-shape {
+  fill: var(--primary);
+  stroke: var(--text-main);
+  stroke-width: 0.9;
+}
+
+.tree-bloom-petal {
+  fill: var(--linfa-petal);
+}
+
+.tree-bloom-heart {
+  fill: var(--linfa-heart);
+}
+
+.tree-root-path {
+  fill: none;
+  stroke: var(--linfa-root);
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+
+.tree-root-path.tier-1 {
+  stroke: var(--linfa-bark);
+  opacity: 0.9;
+}
+
+.tree-root-path.fresh {
+  stroke: var(--linfa-leaf-1);
+}
+
+.tree-root-path.matched {
+  stroke: var(--primary);
+  opacity: 1;
+}
+
+.tree-root-dot {
+  fill: var(--linfa-root);
+  stroke: var(--card-bg);
+  stroke-width: 1.4;
+}
+
+.tree-root-node.tier-1 .tree-root-dot {
+  fill: var(--linfa-leaf-0);
+}
+
+.tree-root-node.is-me .tree-root-dot {
+  fill: var(--primary);
+  stroke-width: 2;
+}
+
+.tree-root-node.fresh .tree-root-dot {
+  fill: var(--linfa-fresh);
+}
+
+.tree-root-node.matched .tree-root-dot,
+.tree-root-node.selected .tree-root-dot {
+  stroke: var(--primary);
+  stroke-width: 2.4;
+}
+
+.tree-supporter-ring {
+  fill: none;
+  stroke: var(--linfa-heart);
+  stroke-width: 1.4;
+}
+
+.tree-node-label {
+  font-size: 7.8px;
+  font-weight: 600;
+  fill: var(--text-main);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--card-bg);
+  stroke-width: 2.2px;
+  stroke-linejoin: round;
+}
+
+.tree-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.tree-node:hover .tree-post-bud,
+.tree-node:focus-visible .tree-post-bud,
+.tree-node:hover .tree-root-dot,
+.tree-node:focus-visible .tree-root-dot {
+  filter: brightness(1.15);
+}
+
+.tree-pulse {
+  fill: none;
+  stroke: var(--linfa-fresh);
+  stroke-width: 1.4;
+  opacity: 0.65;
+  animation: tree-node-pulse 2.4s ease-out infinite;
+}
+
+@keyframes tree-node-pulse {
+  0% { opacity: 0.75; stroke-width: 1.8; }
+  100% { opacity: 0.1; stroke-width: 0.4; }
+}
+
+.tree-sap-filament {
+  fill: none;
+  stroke: var(--linfa-fresh);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 4;
+  opacity: 0.92;
+  animation: tree-sap-flow 1.4s linear infinite;
+  pointer-events: none;
+}
+
+.tree-sap-filament.kind-comment {
+  stroke: var(--primary);
+}
+
+@keyframes tree-sap-flow {
+  from { stroke-dashoffset: 18; }
+  to { stroke-dashoffset: 0; }
+}
+
+.tree-inspector {
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  background: var(--card-footer-bg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.tree-insp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tree-insp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tree-insp-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.tree-insp-title {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.tree-insp-mono {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tree-insp-pill {
+  align-self: flex-start;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.tree-insp-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tree-insp-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+
+.tree-insp-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--linfa-leaf-2), var(--linfa-fresh));
+}
+
+.tree-insp-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.tree-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.tree-stat-tile {
+  padding: 8px 6px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.tree-stat-tile b {
+  font-size: 0.98rem;
+  color: var(--text-main);
+}
+
+.tree-stat-tile span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.tree-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+}
+
+.tree-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tree-dot-sample {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tree-dot-sample.bud { background: var(--linfa-leaf-0); }
+.tree-dot-sample.leaf { background: var(--linfa-fresh); }
+.tree-dot-sample.root { background: var(--linfa-bark); }
+
+.tree-insp-body {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tree-insp-quote {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 7px 9px;
+  border-left: 3px solid var(--primary);
+  background: var(--card-bg);
+  border-radius: 6px;
+}
+
+.tree-insp-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tree-insp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tree-insp-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.tree-insp-mini-plant {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+}
+
+.tree-insp-subhead {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.tree-insp-leaf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tree-insp-leaf-item {
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tree-insp-leaf-item:hover {
+  border-color: var(--primary);
+}
+
+.tree-insp-leaf-who {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.tree-insp-leaf-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.tree-insp-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+  .tree-workspace {
+    grid-template-columns: 1fr;
+  }
+  .tree-canvas-wrap,
+  .tree-svg-container,
+  .radica-tree-svg {
+    min-height: 360px;
+  }
+  .tree-inspector {
+    max-height: none;
+  }
 }
