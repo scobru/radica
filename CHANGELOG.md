@@ -1,6 +1,11 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **NEW** Settings Theme Selector, Durable UI Preferences & Docker Auto-Update (`ui/index.html`, `ui/src/main.ts`, `ui/src/durable.ts`, `attester/start.sh`, `attester/Dockerfile.freenet`):
+    * Added an Appearance (`#theme-select`, Light / Dark) selector directly inside the Settings modal (`#identity-modal`).
+    * Added `radica_theme`, `radica_accent`, `radica_fullwidth`, and `radica_lang` to `DURABLE_PREFIXES` in `durable.ts` and re-applied restored preferences after `durable.ready` in `main.ts`.
+    * Updated `attester/start.sh` and `attester/Dockerfile.freenet` to handle Freenet self-update exit code `42` automatically (`freenet update` + relaunch).
+
   * **NEW** Curated Boards (CRUD) & Profile Moments / Video Channel (`TASK-007`: `ui/src/boards.ts`, `ui/index.html`, `ui/src/main.ts`, `ui/src/style.css`, `ui/tests/boards.test.ts`):
     * Added `#board-picker-modal` and `📌 Board` post action so users can create public or private curated collections, attach personal notes, edit board metadata/visibility, remove individual items, delete boards, and share `#board=<id>&author=<pubkey>` permalinks (rendered as clean summary cards in Feed and Profile).
     * Added `🖼️ Moments`, `📺 Videos` (YouTube-style Channel grid), and `📌 Boards` tabs inside `#user-profile-modal` (`#uview-tabs`) with full local/AI/curator moderation filtering.

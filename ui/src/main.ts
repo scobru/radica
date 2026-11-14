@@ -11037,6 +11037,8 @@ if (sidebarStatMyPosts) sidebarStatMyPosts.addEventListener("click", switchToMyP
 
 // ---- Theme Management (Dark / Light Mode) ----
 
+const themeSelect = document.getElementById("theme-select") as HTMLSelectElement | null;
+
 function initTheme() {
   const saved = safeStorage.getItem("radica_theme") || safeStorage.getItem("spruce_theme");
   const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -11058,15 +11060,27 @@ function applyTheme(theme: string) {
   if (themeToggleBtn) {
     themeToggleBtn.title = theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode";
   }
+  if (themeSelect) {
+    themeSelect.value = theme === "dark" ? "dark" : "light";
+  }
+}
+
+function setThemeChoice(next: "light" | "dark") {
+  applyTheme(next);
+  safeStorage.setItem("radica_theme", next); // only a choice is kept: the system default is not
+  void import("./delegate.ts").then((m) => m.nodePut("theme", next), () => {});
 }
 
 if (themeToggleBtn) {
   themeToggleBtn.addEventListener("click", () => {
     const current = document.documentElement.getAttribute("data-theme") || "light";
-    const next = current === "dark" ? "light" : "dark";
-    applyTheme(next);
-    safeStorage.setItem("radica_theme", next); // only a choice is kept: the system default is not
-    void import("./delegate.ts").then((m) => m.nodePut("theme", next), () => {});
+    setThemeChoice(current === "dark" ? "light" : "dark");
+  });
+}
+
+if (themeSelect) {
+  themeSelect.addEventListener("change", () => {
+    setThemeChoice(themeSelect.value === "dark" ? "dark" : "light");
   });
 }
 
@@ -11201,10 +11215,21 @@ if (widthToggleBtn) {
   });
 }
 
-if (layoutWidthSelect) {
+  if (layoutWidthSelect) {
   layoutWidthSelect.addEventListener("change", () => {
     setFullWidth(layoutWidthSelect.value === "full");
   });
+}
+
+function reapplyDurablePreferences() {
+  const savedTheme = safeStorage.getItem("radica_theme") || safeStorage.getItem("spruce_theme");
+  if (savedTheme === "dark" || savedTheme === "light") applyTheme(savedTheme);
+  const savedAccent = safeStorage.getItem("radica_accent");
+  if (savedAccent !== null) applyAccent(savedAccent);
+  const savedWidth = safeStorage.getItem(FULLWIDTH_KEY);
+  if (savedWidth === "1" || savedWidth === "0") applyFullWidth(savedWidth === "1");
+  const savedLang = safeStorage.getItem(READER_LANG_KEY);
+  if (savedLang && LANGS[savedLang] && langSelect) langSelect.value = readerLang();
 }
 
 // ---- Identity & Key Management Modal ----
@@ -12743,6 +12768,7 @@ async function init() {
   renderDiscoveredPeers();
   await durable.ready; // renderIdentityModal derives & caches the Freenet Mail identity from the saved alias,
   // which lives in durable storage: rendering it before this resolves poisons the cache with the "user_…" fallback
+  reapplyDurablePreferences();
   renderIdentityModal();
   updateNotificationsBadge();
   void maybeShowWelcome();

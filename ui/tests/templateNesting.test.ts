@@ -234,8 +234,10 @@ test("layout: user profile modal puts the feed-style Wall first and includes Sha
   }
 
   assert.match(styleCss, /\.uview-layout\s*\{[^}]*grid-template-columns:/);
+  assert.match(styleCss, /\.uview-aside-col\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(styleCss, /@media\s*\(\s*max-width:\s*1200px\s*\)[^{]*\{[\s\S]*\.uview-modal-card/);
   assert.match(styleCss, /@media\s*\(\s*max-height:\s*800px\s*\)[^{]*\{[\s\S]*\.uview-aside-col\s*\{[^}]*position:\s*static/);
+  assert.match(styleCss, /@media\s*\(\s*max-width:\s*820px\s*\)[^{]*\{[\s\S]*\.uview-aside-col\s*\{[^}]*overflow-y:\s*visible/);
   assert.match(mainTs, /copyUserWallLink/);
   assert.match(mainTs, /openAuthorWallInFeed/);
 });

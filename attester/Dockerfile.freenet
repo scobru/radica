@@ -3,4 +3,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 # Freenet's official installer: a prebuilt binary, no compiling (see freenet.org's "Run Freenet in Docker")
 RUN curl -fsSL https://freenet.org/install.sh -o /tmp/install.sh \
  && FREENET_INSTALL_DIR=/usr/local/bin FREENET_NO_SERVICE=1 bash /tmp/install.sh && rm /tmp/install.sh
-CMD ["freenet"]
+CMD ["sh", "-c", "while true; do freenet; code=$?; if [ \"$code\" -eq 42 ]; then echo 'freenet update detected (exit 42), running freenet update...'; freenet update || exit 1; continue; fi; exit \"$code\"; done"]

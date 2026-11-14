@@ -4767,6 +4767,11 @@ html[data-fullwidth="true"] #width-toggle-btn {
   gap: 12px;
   position: sticky;
   top: 20px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 .uview-aside-col .uview-linfa,
 .uview-aside-col .uview-channel,
@@ -4896,6 +4901,9 @@ html[data-fullwidth="true"] #width-toggle-btn {
 @media (max-height: 800px) {
   .uview-aside-col {
     position: static;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
   }
   .uview-aside-col .linfa-pot {
     max-height: 120px;
@@ -4908,6 +4916,9 @@ html[data-fullwidth="true"] #width-toggle-btn {
   }
   .uview-aside-col {
     position: static;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
   }
 }
 
