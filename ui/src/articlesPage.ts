@@ -39,6 +39,7 @@ export interface ArticlesPageDeps {
   openUserWall: (pubkey: string) => void;
   openPostInFeed: (postId: string, author: string) => void;
   toggleLike: (author: string, postId: string) => Promise<void>;
+  saveToBoard?: (post: Post) => void;
   reportArticle?: (author: string, postId: string) => Promise<void>;
   hideAuthor?: (author: string) => void;
   shouldMaskBadWords?: () => boolean;
@@ -343,6 +344,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
         `<footer class="article-reader-footer">` +
           `<button type="button" class="btn-secondary btn-sm ${likedByMe ? "is-liked" : ""}" id="article-reader-like-btn">♥ ${likeCount}</button>` +
           `<button type="button" class="btn-secondary btn-sm" id="article-reader-comments-btn">💬 Comments (${commentCount})</button>` +
+          (deps.saveToBoard && post ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-board-btn">📌 Board</button>` : "") +
           (target.author !== me && me
             ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-report-btn" style="margin-left:auto;">🚩 Report</button>` +
               `<button type="button" class="btn-secondary btn-sm" id="article-reader-hide-btn">🚫 Hide Author</button>`
@@ -361,13 +363,31 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
       void navigator.clipboard?.writeText(permalink);
       deps.showToast("Article permalink copied!");
     });
-    document.getElementById("article-reader-like-btn")?.addEventListener("click", async () => {
-      await deps.toggleLike(target.author, target.postId);
-      await openReader(target);
+    const likeBtn = document.getElementById("article-reader-like-btn") as HTMLButtonElement | null;
+    likeBtn?.addEventListener("click", async () => {
+      if (!deps.getIdentity()) {
+        await deps.toggleLike(target.author, target.postId);
+        return;
+      }
+      const wasLiked = likeBtn.classList.contains("is-liked");
+      const curCount = Number(likeBtn.textContent?.replace(/[^0-9]/g, "") || "0") || 0;
+      const nextLiked = !wasLiked;
+      const nextCount = Math.max(0, curCount + (nextLiked ? 1 : -1));
+      likeBtn.classList.toggle("is-liked", nextLiked);
+      likeBtn.textContent = `♥ ${nextCount}`;
+      try {
+        await deps.toggleLike(target.author, target.postId);
+      } catch {
+        likeBtn.classList.toggle("is-liked", wasLiked);
+        likeBtn.textContent = `♥ ${curCount}`;
+      }
     });
     document.getElementById("article-reader-comments-btn")?.addEventListener("click", () => {
       deps.closeModal();
       deps.openPostInFeed(target.postId, target.author);
+    });
+    document.getElementById("article-reader-board-btn")?.addEventListener("click", () => {
+      if (post) deps.saveToBoard?.(post);
     });
     document.getElementById("article-reader-report-btn")?.addEventListener("click", async () => {
       await deps.reportArticle?.(target.author, target.postId);

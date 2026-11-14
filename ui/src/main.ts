@@ -5718,7 +5718,10 @@ function openBoardPickerModal(post: Post | null) {
         list[idx] = addItemToBoard(list[idx], {
           postId: boardPickerTargetPost.id,
           author: boardPickerTargetPost.author,
-          captionPreview: boardPickerTargetPost.caption || "",
+          captionPreview: (() => {
+            const art = parseArticleCaption(boardPickerTargetPost.caption || "");
+            return art ? `📰 ${art.title}` : boardPickerTargetPost.caption || "";
+          })(),
           mediaUri: boardPickerTargetPost.media_uri,
           note: boardItemNote?.value.trim() || undefined,
           addedAt: Date.now(),
@@ -5755,7 +5758,10 @@ boardCreateSaveBtn?.addEventListener("click", async () => {
     board = addItemToBoard(board, {
       postId: boardPickerTargetPost.id,
       author: boardPickerTargetPost.author,
-      captionPreview: boardPickerTargetPost.caption || "",
+      captionPreview: (() => {
+        const art = parseArticleCaption(boardPickerTargetPost.caption || "");
+        return art ? `📰 ${art.title}` : boardPickerTargetPost.caption || "";
+      })(),
       mediaUri: boardPickerTargetPost.media_uri,
       note: boardItemNote?.value.trim() || undefined,
       addedAt: Date.now(),
@@ -10284,24 +10290,36 @@ const articlesPage = createArticlesPage({
   getMailIdentity: () => getOrDeriveFmailIdentity(),
   openUserWall: (pk) => void openUserProfile(pk),
   openPostInFeed: (postId, author) => void showMyPost(postId, author),
+  saveToBoard: (post) => openBoardPickerModal(post),
   toggleLike: async (author, postId) => {
     if (!currentIdentity) {
       showToast("Sign in first to like.", "warning");
       return;
     }
-    await freenet.toggleLike(currentIdentity, author, postId);
+    const me = currentIdentity.pubkey;
     const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
-    if (idx !== -1) {
-      const currentlyLiked = Boolean(timelinePosts[idx].likes?.[currentIdentity.pubkey]?.liked);
+    const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
+    if (idx !== -1 && prevPost) {
+      const currentlyLiked = Boolean(prevPost.likes?.[me]?.liked);
       timelinePosts[idx] = {
-        ...timelinePosts[idx],
+        ...prevPost,
         likes: {
-          ...timelinePosts[idx].likes,
-          [currentIdentity.pubkey]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+          ...prevPost.likes,
+          [me]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
         },
       };
+      renderTimeline();
     }
-    renderTimeline();
+    try {
+      await freenet.toggleLike(currentIdentity, author, postId);
+    } catch (err) {
+      if (idx !== -1 && prevPost) {
+        timelinePosts[idx] = prevPost;
+        renderTimeline();
+      }
+      showToast("Could not update like on Freenet.", "error");
+      throw err;
+    }
   },
   reportArticle: async (author, postId) => {
     await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
@@ -10448,19 +10466,30 @@ const reelsPlayer = createReelsPlayer({
       showToast("Sign in first to like.", "warning");
       return;
     }
-    await freenet.toggleLike(currentIdentity, author, postId);
+    const me = currentIdentity.pubkey;
     const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
-    if (idx !== -1) {
-      const currentlyLiked = Boolean(timelinePosts[idx].likes?.[currentIdentity.pubkey]?.liked);
+    const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
+    if (idx !== -1 && prevPost) {
+      const currentlyLiked = Boolean(prevPost.likes?.[me]?.liked);
       timelinePosts[idx] = {
-        ...timelinePosts[idx],
+        ...prevPost,
         likes: {
-          ...timelinePosts[idx].likes,
-          [currentIdentity.pubkey]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+          ...prevPost.likes,
+          [me]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
         },
       };
+      renderTimeline();
     }
-    renderTimeline();
+    try {
+      await freenet.toggleLike(currentIdentity, author, postId);
+    } catch (err) {
+      if (idx !== -1 && prevPost) {
+        timelinePosts[idx] = prevPost;
+        renderTimeline();
+      }
+      showToast("Could not update like on Freenet.", "error");
+      throw err;
+    }
   },
   openComments: (postId, author) => {
     reelsPlayer.hide();
