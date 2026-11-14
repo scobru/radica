@@ -1,7 +1,7 @@
 # Graph Report - radica  (2026-11-14)
 
 ## Corpus Check
-- 281 files · ~810,333 words
+- 281 files · ~810,608 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -322,16 +322,16 @@ Cohesion: 0.07
 Nodes (91): fillAsocial(), generateDefaultAvatar(), nodeOrigin(), plainMentions(), deltaCard(), fillDelta(), pageHref(), fillFh() (+83 more)
 
 ### Community 46 - "handleJoinFromInviteUrl"
-Cohesion: 0.23
-Nodes (14): ChatMediaItem, ChunkProgress, fillChatMedia(), resolveChatMediaUrl(), wireDownload(), isFragmentedMp4(), item(), MAX_VIDEO_SEC (+6 more)
+Cohesion: 0.30
+Nodes (10): ChatMediaItem, ChunkProgress, isFragmentedMp4(), item(), MAX_VIDEO_SEC, playVideo(), prepareVideo(), scanTimes() (+2 more)
 
 ### Community 47 - "chatMedia.test.ts"
 Cohesion: 0.17
 Nodes (4): renderUpdatesList(), UPDATES, BUILD, FREENET_ASSETS
 
 ### Community 48 - "caption.test.ts"
-Cohesion: 0.12
-Nodes (27): compressPostImageFile(), AUDIO_EXT, blobCache, cacheKeyOf(), ChatMediaKind, dataUriToBytesAndMime(), decodeWaveformHex(), encodeChatMediaToken() (+19 more)
+Cohesion: 0.13
+Nodes (28): AUDIO_EXT, blobCache, cacheKeyOf(), ChatMediaKind, dataUriToBytesAndMime(), decodeWaveformHex(), encodeChatMediaToken(), encodeWaveformHex() (+20 more)
 
 ### Community 49 - "createMessengerChat"
 Cohesion: 0.12
@@ -379,7 +379,7 @@ Nodes (11): defaultNodeOrigin(), fillFreeHole(), FREEHOLE_URL_RE, freeholeCard()
 
 ### Community 63 - "fillChatMedia"
 Cohesion: 0.27
-Nodes (11): chatMediaCardsHtml(), fileExtensionIcon(), formatBytes(), formatMediaDuration(), normalizeAudioMime(), prepareChatAudioFile(), prepareChatDocFile(), summarizeChatMediaText() (+3 more)
+Nodes (10): compressPostImageFile(), fileExtensionIcon(), measureImageDimensions(), normalizeAudioMime(), prepareChatAudioFile(), prepareChatDocFile(), prepareChatImageFile(), handleClassicDropFiles() (+2 more)
 
 ### Community 64 - "package.json"
 Cohesion: 0.15
@@ -466,8 +466,8 @@ Cohesion: 0.06
 Nodes (70): yieldToMain(), alertUnread(), amGlobalMod(), bootStep(), checkCommunitiesOnNetwork(), checkUrlPostHash(), closeRailPages(), copyUserWallLink() (+62 more)
 
 ### Community 97 - "createMessengerChat"
-Cohesion: 0.20
-Nodes (14): analyzeAudioBlob(), defaultWaveform(), fetchChatMedia(), keepChatMediaUrl(), maskChatMediaTokens(), normalizePeaksToBars(), openChatMedia(), sealChatMedia() (+6 more)
+Cohesion: 0.17
+Nodes (18): analyzeAudioBlob(), chatMediaCardsHtml(), defaultWaveform(), fetchChatMedia(), formatBytes(), formatMediaDuration(), keepChatMediaUrl(), maskChatMediaTokens() (+10 more)
 
 ### Community 98 - "riverPointer.ts"
 Cohesion: 0.31

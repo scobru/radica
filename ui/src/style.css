@@ -9047,6 +9047,16 @@ body.has-global-audio-player {
   gap: 6px;
 }
 
+.gap-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.music-track-row.is-active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+}
+
 .gap-progress-wrap {
   flex: 1;
   min-width: 160px;

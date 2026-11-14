@@ -1,11 +1,11 @@
 # Graph Report - radica  (2026-11-14)
 
 ## Corpus Check
-- 281 files · ~810,325 words
+- 281 files · ~810,333 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3310 nodes · 8828 edges · 127 communities (113 shown, 14 thin omitted)
+- 3310 nodes · 8828 edges · 126 communities (115 shown, 11 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 146 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
@@ -112,7 +112,6 @@
 - [[_COMMUNITY_linfa.ts|linfa.ts]]
 - [[_COMMUNITY_Radica Issues & Task Tracker|Radica Issues & Task Tracker]]
 - [[_COMMUNITY_freetree.ts|freetree.ts]]
-- [[_COMMUNITY_.notifyListeners|.notifyListeners]]
 - [[_COMMUNITY_playPopSound|playPopSound]]
 - [[_COMMUNITY_TASK-003 Mail Contacts Management (Add & Remove Contacts)|TASK-003: Mail Contacts Management (Add & Remove Contacts)]]
 - [[_COMMUNITY_TASK-006 Short-Form Vertical Video & Video Channels (TikTok  YouTube)|TASK-006: Short-Form Vertical Video & Video Channels (TikTok / YouTube)]]
@@ -156,7 +155,7 @@
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (127 total, 14 thin omitted)
+## Communities (126 total, 11 thin omitted)
 
 ### Community 0 - "main.ts"
 Cohesion: 0.06
@@ -196,7 +195,7 @@ Nodes (28): dependencies, @browsermt/bergamot-translator, @desert-ant-labs/moder
 
 ### Community 9 - "compilerOptions"
 Cohesion: 0.14
-Nodes (28): ASOCIAL_RECORDS_CODE_BYTES, asocialCard(), AsocialData, asocialLink(), asocialOwnStoreKey(), asocialOwnStoreParams(), asocialPersonHref(), asocialPersonOf() (+20 more)
+Nodes (27): ASOCIAL_RECORDS_CODE_BYTES, asocialCard(), AsocialData, asocialLink(), asocialOwnStoreKey(), asocialOwnStoreParams(), asocialPersonHref(), asocialPersonOf() (+19 more)
 
 ### Community 11 - "SafeStorage"
 Cohesion: 0.31
@@ -265,6 +264,10 @@ Nodes (4): RiverNet, RiverRooms, vkOf(), device()
 ### Community 29 - "showProfilePage"
 Cohesion: 0.06
 Nodes (69): a_command_that_hangs_is_killed_at_the_deadline(), a_leftover_user_unit_beside_a_system_unit_gets_a_way_out(), a_process_left_holding_stderr_does_not_hold_up_run(), a_registered_service_is_just_started(), a_registered_service_that_fails_is_reported_never_registered_again(), a_stopped_system_service_is_left_to_the_administrator(), a_suggested_command_survives_any_path(), Answer (+61 more)
+
+### Community 30 - "freenet.ts"
+Cohesion: 0.10
+Nodes (3): dmPeerOf(), setActiveSecretChatTTL(), NotificationItem
 
 ### Community 31 - "updates.ts"
 Cohesion: 0.07
@@ -343,7 +346,7 @@ Cohesion: 0.09
 Nodes (18): gains(), linfaOf(), amVouched(), collectTreePeers(), getWebOfTrust(), ghostkeyKey(), isKnownSender(), markSeen() (+10 more)
 
 ### Community 55 - "delegate.ts"
-Cohesion: 0.15
+Cohesion: 0.13
 Nodes (22): api(), asBytes(), call(), chain, dec, delegateMessage(), enc, extractPayload() (+14 more)
 
 ### Community 56 - "secretChat.ts"
@@ -367,8 +370,8 @@ Cohesion: 0.09
 Nodes (54): a_failed_rewrite_of_a_record_leaves_it_whole(), a_node_answering_ends_the_wait_and_the_directory_goes_when_the_installer_exits(), an_installer_left_open_past_the_deadline_is_reported(), applications_dir(), binary_install_path(), copy_app_from(), copy_tree(), extract_freenet() (+46 more)
 
 ### Community 61 - "createMessengerChat"
-Cohesion: 0.15
-Nodes (29): addReadKeys(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer(), encryptWithSymmetricKey() (+21 more)
+Cohesion: 0.14
+Nodes (30): AsocialWorkItem, addReadKeys(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer() (+22 more)
 
 ### Community 62 - "translate.ts"
 Cohesion: 0.23
@@ -431,8 +434,8 @@ Cohesion: 0.52
 Nodes (5): along(), Box, f(), growRoots(), rootPaths()
 
 ### Community 85 - "orto.ts"
-Cohesion: 0.13
-Nodes (8): seedReadMark(), MessengerActiveState, RiverJoin, roomOwnerSk(), ChatMessage, PrivateRoom, UserIdentity, room()
+Cohesion: 0.15
+Nodes (6): seedReadMark(), RiverJoin, roomOwnerSk(), PrivateRoom, UserIdentity, room()
 
 ### Community 89 - "ante.ts"
 Cohesion: 0.50
@@ -493,6 +496,10 @@ Nodes (7): createDurable(), durable, DURABLE_PREFIXES, DurableNode, DurableStore
 ### Community 104 - "Post"
 Cohesion: 0.22
 Nodes (11): analyzeImageFile(), analyzeTextContent(), BAD_WORDS, BAD_WORDS_RE, censorTextAndPII(), getModerator(), ImageModerationResult, personalDataIn() (+3 more)
+
+### Community 107 - "rootsfx.ts"
+Cohesion: 0.13
+Nodes (3): MessengerActiveState, ChatMessage, Community
 
 ### Community 108 - "TASK-001: Responsive 13.3" Laptop Layout for Wall & Profile Modal"
 Cohesion: 0.33
@@ -565,14 +572,14 @@ Nodes (3): cut(), Root, rootsSvg()
 ## Knowledge Gaps
 - **915 isolated node(s):** `name`, `private`, `type`, `start`, `test` (+910 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Cert` connect `lib.rs` to `RiverRooms`, `createMessengerChat`, `messengerLogic.ts`, `signOut`, `orto.ts`, `versionCheck.ts`, `updates.ts`?**
   _High betweenness centrality (0.065) - this node is a cross-community bridge._
-- **Why does `FreenetClient` connect `moderation.ts` to `RiverRooms`, `whoiam.ts`, `compilerOptions`, `feature_request.md`, `compilerOptions`, `icons.ts`, `freenet.ts`, `secretChat.ts`, `nodeOrigin`, `createMessengerChat`, `Reader`, `delegate.ts`, `createMessengerChat`, `fh.ts`, `orto.ts`, `durable.ts`, `openNotification`, `createMessengerChat`, `riverPointer.ts`, `rootsfx.ts`, `.notifyListeners`, `personaName`?**
+- **Why does `FreenetClient` connect `moderation.ts` to `RiverRooms`, `whoiam.ts`, `compilerOptions`, `feature_request.md`, `compilerOptions`, `icons.ts`, `freenet.ts`, `secretChat.ts`, `nodeOrigin`, `createMessengerChat`, `Reader`, `delegate.ts`, `createMessengerChat`, `fh.ts`, `orto.ts`, `durable.ts`, `openNotification`, `createMessengerChat`, `riverPointer.ts`, `rootsfx.ts`, `personaName`?**
   _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Why does `freshPosts()` connect `attachCardListeners` to `icons.ts`?**
   _High betweenness centrality (0.039) - this node is a cross-community bridge._

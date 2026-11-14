@@ -66,8 +66,35 @@ export function createMusicPage(deps: MusicPageDeps) {
   let loadedDir = false;
   let state: AudioQueueState = createAudioQueueState();
   let playGen = 0;
+  let isSeeking = false;
+  let streamProgressText = "";
 
   const cleanText = (t: string) => (deps.shouldMaskBadWords() ? maskProfanity(t) : t);
+
+  function effectiveDuration(): number {
+    if (audioEl && Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
+      return audioEl.duration;
+    }
+    const track = state.queue[state.currentIndex];
+    return track?.durationMs ? track.durationMs / 1000 : 0;
+  }
+
+  function syncTrackRows() {
+    if (!listEl) return;
+    const cur = state.queue[state.currentIndex];
+    const isPlaying = Boolean(audioEl && !audioEl.paused);
+    listEl.querySelectorAll<HTMLElement>(".music-track-row").forEach((row) => {
+      const rid = row.dataset.releaseId;
+      const idx = Number(row.dataset.idx);
+      const active = Boolean(cur && cur.releaseId === rid && cur.trackIndex === idx);
+      row.classList.toggle("is-active", active);
+      const btn = row.querySelector<HTMLButtonElement>(".music-play-track-btn");
+      if (btn) {
+        btn.textContent = active && isPlaying ? "❚❚" : "▶";
+        btn.setAttribute("aria-label", active && isPlaying ? "Pause" : "Play");
+      }
+    });
+  }
 
   function syncPlayerBar() {
     if (!playerBar || !audioEl) return;
@@ -75,6 +102,7 @@ export function createMusicPage(deps: MusicPageDeps) {
     if (!track) {
       playerBar.style.display = "none";
       document.body.classList.remove("has-global-audio-player");
+      syncTrackRows();
       return;
     }
     playerBar.style.display = "flex";
@@ -82,6 +110,8 @@ export function createMusicPage(deps: MusicPageDeps) {
     if (titleEl) titleEl.textContent = cleanText(track.title);
     if (artistEl) artistEl.textContent = cleanText(`${track.artist} · ${track.releaseTitle}`);
     if (playBtn) playBtn.textContent = audioEl.paused ? "▶" : "❚❚";
+    if (prevBtn) prevBtn.disabled = state.currentIndex <= 0;
+    if (nextBtn) nextBtn.disabled = nextQueueIndex(state) === -1;
     if (queuePill) queuePill.textContent = `${state.currentIndex + 1}/${state.queue.length}`;
     if (coverEl) {
       coverEl.innerHTML = "♪";
@@ -93,6 +123,7 @@ export function createMusicPage(deps: MusicPageDeps) {
         });
       }
     }
+    syncTrackRows();
   }
 
   async function startCurrentTrack() {
@@ -100,8 +131,14 @@ export function createMusicPage(deps: MusicPageDeps) {
     const track = state.queue[state.currentIndex];
     if (!track) return;
     const gen = ++playGen;
+    if (audioEl.src.startsWith("blob:")) URL.revokeObjectURL(audioEl.src);
+    audioEl.pause();
+    audioEl.removeAttribute("src");
+    audioEl.load();
+    if (seekInput) seekInput.value = "0";
+    streamProgressText = "Loading…";
     syncPlayerBar();
-    if (timeEl) timeEl.textContent = "Loading…";
+    if (timeEl) timeEl.textContent = streamProgressText;
 
     // Pause any inline feed FreeTunes players
     document.querySelectorAll<HTMLAudioElement>(".ft-card audio, .ft-profile-card audio, #cm-shared-audio").forEach((a) => {
@@ -114,15 +151,21 @@ export function createMusicPage(deps: MusicPageDeps) {
         track.chunks,
         deps.getRawContract,
         (d, n) => {
-          if (gen === playGen && timeEl && d < n) {
-            timeEl.textContent = `Loading ${d}/${n}`;
+          if (gen !== playGen) return;
+          streamProgressText = d < n ? `Loading ${d}/${n}` : "";
+          if (timeEl && d < n && audioEl.paused) {
+            timeEl.textContent = streamProgressText;
           }
         },
         () => gen === playGen
       );
-      if (gen === playGen) syncPlayerBar();
+      if (gen === playGen) {
+        streamProgressText = "";
+        syncPlayerBar();
+      }
     } catch {
       if (gen === playGen) {
+        streamProgressText = "";
         deps.showToast("Could not load audio stream from Freenet.", true);
         if (timeEl) timeEl.textContent = "Error";
       }
@@ -272,7 +315,7 @@ export function createMusicPage(deps: MusicPageDeps) {
             const barsHtml = bars.map((h) => `<span style="height:${h}%"></span>`).join("");
             const dur = formatAudioTime((tr.ms || 0) / 1000);
             return (
-              `<div class="music-track-row">` +
+              `<div class="music-track-row" data-release-id="${esc(item.id)}" data-idx="${idx}">` +
                 `<button type="button" class="btn-primary btn-sm music-play-track-btn" data-idx="${idx}" aria-label="Play ${esc(tr.title)}">▶</button>` +
                 `<div class="music-track-info">` +
                   `<span class="music-track-title">${idx + 1}. ${esc(cleanText(tr.title))}</span>` +
@@ -285,11 +328,19 @@ export function createMusicPage(deps: MusicPageDeps) {
           })
           .join("");
 
+        syncTrackRows();
+
         tlEl.querySelectorAll<HTMLButtonElement>(".music-play-track-btn").forEach((btn) => {
           btn.onclick = () => {
             const idx = Number(btn.dataset.idx) || 0;
             const tr = rel.tracks[idx];
             if (!tr) return;
+            const cur = state.queue[state.currentIndex];
+            if (cur && cur.releaseId === item.id && cur.trackIndex === idx && audioEl && audioEl.src) {
+              if (audioEl.paused) void audioEl.play().catch(() => {});
+              else audioEl.pause();
+              return;
+            }
             playTrack({
               releaseId: item.id,
               params: item.params,
@@ -361,13 +412,15 @@ export function createMusicPage(deps: MusicPageDeps) {
     audioEl.addEventListener("play", () => syncPlayerBar());
     audioEl.addEventListener("pause", () => syncPlayerBar());
     audioEl.addEventListener("timeupdate", () => {
+      if (isSeeking) return;
+      const dur = effectiveDuration();
       if (timeEl) {
         const cur = formatAudioTime(audioEl.currentTime);
-        const dur = Number.isFinite(audioEl.duration) ? formatAudioTime(audioEl.duration) : "0:00";
-        timeEl.textContent = `${cur} / ${dur}`;
+        const durStr = dur > 0 ? formatAudioTime(dur) : "0:00";
+        timeEl.textContent = streamProgressText ? `${cur} / ${durStr} · ${streamProgressText}` : `${cur} / ${durStr}`;
       }
-      if (seekInput && Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
-        seekInput.value = String(Math.round((audioEl.currentTime / audioEl.duration) * 1000));
+      if (seekInput && dur > 0) {
+        seekInput.value = String(Math.min(1000, Math.round((audioEl.currentTime / dur) * 1000)));
       }
     });
     audioEl.addEventListener("ended", () => {
@@ -403,9 +456,27 @@ export function createMusicPage(deps: MusicPageDeps) {
     }
   });
 
+  seekInput?.addEventListener("pointerdown", () => {
+    isSeeking = true;
+  });
+  seekInput?.addEventListener("pointerup", () => {
+    isSeeking = false;
+  });
   seekInput?.addEventListener("input", () => {
-    if (!audioEl || !Number.isFinite(audioEl.duration) || audioEl.duration <= 0) return;
-    audioEl.currentTime = (Number(seekInput.value) / 1000) * audioEl.duration;
+    const dur = effectiveDuration();
+    if (!audioEl || dur <= 0) return;
+    let target = (Number(seekInput.value) / 1000) * dur;
+    if (audioEl.seekable.length > 0) {
+      const maxSeek = audioEl.seekable.end(audioEl.seekable.length - 1);
+      if (Number.isFinite(maxSeek) && target > maxSeek) target = maxSeek;
+    }
+    audioEl.currentTime = target;
+    if (timeEl) {
+      timeEl.textContent = `${formatAudioTime(target)} / ${formatAudioTime(dur)}`;
+    }
+  });
+  seekInput?.addEventListener("change", () => {
+    isSeeking = false;
   });
 
   volInput?.addEventListener("input", () => {
