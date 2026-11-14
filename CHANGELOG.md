@@ -1,6 +1,9 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **NEW** Mobile Profile Connections Tab (`ui/index.html`, `ui/src/style.css`, `ui/src/main.ts`):
+    * Added a `🔗 Connections` filter tab inside `#uview-tabs` (shown on `<= 820px` viewports) so Linfa Tree and connected Freenet apps appear on demand without stacking at the bottom of the profile posts list.
+
   * **NEW** Settings Theme Selector, Durable UI Preferences & Docker Auto-Update (`ui/index.html`, `ui/src/main.ts`, `ui/src/durable.ts`, `attester/start.sh`, `attester/Dockerfile.freenet`):
     * Added an Appearance (`#theme-select`, Light / Dark) selector directly inside the Settings modal (`#identity-modal`).
     * Added `radica_theme`, `radica_accent`, `radica_fullwidth`, and `radica_lang` to `DURABLE_PREFIXES` in `durable.ts` and re-applied restored preferences after `durable.ready` in `main.ts`.

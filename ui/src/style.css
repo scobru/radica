@@ -4914,6 +4914,15 @@ html[data-fullwidth="true"] #width-toggle-btn {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
+  .uview-tab-connections {
+    display: inline-flex;
+  }
+  .uview-layout:not(.uview-show-connections) .uview-aside-col {
+    display: none;
+  }
+  .uview-layout.uview-show-connections #uview-posts-gallery {
+    display: none;
+  }
   .uview-aside-col {
     position: static;
     max-height: none;
@@ -6507,8 +6516,12 @@ kbd {
 }
 .uview-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+.uview-tab-connections {
+  display: none;
 }
 .uview-tabs button[aria-selected="true"] {
   background: var(--primary);

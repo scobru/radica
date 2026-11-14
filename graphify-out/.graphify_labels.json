@@ -10,7 +10,6 @@
   "8": "dependencies",
   "9": "compilerOptions",
   "10": "moderation.ts",
-  "11": "SafeStorage",
   "12": "resetPublishBtnState",
   "13": "vite.config.ts",
   "14": "signOut",
@@ -126,6 +125,5 @@
   "124": "rootsfx.ts",
   "125": "sporeRadio.ts",
   "126": "html.ts",
-  "127": "renderWelcomeSuggestions",
-  "128": "splitNotifs"
+  "127": "renderWelcomeSuggestions"
 }

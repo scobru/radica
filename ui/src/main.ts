@@ -5223,6 +5223,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   uviewBio.textContent = "";
   if (uviewChannel) uviewChannel.innerHTML = "";
   uviewPostsGallery.innerHTML = `<div style="grid-column: 1 / -1; font-size: 0.85rem; color: var(--text-muted);">Loading…</div>`;
+  userProfileModal.querySelector(".uview-layout")?.classList.remove("uview-show-connections");
   drawUviewPosts = () => {}; // the tabs wait for this persona's posts, and do not draw the last profile's
   const uviewLinfa = document.getElementById("uview-linfa");
   if (uviewLinfa) {
@@ -5381,9 +5382,14 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     boards: authorBoards,
   };
   drawUviewPosts = (tab) => {
+    userProfileModal.querySelector(".uview-layout")?.classList.toggle("uview-show-connections", tab === "connections");
     uviewTabs.querySelectorAll<HTMLElement>("button").forEach((b) => {
-      const t = b.dataset.tab as keyof typeof byTab;
+      const t = b.dataset.tab as keyof typeof byTab | "connections";
       b.setAttribute("aria-selected", String(t === tab));
+      if (t === "connections") {
+        b.textContent = "🔗 Connections";
+        return;
+      }
       const label =
         t === "posts"
           ? "Posts"
@@ -5396,6 +5402,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
                 : "📌 Boards";
       b.textContent = `${label} (${byTab[t].length})`;
     });
+    if (tab === "connections") return;
     const shouldMask = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
 
     if (tab === "videos") {
@@ -5667,11 +5674,11 @@ const openProfilePost = (e: Event) => {
 };
 uviewPostsGallery.addEventListener("click", openProfilePost);
 /** Draw one tab of the open profile (set by openUserProfile, which knows whose posts they are). */
-let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards") => void = () => {};
+let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards" | "connections") => void = () => {};
 const uviewTabs = document.getElementById("uview-tabs") as HTMLElement;
 uviewTabs.addEventListener("click", (e) => {
   const tab = (e.target as Element).closest<HTMLElement>("button")?.dataset.tab;
-  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards") drawUviewPosts(tab);
+  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards" || tab === "connections") drawUviewPosts(tab);
 });
 
 const boardPickerModal = document.getElementById("board-picker-modal") as HTMLElement | null;
