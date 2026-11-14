@@ -1,12 +1,13 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces";
 import { UPDATES } from "./updates";
+import { parseRoomInviteParams } from "./nativeRooms.ts";
 import { ecosystemFooter, ecosystemCard } from "./ecosystem";
 import { closeModal, installModalDismiss } from "./modals";
 import { initShortcuts, toggleShortcutsModal } from "./shortcuts";
 import { findCommunities, type CommunitySort } from "./communityFinder";
 import { getIdentity, personaName } from "./crypto";
-import { linkify, renderCaption, renderPost, renderComment, mentionsIn, nodeOrigin, renderChatText, setMaskBadWords, trendingTags } from "./caption.ts";
+import { linkify, plainMentions, renderCaption, renderPost, renderComment, mentionsIn, nodeOrigin, renderChatText, setMaskBadWords, trendingTags } from "./caption.ts";
 import { deltaPrefixOf, pageHref, deltaCard, fillDelta } from "./delta.ts";
 import { ortoCard, fillOrto, ortoPostHref, ORTO_SITE } from "./orto.ts";
 import { asocialCard, fillAsocial, asocialPersonOf, asocialProfileCard } from "./asocial.ts";
@@ -719,6 +720,7 @@ chatPinBtn?.addEventListener("click", () => {
   else pins.add(key);
   safeStorage.setItem(`radica_pinned_chats_${me}`, JSON.stringify([...pins]));
   safeStorage.flush();
+  void durable.flush();
   updateChatPinBtnUI();
   void renderChatSidebar();
   void messengerChat.refreshInbox();
@@ -755,7 +757,9 @@ const privroomTypeGroupLabel = document.getElementById("privroom-type-group-labe
 const privroomTypeChannelLabel = document.getElementById("privroom-type-channel-label") as HTMLElement | null;
 const privroomChannelOptions = document.getElementById("privroom-channel-options") as HTMLElement | null;
 const privroomLinkDiscussionCheck = document.getElementById("privroom-link-discussion-check") as HTMLInputElement | null;
+const privroomPublicWrap = document.getElementById("privroom-public-wrap") as HTMLElement | null;
 const privroomPublicCheck = document.getElementById("privroom-public-check") as HTMLInputElement | null;
+const privroomRiverCheck = document.getElementById("privroom-river-check") as HTMLInputElement | null;
 const privroomMembersInput = document.getElementById("privroom-members-input") as HTMLTextAreaElement | null;
 const privroomQuickPick = document.getElementById("privroom-quick-pick") as HTMLElement | null;
 const privroomAvatarPreview = document.getElementById("privroom-avatar-preview") as HTMLElement | null;
@@ -985,6 +989,18 @@ document.getElementById("guide-open-btn")!.addEventListener("click", () => (guid
 document.getElementById("guide-close-btn")!.addEventListener("click", () => (guideModal.style.display = "none"));
 
 const mediaModal = document.getElementById("media-modal") as HTMLElement;
+let currentMomentsFilter: "all" | "photos" | "videos" | "following" = "all";
+document.getElementById("moments-toolbar")?.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".moments-filter-btn");
+  if (!btn) return;
+  const f = (btn.dataset.mfilter as typeof currentMomentsFilter) || "all";
+  if (f === currentMomentsFilter) return;
+  currentMomentsFilter = f;
+  document.querySelectorAll("#moments-toolbar .moments-filter-btn").forEach((b) =>
+    b.classList.toggle("active", b === btn)
+  );
+  renderMediaGrid();
+});
 document.getElementById("open-media-btn")!.addEventListener("click", () => {
   mediaModal.style.display = "flex";
   showQuickPost();
@@ -1347,6 +1363,7 @@ async function checkMilestones(posts: Post[]) {
 document.addEventListener("click", (e) => {
   const img = (e.target as HTMLElement).closest(".gram-media img, .uview-post-thumb img, .comment-media img") as HTMLImageElement | null;
   if (!img || img.closest(".nsfw-shielded:not(.revealed)")) return;
+  if ((e.target as HTMLElement).closest(".video-load")) return; // a video's play button is not a lightbox link
   const thumbEl = (e.target as HTMLElement).closest(".uview-post-thumb") as HTMLElement | null;
   const postId = thumbEl?.dataset.postId ?? img.dataset.postId;
   const author = thumbEl?.dataset.author ?? img.dataset.author;
@@ -1522,7 +1539,10 @@ const paintModButton = () => {
   const isMod = amGlobalMod();
   if (blocklistsTabs) blocklistsTabs.style.display = isMod ? "flex" : "none";
   if (tabBtnModeration) tabBtnModeration.style.display = isMod ? "" : "none";
-  if (blocklistsModalTitle) blocklistsModalTitle.textContent = isMod ? "Blocklists & Moderation" : "Blocklists";
+  if (blocklistsModalTitle) {
+    const titleSpan = blocklistsModalTitle.querySelector("span") ?? blocklistsModalTitle;
+    titleSpan.textContent = isMod ? "Blocklists & Moderation" : "Blocklists";
+  }
   updateBlocklistsBadge();
 };
 
@@ -2256,29 +2276,35 @@ function renderTimeline() {
   updateCategoryCounts();
 
   if (currentFeedScope === "media") {
-    // ponytail: Instagram-style grid of post media (images/videos only)
-    const mediaPosts = visible.filter((p) => p.media_uri && !videoRef(p.media_uri));
+    // ponytail: Instagram-style grid of post media (images/videos)
+    const mediaPosts = visible.filter((p) => p.media_uri);
     if (mediaPosts.length === 0) {
       postsContainer.innerHTML = `<div class="empty-state"><p>No images or videos yet. Share one from the composer or explore more posts.</p></div>`;
       return;
     }
-    const items = mediaPosts.slice(0, POSTS_PER_PAGE).map((p) => {
-      const thumb = mediaUris(p.media_uri)[0];
-      return {
-        key: `${p.author}:${p.id}`,
-        html: `<div class="gram-card media-item" data-post-id="${p.id}" data-author="${p.author}">
+    const items = mediaPosts
+      .slice(0, POSTS_PER_PAGE)
+      .map((p) => {
+        const thumb = mediaUris(p.media_uri)[0];
+        const isVideo = !!videoRef(p.media_uri);
+        const thumbInner = isVideo
+          ? `${videoRef(p.media_uri)!.posterHash ? `<img class="video-poster" data-vposter="${escapeHtml(p.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(p.media_uri)}">▶ <span>Play video</span></button>`
+          : `<img ${mediaAttr(thumb)} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`;
+        return {
+          key: `${p.author}:${p.id}`,
+          html: `<div class="gram-card media-item" data-post-id="${p.id}" data-author="${p.author}">
           <div class="uview-post-thumb" style="width:100%; aspect-ratio:4/5; overflow:hidden; cursor:pointer"
                data-media="${thumb}"
                data-author="${p.author}"
                data-post-id="${p.id}"
                tabindex="0" role="button"
                onerror="this.style.display='none'">
-            <img ${mediaAttr(thumb)} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>
+            ${thumbInner}
           </div>
           <div class="uview-post-body" style="padding:4px"><div class="uview-post-text" style="font-size:0.75rem;color:var(--text-muted)">${formatTimeAgo(p.timestamp)}</div></div>
         </div>`,
-      };
-    });
+        };
+      });
     postsContainer.classList.add("media-grid");
     reconcileItems(postsContainer, items, (el) => el.id || undefined);
     return;
@@ -2726,28 +2752,124 @@ function renderTimeline() {
 }
 
 /**
- * Render the media grid (Instagram-style thumbnail grid) inside the media modal.
+ * Opens a video in a full-screen lightbox overlay instead of inside a grid tile.
+ */
+function playVideoFullscreen(uri: string) {
+  const box = document.createElement("div");
+  box.className = "lightbox video-lightbox";
+  const loading = document.createElement("div");
+  loading.className = "lightbox-caption";
+  loading.textContent = "Loading video…";
+  box.appendChild(loading);
+  const close = () => {
+    box.querySelectorAll("video").forEach(v => { v.pause(); v.removeAttribute("src"); v.load(); });
+    box.remove();
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && close();
+  const onClick = (e: MouseEvent) => {
+    if (e.target === box) close();
+  };
+  const { video, done } = playVideo(uri, (h) => freenet.getMedia(h), (doneN, total, missing) => {
+    loading.textContent = `Loading video… ${doneN}/${total} pieces`;
+  }, (v) => {
+    loading.remove();
+    v.classList.add("lightbox-video");
+    box.appendChild(v);
+  });
+  void done.then((ok) => {
+    if (!ok) { loading.textContent = "Video not found on this node yet. Try again."; }
+  });
+  box.addEventListener("click", onClick);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(box);
+}
+
+/**
+ * Render the Moments gallery inside #media-modal with safety filters, category tabs, and rich media cards.
  */
 function renderMediaGrid() {
   const gridContainer = document.getElementById("media-grid-container") as HTMLElement;
   if (!gridContainer) return;
 
-  // Clear previous content
-  gridContainer.innerHTML = '';
+  // Clicking a play button in the Moments grid opens the video in a full-screen overlay.
+  if (!gridContainer.dataset.videoClickBound) {
+    gridContainer.dataset.videoClickBound = "1";
+    gridContainer.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".video-load");
+      if (!btn) return;
+      playVideoFullscreen(btn.dataset.video!);
+    });
+  }
 
-  // Fetch media posts from the timeline
-  const mediaPosts = timelinePosts.filter((p) => p.media_uri && !videoRef(p.media_uri));
+  // Clear previous content
+  gridContainer.innerHTML = "";
+
+  const me = currentIdentity?.pubkey ?? "";
+  const hidden = new Set(hiddenUsers());
+  const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
+  for (const c of curators) for (const pk of freenet.blockedBy(c)) hidden.add(pk);
+  const reported = new Set<string>();
+  const reportedMedia = new Set<string>();
+  for (const c of curators) {
+    for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+    for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
+  }
+  for (const t of freenet.aiHeldTargets()) reported.add(t);
+  for (const p of timelinePosts) {
+    if (reported.has(`${p.author}:${p.id}`)) {
+      const h = postMediaHash(p);
+      if (h) reportedMedia.add(h);
+    }
+  }
+  const nowMs = Date.now();
+  const hiddenComms = hiddenCommunityIds();
+  const wot = getWebOfTrust();
+
+  const safeMediaPosts = timelinePosts.filter((p) => {
+    if (!p.media_uri) return false;
+    if (hidden.has(p.author)) return false;
+    if (p.author !== me && isFuture(p, nowMs)) return false;
+    if (p.community_id && p.author !== me && hiddenComms.has(p.community_id)) return false;
+    if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
+    if (p.author !== me && reportedMedia.size && reportedMedia.has(postMediaHash(p) ?? "")) return false;
+    return true;
+  });
+
+  const mediaPosts = safeMediaPosts.filter((p) => {
+    if (currentMomentsFilter === "photos") return !videoRef(p.media_uri);
+    if (currentMomentsFilter === "videos") return !!videoRef(p.media_uri);
+    if (currentMomentsFilter === "following") return p.author === me || wot.isTrusted(p.author);
+    return true;
+  });
+
+  const countPill = document.getElementById("moments-count-pill");
+  if (countPill) {
+    countPill.textContent = `${mediaPosts.length} ${mediaPosts.length === 1 ? "moment" : "moments"}`;
+  }
+
   if (mediaPosts.length === 0) {
     const emptyMsg = document.createElement("div");
     emptyMsg.className = "media-empty";
-    emptyMsg.textContent = "No media posts yet. Share one from the composer or explore more posts.";
+    const emptyTitle =
+      currentMomentsFilter === "videos"
+        ? "No videos shared yet"
+        : currentMomentsFilter === "photos"
+          ? "No photos shared yet"
+          : currentMomentsFilter === "following"
+            ? "No moments from people you follow yet"
+            : "No moments shared yet";
+    emptyMsg.innerHTML = `${renderIcon("image", { size: 32, className: "media-empty-icon" })}
+      <div class="media-empty-title">${escapeHtml(emptyTitle)}</div>
+      <div class="media-empty-sub">Share a photo above or switch filter to explore more visual stories on Freenet.</div>`;
     gridContainer.appendChild(emptyMsg);
     return;
   }
 
   // Render media items
-  mediaPosts.slice(0, 20).forEach((post: Post) => {
-    const thumb = mediaUris(post.media_uri)[0];
+  mediaPosts.slice(0, 48).forEach((post: Post) => {
+    const uris = mediaUris(post.media_uri);
+    const thumb = uris[0];
     const item = document.createElement("div");
     item.className = "media-item";
     item.dataset.postId = post.id;
@@ -2771,28 +2893,32 @@ function renderMediaGrid() {
     }
     img.onerror = () => { img.style.display = "none"; };
     thumbWrap.appendChild(img);
-    item.appendChild(thumbWrap);
 
-    // Info
-    const info = document.createElement("div");
-    info.className = "media-info";
+    // Video thumbnail: replace the still with the poster, add a play button.
+    const vid = videoRef(post.media_uri);
+    if (vid) {
+      img.remove();
+      if (vid.posterHash) {
+        const posterImg = document.createElement("img");
+        posterImg.className = "video-poster";
+        posterImg.alt = "Video preview";
+        posterImg.dataset.vposter = post.media_uri;
+        thumbWrap.appendChild(posterImg);
+      }
+      const playBtn = document.createElement("button");
+      playBtn.type = "button";
+      playBtn.className = "video-load btn-icon-text";
+      playBtn.innerHTML = "▶ <span>Play video</span>";
+      playBtn.dataset.video = post.media_uri;
+      thumbWrap.appendChild(playBtn);
+    } else if (uris.length > 1) {
+      const multiBadge = document.createElement("span");
+      multiBadge.className = "media-multi-badge";
+      multiBadge.textContent = `1/${uris.length}`;
+      thumbWrap.appendChild(multiBadge);
+    }
 
-    // Category tag: show the post's first hashtag if it has one, else its category
-    const TAG_RE = /#[a-zA-Z0-9_À-ſ]+/;
-    const tagMatch = post.caption.match(TAG_RE);
-    const tagText = tagMatch ? tagMatch[0] : "#" + (post.category || "general");
-    const category = document.createElement("span");
-    category.className = "media-category";
-    category.textContent = tagText;
-    info.appendChild(category);
-
-    // Action button
-    const action = document.createElement("span");
-    action.className = "media-actions";
-    action.textContent = "View →";
-    info.appendChild(action);
-
-    // Like button: overlay on the thumbnail (top-right corner), like Instagram
+    // Like button: overlay on the thumbnail (top-right corner)
     const isLiked = !!post.likes?.[currentIdentity?.pubkey ?? ""]?.liked;
     const likeCount = likers(post).length;
     const likeBtn = document.createElement("button");
@@ -2805,11 +2931,64 @@ function renderMediaGrid() {
       e.stopPropagation();
       void toggleLikeInGrid(likeBtn, post);
     });
-    item.appendChild(likeBtn);
+    thumbWrap.appendChild(likeBtn);
+    item.appendChild(thumbWrap);
 
-    // Clicking the photo opens the lightbox (handled globally on .uview-post-thumb img)
-    // "View" opens the full post
-    action.addEventListener("click", (e) => { e.stopPropagation(); void showMyPost(post.id, post.author); });
+    // Card footer info
+    const info = document.createElement("div");
+    info.className = "media-info";
+
+    const authorRow = document.createElement("div");
+    authorRow.className = "media-author-row";
+
+    const authorBtn = document.createElement("button");
+    authorBtn.type = "button";
+    authorBtn.className = "media-author-trigger";
+    authorBtn.title = `View ${getAuthorDisplayName(post.author)}'s profile`;
+    authorBtn.innerHTML = `<img class="media-author-avatar" src="${escapeHtml(getAuthorAvatarUrl(post.author))}" alt="" loading="lazy" /><span class="media-author-name">${escapeHtml(getAuthorDisplayName(post.author))}</span>`;
+    authorBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void openUserProfile(post.author);
+    });
+    authorRow.appendChild(authorBtn);
+
+    const timeEl = document.createElement("span");
+    timeEl.className = "media-time";
+    timeEl.textContent = formatTimeAgo(post.timestamp);
+    authorRow.appendChild(timeEl);
+    info.appendChild(authorRow);
+
+    const rawCaption = freenet.postEdit(post.author, post.id)?.caption ?? post.caption;
+    const cleanCaption = plainMentions(rawCaption, getAuthorDisplayName).replace(/\s+/g, " ").trim();
+    if (cleanCaption) {
+      const captionEl = document.createElement("div");
+      captionEl.className = "media-caption-snippet";
+      captionEl.textContent = cleanCaption;
+      info.appendChild(captionEl);
+    }
+
+    const footerBar = document.createElement("div");
+    footerBar.className = "media-footer-bar";
+
+    const TAG_RE = /#[a-zA-Z0-9_À-ſ]+/;
+    const tagMatch = rawCaption.match(TAG_RE);
+    const tagText = tagMatch ? tagMatch[0] : "#" + (post.category || "moment");
+    const category = document.createElement("span");
+    category.className = "media-category";
+    category.textContent = tagText;
+    footerBar.appendChild(category);
+
+    const commentCount = Object.keys(post.comments ?? {}).length;
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "media-actions";
+    action.innerHTML = `${commentCount > 0 ? `<span class="media-comment-count">${renderIcon("messageCircle", { size: 12 })} ${commentCount}</span>` : ""}<span>View →</span>`;
+    action.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void showMyPost(post.id, post.author);
+    });
+    footerBar.appendChild(action);
+    info.appendChild(footerBar);
 
     item.appendChild(info);
     gridContainer.appendChild(item);
@@ -3219,6 +3398,11 @@ function initCardListeners() {
       const track = el.parentElement!.querySelector(".carousel-track")!;
       track.scrollBy({ left: (el.classList.contains("prev") ? -1 : 1) * track.clientWidth, behavior: "smooth" });
     } else if ((el = hit(".video-load"))) {
+      // In the Moments grid the tile is small and crops; play full-screen there instead.
+      if (el.closest(".media-grid")) {
+        playVideoFullscreen((el as HTMLButtonElement).dataset.video!);
+        return;
+      }
       // Fetched only on click: a video is many MB, and nothing is downloaded the reader did not ask for.
       const btn = el as HTMLButtonElement;
       btn.disabled = true;
@@ -7495,9 +7679,12 @@ chatSendForm.addEventListener("submit", async (e) => {
 // Event listeners for Private Rooms & Channels
 const updatePrivroomTypeUI = () => {
   const isChannel = !!privroomTypeChannel?.checked;
+  const useRiver = !!privroomRiverCheck?.checked;
   privroomTypeGroupLabel?.classList.toggle("active", !isChannel);
   privroomTypeChannelLabel?.classList.toggle("active", isChannel);
   if (privroomChannelOptions) privroomChannelOptions.style.display = isChannel ? "block" : "none";
+  if (privroomPublicWrap) privroomPublicWrap.style.display = isChannel && useRiver ? "block" : "none";
+  if (!useRiver && privroomPublicCheck) privroomPublicCheck.checked = false;
   if (privroomNameLabel) privroomNameLabel.textContent = isChannel ? "Channel Name" : "Room Name";
   if (privroomNameInput) privroomNameInput.placeholder = isChannel ? "e.g. Radica News, Daily Alpha..." : "e.g. Secret Council, Core Devs...";
   const submitText = createPrivroomSubmitBtn?.querySelector("span");
@@ -7505,6 +7692,7 @@ const updatePrivroomTypeUI = () => {
 };
 privroomTypeGroup?.addEventListener("change", updatePrivroomTypeUI);
 privroomTypeChannel?.addEventListener("change", updatePrivroomTypeUI);
+privroomRiverCheck?.addEventListener("change", updatePrivroomTypeUI);
 
 function resetPrivroomAvatarUI() {
   privroomAvatarData = null;
@@ -7550,6 +7738,8 @@ if (newPrivateRoomBtn && createPrivateRoomModal) {
     }
     resetPrivroomAvatarUI();
     if (privroomTypeGroup) privroomTypeGroup.checked = true;
+    if (privroomRiverCheck) privroomRiverCheck.checked = false;
+    if (privroomPublicCheck) privroomPublicCheck.checked = false;
     updatePrivroomTypeUI();
     if (privroomNameInput) privroomNameInput.value = "";
     if (privroomMembersInput) privroomMembersInput.value = "";
@@ -7596,6 +7786,8 @@ if (newChannelBtn && createPrivateRoomModal) {
     }
     resetPrivroomAvatarUI();
     if (privroomTypeChannel) privroomTypeChannel.checked = true;
+    if (privroomRiverCheck) privroomRiverCheck.checked = false;
+    if (privroomPublicCheck) privroomPublicCheck.checked = false;
     updatePrivroomTypeUI();
     if (privroomNameInput) privroomNameInput.value = "";
     if (privroomMembersInput) privroomMembersInput.value = "";
@@ -7633,12 +7825,13 @@ if (createPrivroomSubmitBtn && createPrivateRoomModal) {
 
     const isChannel = !!privroomTypeChannel?.checked;
     const linkDiscussion = isChannel && !!privroomLinkDiscussionCheck?.checked;
-    const isPublic = isChannel && !!privroomPublicCheck?.checked;
+    const useRiver = !!privroomRiverCheck?.checked;
+    const isPublic = isChannel && useRiver && !!privroomPublicCheck?.checked;
 
     try {
       let discRoom: PrivateRoom | undefined;
       if (linkDiscussion) {
-        discRoom = await freenet.createPrivateRoom(currentIdentity, `${name} · Comments`, memberKeys, undefined, { public: isPublic });
+        discRoom = await freenet.createPrivateRoom(currentIdentity, `${name} · Comments`, memberKeys, undefined, { river: useRiver, public: isPublic });
       }
       const room = await freenet.createPrivateRoom(
         currentIdentity,
@@ -7646,12 +7839,16 @@ if (createPrivroomSubmitBtn && createPrivateRoomModal) {
         memberKeys,
         undefined,
         {
+          river: useRiver,
           is_channel: isChannel,
           public: isPublic,
           linked_room_id: discRoom?.id,
           avatar_url: privroomAvatarData || undefined,
         }
       );
+      if (discRoom) {
+        await freenet.setRoomLinkedDiscussion(currentIdentity, discRoom.id, room.id);
+      }
       if (discRoom) {
         await freenet.setRoomLinkedDiscussion(currentIdentity, discRoom.id, room.id);
       }
@@ -8730,7 +8927,11 @@ function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
   if (commRequireTrustedInput) {
     commRequireTrustedInput.checked = edit ? !!edit.require_trusted_to_post : false;
   }
-  document.getElementById("create-comm-title")!.textContent = `${edit ? "Edit" : "Create"} r/${dialogSlug}`;
+  const createCommTitle = document.getElementById("create-comm-title");
+  if (createCommTitle) {
+    const titleSpan = createCommTitle.querySelector("span") ?? createCommTitle;
+    titleSpan.textContent = `${edit ? "Edit" : "Create"} r/${dialogSlug}`;
+  }
   document.getElementById("create-comm-intro")!.textContent = edit
     ? "Only you, the founder, can change the title and description."
     : "As the creator, you become the founder and primary moderator with powers to manage mods and remove posts.";
@@ -10244,12 +10445,18 @@ initSupporterPanel({
   },
 });
 
-/** The invite link to a private room: a River room mints one (its owner only), an older room carries its key. */
+/** The invite link to a private room: a River room mints one (its owner only), a native room carries its key. */
 async function inviteLinkOf(room: PrivateRoom): Promise<string | null> {
   const name = await freenet.getPrivateRoomDecryptedName(currentIdentity!, room);
   if (room.river) return freenet.getRiverInviteLink(currentIdentity!, room).catch((e) => (alert(e.message || e), null));
   const key = await freenet.getPrivateRoomKey(currentIdentity!, room);
-  return key ? freenet.getPrivateRoomInviteLink(room, key, name) : null;
+  if (!key) return null;
+  let linkedKey: Uint8Array | null = null;
+  if (room.is_channel && room.linked_room_id) {
+    const linked = (await freenet.getPrivateRooms(currentIdentity!)).find((r) => r.id === room.linked_room_id);
+    if (linked) linkedKey = await freenet.getPrivateRoomKey(currentIdentity!, linked);
+  }
+  return freenet.getPrivateRoomInviteLink(room, key, name, linkedKey);
 }
 
 /** A River invitation code in what was pasted: a bare code, River's `?invitation=` link, or Radica's `#river_invite=`. */
@@ -10259,19 +10466,8 @@ function riverCodeIn(raw: string): string | null {
 }
 
 /** What an invite link (its fragment) asks to join, or null if it is not one. */
-function inviteFromParams(params: URLSearchParams) {
-  const roomId = params.get("join_room");
-  const name = params.get("name") || "Private Room";
-  const creator = params.get("creator") || "";
-  const isChannel = params.get("chan") === "1" || params.get("is_channel") === "true";
-  const linkedRoomId = params.get("lr") || params.get("linked_room_id") || undefined;
-  const owner = params.get("river_owner");
-  if (roomId && owner)
-    return { roomId, name, creator, keyHex: "", is_channel: isChannel, linked_room_id: linkedRoomId, river: { owner, k: params.get("k") ?? "", member: params.get("m") ?? "", secret: params.get("s") || undefined } };
-  const keyHex = params.get("key");
-  return roomId && keyHex && keyHex.length === 64 ? { roomId, name, keyHex, creator, is_channel: isChannel, linked_room_id: linkedRoomId } : null;
-}
-const INVITE_PARAMS = ["join_room", "key", "name", "creator", "river_owner", "k", "m", "s", "river_invite", "room_id", "chan", "is_channel", "lr", "linked_room_id", "lr_invite"];
+const inviteFromParams = parseRoomInviteParams;
+const INVITE_PARAMS = ["join_room", "key", "name", "creator", "river_owner", "k", "m", "s", "river_invite", "room_id", "chan", "is_channel", "lr", "linked_room_id", "lr_invite", "lr_key"];
 
 /** Auto-join a private room or broadcast channel from an invite URL string without opening extra tabs. */
 async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {

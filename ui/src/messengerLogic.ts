@@ -142,3 +142,19 @@ export function roomMetaOf(raw: string | null, cleared: number): RoomMeta {
     return none;
   }
 }
+
+/** Elements whose touch interactions must not trigger mobile stage back navigation */
+export const STAGE_SWIPE_IGNORED_SELECTOR =
+  ".rm-msg-row, .rm-composer-outer, .rm-pinned-bar, input, textarea, select, pre, code, .carousel-track, audio, video";
+
+/** Whether a touch swipe qualifies for returning back to inbox on mobile. */
+export function isStageBackSwipe(opts: {
+  dx: number;
+  dy: number;
+  dt: number;
+  isIgnoredTarget?: boolean;
+}): boolean {
+  if (opts.isIgnoredTarget) return false;
+  return opts.dx > 76 && opts.dy < 48 && opts.dx > opts.dy * 1.8 && opts.dt < 550;
+}
+

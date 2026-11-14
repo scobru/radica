@@ -98,3 +98,13 @@ export const durable = createDurable(safeStorage, {
   get: (key) => import("./delegate.ts").then((m) => m.nodeGet(key), () => null),
   put: (key, value) => import("./delegate.ts").then((m) => m.nodePut(key, value), () => {}),
 });
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => void durable.flush());
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") void durable.flush();
+    });
+  }
+}
+

@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canPostInRoom, computeSafetyBlocks, roomMetaOf, shouldHydratePreview, shouldUpdateCachedPreview } from "../src/messengerLogic.ts";
+import {
+  canPostInRoom,
+  computeSafetyBlocks,
+  isStageBackSwipe,
+  roomMetaOf,
+  shouldHydratePreview,
+  shouldUpdateCachedPreview,
+  STAGE_SWIPE_IGNORED_SELECTOR,
+} from "../src/messengerLogic.ts";
 
 test("shouldHydratePreview: never hydrates the currently open room (prevents River optimistic microtask spinlock)", () => {
   assert.equal(
@@ -257,3 +265,21 @@ test("roomMetaOf: a cleared chat has no last message, a newer one shows again", 
   assert.equal(roomMetaOf(null, 0).count, 0);
   assert.equal(roomMetaOf("not json", 0).count, 0);
 });
+
+test("isStageBackSwipe: message rows and composer are excluded from mobile back navigation swipe", () => {
+  assert.ok(STAGE_SWIPE_IGNORED_SELECTOR.includes(".rm-msg-row"));
+  assert.ok(STAGE_SWIPE_IGNORED_SELECTOR.includes(".rm-composer-outer"));
+  assert.ok(STAGE_SWIPE_IGNORED_SELECTOR.includes(".rm-pinned-bar"));
+
+  // Swiping on a message row (tagging someone) must never trigger stage back navigation
+  assert.equal(isStageBackSwipe({ dx: 80, dy: 10, dt: 200, isIgnoredTarget: true }), false);
+
+  // Valid back swipe on stage background
+  assert.equal(isStageBackSwipe({ dx: 80, dy: 10, dt: 200, isIgnoredTarget: false }), true);
+
+  // Invalid swipes: too short, vertical/diagonal, or too slow
+  assert.equal(isStageBackSwipe({ dx: 50, dy: 10, dt: 200, isIgnoredTarget: false }), false);
+  assert.equal(isStageBackSwipe({ dx: 80, dy: 50, dt: 200, isIgnoredTarget: false }), false);
+  assert.equal(isStageBackSwipe({ dx: 80, dy: 10, dt: 600, isIgnoredTarget: false }), false);
+});
+

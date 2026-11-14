@@ -64,3 +64,27 @@ test("durable: ready waits for start, so a welcome seen on another visit is back
   await d.ready;
   assert.equal(store.getItem("radica_welcomed_alice"), "1");
 });
+
+test("durable: multi-group pinning persists multiple pinned groups across sign-in and flush", async () => {
+  const node = memNode();
+  const store1 = memStore();
+  const d1 = createDurable(store1, node, 5000); // long debounce
+  await d1.start("alice");
+
+  // User pins 2 groups
+  const twoGroups = ["priv:group1", "priv:group2"];
+  store1.setItem("radica_pinned_chats_alice", JSON.stringify(twoGroups));
+
+  // Immediate flush should write to node without waiting for debounce
+  await d1.flush();
+  const nodePkg = JSON.parse(node.entries.get("durable:alice")!);
+  assert.deepEqual(JSON.parse(nodePkg["radica_pinned_chats_alice"]), twoGroups);
+
+  // Next session: store starts empty
+  const store2 = memStore();
+  const d2 = createDurable(store2, node, 5000);
+  await d2.start("alice");
+  await d2.ready;
+  assert.deepEqual(JSON.parse(store2.getItem("radica_pinned_chats_alice")!), twoGroups);
+});
+

@@ -47,6 +47,7 @@ import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBl
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
+import { buildPrivateRoomInviteLink, createNativeRoomDescriptor, filterChannelMessages } from "./nativeRooms.ts";
 import { lightFeedAsync, type LightFeed } from "./feedlight.ts";
 import { parseSite, resolveSiteCode, siteKey, type DeltaSite } from "./delta.ts";
 import { computeLogJoins } from "./messengerLogic.ts";
@@ -585,6 +586,7 @@ export class FreenetClient {
 
   /** Publish my local feed (merged with what the network has), then take the merged result. */
   private readKeysReady: Promise<void> = Promise.resolve();
+  private roomsReady: Promise<void> = Promise.resolve();
 
   /** The persona that signs log entries (messages, community actions). Call once at startup. */
   public setIdentity(identity: UserIdentity): void {
@@ -604,7 +606,7 @@ export class FreenetClient {
       this.plainCache.clear();
       this.notifyListeners();
     }, () => {});
-    void this.restoreRoomsFromNode();
+    this.roomsReady = this.restoreRoomsFromNode();
     this.secretReady = durable.start(identity.pubkey).then(() => this.restoreSecretFromNode());
     this.riverOnlyReady = this.restoreRiverOnly();
     this.joinedReady = this.restoreJoined();
@@ -2391,21 +2393,30 @@ export class FreenetClient {
     return fresh;
   }
 
-  /** Sync group messages for all River rooms where I am a member:
-   *  loads room state, updates decrypted message stubs in localStorage for unread counts,
-   *  establishes a read baseline for newly discovered rooms, and stores chat notifications
-   *  for incoming messages. True when new messages arrived. */
+  /** Sync group messages for all private rooms where I am a member:
+   *  refreshes native room logs and River room states, establishes a read baseline for
+   *  newly discovered rooms, and stores chat notifications for incoming messages.
+   *  True when new messages arrived. */
   public async syncRiverRooms(identity: UserIdentity, activeRoomId?: string | null): Promise<boolean> {
-    const rooms = await this.rivers();
     const list = this.storedPrivateRooms();
+    const hasRiver = list.some((r) => !!r.river?.owner && r.members?.includes(identity.pubkey));
+    const rooms = hasRiver ? await this.rivers() : null;
     let fresh = false;
     for (const room of list) {
-      const owner = room.river?.owner;
-      if (!owner || !room.members?.includes(identity.pubkey)) continue;
-      const state = await rooms.load(owner); // at most one read of the network per room every 30 s
-      if (!state) continue;
+      if (!room.members?.includes(identity.pubkey)) continue;
       try {
-        const msgs = await this.riverMessages(identity, room);
+        let msgs: ChatMessage[];
+        let notifPrefix: string;
+        if (room.river?.owner) {
+          const state = await rooms!.load(room.river.owner); // at most one read of the network per room every 30 s
+          if (!state) continue;
+          msgs = await this.riverMessages(identity, room);
+          notifPrefix = "rvmsg";
+        } else {
+          if (this.isConnected) await this.refreshLog(`room/${room.id}`);
+          msgs = await this.getPrivateRoomChatMessages(identity, room);
+          notifPrefix = "prmsg";
+        }
         const lastSeen = localReadMarks(localStorage)[room.id];
         if (lastSeen === undefined) {
           // a room seen for the first time: its history is not news
@@ -2415,9 +2426,8 @@ export class FreenetClient {
           if (newMsgs.length > 0) {
             fresh = true;
             for (const m of newMsgs) {
-              const notifId = `rvmsg_${m.id}`;
               this.storeNotification(identity.pubkey, {
-                id: notifId,
+                id: `${notifPrefix}_${m.id}`,
                 type: "chat",
                 from: m.sender,
                 text: "sent a message in an encrypted Private Room 🔒",
@@ -2429,7 +2439,7 @@ export class FreenetClient {
           }
         }
       } catch (e) {
-        console.warn("[River] Could not sync room messages", room.id, e);
+        console.warn("[PrivateRoom] Could not sync room messages", room.id, e);
       }
     }
     return fresh;
@@ -3419,25 +3429,6 @@ export class FreenetClient {
     return this.knownPeers[this.me]?.display_name || `Persona @${personaName(this.me).substring(0, 6)}`;
   }
 
-  /** A room I made before rooms moved to River: made again on River (same name and members, under an id derived from
-   *  the old one, so a second device lands on the same room) and the old one points to it. Old messages stay behind. */
-  private migrating = new Set<string>();
-  private async moveToRiver(identity: UserIdentity, room: PrivateRoom): Promise<void> {
-    if (this.migrating.has(room.id)) return;
-    this.migrating.add(room.id);
-    try {
-      const name = await this.getPrivateRoomDecryptedName(identity, room);
-      const next = await this.createPrivateRoom(identity, name, room.members, `${room.id}_r`, {
-        avatar_url: room.avatar_url,
-        is_channel: room.is_channel,
-        linked_room_id: room.linked_room_id,
-      });
-      await this.logAppend(`room/${room.id}`, { type: "room_moved", roomId: room.id, to: next.id });
-      this.notifyListeners();
-    } catch (e) {
-      console.warn("[River] Could not move room", room.id, e); // tried again next session
-    }
-  }
 
   /** The old room was moved to River by its creator. */
   private movedToRiver(room: PrivateRoom): boolean {
@@ -3502,30 +3493,38 @@ export class FreenetClient {
     name: string,
     memberPubkeys: string[],
     roomId = `privroom_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string; public?: boolean }
+    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string; public?: boolean; river?: boolean }
   ): Promise<PrivateRoom> {
-    // public: not encrypted, and one invite link serves everyone (each holder joins as their own member)
-    const owner = await (await this.rivers()).create(identity.secretKey, roomId, name, this.nickname(), !opts?.public);
-    const room: PrivateRoom = {
-      id: roomId,
-      creator: identity.pubkey,
-      name_encrypted: "", // the name lives sealed in the River room
-      ...(opts?.avatar_url ? { avatar_url: opts.avatar_url.trim() } : {}),
-      members: [identity.pubkey],
-      encrypted_keys: {},
-      created_at: Date.now(),
-      sig: "",
-      river: { owner },
-      ...(opts?.is_channel ? { is_channel: true } : {}),
-      ...(opts?.linked_room_id ? { linked_room_id: opts.linked_room_id } : {}),
-    };
-    // the room's descriptor tells members and my other devices where it is; River decides who is in it
+    let room: PrivateRoom;
+    if (opts?.river) {
+      // public: not encrypted, and one invite link serves everyone (each holder joins as their own member)
+      const owner = await (await this.rivers()).create(identity.secretKey, roomId, name, this.nickname(), !opts?.public);
+      room = {
+        id: roomId,
+        creator: identity.pubkey,
+        name_encrypted: "", // the name lives sealed in the River room
+        ...(opts?.avatar_url ? { avatar_url: opts.avatar_url.trim() } : {}),
+        members: [identity.pubkey],
+        encrypted_keys: {},
+        created_at: Date.now(),
+        sig: "",
+        river: { owner },
+        ...(opts?.is_channel ? { is_channel: true } : {}),
+        ...(opts?.linked_room_id ? { linked_room_id: opts.linked_room_id } : {}),
+      };
+    } else {
+      // Native Radica room: client-side AES-256-GCM room key distributed via X25519 ECIES on Radica's log contract
+      const myEncPub = identity.encPub || (await this.encPubOf(identity.pubkey));
+      const created = await createNativeRoomDescriptor(identity, name, roomId, myEncPub, opts);
+      this.privateRoomKeyCache.set(roomId, created.roomKey);
+      room = created.room;
+    }
     this.mergeRemotePrivateRooms([room]);
     this.broadcast({ type: "private_room", room });
     await this.logAppend(`room/${roomId}`, { type: "private_room", room });
     await this.rememberRoom(roomId);
     for (const member of new Set(memberPubkeys.filter((m) => m && m !== identity.pubkey))) {
-      await this.inviteMemberToPrivateRoom(identity, roomId, member).catch((e) => console.warn("[River] Could not invite", member, e));
+      await this.inviteMemberToPrivateRoom(identity, roomId, member).catch((e) => console.warn("[PrivateRoom] Could not invite", member, e));
     }
     seedReadMark(localStorage, roomId);
     this.notifyListeners();
@@ -3626,6 +3625,7 @@ export class FreenetClient {
   }
 
   public async getPrivateRooms(identity: UserIdentity): Promise<PrivateRoom[]> {
+    await this.roomsReady;
     void this.refreshLog(`inbox/${identity.pubkey}`); // invitations
     const raw = localStorage.getItem("freenet_private_rooms");
     const list: PrivateRoom[] = raw ? JSON.parse(raw) : [];
@@ -3644,9 +3644,6 @@ export class FreenetClient {
       localStorage.setItem("freenet_private_rooms", JSON.stringify(list));
       this.saveRoomsToNode();
     }
-    for (const r of list)
-      if (!r.river && r.creator === identity.pubkey && this.isConnected && this.logEntries(`room/${r.id}`).length && !this.movedToRiver(r))
-        void this.moveToRiver(identity, r);
     if (this.isConnected && !this.syncingAccess) {
       this.syncingAccess = true;
       void this.syncRoomAccess(identity, list).finally(() => (this.syncingAccess = false));
@@ -4275,19 +4272,13 @@ export class FreenetClient {
     });
   }
 
-  public getPrivateRoomInviteLink(room: PrivateRoom, roomKey: Uint8Array, roomName: string): string {
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
-    const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
-    const keyHex = bytesToHex(roomKey);
-    const params = new URLSearchParams({
-      join_room: room.id,
-      name: roomName,
-      key: keyHex,
-      creator: room.creator,
-    });
-    if (room.is_channel) params.set("chan", "1");
-    if (room.linked_room_id) params.set("lr", room.linked_room_id);
-    return `${origin}${pathname}#${params.toString()}`;
+  public getPrivateRoomInviteLink(
+    room: PrivateRoom,
+    roomKey: Uint8Array,
+    roomName: string,
+    linkedRoomKey?: Uint8Array | null
+  ): string {
+    return buildPrivateRoomInviteLink(room, roomKey, roomName, linkedRoomKey);
   }
 
   public async joinPrivateRoomFromInvite(
@@ -4299,10 +4290,11 @@ export class FreenetClient {
       creator: string;
       is_channel?: boolean;
       linked_room_id?: string;
+      linked_key_hex?: string;
       river?: { owner: string; k: string; member: string; secret?: string };
     }
   ): Promise<PrivateRoom> {
-    const { roomId, name, keyHex, creator, is_channel, linked_room_id } = inviteData;
+    const { roomId, name, keyHex, creator, is_channel, linked_room_id, linked_key_hex } = inviteData;
     this.unhideRoom(identity, roomId); // joining again after leaving
     if (inviteData.river) {
       const { owner, k, member, secret } = inviteData.river;
@@ -4371,6 +4363,16 @@ export class FreenetClient {
     this.broadcast({ type: "private_room", room });
     await this.logAppend(`room/${roomId}`, { type: "room_join", roomId, encrypted_key: encKeyForSelf }); // my copy of the key, for my eyes only
     await this.rememberRoom(roomId);
+
+    if (linked_room_id && linked_key_hex && linked_key_hex.length === 64) {
+      await this.joinPrivateRoomFromInvite(identity, {
+        roomId: linked_room_id,
+        name: `${name} · Comments`,
+        keyHex: linked_key_hex,
+        creator,
+        linked_room_id: roomId,
+      }).catch((e) => console.warn("[Freenet] Could not join linked discussion room", linked_room_id, e));
+    }
 
     safeStorage.flush();
     this.notifyListeners();
@@ -4460,7 +4462,7 @@ export class FreenetClient {
     const messages = this.visibleChat(room.id);
 
     const roomKey = await this.getPrivateRoomKey(identity, room);
-    const list = !roomKey ? messages : await Promise.all(
+    const rawList = !roomKey ? messages : await Promise.all(
       messages.map(async (msg) => {
         if (msg.text && msg.text.startsWith("sym:")) {
           return { ...msg, text: await this.plain(`sym|${identity.pubkey}|${room.id}|${msg.text}`, () => decryptWithSymmetricKey(roomKey, msg.text)) };
@@ -4468,6 +4470,7 @@ export class FreenetClient {
         return msg;
       })
     );
+    const list = filterChannelMessages(room, rawList);
     return [...list, ...joins].sort((a, b) => a.timestamp - b.timestamp);
   }
 }

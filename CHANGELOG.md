@@ -1,3 +1,23 @@
+5.6.0 / 2026-11-14
+==================
+
+  * **ARCHITECTURE & NEW** Dual Private Room Architecture (Native Default + River Interoperability):
+    - **Native Radica Rooms & Channels by Default**: `createPrivateRoom()` now creates end-to-end encrypted native Radica rooms (`AES-256-GCM` symmetric room key wrapped with `X25519 ECIES` and signed via `formatPrivateRoomSignatureMessage`) on Radica's `log-contract` by default (`opts.river` false/omitted), isolating new rooms from external River WASM re-keys while preserving Viso delegation compatibility.
+    - **Stop Automatic River Migration**: Removed `moveToRiver()` and the automatic background sweep in `getPrivateRooms()` that previously migrated native rooms into River contracts (`movedToRiver()` remains only to hide legacy pre-migrated descriptors).
+    - **Opt-In River Interoperability**: Added the `#privroom-river-check` checkbox (`🌊 Interoperable River Room`) in `#create-private-room-modal`, gated `#privroom-public-check` to public River channels, matched linked discussion room backend on channel info drawers (`{ river: !!st.privateRoom.river }`), and avoided initializing `river-wasm` in `syncRiverRooms()` unless River rooms are present.
+    - **Native Channel & Linked Discussion Invites**: Extended native room invite links and `parseRoomInviteParams` with `lr_key` (`linked_key_hex`) so joining a native broadcast channel also joins its linked discussion room in one step, and enforced creator/moderator sender filtering in `getPrivateRoomChatMessages` via `filterChannelMessages()`.
+  * **FIX** Persistent multi-group chat pinning: resolved an issue where pinning multiple group chats or channels would only retain 1 pinned group on app restart. Removed legacy migration shortcuts that clobbered durable delegate state, ensured `getPrivateRooms()` waits for `restoreRoomsFromNode()` before returning rooms, awaited `durable.ready` during inbox build, and immediately flushed durable storage on pin toggles and `pagehide`/`visibilitychange` events.
+  * **FIX** Mobile message swipe-to-tag conflict: swiping right on an incoming chat message row to mention/tag someone in the input field on mobile (Android) now cleanly populates `@Author` into the composer without triggering stage-level back navigation to the conversation list. Excluded message rows and composer areas from back swipe gestures and cancelled stage swipe state during active message swipes.
+  * **UI** Unified sidebar rail and page/modal header iconography: aligned mismatched SVGs (`Updates`, `Greenhouse`, `Guide`, `Moments`, `Welcome`, `Milestones`), added missing header icons (`Messenger Chat`, `Profile`, `Create Community`), and wrapped dynamic titles (`#blocklists-modal-title`, `#create-comm-title`) in `<span>` elements so updating titles never strips the `<svg>` icon.
+  * **UI** Redesigned the Moments (`#media-modal`) page with a structured header and live counter pill, a cleaner card-style quick-post composer, filter tabs (`All Moments`, `Photos`, `Videos`, `Following`), and spaced media cards displaying author avatars/names, caption snippets, multi-photo indicators, frosted like pills, comment counts, and an illustrated empty state.
+  * **FIX** Moments media grid now shows videos again. They were filtered out by an accidental `!videoRef` check; they now render with their poster and a Play button, same as the main feed.
+  * **FIX** Tapping Play on a video in the Moments grid opens it full-screen (lightbox) instead of playing it cropped inside the small tile.
+
+5.5.0 / 2026-11-14
+==================
+
+  * **FIX** Lightbox caption now sits below the photo on desktop as well as mobile, aligned center underneath the image.
+
 5.4.0 / 2026-11-12
 ==================
 

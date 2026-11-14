@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794525041.346721,
-    "ast_hash": "b4772b64112de3f658c0080f8b2acf54",
+    "mtime": 1794580882.100207,
+    "ast_hash": "f2ba168322896bf02ddbe5473a6b676e",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794515034.6458714,
-    "ast_hash": "7e3fec7a5d160b696c3f61f78d47bc1b",
+    "mtime": 1794599027.19074,
+    "ast_hash": "2539723cb44b76c87917c2cc86c23887",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794515046.1239414,
-    "ast_hash": "29cd878565ab737386a16e21cad8a17b",
+    "mtime": 1794563958.816139,
+    "ast_hash": "708de72adff13173fd250eefdd2e752c",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794524254.9399538,
-    "ast_hash": "d277ecc8faf9c6c417bf1f7e4a38d057",
+    "mtime": 1794597180.9950366,
+    "ast_hash": "28d71fb9e9ab51ac5971cf7a5cf578ac",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794523737.954388,
-    "ast_hash": "014131f6dcacee0d73f7f106a937449b",
+    "mtime": 1794598982.8729775,
+    "ast_hash": "732ec6ee92646566bc9038fe1fa4b899",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -1447,6 +1447,11 @@
   "ui/src/bip39Words.ts": {
     "mtime": 1794422895.1359963,
     "ast_hash": "8a030a6b218032002f9be690323f6fbe",
+    "semantic_hash": ""
+  },
+  "ui/tests/moments.test.ts": {
+    "mtime": 1794563876.292385,
+    "ast_hash": "d1d290a0aefbf6858b6bf84558cfc90a",
     "semantic_hash": ""
   }
 }

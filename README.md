@@ -55,7 +55,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 6. 💬 P2P Direct Chat & Interactive Feeds
 - **Private & Community Chat**: Deterministic room address derivation for 1-on-1 private messaging and community chatrooms.
-- **End-to-End Encrypted Private Rooms**: Symmetric room keys (AES-256-GCM) encrypted for each member via X25519 ECDH, shareable via zero-knowledge invite fragment links (`#join_room=...`).
+- **End-to-End Encrypted Private Rooms & Broadcast Channels**: By default, encrypted groups and broadcast channels run natively on Radica's log contracts using symmetric room keys (`AES-256-GCM`) distributed via `X25519 ECIES`, with zero-knowledge invite fragment links (`#join_room=...&key=...&lr_key=...`) for linked discussion rooms and optional opt-in interoperability with external [Freenet River](https://github.com/freenet/river) rooms.
 - **Interactive `#Hashtags` & Live Search**: Automatic hashtag tokenization, live keyword filtering, and category sorting (Thoughts, Moments, Events).
 - **Dual Runtime**: Runs as a progressive Web App via Vite or as an Electron desktop application.
 
@@ -96,8 +96,8 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Sybil-resistant by Web-of-Trust**: each act is weighed by the reader's trust in the other side (followed 1, friend of a friend ½, stranger ¼) and strangers together are capped, so a crowd of new identities cannot grow a tree. Two readers can therefore see two different plants.
 - **One plant per persona**: a procedural SVG whose whole shape comes from the persona's key. It grows from seed to elder tree without reshuffling; the leaves of the last week are drawn lighter.
 
-### 13. 🖼️ Media Explore (Instagram-style grid)
-- **Moved to sidebar**: the Media scope is now a button in the left rail (More menu, shortcut **g v**), not in the feed scope bar. Opens an Instagram-style thumbnail grid of all network images and videos. The feed scope bar is shorter on mobile. Category filters (Thoughts/Moments/Events/Polls) stay in the feed; in Media view they are hidden automatically since only media posts are shown. No new contract, storage or network path.
+### 13. 🖼️ Moments Gallery (Media Explore)
+- **Moved to sidebar**: the Moments view opens from the left rail (with unified sidebar-to-header iconography shared across every page and modal). Renders a card-based gallery of network photos and videos with filter tabs (`All Moments`, `Photos`, `Videos`, `Following`), a live counter pill, a clean quick-post composer, and cards showing author avatars, clickable attribution, caption previews, multi-photo badges, frosted like pills, and comment counts. Category filters (Thoughts/Moments/Events/Polls) stay in the feed; in Moments view they are hidden automatically since only media posts are shown. No new contract, storage or network path.
 
 ### 12. 🔁 Reposts Without a Contract Change
 - **Share a post on your feed**: the Repost button stages a post in the composer; add your own words or plant it as it is. The shared post is drawn inside yours, and its author is notified.
@@ -133,6 +133,7 @@ radica/
 │   │   ├── linfa.ts             # Linfa: a profile's score, counted from signed acts and weighed by trust
 │   │   ├── plant.ts             # The plant a Linfa grows: procedural SVG seeded by the persona's key
 │   │   ├── freenet.ts           # Freenet client, P2P broadcast channel & room key cache
+│   │   ├── nativeRooms.ts       # Pure native E2EE room descriptors, invite link codecs & channel filters
 │   │   ├── types.ts             # Contract state & delta interface declarations
 │   │   ├── icons.ts             # SVG icon definitions & helpers
 │   │   ├── style.css            # Dark mode, glassmorphism & responsive typography
@@ -301,4 +302,4 @@ Radica is experimental software provided **as is**, without warranty. It has no 
 
 This project is licensed under the [MIT License](LICENSE).
 
-Exception: `river-wasm/` (built into `ui/src/wasm/river.wasm`) links [river-core](https://github.com/freenet/river) and is licensed under the LGPL-3.0, like River. `ui/src/wasm/river_room_contract.wasm` is River's own room contract, copied unchanged from River's repository (the commit `river-wasm` pins); private rooms are created under it. It is a separate, replaceable module: rebuild it from `river-wasm/` with `cargo build --manifest-path river-wasm/Cargo.toml --target wasm32-unknown-unknown --release` and copy `river-wasm/target/wasm32-unknown-unknown/release/radica_river.wasm` over `ui/src/wasm/river.wasm`.
+Exception: `river-wasm/` (built into `ui/src/wasm/river.wasm`) links [river-core](https://github.com/freenet/river) and is licensed under the LGPL-3.0, like River. `ui/src/wasm/river_room_contract.wasm` is River's own room contract, copied unchanged from River's repository (the commit `river-wasm` pins), used for external River room interoperability and opt-in River rooms (Radica uses its own native MIT-licensed contracts by default). It is a separate, replaceable module: rebuild it from `river-wasm/` with `cargo build --manifest-path river-wasm/Cargo.toml --target wasm32-unknown-unknown --release` and copy `river-wasm/target/wasm32-unknown-unknown/release/radica_river.wasm` over `ui/src/wasm/river.wasm`.

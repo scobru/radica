@@ -3,6 +3,8 @@ import {
   shouldHydratePreview,
   shouldUpdateCachedPreview,
   roomMetaOf,
+  STAGE_SWIPE_IGNORED_SELECTOR,
+  isStageBackSwipe,
   type PreviewItem,
   type RoomMeta,
 } from "./messengerLogic.ts";
@@ -11,6 +13,7 @@ import { personaName } from "./crypto.ts";
 import { plainMentions, renderChatText } from "./caption.ts";
 import { CHAT_REACTIONS } from "./logfold.ts";
 import { safeStorage } from "./storage.ts";
+import { durable } from "./durable.ts";
 import { generateDefaultAvatar, compressAvatarFile } from "./avatar.ts";
 import { fillFreetunes, freetunesCard } from "./freetunes.ts";
 import { fillFreepolls, freepollsCard, type PollNet } from "./freepolls.ts";
@@ -319,6 +322,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     else set.delete(convKey);
     safeStorage.setItem(`radica_pinned_chats_${me}`, JSON.stringify([...set]));
     safeStorage.flush();
+    void durable.flush();
     return next;
   }
 
@@ -383,7 +387,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       <aside class="rm-inbox" aria-label="Conversations">
         <div class="rm-inbox-header">
           <div class="rm-inbox-title-wrap">
-            <h2 class="rm-inbox-title">Messages</h2>
+            <h2 class="rm-inbox-title" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Messages</span></h2>
             <div class="rm-node-pill" id="rm-node-pill">
               <span class="dot"></span>
               <span id="rm-node-label">Connecting to node…</span>
@@ -1098,7 +1102,6 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (changed && isVisible()) void refreshInbox(true);
   }
 
-  const restoredDelegatePins = new Set<string>();
   async function refreshInbox(skipHydrate = false) {
     if (!isVisible()) return;
     if (inboxRunning) {
@@ -1112,28 +1115,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         const identity = deps.getIdentity();
         if (!identity || !isVisible()) return;
         const me = identity.pubkey;
-
-        // shortcut: reads the per-feature entries used before durable.ts (one release only); delete with the next release
-        if (!restoredDelegatePins.has(me)) {
-          restoredDelegatePins.add(me);
-          void import("./delegate.ts").then(async (m) => {
-            try {
-              if (!safeStorage.getItem(`radica_pinned_chats_${me}`)) {
-                const fromNode = await m.nodeGet(`pinned:${me}`);
-                if (fromNode) {
-                  safeStorage.setItem(`radica_pinned_chats_${me}`, fromNode);
-                  void refreshInbox();
-                }
-              }
-              if (!safeStorage.getItem(`radica_verified_chats_${me}`)) {
-                const fromNode = await m.nodeGet(`verified:${me}`);
-                if (fromNode) {
-                  safeStorage.setItem(`radica_verified_chats_${me}`, fromNode);
-                }
-              }
-            } catch {}
-          });
-        }
+        await durable.ready;
 
         updateStatusBanner();
         const allConvs = await buildUnifiedConversations();
@@ -2750,7 +2732,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         return;
       }
       const tgt = e.target as HTMLElement | null;
-      if (tgt?.closest("input, textarea, select, pre, code, .carousel-track, audio, video")) {
+      if (tgt?.closest(STAGE_SWIPE_IGNORED_SELECTOR)) {
         stageSwipeStart = null;
         return;
       }
@@ -2773,7 +2755,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const dx = touch.clientX - start.x;
       const dy = Math.abs(touch.clientY - start.y);
       const dt = Date.now() - start.t;
-      if (dx > 76 && dy < 48 && dx > dy * 1.8 && dt < 550) {
+      if (isStageBackSwipe({ dx, dy, dt })) {
         if (drawerOpen) setDrawer(false);
         else goBackToInboxOnMobile();
       }
@@ -2858,9 +2840,11 @@ export function createMessengerChat(deps: MessengerDeps) {
     const row = (e.target as HTMLElement).closest<HTMLElement>(".rm-msg-row.theirs");
     const t = e.touches[0];
     swipe = row && e.touches.length === 1 && t.clientX > 24 ? { row, x: t.clientX, y: t.clientY, dx: 0 } : null;
+    if (swipe) stageSwipeStart = null;
   }, { passive: true });
   messagesTrackEl.addEventListener("touchmove", (e) => {
     if (!swipe) return;
+    stageSwipeStart = null;
     const dx = e.touches[0].clientX - swipe.x;
     if (Math.abs(e.touches[0].clientY - swipe.y) > 30 || dx < 0) {
       swipe.row.style.transform = "";
@@ -2872,6 +2856,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   }, { passive: true });
   messagesTrackEl.addEventListener("touchend", () => {
     if (!swipe) return;
+    stageSwipeStart = null;
     const { row, dx } = swipe;
     swipe = null;
     row.style.transform = "";
@@ -3110,7 +3095,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       try {
         deps.showToast("Creating linked discussion room…", "info");
         const name = roomNameCache.get(st.privateRoom.id) || "Channel";
-        const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, st.privateRoom.members);
+        const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, st.privateRoom.members, undefined, { river: !!st.privateRoom.river });
         await freenet.setRoomLinkedDiscussion(identity, st.privateRoom.id, disc.id);
         await freenet.setRoomLinkedDiscussion(identity, disc.id, st.privateRoom.id);
         deps.showToast("Discussion room linked successfully!", "info");

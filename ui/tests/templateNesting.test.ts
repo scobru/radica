@@ -100,3 +100,85 @@ test("typography: headings consistently render in Fraunces display font across a
   const mailCss = read("../src/mail.css");
   assert.match(mailCss, /\.mail-title\s*\{[\s\S]*?font-family:\s*var\(--font-display\)/);
 });
+
+function extractSvgInner(html: string, markerRegex: RegExp): string {
+  const match = html.match(markerRegex);
+  assert.ok(match, `Missing expected section matching ${markerRegex}`);
+  const tail = html.slice(match.index!);
+  const svgMatch = tail.match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/);
+  assert.ok(svgMatch, `Missing <svg> after ${markerRegex}`);
+  return svgMatch[1].replace(/\s+/g, " ").trim();
+}
+
+test("ui consistency: sidebar rail icons match page and modal headers", () => {
+  const indexHtml = read("../index.html");
+  const messengerTs = read("../src/messengerChat.ts");
+  const mainTs = read("../src/main.ts");
+
+  const pairs: Array<[string, RegExp, string, RegExp]> = [
+    ["notifs", /id="open-notifs-btn"/, "notifs-modal", /id="notifs-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["identity", /id="open-identity-btn"/, "identity-modal", /id="identity-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["media", /id="open-media-btn"/, "media-modal", /id="media-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["updates", /id="updates-open-btn"/, "updates-modal", /id="updates-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["greenhouse", /id="greenhouse-open-btn"/, "greenhouse-modal", /id="greenhouse-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["blocklists", /id="blocklists-open-btn"/, "blocklists-modal", /id="blocklists-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["guide", /id="guide-open-btn"/, "guide-modal", /id="guide-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["settings", /id="settings-open-btn"/, "settings-modal", /id="settings-modal"[\s\S]{0,600}?<(?:h2|h3)\b/],
+    ["mail", /id="open-mail-btn"/, "mail-modal", /id="mail-modal"[\s\S]{0,600}?class="mail-title"/],
+  ];
+
+  for (const [name, railRe, modalLabel, headerRe] of pairs) {
+    const railSvg = extractSvgInner(indexHtml, railRe);
+    const headerSvg = extractSvgInner(indexHtml, headerRe);
+    assert.equal(headerSvg, railSvg, `Rail icon for '${name}' does not match '${modalLabel}' header icon`);
+  }
+
+  // Messenger chat header matches rail chat icon
+  const chatRailSvg = extractSvgInner(indexHtml, /id="open-chat-btn"/);
+  const chatHeaderSvg = extractSvgInner(messengerTs, /class="rm-inbox-title"/);
+  assert.equal(chatHeaderSvg, chatRailSvg, "Messenger chat header icon does not match rail chat button icon");
+
+  // Modals without rail counterparts still include header SVG icons
+  for (const modalId of ["profile-modal", "milestones-modal", "create-comm-modal", "welcome-modal"]) {
+    const re = new RegExp(`id="${modalId}"[\\s\\S]{0,600}?<(?:h2|h3)\\b`);
+    const svg = extractSvgInner(indexHtml, re);
+    assert.ok(svg.length > 0, `${modalId} header is missing an SVG icon`);
+  }
+
+  // Dynamic title updates preserve header <svg> via inner <span>
+  assert.match(indexHtml, /id="blocklists-modal-title"[^>]*>[\s\S]*?<svg[\s\S]*?<span[^>]*id="blocklists-modal-title-text"/);
+  assert.match(indexHtml, /id="create-comm-title"[^>]*>[\s\S]*?<svg[\s\S]*?<span[^>]*id="create-comm-title-text"/);
+  assert.match(mainTs, /blocklistsModalTitle\.querySelector\("span"\)/);
+  assert.match(mainTs, /createCommTitle\.querySelector\("span"\)/);
+});
+
+test("moments: header, composer, filter toolbar, and card grid styling", () => {
+  const indexHtml = read("../index.html");
+  const styleCss = read("../src/style.css");
+  const mainTs = read("../src/main.ts");
+
+  assert.match(indexHtml, /id="media-modal"[\s\S]*?class="moments-header"/);
+  assert.match(indexHtml, /id="moments-count-pill"/);
+  assert.match(indexHtml, /id="media-quick-post"[^>]*class="moments-composer"/);
+  assert.match(indexHtml, /id="moments-toolbar"[\s\S]*?data-mfilter="all"[\s\S]*?data-mfilter="photos"[\s\S]*?data-mfilter="videos"[\s\S]*?data-mfilter="following"/);
+
+  for (const selector of [
+    /\.moments-header\s*\{/,
+    /\.moments-composer\s*\{/,
+    /\.moments-toolbar\s*\{/,
+    /#media-grid-container\.media-grid\s*\{/,
+    /\.media-multi-badge\s*\{/,
+    /\.media-author-row\s*\{/,
+    /\.media-caption-snippet\s*\{/,
+    /\.media-footer-bar\s*\{/,
+    /\.media-empty\s*\{/,
+  ]) {
+    assert.match(styleCss, selector, `Expected ${selector} in style.css`);
+  }
+
+  assert.match(mainTs, /currentMomentsFilter/);
+  assert.match(mainTs, /media-author-row/);
+  assert.match(mainTs, /media-caption-snippet/);
+  assert.match(mainTs, /media-multi-badge/);
+  assert.match(mainTs, /media-empty/);
+});

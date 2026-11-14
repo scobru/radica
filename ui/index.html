@@ -38,32 +38,32 @@
         <button type="button" class="rail-brand" id="rail-home-btn" title="Radica: back to the feed" aria-label="Back to the feed"><svg viewBox="0 0 34 34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 4v12"/><path d="M17 16c0-5 4-8 9-8-1 5-4 8-9 8z"/><path d="M17 16c-4 0-7-3-8-7 4 0 8 3 8 7z"/><path d="M17 16v4M17 20c-3 3-7 4-10 4M17 20c3 3 7 4 10 4M17 20v10"/></svg></button>
         <!-- Chat Navbar Button -->
         <button class="rail-btn" id="open-chat-btn" title="Direct Messages">
-          <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span>Chat</span>
           <span class="badge" id="chat-badge" style="display: none;">0</span>
         </button>
         <!-- Mail Navbar Button -->
         <button class="rail-btn" id="open-mail-btn" title="Freenet Mail (g m)">
-          <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           <span>Mail</span>
           <span class="badge" id="mail-badge" style="display: none;">0</span>
         </button>
         <!-- Notifications Navbar Button -->
         <button class="rail-btn" id="open-notifs-btn" title="Activity & Notifications">
-          <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span>Activity</span>
           <span class="badge notif-badge" id="notif-badge" style="display: none;">0</span>
         </button>
         <!-- Identity & Key Management Navbar Button -->
         <button class="rail-btn" id="open-identity-btn" title="Identity & Keys">
-          <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
+          <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
           <span>Identity</span>
         </button>
         <span class="rail-sep" aria-hidden="true"></span>
         <!-- secondary places: in the rail on computers, behind More on phones (display: contents keeps the rail as it was) -->
         <div class="rail-more-group" id="rail-more-group">
           <button class="rail-btn" id="open-media-btn" title="Moments (g v)">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             <span>Moments</span>
           </button>
           <button class="rail-btn" id="updates-open-btn" title="What's new">
@@ -1227,12 +1227,12 @@
       </div>
     </div>
 
-    <!-- Updates Modal -->
+    <!-- Welcome Modal -->
     <div id="welcome-modal" class="rail-page" style="display: none;">
       <div class="modal-card welcome" style="max-width: 560px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M2 12a6 6 0 1 0 12 0 6 6 0 0 0 12 0"/><path d="M6 12a8 8 0 0 1 8 8 8 8 0 0 1-8 8 6 6 0 0 0 0 12"/><path d="M2 12v2a4 4 0 0 0 8 0v2"/></svg>
+            <svg viewBox="0 0 34 34" class="svg-icon icon-md" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4v12"/><path d="M17 16c0-5 4-8 9-8-1 5-4 8-9 8z"/><path d="M17 16c-4 0-7-3-8-7 4 0 8 3 8 7z"/><path d="M17 16v4M17 20c-3 3-7 4-10 4M17 20c3 3 7 4 10 4M17 20v10"/></svg>
             <span>Welcome to Radica 🌱</span>
           </h3>
           <button class="btn-secondary btn-sm" id="welcome-skip-btn" title="Skip: you can do all this later">Skip</button>
@@ -1259,7 +1259,7 @@
       <div class="modal-card guide" style="max-width: 640px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
             <span>How Radica works</span>
           </h3>
           <button class="btn-secondary btn-sm" id="guide-close-btn">✕</button>
@@ -1439,7 +1439,7 @@
       <div class="modal-card" style="max-width: 600px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M18 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2z"/><polyline points="7 5 12 10 17 5"/></svg>
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
             <span>What's New</span>
           </h3>
           <button class="btn-secondary btn-sm" id="updates-close-btn">✕</button>
@@ -1477,7 +1477,7 @@
       <div class="modal-card" style="max-width: 600px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M2 12a6 6 0 1 0 12 0 6 6 0 0 0 12 0"/><path d="M6 12a8 8 0 0 1 8 8 8 8 0 0 1-8 8 6 6 0 0 0 0 12"/><path d="M2 12v2a4 4 0 0 0 8 0v2"/></svg>
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
           </h3>
           <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
@@ -1502,33 +1502,57 @@
       </div>
     </div>
 
-    <!-- Foglia: Instagram-style thumbnail grid + quick post -->
+    <!-- Foglia: Moments gallery + quick post -->
     <div id="media-modal" class="rail-page" style="display: none;">
-      <div class="modal-card" style="max-width: 800px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-    <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <span>Moments</span>
-          </h3>
-          <button class="btn-secondary btn-sm" id="media-close-btn">✕</button>
+      <div class="modal-card moments-page-card" style="max-width: 860px;">
+        <div class="moments-header">
+          <div class="moments-header-title-wrap">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Moments</span>
+            </h3>
+            <span class="moments-subtitle">Visual stories, photos &amp; videos shared across Freenet</span>
+          </div>
+          <div class="moments-header-actions">
+            <span class="moments-count-pill" id="moments-count-pill">0 moments</span>
+            <button class="btn-secondary btn-sm" id="media-close-btn" title="Close Moments">✕</button>
+          </div>
         </div>
-        <!-- Quick post bar (mobile-first) -->
-        <div id="media-quick-post" style="display:none;">
-          <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-            <input type="file" id="media-file-input" accept="image/*" style="display:none;" />
-            <button class="btn-secondary btn-sm" id="media-camera-btn" title="Take a photo">Take</button>
-            <button class="btn-secondary btn-sm" id="media-gallery-btn" title="Choose from gallery">Choose</button>
+        <!-- Quick post composer card -->
+        <div id="media-quick-post" class="moments-composer" style="display:none;">
+          <input type="file" id="media-file-input" accept="image/*" style="display:none;" />
+          <div id="media-preview-area" class="moments-preview-area" style="display:none;">
+            <img id="media-preview-img" class="moments-preview-img" alt="Preview" />
+            <button type="button" id="media-remove-preview" class="moments-preview-remove" title="Remove photo">✕</button>
           </div>
-          <input type="text" id="media-caption-input" placeholder="What are you seeing?" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text);margin-bottom:8px;" maxlength="400" />
-          <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
-            <span id="media-caption-count" style="font-size:0.75rem;color:var(--text-muted);"></span>
-            <button class="btn-primary btn-sm" id="media-publish-btn" disabled>Publish</button>
+          <div class="moments-composer-row">
+            <div class="moments-picker-btns">
+              <button type="button" class="btn-secondary btn-sm btn-icon-text" id="media-gallery-btn" title="Choose photo from device">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span>Choose Photo</span>
+              </button>
+              <button type="button" class="btn-secondary btn-sm btn-icon-text" id="media-camera-btn" title="Take a photo with camera">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Camera</span>
+              </button>
+            </div>
+            <input type="text" id="media-caption-input" class="moments-caption-input" placeholder="Share a visual moment… What are you seeing? #tag" maxlength="400" />
+            <div class="moments-publish-wrap">
+              <span id="media-caption-count" class="moments-caption-count"></span>
+              <button type="button" class="btn-primary btn-sm btn-icon-text" id="media-publish-btn" disabled>
+                <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Publish</span>
+              </button>
+            </div>
           </div>
-          <div id="media-preview-area" style="margin-bottom:10px; display:none; position:relative;">
-            <img id="media-preview-img" style="width:100%;max-height:300px;object-fit:contain;border-radius:6px;background:#1a1a2e;" alt="Preview" />
-            <button id="media-remove-preview" style="position:absolute;top:6px;right:6px;background:rgba(220,38,38,0.9);border:none;border-radius:50%;width:26px;height:26px;color:white;font-size:14px;cursor:pointer;">✕</button>
-          </div>
-          <div id="media-upload-progress" style="display:none; padding:8px; font-size:0.85rem; color:var(--text-muted);"></div>
+          <div id="media-upload-progress" class="moments-upload-progress" style="display:none;"></div>
+        </div>
+        <!-- Filter bar -->
+        <div class="moments-toolbar" id="moments-toolbar" role="group" aria-label="Filter moments">
+          <button type="button" class="moments-filter-btn active" data-mfilter="all">All Moments</button>
+          <button type="button" class="moments-filter-btn" data-mfilter="photos">Photos</button>
+          <button type="button" class="moments-filter-btn" data-mfilter="videos">Videos</button>
+          <button type="button" class="moments-filter-btn" data-mfilter="following">Following</button>
         </div>
         <div id="media-grid-container" class="media-grid"></div>
         <p id="media-empty" style="text-align: center; padding: 40px 0; color: var(--text-muted); display: none;">No media posts yet.</p>
@@ -1541,7 +1565,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;" id="blocklists-modal-title">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
-            <span>Blocklists</span>
+            <span id="blocklists-modal-title-text">Blocklists</span>
           </h3>
           <button class="btn-secondary btn-sm" id="blocklists-close-btn">✕</button>
         </div>
@@ -1641,7 +1665,12 @@
     <!-- Edit Profile Modal -->
     <div id="profile-modal" class="modal-overlay" style="display: none;">
       <div class="modal-card">
-        <h3>Edit Decentralized Profile</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>Edit Decentralized Profile</span>
+          </h3>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
           Changes are cryptographically signed with your Ed25519 key and synced to Freenet.
         </p>
@@ -1735,12 +1764,23 @@
           <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">
             Subscribers can tap "Comments" on channel posts to discuss in a linked group room.
           </p>
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; margin: 10px 0 4px; color: var(--text-main);">
-            <input type="checkbox" id="privroom-public-check" style="accent-color: var(--primary);" />
-            <span>🌐 Public channel: one invite link for everyone</span>
+          <div id="privroom-public-wrap" style="display: none;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; margin: 10px 0 4px; color: var(--text-main);">
+              <input type="checkbox" id="privroom-public-check" style="accent-color: var(--primary);" />
+              <span>🌐 Public River channel: one invite link for everyone</span>
+            </label>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">
+              Not encrypted: anyone with the link can read it and subscribe. Each person still joins with their own key.
+            </p>
+          </div>
+        </div>
+        <div class="privroom-channel-options-box" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; margin-bottom: 4px; color: var(--text-main);">
+            <input type="checkbox" id="privroom-river-check" style="accent-color: var(--primary);" />
+            <span>🌊 Interoperable River Room (uses external River contract &amp; invite codes)</span>
           </label>
           <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">
-            Not encrypted: anyone with the link can read it and subscribe. Each person still joins with their own key.
+            Off by default (recommended): rooms use Radica's native E2EE contracts with zero-knowledge links and never break on external River updates.
           </p>
         </div>
 
@@ -1993,7 +2033,10 @@
     <div id="milestones-modal" class="modal-overlay" style="display: none;">
       <div class="modal-card" style="max-width: 500px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <h3 style="margin: 0;">🌱 Roots grown</h3>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 34 34" class="svg-icon icon-md" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4v12"/><path d="M17 16c0-5 4-8 9-8-1 5-4 8-9 8z"/><path d="M17 16c-4 0-7-3-8-7 4 0 8 3 8 7z"/><path d="M17 16v4M17 20c-3 3-7 4-10 4M17 20c3 3 7 4 10 4M17 20v10"/></svg>
+            <span>Roots grown</span>
+          </h3>
           <button class="btn-secondary btn-sm" id="milestones-close-btn">✕</button>
         </div>
         <p class="ms-note">Counted from what your node sees: on Freenet there is no central counter.</p>
@@ -2005,7 +2048,12 @@
     <!-- Create Community Modal -->
     <div id="create-comm-modal" class="modal-overlay" style="display: none;">
       <div class="modal-card">
-        <h3 id="create-comm-title">Create community</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h3 id="create-comm-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span id="create-comm-title-text">Create community</span>
+          </h3>
+        </div>
         <p id="create-comm-intro" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
           As the creator, you become the founder and primary moderator with powers to manage mods and remove posts.
         </p>
