@@ -1,6 +1,12 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **PERF / UI** Performance & Design Tokens (`ui/src/style.css`, `ui/src/main.ts`):
+    * Added standardized spacing (`--space-*`), radius (`--radius-*`), focus-ring (`--focus-ring`), and motion (`--ease-out`, `--dur-fast`) tokens, unified `:focus-visible` outlines, subtle button `:active` press feedback, and `content-visibility: auto; contain-intrinsic-size: auto 320px` on `.gram-card`, `.article-feed-card`, `.music-release-card`, `.comm-thread-card`, and `.moment-tile`.
+    * Added `scheduleRenderTimeline()` (`requestAnimationFrame` coalescing) in `main.ts` to batch burst background updates.
+    * Code-split secondary rail views (`treePage.ts`, `musicPage.ts`, `articlesPage.ts`) via dynamic `import()` to reduce initial boot bundle size.
+    * Added `loading="lazy" decoding="async"` to dynamically rendered feed, avatar, video poster, chat, and profile `<img>` tags.
+
   * **FIX** Music Tracklist Waveform Overflow on Mobile (`ui/src/style.css`):
     * Constrained `.music-waveform` (`min-width: 0; overflow: hidden`) and `.music-track-title`, and stacked `.music-track-info` cleanly on `<= 640px` so waveforms no longer overlap track durations or `+ Queue` buttons.
 

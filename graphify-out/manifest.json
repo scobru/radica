@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794700917.890012,
-    "ast_hash": "73c83d0a07b10e547d977bc3e5b1d744",
+    "mtime": 1794703766.690694,
+    "ast_hash": "c3c521c21c7242616719e6a1a85653f6",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794701860.0092008,
-    "ast_hash": "48acb52aae700a88a842c78b9b6f3f0b",
+    "mtime": 1794703790.3756924,
+    "ast_hash": "56dde4cf5c76d5bea44676b29576153d",
     "semantic_hash": ""
   },
   "README.md": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794701853.5910356,
-    "ast_hash": "42e2d90d472205958c8fa919696257ed",
+    "mtime": 1794703786.6046503,
+    "ast_hash": "a9a3121989b31e696a8c21c82404a763",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {

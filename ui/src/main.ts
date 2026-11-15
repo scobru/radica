@@ -17,8 +17,6 @@ import {
   type RedditViewMode,
 } from "./communitiesPage.ts";
 import { parseArticleCaption, renderArticleFeedCardHtml } from "./articles.ts";
-import { createArticlesPage } from "./articlesPage.ts";
-import { createMusicPage } from "./musicPage.ts";
 import { createReelsPlayer } from "./reelsPlayer.ts";
 import { isVideoReelPost, parseBlobVideoRef } from "./reels.ts";
 import {
@@ -144,7 +142,6 @@ import { WebOfTrust, type TrustBadgeInfo } from "./wot.ts";
 import { solvePoW, COMMENT_POW_BITS, POST_POW_BITS, POST_POW_SINCE, postHasPow, type PoWProof } from "./pow.ts";
 import { METRIC_LABELS, countsOf, nextUp, reached, type Counts } from "./milestones.ts";
 import { growRoots } from "./rootsfx.ts";
-import { initTreePage, openTreePage, refreshTreePageIfOpen } from "./treePage.ts";
 import type { TreePeerInput } from "./treeGraph.ts";
 import { fillFreetunes, freetunesCard, freetunesProfileCard, fillFreetunesProfile, localFreetunesArtist, localFreetunesReleases } from "./freetunes.ts";
 import { createPoll, fillFreepolls, freepollsCard, freepollsLink, type PollNet } from "./freepolls.ts";
@@ -555,7 +552,7 @@ async function refreshSupporters() {
   supporterKeys = next;
   ghostkeyKeys = ghosts;
   cardCache.clear(); // badges are part of each card
-  renderTimeline();
+  scheduleRenderTimeline();
 }
 
 // Curators whose public blocklist I follow: whoever they block, and the posts they report, are hidden for me too.
@@ -638,7 +635,7 @@ function refreshTrustedBlocklists(seen = new Set<string>()): void {
           void freenet.refreshLog("reports").then(() => updateBlocklistsBadge());
           if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
         }
-        renderTimeline();
+        scheduleRenderTimeline();
         const sig = [...hiddenCommunityIds().keys()].sort().join(",");
         if (sig !== hiddenCommsSig) {
           hiddenCommsSig = sig; // a list I follow hid or showed a community: redraw the lists
@@ -1894,7 +1891,7 @@ function renderFollowingList() {
       (pk) => `
     <div class="following-item">
       <div class="following-info author-clickable" data-author="${escapeHtml(pk)}" style="cursor: pointer;" title="View Profile">
-        <img src="${safeUrl(getAuthorAvatarUrl(pk))}" class="following-img" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
+        <img src="${safeUrl(getAuthorAvatarUrl(pk))}" loading="lazy" decoding="async" class="following-img" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
         <span class="following-name">${escapeHtml(getAuthorDisplayName(pk))}</span>
       </div>
       <div style="display: flex; gap: 4px; align-items: center;">
@@ -1942,7 +1939,7 @@ function renderFollowers() {
   setHtmlIfChanged(
     followersList,
     keys
-      .map((pk) => `<div class="following-item"><div class="following-info author-clickable" data-author="${escapeHtml(pk)}" style="cursor: pointer;" title="View Profile"><img src="${safeUrl(getAuthorAvatarUrl(pk))}" class="following-img" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" /><span class="following-name">${escapeHtml(getAuthorDisplayName(pk))}</span></div></div>`)
+      .map((pk) => `<div class="following-item"><div class="following-info author-clickable" data-author="${escapeHtml(pk)}" style="cursor: pointer;" title="View Profile"><img src="${safeUrl(getAuthorAvatarUrl(pk))}" loading="lazy" decoding="async" class="following-img" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" /><span class="following-name">${escapeHtml(getAuthorDisplayName(pk))}</span></div></div>`)
       .join("") || `<div style="font-size: 0.8rem; color: var(--text-muted);">Nobody seen yet: only people whose feed your node has read show here.</div>`,
   );
 }
@@ -1970,7 +1967,7 @@ function renderDiscoveredPeers() {
       return `
       <div class="discovered-item">
         <div class="discovered-info author-clickable" data-author="${escapeHtml(p.pubkey)}" style="cursor: pointer;" title="View Profile">
-          <img src="${safeUrl(getAuthorAvatarUrl(p.pubkey))}" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(p.pubkey)}'" />
+          <img src="${safeUrl(getAuthorAvatarUrl(p.pubkey))}" loading="lazy" decoding="async" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(p.pubkey)}'" />
           <span style="font-weight: 600;">${escapeHtml(getAuthorDisplayName(p.pubkey))}</span>
         </div>
         <div style="display: flex; gap: 4px; align-items: center;">
@@ -2111,7 +2108,7 @@ async function reloadPosts() {
   renderTrending();
   updateMyPostsAndScopeCounts();
   if (currentFeedScope === "explore") treeExplorePosts = timelinePosts;
-  refreshTreePageIfOpen();
+  if (treePageModP) void treePageModP.then((m) => m.refreshTreePageIfOpen());
 }
 
 /** Joined communities only: the sidebar, composer and feed show these, the rest are found by name. */
@@ -2247,7 +2244,20 @@ function restoreScrollAnchor(anchor: { id: string; top: number }) {
   requestAnimationFrame(applyDelta);
 }
 
+let timelineRenderRaf = 0;
+function scheduleRenderTimeline() {
+  if (timelineRenderRaf) return;
+  timelineRenderRaf = requestAnimationFrame(() => {
+    timelineRenderRaf = 0;
+    renderTimeline();
+  });
+}
+
 function renderTimeline() {
+  if (timelineRenderRaf) {
+    cancelAnimationFrame(timelineRenderRaf);
+    timelineRenderRaf = 0;
+  }
   postsContainer.classList.remove("media-grid");
   if (!currentIdentity) return;
   if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
@@ -2341,7 +2351,7 @@ function renderTimeline() {
         const thumb = mediaUris(p.media_uri)[0];
         const isVideo = !!videoRef(p.media_uri);
         const thumbInner = isVideo
-          ? `${videoRef(p.media_uri)!.posterHash ? `<img class="video-poster" data-vposter="${escapeHtml(p.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(p.media_uri)}">▶ <span>Play video</span></button>`
+          ? `${videoRef(p.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(p.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(p.media_uri)}">▶ <span>Play video</span></button>`
           : `<img ${mediaAttr(thumb)} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`;
         return {
           key: `${p.author}:${p.id}`,
@@ -2564,7 +2574,7 @@ function renderTimeline() {
           <div class="gram-media ${post.is_nsfw ? "nsfw-shielded" : ""}" id="media-${post.id}">
             ${
               videoRef(post.media_uri)
-                ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">\u25B6 <span>Play video</span></button>`
+                ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">\u25B6 <span>Play video</span></button>`
                 : postImagesHtml(post.media_uri)
             }
             ${
@@ -3023,7 +3033,7 @@ function renderMediaGrid() {
     authorBtn.type = "button";
     authorBtn.className = "media-author-trigger";
     authorBtn.title = `View ${getAuthorDisplayName(post.author)}'s profile`;
-    authorBtn.innerHTML = `<img class="media-author-avatar" src="${escapeHtml(getAuthorAvatarUrl(post.author))}" alt="" loading="lazy" /><span class="media-author-name">${escapeHtml(getAuthorDisplayName(post.author))}</span>`;
+    authorBtn.innerHTML = `<img class="media-author-avatar" src="${escapeHtml(getAuthorAvatarUrl(post.author))}" alt="" loading="lazy" decoding="async" /><span class="media-author-name">${escapeHtml(getAuthorDisplayName(post.author))}</span>`;
     authorBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       void openUserProfile(post.author);
@@ -3575,7 +3585,7 @@ function initCardListeners() {
       const pid = el.dataset.postId;
       if (pid) {
         revealedWotPosts.add(pid);
-        renderTimeline();
+        scheduleRenderTimeline();
       }
     } else if ((el = hit(".delete-post-btn"))) {
       void deletePostFromCard(el);
@@ -4717,13 +4727,13 @@ publishBtn.addEventListener("click", async () => {
     const idx = timelinePosts.findIndex((p) => p.id === tempId);
     if (idx !== -1) {
       timelinePosts[idx] = realPost;
-      renderTimeline(); // the card carries the real id: like and comment on it find their post
+      scheduleRenderTimeline(); // the card carries the real id: like and comment on it find their post
     }
   }).catch((err) => {
     console.error("Error publishing post in background:", err);
     showToast("Could not publish post to Freenet.", "error");
     timelinePosts = timelinePosts.filter((p) => p.id !== tempId);
-    renderTimeline();
+    scheduleRenderTimeline();
     if (!currentMediaNsfw) {
       resetPublishBtnState();
     }
@@ -5594,7 +5604,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
               if (bRef) return renderBoardSummaryCardHtml(bRef, shouldMask, false);
               return own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : "";
             })()}
-            ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" /></div>` : ""}
+            ${p.media_uri && !videoRef(p.media_uri) ? `<div class="uview-post-thumb"><img ${mediaAttr(mediaUris(p.media_uri)[0])} alt="Post" loading="lazy" decoding="async" /></div>` : ""}
             ${tab === "reposts" ? repostCard(caption) : ""}
             <div class="uview-post-meta">
               <span>♥ ${likes} · 💬 ${comments}</span>
@@ -6037,59 +6047,68 @@ function collectTreePeers(posts: Post[]): TreePeerInput[] {
     });
 }
 
-initTreePage({
-  getPosts: collectTreePosts,
-  getCommunities: () => {
-    const hidden = hiddenCommunityIds();
-    return allCommunities.filter((c) => !hidden.has(c.id));
-  },
-  getPeers: () => collectTreePeers(collectTreePosts()),
-  getMyPubkey: () => currentIdentity?.pubkey ?? "",
-  getMyName: () => (currentIdentity ? getAuthorDisplayName(currentIdentity.pubkey) : "You"),
-  getDisplayName: getAuthorDisplayName,
-  refreshNetwork: async () => {
-    if (!currentIdentity) return;
-    treeExplorePosts = await freenet.getExploreTimeline(currentIdentity, {
-      prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
-      skip: isHiddenAuthor,
+let treePageModP: Promise<typeof import("./treePage.ts")> | null = null;
+function loadTreePage() {
+  if (!treePageModP) {
+    treePageModP = import("./treePage.ts").then((m) => {
+      m.initTreePage({
+        getPosts: collectTreePosts,
+        getCommunities: () => {
+          const hidden = hiddenCommunityIds();
+          return allCommunities.filter((c) => !hidden.has(c.id));
+        },
+        getPeers: () => collectTreePeers(collectTreePosts()),
+        getMyPubkey: () => currentIdentity?.pubkey ?? "",
+        getMyName: () => (currentIdentity ? getAuthorDisplayName(currentIdentity.pubkey) : "You"),
+        getDisplayName: getAuthorDisplayName,
+        refreshNetwork: async () => {
+          if (!currentIdentity) return;
+          treeExplorePosts = await freenet.getExploreTimeline(currentIdentity, {
+            prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+            skip: isHiddenAuthor,
+          });
+        },
+        onOpenPost: (postId, author) => {
+          closeRailPages();
+          void showMyPost(postId, author);
+        },
+        onOpenProfile: (pubkey) => {
+          void openUserProfile(pubkey);
+        },
+        onOpenCommunity: (commId) => {
+          const comm = allCommunities.find((c) => c.id === commId) ?? null;
+          closeRailPages();
+          showProfilePage(false);
+          selectCommunity(comm);
+        },
+        onOpenMilestones: async () => {
+          if (!currentIdentity) return;
+          renderMilestones(networkCounts(await freenet.getExploreTimeline(currentIdentity)));
+          milestonesModal.style.display = "flex";
+          growRoots();
+        },
+      });
+      return m;
     });
-  },
-  onOpenPost: (postId, author) => {
-    closeRailPages();
-    void showMyPost(postId, author);
-  },
-  onOpenProfile: (pubkey) => {
-    void openUserProfile(pubkey);
-  },
-  onOpenCommunity: (commId) => {
-    const comm = allCommunities.find((c) => c.id === commId) ?? null;
-    closeRailPages();
-    showProfilePage(false);
-    selectCommunity(comm);
-  },
-  onOpenMilestones: async () => {
-    if (!currentIdentity) return;
-    renderMilestones(networkCounts(await freenet.getExploreTimeline(currentIdentity)));
-    milestonesModal.style.display = "flex";
-    growRoots();
-  },
-});
+  }
+  return treePageModP;
+}
 
 document.getElementById("open-tree-btn")?.addEventListener("click", () => {
   closeRailPages(treeModal);
-  void openTreePage();
+  void loadTreePage().then((m) => m.openTreePage());
 });
 document.getElementById("tree-close-btn")?.addEventListener("click", () => {
   if (treeModal) treeModal.style.display = "none";
 });
 document.getElementById("feed-open-tree-btn")?.addEventListener("click", () => {
   closeRailPages(treeModal);
-  void openTreePage();
+  void loadTreePage().then((m) => m.openTreePage());
 });
 document.getElementById("milestones-open-tree-btn")?.addEventListener("click", () => {
   milestonesModal.style.display = "none";
   closeRailPages(treeModal);
-  void openTreePage();
+  void loadTreePage().then((m) => m.openTreePage());
 });
 let feedScrollY = 0; // where the feed was when a page covered it: closing the page returns there
 // pressing the button of the page that is open closes it again (before the button's own handler would reopen it)
@@ -6919,7 +6938,7 @@ async function renderChatSidebar() {
             return `
               <div class="chat-secret-item ${isActive ? "active" : ""}" data-secret-peer="${escapeHtml(pk)}" title="Secret Chat with ${escapeHtml(displayName)} (PFS)">
                 <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
-                  <img src="${safeUrl(getAuthorAvatarUrl(pk))}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
+                  <img src="${safeUrl(getAuthorAvatarUrl(pk))}" loading="lazy" decoding="async" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
                   <span style="overflow: hidden; min-width: 0;">
                     <span style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isPinned ? "📌 " : ""}${escapeHtml(displayName)}</span>
                   </span>
@@ -6993,7 +7012,7 @@ async function renderChatSidebar() {
       return `
     <div class="chat-peer-item ${isActive ? "active" : ""}" data-peer="${escapeHtml(pk)}" title="${escapeHtml(pk)}">
       <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
-        <img src="${safeUrl(getAuthorAvatarUrl(pk))}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
+        <img src="${safeUrl(getAuthorAvatarUrl(pk))}" loading="lazy" decoding="async" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
         <span style="overflow: hidden; min-width: 0;">
           <span style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isPinned ? "📌 " : ""}${escapeHtml(displayName)}${dup}${riverTag}</span>${inRooms}
         </span>
@@ -7116,7 +7135,7 @@ function renderChatParticipants() {
 
       return `
         <div class="chat-participant-item" data-pubkey="${escapeHtml(memberPk)}" title="Public Key: ${escapeHtml(memberPk)}">
-          <img src="${safeUrl(avatarUrl)}" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(memberPk)}'" />
+          <img src="${safeUrl(avatarUrl)}" loading="lazy" decoding="async" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(memberPk)}'" />
           <div class="chat-participant-details">
             <div class="chat-participant-name">
               <span>${escapeHtml(displayName)}</span>
@@ -7274,7 +7293,7 @@ function renderChatParticipants() {
 
       return `
         <div class="chat-participant-item ${isBanned ? "banned" : ""}" data-pubkey="${escapeHtml(memberPk)}" title="Public Key: ${escapeHtml(memberPk)}">
-          <img src="${safeUrl(avatarUrl)}" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(memberPk)}'" />
+          <img src="${safeUrl(avatarUrl)}" loading="lazy" decoding="async" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(memberPk)}'" />
           <div class="chat-participant-details">
             <div class="chat-participant-name">
               <span>${escapeHtml(displayName)}</span>
@@ -7390,7 +7409,7 @@ function renderChatParticipants() {
 
       return `
         <div class="chat-participant-item" data-pubkey="${escapeHtml(pk)}" title="Public Key: ${escapeHtml(pk)}">
-          <img src="${safeUrl(avatarUrl)}" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
+          <img src="${safeUrl(avatarUrl)}" loading="lazy" decoding="async" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
           <div class="chat-participant-details">
             <div class="chat-participant-name">
               <span>${escapeHtml(displayName)}</span>
@@ -7642,7 +7661,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
     .filter(([e, who]) => CHAT_REACTIONS.includes(e) && who.length)
     .map(([e, who]) => `<button type="button" class="rv-chip${who.includes(me) ? " mine" : ""}" data-react="${e}" ${ids} title="${escapeHtml(who.map((w) => (w === me ? "You" : getAuthorDisplayName(w))).join(", "))}">${e} ${who.length}</button>`)
     .join("");
-  const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
+  const face = isMine || grouped ? "" : `<img class="rv-avatar" alt="" loading="lazy" decoding="async" src="${safeUrl(getAuthorAvatarUrl(msg.sender))}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(msg.sender)}'" />`;
   const { items: mediaItems, caption: textWithoutMedia } = parseChatMedia(msg.text);
   const mediaCards = chatMediaCardsHtml(mediaItems, textWithoutMedia);
   const embeddedCards = freetunesCard(textWithoutMedia) + freepollsCard(textWithoutMedia) + freenamesCard(textWithoutMedia) + deltaCard(textWithoutMedia) + ortoCard(textWithoutMedia) + asocialCard(textWithoutMedia) + fhCard(textWithoutMedia, nodeOrigin()) + wormholeCard(textWithoutMedia, nodeOrigin()) + freetreeCard(textWithoutMedia, nodeOrigin()) + sporeRadioCard(textWithoutMedia);
@@ -8899,6 +8918,7 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
       const cached = await freenet.getFeed(articleAuthor).catch(() => null);
       if (!cached?.posts?.[articleId]) await freenet.refresh(articleAuthor, true, true);
       closeRailPages(articlesModal);
+      const articlesPage = await loadArticlesPage();
       await articlesPage.openReader({ postId: articleId, author: articleAuthor });
     } catch (err) {
       console.warn("Could not navigate to article from hash:", err);
@@ -9469,7 +9489,7 @@ function openModerationPanel(comm: Community) {
       return `
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--card-footer-bg, rgba(0,0,0,0.03)); border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; gap: 10px;">
         <div ${isClickable ? `class="author-clickable" data-author="${escapeHtml(modPk)}"` : ""} style="display: flex; align-items: center; gap: 10px; ${isClickable ? "cursor: pointer;" : ""} flex: 1; min-width: 0;" title="${isClickable ? `View Profile: ${escapeHtml(modPk)}` : "System Root"}">
-          <img src="${safeUrl(avatarUrl)}" class="following-img" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(modPk)}'" />
+          <img src="${safeUrl(avatarUrl)}" loading="lazy" decoding="async" class="following-img" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(modPk)}'" />
           <div style="display: flex; flex-direction: column; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span style="font-weight: 700; color: var(--text-main); ${isClickable ? "text-decoration: underline; text-underline-offset: 2px;" : ""}">${escapeHtml(displayName)}</span>
@@ -10046,7 +10066,7 @@ function renderCommunitiesPage() {
           ? `<div class="reddit-post-media gram-media">
               ${
                 videoRef(post.media_uri)
-                  ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">▶ <span>Play video</span></button>`
+                  ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">▶ <span>Play video</span></button>`
                   : postImagesHtml(post.media_uri)
               }
             </div>`
@@ -10117,7 +10137,7 @@ function renderCommunitiesPage() {
                             return `
                             <div class="reddit-comment-item">
                               <div class="reddit-comment-head">
-                                <img src="${safeUrl(getAuthorAvatarUrl(c.author))}" alt="" class="reddit-comment-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(c.author)}'" />
+                                <img src="${safeUrl(getAuthorAvatarUrl(c.author))}" alt="" loading="lazy" decoding="async" class="reddit-comment-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(c.author)}'" />
                                 <span class="author-clickable reddit-comment-author" data-author="${escapeHtml(c.author)}">${escapeHtml(getAuthorDisplayName(c.author))}</span>
                                 <span class="reddit-comment-time">${formatTimeAgo(c.timestamp)}</span>
                                 <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="Like comment">
@@ -10252,148 +10272,164 @@ openCommunitiesBtn?.addEventListener("click", () => {
   openCommunitiesPage(activeCommunity ?? selectedRedditCommunity);
 });
 
-const articlesPage = createArticlesPage({
-  getIdentity: () => currentIdentity,
-  getAllPosts: () => {
-    const me = currentIdentity?.pubkey || "";
-    const reported = new Set<string>();
-    const reportedMedia = new Set<string>();
-    for (const c of trustedCurators()) {
-      for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-      for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
-    }
-    for (const t of freenet.aiHeldTargets()) reported.add(t);
+let articlesPageP: Promise<ReturnType<typeof import("./articlesPage.ts").createArticlesPage>> | null = null;
+function loadArticlesPage() {
+  if (!articlesPageP) {
+    articlesPageP = import("./articlesPage.ts").then(({ createArticlesPage }) =>
+      createArticlesPage({
+        getIdentity: () => currentIdentity,
+        getAllPosts: () => {
+          const me = currentIdentity?.pubkey || "";
+          const reported = new Set<string>();
+          const reportedMedia = new Set<string>();
+          for (const c of trustedCurators()) {
+            for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+            for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
+          }
+          for (const t of freenet.aiHeldTargets()) reported.add(t);
 
-    const byKey = new Map<string, Post>();
-    const add = (p: Post) => {
-      if (!p || isHiddenAuthor(p.author)) return;
-      if (p.author !== me) {
-        if (reported.has(`${p.author}:${p.id}`)) return;
-        const mh = postMediaHash(p);
-        if (mh && reportedMedia.has(mh)) return;
-      }
-      byKey.set(`${p.author}:${p.id}`, p);
-    };
-    for (const p of timelinePosts) add(p);
-    for (const p of Object.values(freenet.peerCache || {})) add(p);
-    return [...byKey.values()];
-  },
-  getFollowing: () => new Set(followingKeys),
-  getAuthorName: (pk) => getAuthorDisplayName(pk),
-  getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),
-  getMediaUrl: async (uri) => {
-    if (!uri) return undefined;
-    const ref = mediaRef(uri);
-    if (ref) return await mediaUrl(ref, (h) => freenet.getMedia(h));
-    return uri;
-  },
-  getArticleBytes: (hash) => freenet.getMedia(hash),
-  putArticleBytes: (bytes) => freenet.putMedia(bytes),
-  publishArticlePost: (caption, coverUri, isNsfw, nsfwScore) => {
-    if (!currentIdentity) throw new Error("Not signed in");
-    return freenet.publishPost(currentIdentity, "thought", caption, coverUri, undefined, undefined, undefined, isNsfw, nsfwScore);
-  },
-  compressCoverImage: (file) => compressPostImageFile(file, 1024, 0.8),
-  getMailIdentity: () => getOrDeriveFmailIdentity(),
-  openUserWall: (pk) => void openUserProfile(pk),
-  openPostInFeed: (postId, author) => void showMyPost(postId, author),
-  saveToBoard: (post) => openBoardPickerModal(post),
-  toggleLike: async (author, postId) => {
-    if (!currentIdentity) {
-      showToast("Sign in first to like.", "warning");
-      return;
-    }
-    const me = currentIdentity.pubkey;
-    const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
-    const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
-    if (idx !== -1 && prevPost) {
-      const currentlyLiked = Boolean(prevPost.likes?.[me]?.liked);
-      timelinePosts[idx] = {
-        ...prevPost,
-        likes: {
-          ...prevPost.likes,
-          [me]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+          const byKey = new Map<string, Post>();
+          const add = (p: Post) => {
+            if (!p || isHiddenAuthor(p.author)) return;
+            if (p.author !== me) {
+              if (reported.has(`${p.author}:${p.id}`)) return;
+              const mh = postMediaHash(p);
+              if (mh && reportedMedia.has(mh)) return;
+            }
+            byKey.set(`${p.author}:${p.id}`, p);
+          };
+          for (const p of timelinePosts) add(p);
+          for (const p of Object.values(freenet.peerCache || {})) add(p);
+          return [...byKey.values()];
         },
-      };
-      renderTimeline();
-    }
-    try {
-      await freenet.toggleLike(currentIdentity, author, postId);
-    } catch (err) {
-      if (idx !== -1 && prevPost) {
-        timelinePosts[idx] = prevPost;
-        renderTimeline();
-      }
-      showToast("Could not update like on Freenet.", "error");
-      throw err;
-    }
-  },
-  reportArticle: async (author, postId) => {
-    await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
-  },
-  hideAuthor: (author) => {
-    if (!author || author === currentIdentity?.pubkey) return;
-    setUserHidden(author, true);
-    renderTimeline();
-    showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
-  },
-  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
-  getAppBaseUrl: () => `${window.location.origin}${window.location.pathname}`,
-  showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
-  closeModal: () => {
-    articlesModal.style.display = "none";
-  },
-  onPublished: () => renderTimeline(),
-  getFreenetClient: () => freenet,
-});
+        getFollowing: () => new Set(followingKeys),
+        getAuthorName: (pk) => getAuthorDisplayName(pk),
+        getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),
+        getMediaUrl: async (uri) => {
+          if (!uri) return undefined;
+          const ref = mediaRef(uri);
+          if (ref) return await mediaUrl(ref, (h) => freenet.getMedia(h));
+          return uri;
+        },
+        getArticleBytes: (hash) => freenet.getMedia(hash),
+        putArticleBytes: (bytes) => freenet.putMedia(bytes),
+        publishArticlePost: (caption, coverUri, isNsfw, nsfwScore) => {
+          if (!currentIdentity) throw new Error("Not signed in");
+          return freenet.publishPost(currentIdentity, "thought", caption, coverUri, undefined, undefined, undefined, isNsfw, nsfwScore);
+        },
+        compressCoverImage: (file) => compressPostImageFile(file, 1024, 0.8),
+        getMailIdentity: () => getOrDeriveFmailIdentity(),
+        openUserWall: (pk) => void openUserProfile(pk),
+        openPostInFeed: (postId, author) => void showMyPost(postId, author),
+        saveToBoard: (post) => openBoardPickerModal(post),
+        toggleLike: async (author, postId) => {
+          if (!currentIdentity) {
+            showToast("Sign in first to like.", "warning");
+            return;
+          }
+          const me = currentIdentity.pubkey;
+          const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
+          const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
+          if (idx !== -1 && prevPost) {
+            const currentlyLiked = Boolean(prevPost.likes?.[me]?.liked);
+            timelinePosts[idx] = {
+              ...prevPost,
+              likes: {
+                ...prevPost.likes,
+                [me]: { liked: !currentlyLiked, ts: Date.now(), sig: "" },
+              },
+            };
+            scheduleRenderTimeline();
+          }
+          try {
+            await freenet.toggleLike(currentIdentity, author, postId);
+          } catch (err) {
+            if (idx !== -1 && prevPost) {
+              timelinePosts[idx] = prevPost;
+              scheduleRenderTimeline();
+            }
+            showToast("Could not update like on Freenet.", "error");
+            throw err;
+          }
+        },
+        reportArticle: async (author, postId) => {
+          await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
+        },
+        hideAuthor: (author) => {
+          if (!author || author === currentIdentity?.pubkey) return;
+          setUserHidden(author, true);
+          scheduleRenderTimeline();
+          showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
+        },
+        shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
+        getAppBaseUrl: () => `${window.location.origin}${window.location.pathname}`,
+        showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
+        closeModal: () => {
+          articlesModal.style.display = "none";
+        },
+        onPublished: () => scheduleRenderTimeline(),
+        getFreenetClient: () => freenet,
+      }),
+    );
+  }
+  return articlesPageP;
+}
 
 openArticlesBtn?.addEventListener("click", () => {
   closeRailPages(articlesModal);
-  articlesPage.openList();
+  void loadArticlesPage().then((p) => p.openList());
 });
 
-const musicPage = createMusicPage({
-  loadDirectory: () => freenet.freetunesDirectory(),
-  getRawContract: (id) => freenet.appContract(id),
-  getMyPubkey: () => currentIdentity?.pubkey || "",
-  getHiddenAuthors: () => new Set(hiddenUsers()),
-  getFollowing: () => new Set(followingKeys),
-  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
-  openUserWall: (pk) => void openUserProfile(pk),
-  toggleFollow: async (pk) => {
-    if (!currentIdentity) {
-      showToast("Sign in first to follow artists.", "warning");
-      return followingKeys.includes(pk);
-    }
-    const nowFollowing = await freenet.toggleFollow(currentIdentity, pk);
-    followingKeys = nowFollowing ? [...new Set([...followingKeys, pk])] : followingKeys.filter((k) => k !== pk);
-    renderFollowingList();
-    renderTimeline();
-    showToast(nowFollowing ? `Following ${getAuthorDisplayName(pk)}` : `Unfollowed ${getAuthorDisplayName(pk)}`, "info");
-    return nowFollowing;
-  },
-  shareReleaseToFeed: (item) => {
-    musicModal.style.display = "none";
-    const link = `#/r/${item.id}.${item.params}`;
-    postCaption.value = `🎵 Listening to **${item.title}** by ${item.artist}\n\n${link}`;
-    postCaption.dispatchEvent(new Event("input"));
-    setTimeout(() => postCaption.focus(), 50);
-  },
-  hideAuthor: (pk) => {
-    if (!pk || pk === currentIdentity?.pubkey) return;
-    setUserHidden(pk, true);
-    renderTimeline();
-    showToast(`Hidden ${getAuthorDisplayName(pk)} on this device.`, "info");
-  },
-  showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
-  closeModal: () => {
-    musicModal.style.display = "none";
-  },
-});
+let musicPageP: Promise<ReturnType<typeof import("./musicPage.ts").createMusicPage>> | null = null;
+function loadMusicPage() {
+  if (!musicPageP) {
+    musicPageP = import("./musicPage.ts").then(({ createMusicPage }) =>
+      createMusicPage({
+        loadDirectory: () => freenet.freetunesDirectory(),
+        getRawContract: (id) => freenet.appContract(id),
+        getMyPubkey: () => currentIdentity?.pubkey || "",
+        getHiddenAuthors: () => new Set(hiddenUsers()),
+        getFollowing: () => new Set(followingKeys),
+        shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
+        openUserWall: (pk) => void openUserProfile(pk),
+        toggleFollow: async (pk) => {
+          if (!currentIdentity) {
+            showToast("Sign in first to follow artists.", "warning");
+            return followingKeys.includes(pk);
+          }
+          const nowFollowing = await freenet.toggleFollow(currentIdentity, pk);
+          followingKeys = nowFollowing ? [...new Set([...followingKeys, pk])] : followingKeys.filter((k) => k !== pk);
+          renderFollowingList();
+          scheduleRenderTimeline();
+          showToast(nowFollowing ? `Following ${getAuthorDisplayName(pk)}` : `Unfollowed ${getAuthorDisplayName(pk)}`, "info");
+          return nowFollowing;
+        },
+        shareReleaseToFeed: (item) => {
+          musicModal.style.display = "none";
+          const link = `#/r/${item.id}.${item.params}`;
+          postCaption.value = `🎵 Listening to **${item.title}** by ${item.artist}\n\n${link}`;
+          postCaption.dispatchEvent(new Event("input"));
+          setTimeout(() => postCaption.focus(), 50);
+        },
+        hideAuthor: (pk) => {
+          if (!pk || pk === currentIdentity?.pubkey) return;
+          setUserHidden(pk, true);
+          scheduleRenderTimeline();
+          showToast(`Hidden ${getAuthorDisplayName(pk)} on this device.`, "info");
+        },
+        showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
+        closeModal: () => {
+          musicModal.style.display = "none";
+        },
+      })
+    );
+  }
+  return musicPageP;
+}
 
 openMusicBtn?.addEventListener("click", () => {
   closeRailPages(musicModal);
-  musicPage.open();
+  void loadMusicPage().then((p) => p.open());
 });
 
 const reelsPlayer = createReelsPlayer({
@@ -10492,7 +10528,7 @@ const reelsPlayer = createReelsPlayer({
     } catch (err) {
       if (idx !== -1 && prevPost) {
         timelinePosts[idx] = prevPost;
-        renderTimeline();
+        scheduleRenderTimeline();
       }
       showToast("Could not update like on Freenet.", "error");
       throw err;
@@ -10539,7 +10575,7 @@ document.addEventListener("click", (e) => {
   const hash = btn.dataset.articleHash;
   if (postId && author) {
     closeRailPages(articlesModal);
-    void articlesPage.openReader({ postId, author, hash });
+    void loadArticlesPage().then((p) => p.openReader({ postId, author, hash }));
   }
 });
 
@@ -12728,7 +12764,7 @@ async function init() {
   freenet.onSyncUpdate(() => conversation.sweepBurns());
   void listsFromNode.then(() => {
     refreshTrustedBlocklists();
-    renderTimeline();
+    scheduleRenderTimeline();
   });
   if (certShowsHost(identity.cert))
     showToast("Your Viso sign-in carries your node's address, and it is published with what you post. Sign out and sign in with Viso again to replace it with a generic one.", "warning", 15000);

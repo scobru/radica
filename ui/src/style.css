@@ -33,6 +33,20 @@
   --font-serif: var(--font-display);
   --shadow: none;
   --shadow-lg: 0 12px 28px -8px rgba(30, 26, 20, 0.25);
+  /* Astryx-inspired design tokens: spacing, radii, focus ring, motion */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--primary) 42%, transparent);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 140ms;
 }
 
 [data-theme="dark"] {
@@ -489,14 +503,31 @@ body {
   color: var(--on-primary);
   border: none;
   padding: 8px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color var(--dur-fast) var(--ease-out), transform 80ms var(--ease-out);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
+}
+
+.btn-primary:active,
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+:is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:active,
+  .btn-secondary:active {
+    transform: none;
+  }
 }
 
 /* Radica Gram Cards */
@@ -3495,6 +3526,14 @@ body {
 }
 .gram-card:focus-within {
   background: var(--card-bg);
+}
+.gram-card,
+.article-feed-card,
+.music-release-card,
+.comm-thread-card,
+.moment-tile {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 .gram-card.keyboard-focused {
   background: var(--card-bg);
