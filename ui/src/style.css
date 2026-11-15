@@ -1446,12 +1446,16 @@ body.chat-fullscreen .rail {
   display: none !important;
 }
 
-/* Activity, Identity, Updates, Blocklists: pages of the main column, like the chat */
+/* Activity, Identity, Updates, Blocklists, Moments, Communities: pages of the main column, not popup boxes */
 .rail-page .modal-card {
   max-width: none !important;
   width: 100%;
   max-height: none;
   box-shadow: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   /* a page, not a popup: the window scrolls it. Left as a scroll box it swallowed the wheel and nothing moved. */
   overflow: visible;
   overscroll-behavior: auto;
@@ -8964,29 +8968,59 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 120px;
+  min-width: 0;
+  flex: 1 1 120px;
 }
 
 .music-waveform {
-  flex: 1;
+  flex: 1 1 80px;
+  min-width: 0;
   height: 22px;
   display: flex;
   align-items: flex-end;
   gap: 2px;
   opacity: 0.55;
+  overflow: hidden;
 }
 
 .music-waveform span {
-  flex: 1;
+  flex: 1 1 0;
   background: var(--primary);
   border-radius: 2px;
-  min-width: 2px;
+  min-width: 1px;
 }
 
 .music-track-dur {
   font-size: 0.78rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.music-track-row button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .music-track-row {
+    gap: 8px;
+    padding: 6px 8px;
+  }
+  .music-track-info {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .music-track-title {
+    flex: 0 0 auto;
+  }
+  .music-waveform {
+    flex: 0 0 auto;
+    height: 16px;
+    width: 100%;
+  }
 }
 
 .music-empty,

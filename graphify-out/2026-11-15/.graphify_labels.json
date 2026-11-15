@@ -10,6 +10,7 @@
   "8": "dependencies",
   "9": "compilerOptions",
   "10": "moderation.ts",
+  "11": "postGone.ts",
   "12": "resetPublishBtnState",
   "13": "vite.config.ts",
   "14": "signOut",

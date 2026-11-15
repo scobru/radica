@@ -1,6 +1,15 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **FIX** Music Tracklist Waveform Overflow on Mobile (`ui/src/style.css`):
+    * Constrained `.music-waveform` (`min-width: 0; overflow: hidden`) and `.music-track-title`, and stacked `.music-track-info` cleanly on `<= 640px` so waveforms no longer overlap track durations or `+ Queue` buttons.
+
+  * **UI** Frameless Rail Pages (`ui/src/style.css`):
+    * Removed the outer `.modal-card` box (`background`, `border`, `border-radius`, `padding: 24px`) from `.rail-page .modal-card` so Activity, Moments, Communities, Articles, Music, Tree, Greenhouse, and Settings use the full column width without wasted box padding.
+
+  * **UI** Compact Mail Header Icons (`ui/index.html`):
+    * Made `#mail-new-btn` (Compose) and `#mail-tokens-btn` (Tokens & Keys) icon-only in the Radica Mail header and replaced the lock icon with a key icon.
+
   * **FIX** Radica Mail Contacts Persistence & Peer-to-Peer Inbox Addressing (`ui/src/durable.ts`, `ui/src/mailClient.ts`, `ui/src/main.ts`):
     * Added `radica_fmail_contacts_` and `radica_fmail_aft_assignments_` to `DURABLE_PREFIXES` in `durable.ts` (previously mismatched as `radica_mail_contacts_`), ensuring saved Mail contacts survive sandboxed refreshes, and flushed durable storage immediately when adding contacts.
     * Updated Radica Mail display, clipboard copy, and `myFullAddress` to use the 44-character `inboxAddress` instead of the 36-character v2 `address`, fixing `"Stored in local mailbox."` when emailing between two Radica IDs.

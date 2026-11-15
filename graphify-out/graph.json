@@ -19142,7 +19142,7 @@
       "source_location": "L516",
       "_origin": "ast",
       "id": "ui_src_main_setwotmoderationenabled",
-      "community": 45,
+      "community": 102,
       "norm_label": "setwotmoderationenabled()"
     },
     {
@@ -19202,7 +19202,7 @@
       "source_location": "L540",
       "_origin": "ast",
       "id": "ui_src_main_unprovencomment",
-      "community": 54,
+      "community": 102,
       "norm_label": "unprovencomment()"
     },
     {
@@ -20522,7 +20522,7 @@
       "source_location": "L927",
       "_origin": "ast",
       "id": "ui_src_main_ismobiletextentry",
-      "community": 34,
+      "community": 45,
       "norm_label": "ismobiletextentry()"
     },
     {
@@ -20732,7 +20732,7 @@
       "source_location": "L1095",
       "_origin": "ast",
       "id": "ui_src_main_updatepublishstate",
-      "community": 34,
+      "community": 45,
       "norm_label": "updatepublishstate()"
     },
     {
@@ -20742,7 +20742,7 @@
       "source_location": "L1131",
       "_origin": "ast",
       "id": "ui_src_main_stagemediafile",
-      "community": 34,
+      "community": 45,
       "norm_label": "stagemediafile()"
     },
     {
@@ -21612,7 +21612,7 @@
       "source_location": "L3210",
       "_origin": "ast",
       "id": "ui_src_main_postimageshtml",
-      "community": 45,
+      "community": 1,
       "norm_label": "postimageshtml()"
     },
     {
@@ -21622,7 +21622,7 @@
       "source_location": "L3217",
       "_origin": "ast",
       "id": "ui_src_main_mediaattr",
-      "community": 45,
+      "community": 1,
       "norm_label": "mediaattr()"
     },
     {
@@ -21662,7 +21662,7 @@
       "source_location": "L3258",
       "_origin": "ast",
       "id": "ui_src_main_sharedpost",
-      "community": 45,
+      "community": 1,
       "norm_label": "sharedpost()"
     },
     {
@@ -22742,7 +22742,7 @@
       "source_location": "L6669",
       "_origin": "ast",
       "id": "ui_src_main_syncmobileviewport",
-      "community": 34,
+      "community": 45,
       "norm_label": "syncmobileviewport()"
     },
     {
@@ -24062,7 +24062,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "ui_src_media_mediauris",
-      "community": 45,
+      "community": 1,
       "norm_label": "mediauris()"
     },
     {
@@ -25272,7 +25272,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_notiftrust",
-      "community": 102,
+      "community": 11,
       "norm_label": "notiftrust.ts"
     },
     {
@@ -25282,7 +25282,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "ui_src_notiftrust_splitnotifs",
-      "community": 102,
+      "community": 11,
       "norm_label": "splitnotifs()"
     },
     {
@@ -25602,7 +25602,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_postgone",
-      "community": 11,
+      "community": 1,
       "norm_label": "postgone.ts"
     },
     {
@@ -25612,7 +25612,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_src_postgone_whygone",
-      "community": 11,
+      "community": 1,
       "norm_label": "whygone"
     },
     {
@@ -25622,7 +25622,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ui_src_postgone_gone_message",
-      "community": 11,
+      "community": 1,
       "norm_label": "gone_message"
     },
     {
@@ -30892,7 +30892,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_notiftrust_test",
-      "community": 102,
+      "community": 11,
       "norm_label": "notiftrust.test.ts"
     },
     {
@@ -30952,7 +30952,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_postgone_test",
-      "community": 11,
+      "community": 1,
       "norm_label": "postgone.test.ts"
     },
     {
@@ -126541,7 +126541,7 @@
       "relation": "references",
       "confidence": "EXTRACTED",
       "source_file": "CHANGELOG.md",
-      "source_location": "L231",
+      "source_location": "L240",
       "weight": 1.0,
       "source": "changelog",
       "target": "readme",
@@ -127549,5 +127549,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d3e156a8b153d1ce5889e3b013c188da0fbe4321"
+  "built_at_commit": "e69d23bb995c24d9f290a098a2cd9f4370cebc3b"
 }

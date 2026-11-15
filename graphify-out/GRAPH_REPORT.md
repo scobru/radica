@@ -1,7 +1,7 @@
 # Graph Report - radica  (2026-11-15)
 
 ## Corpus Check
-- 281 files · ~811,504 words
+- 281 files · ~811,751 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d3e156a8`
+- Built from commit: `e69d23bb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -157,8 +157,8 @@
 
 ## Import Cycles
 - 3-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
-- 4-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
+- 4-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
 ## Communities (128 total, 12 thin omitted)
@@ -168,8 +168,8 @@ Cohesion: 0.12
 Nodes (33): BIP39_WORDLIST, AFT_TIER_SPEC, AFT_TIERS, aftDayIndexInYear(), AftTier, AftTokenAssignment, buildAftSignatureContent(), check2Of() (+25 more)
 
 ### Community 1 - "RiverRooms"
-Cohesion: 0.26
-Nodes (12): stageRepost(), hasUserReposted(), repostBody(), repostCaption(), repostCard(), repostCountsOf(), repostLink(), repostRef (+4 more)
+Cohesion: 0.15
+Nodes (18): mediaAttr(), postImagesHtml(), sharedPost(), stageRepost(), mediaUris(), GONE_MESSAGE, whyGone, hasUserReposted() (+10 more)
 
 ### Community 2 - "lib.rs"
 Cohesion: 0.09
@@ -285,7 +285,7 @@ Nodes (11): CommunitySort, compare(), findCommunities(), FinderInput, FinderResu
 
 ### Community 34 - "NotificationItem"
 Cohesion: 0.00
-Nodes (481): accentSelect, activeFilterBanner, activeFilterPrefix, activeFilterTag, addModForm, addModPubkeyInput, alerted, allCommunities (+473 more)
+Nodes (477): accentSelect, activeFilterBanner, activeFilterPrefix, activeFilterTag, addModForm, addModPubkeyInput, alerted, allCommunities (+469 more)
 
 ### Community 35 - "secretChat.ts"
 Cohesion: 0.17
@@ -325,7 +325,7 @@ Nodes (12): compilerOptions, allowImportingTsExtensions, lib, module, moduleReso
 
 ### Community 45 - "icons.ts"
 Cohesion: 0.07
-Nodes (71): fillAsocial(), linkify(), renderComment(), deltaCard(), fillDelta(), pageHref(), fillFh(), fillFreenames() (+63 more)
+Nodes (70): fillAsocial(), linkify(), renderComment(), deltaCard(), fillDelta(), pageHref(), fillFh(), fillFreenames() (+62 more)
 
 ### Community 46 - "handleJoinFromInviteUrl"
 Cohesion: 0.23
@@ -348,8 +348,8 @@ Cohesion: 0.06
 Nodes (59): CHAT_TOKEN_RE, chatText(), escMd(), extractCommentMedia(), isSafeUrl(), LINK_RE, linkCard(), md() (+51 more)
 
 ### Community 54 - "avatar.ts"
-Cohesion: 0.22
-Nodes (4): unprovenComment(), PostReactionEvaluation, TrustBadgeInfo, WebOfTrust
+Cohesion: 0.24
+Nodes (3): PostReactionEvaluation, TrustBadgeInfo, WebOfTrust
 
 ### Community 55 - "delegate.ts"
 Cohesion: 0.17
@@ -493,7 +493,7 @@ Nodes (13): BlobVideoRef, filterVideoReels(), formatBlobVideoCaption(), isVideoR
 
 ### Community 102 - "treePage.ts"
 Cohesion: 0.06
-Nodes (63): addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards(), loadLocalBoards() (+55 more)
+Nodes (64): addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards(), loadLocalBoards() (+56 more)
 
 ### Community 103 - "musicPage.ts"
 Cohesion: 0.27

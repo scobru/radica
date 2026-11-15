@@ -1,16 +1,16 @@
-# Graph Report - radica  (2026-11-14)
+# Graph Report - radica  (2026-11-15)
 
 ## Corpus Check
-- 281 files · ~811,282 words
+- 281 files · ~811,672 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3314 nodes · 8842 edges · 127 communities (116 shown, 11 thin omitted)
+- 3314 nodes · 8842 edges · 128 communities (116 shown, 12 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 146 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5d1304b4`
+- Built from commit: `e69d23bb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -26,6 +26,7 @@
 - [[_COMMUNITY_dependencies|dependencies]]
 - [[_COMMUNITY_compilerOptions|compilerOptions]]
 - [[_COMMUNITY_moderation.ts|moderation.ts]]
+- [[_COMMUNITY_postGone.ts|postGone.ts]]
 - [[_COMMUNITY_resetPublishBtnState|resetPublishBtnState]]
 - [[_COMMUNITY_vite.config.ts|vite.config.ts]]
 - [[_COMMUNITY_signOut|signOut]]
@@ -160,22 +161,22 @@
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (127 total, 11 thin omitted)
+## Communities (128 total, 12 thin omitted)
 
 ### Community 0 - "main.ts"
 Cohesion: 0.12
 Nodes (33): BIP39_WORDLIST, AFT_TIER_SPEC, AFT_TIERS, aftDayIndexInYear(), AftTier, AftTokenAssignment, buildAftSignatureContent(), check2Of() (+25 more)
 
 ### Community 1 - "RiverRooms"
-Cohesion: 0.12
-Nodes (26): addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards(), loadLocalBoards() (+18 more)
+Cohesion: 0.15
+Nodes (18): mediaAttr(), postImagesHtml(), sharedPost(), stageRepost(), mediaUris(), GONE_MESSAGE, whyGone, hasUserReposted() (+10 more)
 
 ### Community 2 - "lib.rs"
 Cohesion: 0.09
 Nodes (72): BTreeSet, main(), SigningKey, state(), an_author_takes_back_a_comment_with_an_empty_version(), check_comment(), check_post(), Comment (+64 more)
 
 ### Community 3 - "init"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (59): generateDefaultAvatar(), escapeHtml(), safeUrl(), shortenKey(), renderIcon(), applyChatLayoutAttr(), applyProfile(), attachBubbleDeleteListeners() (+51 more)
 
 ### Community 4 - "scripts"
@@ -299,8 +300,8 @@ Cohesion: 0.14
 Nodes (32): closeModal(), hasOpenModal(), installModalDismiss(), openModals(), ActiveView, clearSelectedPostCard(), closeOtherPages(), findNextCardIndex() (+24 more)
 
 ### Community 39 - "createMessengerChat"
-Cohesion: 0.13
-Nodes (38): GENESIS, bodies(), CHAT_REACTIONS, compactLog(), directoryWeights(), DM_ENTRY_TYPES, enc, entryJson (+30 more)
+Cohesion: 0.11
+Nodes (37): bodies(), CHAT_REACTIONS, compactLog(), directoryWeights(), DM_ENTRY_TYPES, enc, entryJson, foldAiHolds() (+29 more)
 
 ### Community 40 - "Reader"
 Cohesion: 0.14
@@ -323,8 +324,8 @@ Cohesion: 0.15
 Nodes (12): compilerOptions, allowImportingTsExtensions, lib, module, moduleResolution, noEmit, skipLibCheck, strict (+4 more)
 
 ### Community 45 - "icons.ts"
-Cohesion: 0.08
-Nodes (46): linkify(), alertUnread(), amGlobalMod(), checkCommunitiesOnNetwork(), copyUserWallLink(), deleteCommentFromCard(), deletePostFromCard(), globalRemove() (+38 more)
+Cohesion: 0.07
+Nodes (70): fillAsocial(), linkify(), renderComment(), deltaCard(), fillDelta(), pageHref(), fillFh(), fillFreenames() (+62 more)
 
 ### Community 46 - "handleJoinFromInviteUrl"
 Cohesion: 0.23
@@ -347,7 +348,7 @@ Cohesion: 0.06
 Nodes (59): CHAT_TOKEN_RE, chatText(), escMd(), extractCommentMedia(), isSafeUrl(), LINK_RE, linkCard(), md() (+51 more)
 
 ### Community 54 - "avatar.ts"
-Cohesion: 0.26
+Cohesion: 0.24
 Nodes (3): PostReactionEvaluation, TrustBadgeInfo, WebOfTrust
 
 ### Community 55 - "delegate.ts"
@@ -375,8 +376,8 @@ Cohesion: 0.09
 Nodes (54): a_failed_rewrite_of_a_record_leaves_it_whole(), a_node_answering_ends_the_wait_and_the_directory_goes_when_the_installer_exits(), an_installer_left_open_past_the_deadline_is_reported(), applications_dir(), binary_install_path(), copy_app_from(), copy_tree(), extract_freenet() (+46 more)
 
 ### Community 61 - "createMessengerChat"
-Cohesion: 0.12
-Nodes (32): addReadKeys(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer(), encryptWithSymmetricKey() (+24 more)
+Cohesion: 0.14
+Nodes (33): addReadKeys(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), enc, encryptDirectMessage(), encryptRoomKeyForPeer(), encryptWithSymmetricKey() (+25 more)
 
 ### Community 62 - "translate.ts"
 Cohesion: 0.34
@@ -468,7 +469,7 @@ Nodes (15): applySvgViewBoxOnly(), handleNodeDoubleClick(), handleNodeSelect(), 
 
 ### Community 96 - "freetunes.test.ts"
 Cohesion: 0.08
-Nodes (37): FEED_TARGET, feedBytes(), formatBytes(), oldestToFree(), postBytes(), yieldToMain(), MailMessage, applyAccent() (+29 more)
+Nodes (35): FEED_TARGET, feedBytes(), formatBytes(), oldestToFree(), postBytes(), yieldToMain(), MailMessage, applyAccent() (+27 more)
 
 ### Community 97 - "delta.ts"
 Cohesion: 0.19
@@ -492,7 +493,7 @@ Nodes (13): BlobVideoRef, filterVideoReels(), formatBlobVideoCaption(), isVideoR
 
 ### Community 102 - "treePage.ts"
 Cohesion: 0.06
-Nodes (78): fillAsocial(), nodeOrigin(), renderComment(), deltaCard(), fillDelta(), pageHref(), fillFh(), fillFreenames() (+70 more)
+Nodes (64): addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards(), loadLocalBoards() (+56 more)
 
 ### Community 103 - "musicPage.ts"
 Cohesion: 0.27
@@ -571,13 +572,13 @@ Cohesion: 0.50
 Nodes (6): isSporeRadioLive(), RADIO_HEARTBEATS, recordSporeRadioHeartbeat(), sporeRadioCard(), sporeRadioLink(), SporeRadioRef
 
 ### Community 127 - "renderWelcomeSuggestions"
-Cohesion: 0.29
-Nodes (7): finishWelcome(), hasDefaultName(), isJoined(), maybeShowWelcome(), renderWelcomeSuggestions(), welcomeDoneKey(), welcomeStep()
+Cohesion: 0.33
+Nodes (6): finishWelcome(), hasDefaultName(), maybeShowWelcome(), renderWelcomeSuggestions(), welcomeDoneKey(), welcomeStep()
 
 ## Knowledge Gaps
 - **915 isolated node(s):** `name`, `private`, `type`, `start`, `test` (+910 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
