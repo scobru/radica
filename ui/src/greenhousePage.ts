@@ -8,6 +8,7 @@ import { verifyReceipt, supporterStorageKey, type SupporterTier } from "./suppor
 import { foldGreenhouse, formatSeedsForAi, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "./types.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
+import { verifiedPohs, parseStoredPoh } from "./viso.ts";
 import { renderIcon } from "./icons.ts";
 
 export interface GreenhouseLinfaInfo {
@@ -29,6 +30,11 @@ const myGhostkey = (): string | null => {
   return me ? safeStorage.getItem(`radica_ghostkey_${me}`) : null;
 };
 
+const myPoh = (): string | null => {
+  const me = whoAmI();
+  return me ? (parseStoredPoh(safeStorage.getItem(`radica_poh_${me}`))?.proof ?? null) : null;
+};
+
 const myToken = (): string | null => {
   const me = whoAmI();
   return me ? safeStorage.getItem(supporterStorageKey(me)) : null;
@@ -48,10 +54,13 @@ async function tiers(): Promise<(author: string) => SupporterTier | undefined> {
   // a verified Freenet GhostKey votes with the top weight: it is Freenet's own donor proof
   const ghosts = new Set(await verifiedGhostkeys(freenet.ghostkeyBundles()).catch(() => [] as string[]));
   if (me && myGhostkey()) ghosts.add(me);
+  // an anonymous Viso Proof-of-Personhood holder votes against Sybils with Sprout weight (1 vote per human)
+  const humans = new Set(await verifiedPohs(freenet.pohProofs()).catch(() => [] as string[]));
+  if (me && myPoh()) humans.add(me);
   return (author) => {
     if (ghosts.has(author) || author === RADICA_MAINTAINER) return "oak"; // the maintainer votes with the top weight too
     const t = tokens.get(author);
-    return (t && verified.get(`${author}|${t}`)) || undefined;
+    return (t && verified.get(`${author}|${t}`)) || (humans.has(author) ? "sprout" : undefined);
   };
 }
 
@@ -108,7 +117,7 @@ export async function renderGreenhouse(): Promise<void> {
     gate.style.display = canVote ? "none" : "";
     if (!canVote) {
       const progress = linfaInfo.myStage ? ` (your plant: <b>${escapeHtml(linfaInfo.myStage)}</b>, ${Math.floor(linfaInfo.myTotal ?? 0)} / 12 Linfa)` : "";
-      gate.innerHTML = `Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network)${progress}, or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).`;
+      gate.innerHTML = `Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network)${progress}, or verify via <b>Identity → Support Radica</b> (Supporter badge, Freenet GhostKey, or Viso Human Proof).`;
     }
   }
   const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0, AI_REPORTERS);
@@ -120,7 +129,7 @@ let lastRenderedSeeds: Seed[] = [];
 
 async function append(body: object): Promise<void> {
   const token = myToken();
-  if (!token && !myGhostkey() && whoAmI() !== RADICA_MAINTAINER && myLinfaWeight <= 0) return;
+  if (!token && !myGhostkey() && !myPoh() && whoAmI() !== RADICA_MAINTAINER && myLinfaWeight <= 0) return;
   await freenet.greenhouseAppend(token ? { ...body, receipt: token } : body); // a GhostKey's proof is on the ghostkeys log, and Linfa is checked from signed posts
   await renderGreenhouse();
 }

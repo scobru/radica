@@ -43,6 +43,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 4. 🌐 Cryptographic Personas & Decentralized Storage
 - **Passwordless Identity**: Personas are derived client-side using Ed25519 keypairs. Public keys serve as unique addresses (`@pubkey...`).
+- **Viso Anonymous GitHub PoH & Persona Delegation (`DelegationProofV1`)**: Personas backed by Viso's RFC 9474 Blind-RSA (`poh:github`) attestation verify locally in WebCrypto, lifting newcomer PoW limits, granting 1 Greenhouse vote, and rendering a `🛡️ Verified Human` + `GitHub` badge across feed posts, profiles, and the sidebar. Legacy or destroyed Freenet personas can link a dual-signed `DelegationProofV1` in **Identity → Viso Persona Delegation** to inherit PoH verification from an active Viso persona.
 - **Cryptographically Signed State**: Every post, like, comment, and community interaction is signed by the author's private key.
 - **Join-Semilattice WASM Contract**: The Rust smart contract (`radica_contract.wasm`) guarantees idempotent delta merges, conflict resolution, and deterministic state convergence across all Freenet peers.
 
@@ -108,7 +109,8 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Reposts tab** on every profile, beside Posts.
 
 ### 13. ⚙️ Dedicated Settings, Decluttered Rail & Wall-First Profiles
-- **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) and a quick-navigation **Account, Safety & Guide** hub live in Settings (`g ,`), keeping the primary left rail compact (`Feed`, `Chat`, `Mail`, `Activity`, `Moments`, `Tree`, `Communities`, `Greenhouse`, `Settings`) while tucking utility/illustrative pages (`Identity`, `Blocklists`, `Updates`, `Guide`) cleanly under `More`.
+- **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) and a quick-navigation **Account, Safety & Guide** hub live in Settings (`g ,`), keeping the primary left rail compact (`Feed`, `Chat`, `Mail`, `Activity`, `Moments`, `Tree`, `Communities`, `Greenhouse`, `Apps`, `Settings`) while tucking utility/illustrative pages (`Identity`, `Blocklists`, `Updates`, `Guide`) cleanly under `More`.
+- **Apps Launcher (`#apps-modal`, `g e`)**: Built-in Freenet ecosystem hub where you can search, filter (`All`, `Pinned`, `On Node`, `Built-in`), pin (`★`) companion dApps, jump into built-in Radica views, launch contracts in a dedicated tab on your own Freenet node (so Freenet's gateway wraps each app in its own isolated shell), and save custom Freenet site keys in durable storage.
 - **Wall-First Profiles, Markdown Bios & Shareable Wall Links (`#user=<pubkey>`)**: Public profiles show a persona's Wall (`Posts` / `Reposts`) immediately on the left with Linfa, channels, and companion Freenet apps in a sticky right sidebar, render profile bios with full Markdown formatting (`@mentions`, `#hashtags`, links, and preserved line breaks/spacing), and include 1-click **Share Wall** (`#user=<pubkey>`, formatted automatically as `↪ Name's Wall`) and **View in Feed** controls.
 - **Instant Synchronization**: Theme accents (Radici, Ocean, Plum, Slate) and full-width layout changes persist across reloads and sync seamlessly with the node.
 
@@ -295,7 +297,7 @@ npm run test:app   # Freenet installer/probe tests
 - **Upstream Repository**: [dan-divy/spruce](https://github.com/dan-divy/spruce)
 - **Author & Maintainer**: [Francesco Bruno (scobru)](https://github.com/scobru/radica)
 - **Decentralized Network**: [Freenet Project](https://freenet.org)
-- **Decentralized Identity Provider**: [Viso (scobru/viso)](https://github.com/scobru/viso) (Freenet persona delegation & cryptographic sign-in)
+- **Decentralized Identity Provider**: [Viso (scobru/viso)](https://github.com/scobru/viso) (Freenet persona delegation, `DelegationProofV1` persona handoff, anonymous RFC 9474 Blind-RSA `poh:github` Proof-of-Personhood badges & cryptographic sign-in)
 - **Freenet dApp Architecture**: [Freenet River](https://github.com/freenet/river) (WASM state contract patterns & P2P sync reference)
 - **Freenet Companion Ecosystem**:
   - [FreeTunes](https://github.com/scobru/freetunes) (Decentralized music player & releases)
@@ -305,7 +307,9 @@ npm run test:app   # Freenet installer/probe tests
   - [Fisherman's Horizon](https://github.com/scobru/FH) (Curated Freenet bookmark lists)
   - [FreeHole](https://github.com/scobru/freehole) (Decentralized file transfer via Freenet chunk contracts with Reed-Solomon redundancy)
   - [Freetree](https://github.com/scobru/freetree) (Decentralized Linktree for Freenet & Delta)
-  - [Spore](https://github.com/scobru/spore) (Sovereign P2P desktop music client; Soulseek-style crate digging & library sharing on Freenet)
+  - [Aula](https://github.com/scobru/aula) (`GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes`) (Decentralized classroom & coursework on Freenet: classes, assignments, grades)
+  - **Hive** (`AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A`) (Decentralized Git & code collaboration on Freenet)
+  - **Atlas** (`771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) (Companion Freenet web app available in the Apps Launcher)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
 

@@ -106,7 +106,6 @@
   "104": "ante.ts",
   "105": "WORMHOLE_PATH",
   "106": "wormholeHref",
-  "107": "durable.ts",
   "108": "TASK-001: Responsive 13.3\" Laptop Layout for Wall & Profile Modal",
   "109": "Reader",
   "110": "moments.test.ts",
@@ -122,16 +121,9 @@
   "120": "TASK-009: Dedicated Events Calendar & RSVP System (Luma / Meetup)",
   "121": "mentionPicker.ts",
   "122": "ecosystem.ts",
-  "123": "versionCheck.ts",
   "124": "rootsfx.ts",
   "125": "anchorElementInViewport",
   "126": "syncMobileViewport",
   "127": "postGone.ts",
-  "128": "splitNotifs",
-  "129": "moderation.ts",
-  "130": "likers",
-  "131": "milestones.ts",
-  "132": "MailMessage",
-  "133": "savedPosts.ts",
-  "134": "chatModPass"
+  "131": "milestones.ts"
 }

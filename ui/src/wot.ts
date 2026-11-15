@@ -34,6 +34,8 @@ export class WebOfTrust {
   public readonly supporters: Set<string>;
   /** People a Freenet GhostKey vouches for: trusted like supporters. */
   public readonly ghostkeys: Set<string>;
+  /** People verified by an anonymous Viso Proof-of-Personhood (e.g. GitHub): trusted against Sybils. */
+  public readonly humans: Set<string>;
 
   constructor(
     me: string,
@@ -41,11 +43,13 @@ export class WebOfTrust {
     trustedCurators: string[] = [],
     followingOf: (pubkey: string) => string[] = () => [],
     supporters: string[] = [],
-    ghostkeys: string[] = []
+    ghostkeys: string[] = [],
+    humans: string[] = []
   ) {
     this.me = me;
     this.supporters = new Set(supporters);
     this.ghostkeys = new Set(ghostkeys);
+    this.humans = new Set(humans);
     this.tier1 = new Set([me, ...directFollowing, ...trustedCurators]);
 
     // Build Tier 2 from connections of Tier 1 members
@@ -63,7 +67,7 @@ export class WebOfTrust {
 
   public trustTier(pubkey: string): 0 | 1 | 2 {
     if (this.tier1.has(pubkey)) return 1;
-    if (this.tier2.has(pubkey) || this.supporters.has(pubkey) || this.ghostkeys.has(pubkey)) return 2;
+    if (this.tier2.has(pubkey) || this.supporters.has(pubkey) || this.ghostkeys.has(pubkey) || this.humans.has(pubkey)) return 2;
     return 0;
   }
 
@@ -78,7 +82,7 @@ export class WebOfTrust {
   }
 
   public isTrusted(pubkey: string): boolean {
-    return this.tier1.has(pubkey) || this.tier2.has(pubkey) || this.supporters.has(pubkey) || this.ghostkeys.has(pubkey);
+    return this.tier1.has(pubkey) || this.tier2.has(pubkey) || this.supporters.has(pubkey) || this.ghostkeys.has(pubkey) || this.humans.has(pubkey);
   }
 
   /**
@@ -110,6 +114,16 @@ export class WebOfTrust {
         badgeClass: "badge-trusted-tier2 badge-ghostkey",
         icon: "👻",
         description: "Vouched for by a Freenet GhostKey",
+      };
+    }
+    if (this.humans.has(pubkey)) {
+      return {
+        tier,
+        isTrusted: true,
+        label: "Verified Human",
+        badgeClass: "badge-trusted-tier2 badge-poh-human",
+        icon: "🛡️",
+        description: tier === 1 ? (pubkey === this.me ? "Your profile · Anonymous Proof-of-Personhood via Viso (GitHub)" : "Anonymous Proof-of-Personhood via Viso (GitHub) · in your roots") : "Anonymous Proof-of-Personhood via Viso (GitHub)",
       };
     }
     if (tier === 1) {

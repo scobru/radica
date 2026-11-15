@@ -2,8 +2,13 @@
 // The node serving it is untrusted: the profile slot is shown only when its signature by the persona key checks out.
 // Format: github.com/scobru/viso, docs/resources.md and common/src/state.rs.
 import * as ed from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
 import { blake3 } from "@noble/hashes/blake3.js";
+import { fromBase58, toBase58 } from "./base58.ts";
 import { asBytes, asNumber, asString, cborDecode, cborEncode, mapGet } from "./cbor.ts";
+
+if (!ed.etc.sha512Sync) ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+if (!ed.etc.sha512Async) ed.etc.sha512Async = (...m) => Promise.resolve(sha512(ed.etc.concatBytes(...m)));
 
 /** blake3 of Viso's identity_contract.wasm (ui/contracts, pinned in scripts/wasm-hashes.txt by its sha256 29aaf06a…).
  *  shortcut: a new Viso contract build moves every persona's address; update this hash with it. */
@@ -32,6 +37,332 @@ export function visoGhostkeyOf(state: Uint8Array): string | null {
   } catch {
     return null;
   }
+}
+
+/** A pinned Blind-RSA PoH issuer public key (matches `viso_core::poh::PohIssuer`). */
+export interface PohIssuer {
+  keyId: string;
+  provider: string;
+  tier: string;
+  epoch: string;
+  /** SubjectPublicKeyInfo (DER) hex of the RSA issuer public key. */
+  spkiDerHex: string;
+}
+
+/** Verified Proof-of-Personhood attestation badge (matches `viso_core::poh::PohBadge`). */
+export interface PohBadge {
+  provider: string;
+  tier: string;
+  epoch: string;
+  keyId: string;
+}
+
+/**
+ * Trusted production Viso PoH issuers (`RSABSSA-SHA384-PSS-Randomized`, RFC 9474).
+ * Synced alongside `viso_core::poh::POH_ISSUERS` via `viso/scripts/sync-poh-issuers.ps1`.
+ */
+// BEGIN VISO_POH_ISSUERS
+export const VISO_POH_ISSUERS: readonly PohIssuer[] = [
+  { keyId: "github:age1y:2026", provider: "github", tier: "age1y", epoch: "2026", spkiDerHex: "30820122300d06092a864886f70d01010105000382010f003082010a0282010100d0670e59f5de85661c4d5b0ceff1e61ec25fa5710a41dd53a070c1caf817cf47b1e10a3f950802c32cb126481bfaa5f093fd80919e18f40f89a2375c198a70871b320b9faed46a0c1cf98c629d379c73e806f8b31742f10350b875a92909465b9b98fdf2c651bd609080d3eec4d6bbaa87bd5ed2c51164a4c77b1b38e5b70644906fa4eee9d55f7a791b048e9f50cad376ec5bb3919a764055f5c938c795a5d18dbf8523f773c8ed3e30bbbd850e6b16708a25ed75f4942d84f8973396eac8f820ea0f07c0a48a5912bbcd10f4e82fcbf96d565260c4329d4765f4420bc7a67ff7a1144fccdbfd11efb34b348332245171feae11ab9170e9c9cc237a0c7c2cff0203010001" },
+];
+// END VISO_POH_ISSUERS
+
+const pohKeyCache = new Map<string, Promise<CryptoKey>>();
+
+function importPohKey(keyId: string, spkiDerHex: string): Promise<CryptoKey> {
+  const k = `${keyId}|${spkiDerHex}`;
+  let p = pohKeyCache.get(k);
+  if (!p) {
+    p = globalThis.crypto.subtle.importKey(
+      "spki",
+      hex(spkiDerHex) as Uint8Array<ArrayBuffer>,
+      { name: "RSA-PSS", hash: "SHA-384" },
+      false,
+      ["verify"],
+    );
+    pohKeyCache.set(k, p);
+  }
+  return p;
+}
+
+/** Domain-separated PoH message bound to `(keyId, pkHex)`: `"viso-poh-v1" || u32le(len) || keyId || pk32`. */
+export function pohMsg(keyId: string, pkHex: string): Uint8Array {
+  const pk = hex(pkHex);
+  if (pk.length !== 32) throw new Error("expected 32-byte Ed25519 pubkey hex");
+  const kb = enc.encode(keyId);
+  return cat(enc.encode("viso-poh-v1"), u32le(kb.length), kb, pk);
+}
+
+/** Raw `poh:<provider>` slot bytes (CBOR `PohAttestationV1`), or null if absent, empty, or persona destroyed. */
+export function visoPohRawOf(state: Uint8Array, slotName = "poh:github"): Uint8Array | null {
+  try {
+    const s = cborDecode(state);
+    if (mapGet(s, "destroyed") != null) return null;
+    const b = asBytes(mapGet(mapGet(mapGet(s, "slots"), slotName), "bytes"));
+    return b.length ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Verify a CBOR `PohAttestationV1` slot payload against `pkHex` and `issuers` via RFC 9474 RSABSSA-SHA384-PSS-Randomized. */
+export async function verifyVisoPoh(
+  attBytes: Uint8Array,
+  pkHex: string,
+  issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
+): Promise<PohBadge | null> {
+  try {
+    if (!attBytes.length) return null;
+    const att = cborDecode(attBytes);
+    if (asNumber(mapGet(att, "version")) !== 1) return null;
+    const keyId = asString(mapGet(att, "key_id"));
+    const msgRandomizer = asBytes(mapGet(att, "msg_randomizer"));
+    const sig = asBytes(mapGet(att, "sig"));
+    if (!keyId || msgRandomizer.length !== 32 || !sig.length) return null;
+    const issuer = issuers.find((i) => i.keyId === keyId);
+    if (!issuer) return null;
+    const cryptoKey = await importPohKey(issuer.keyId, issuer.spkiDerHex);
+    const input = cat(msgRandomizer, pohMsg(keyId, pkHex));
+    const ok = await globalThis.crypto.subtle.verify(
+      { name: "RSA-PSS", saltLength: 48 },
+      cryptoKey,
+      sig as Uint8Array<ArrayBuffer>,
+      input as Uint8Array<ArrayBuffer>,
+    );
+    return ok ? { provider: issuer.provider, tier: issuer.tier, epoch: issuer.epoch, keyId } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Verified PoH badges (`poh:*` slots) in a Viso persona's identity contract state. */
+export async function visoPohOf(
+  state: Uint8Array,
+  pkHex: string,
+  issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
+): Promise<PohBadge[]> {
+  try {
+    const s = cborDecode(state);
+    if (mapGet(s, "destroyed") != null) return [];
+    const slots = mapGet(s, "slots");
+    if (!(slots instanceof Map)) return [];
+    const out: PohBadge[] = [];
+    for (const [k, v] of slots.entries()) {
+      if (typeof k !== "string" || !k.startsWith("poh:")) continue;
+      const bytes = asBytes(mapGet(v, "bytes"));
+      if (!bytes.length) continue;
+      const badge = await verifyVisoPoh(bytes, pkHex, issuers);
+      if (badge) out.push(badge);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export interface PohLogEntry {
+  author: string;
+  proof: string | null;
+  delegation?: DelegationProofV1 | null;
+}
+
+export interface StoredPohRecord {
+  proof: string;
+  delegation?: DelegationProofV1;
+}
+
+export interface DelegationProofV1 {
+  version: number;
+  from: string;
+  to: string;
+  scope: string;
+  time_ms: number;
+  sig_from: string;
+  sig_to: string;
+}
+
+export interface VerifiedDelegation {
+  fromHex: string;
+  toHex: string;
+  fromB58: string;
+  toB58: string;
+  scope: string;
+  time_ms: number;
+}
+
+/** Parse a 32-byte Ed25519 pubkey encoded as base58 (preferred) or 64-char hex into lowercase hex. */
+export function parseVisoPubkeyHex(s: string): string | null {
+  try {
+    const trimmed = s.trim();
+    if (!trimmed) return null;
+    const bytes = /^[0-9a-fA-F]{64}$/.test(trimmed) ? hex(trimmed.toLowerCase()) : fromBase58(trimmed);
+    return bytes.length === 32 ? ed.etc.bytesToHex(bytes) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isValidDelegationScope(scope: string): boolean {
+  if (!scope || scope.length > 128) return false;
+  for (let i = 0; i < scope.length; i++) {
+    const c = scope.charCodeAt(i);
+    if (c < 0x21 || c > 0x7e || c === 0x22 || c === 0x5c) return false;
+  }
+  return true;
+}
+
+export function delegationScopeMatches(scope: string, accepted: readonly string[] = ["*", "radica"]): boolean {
+  if (!isValidDelegationScope(scope)) return false;
+  if (accepted.includes(scope)) return true;
+  return scope.startsWith("/v1/contract/web/") || scope.startsWith("/v2/contract/web/");
+}
+
+/** Canonical Viso `DelegationProofV1` signed bytes: `"viso-delegation-v1" || from(32) || to(32) || u32le(len) || scope || u64le(time_ms)`. */
+export function delegationMsg(fromBytes: Uint8Array, toBytes: Uint8Array, scope: string, timeMs: number): Uint8Array {
+  const sb = enc.encode(scope);
+  return cat(enc.encode("viso-delegation-v1"), fromBytes, toBytes, u32le(sb.length), sb, u64le(timeMs));
+}
+
+export function isDelegationProofShape(v: unknown): v is DelegationProofV1 {
+  if (!v || typeof v !== "object") return false;
+  const p = v as Record<string, unknown>;
+  return (
+    typeof p.version === "number" &&
+    typeof p.from === "string" &&
+    typeof p.to === "string" &&
+    typeof p.scope === "string" &&
+    typeof p.time_ms === "number" &&
+    typeof p.sig_from === "string" &&
+    typeof p.sig_to === "string"
+  );
+}
+
+/** Verify a dual-signed Viso `DelegationProofV1` (JSON string or object). */
+export async function verifyVisoDelegation(
+  input: string | DelegationProofV1,
+  expectedFromHex?: string,
+  acceptedScopes: readonly string[] = ["*", "radica"],
+): Promise<VerifiedDelegation | null> {
+  try {
+    const proof: unknown = typeof input === "string" ? JSON.parse(input.trim()) : input;
+    if (!isDelegationProofShape(proof)) return null;
+    if (proof.version !== 1 || !Number.isSafeInteger(proof.time_ms) || proof.time_ms < 0) return null;
+    if (!delegationScopeMatches(proof.scope, acceptedScopes)) return null;
+    const fromHex = parseVisoPubkeyHex(proof.from);
+    const toHex = parseVisoPubkeyHex(proof.to);
+    if (!fromHex || !toHex || fromHex === toHex) return null;
+    if (expectedFromHex && fromHex !== expectedFromHex.toLowerCase()) return null;
+    if (!/^[0-9a-fA-F]{128}$/.test(proof.sig_from) || !/^[0-9a-fA-F]{128}$/.test(proof.sig_to)) return null;
+    const fromBytes = hex(fromHex);
+    const toBytes = hex(toHex);
+    const msg = delegationMsg(fromBytes, toBytes, proof.scope, proof.time_ms);
+    const okFrom = await ed.verifyAsync(hex(proof.sig_from.toLowerCase()), msg, fromBytes);
+    if (!okFrom) return null;
+    const okTo = await ed.verifyAsync(hex(proof.sig_to.toLowerCase()), msg, toBytes);
+    if (!okTo) return null;
+    return {
+      fromHex,
+      toHex,
+      fromB58: toBase58(fromBytes),
+      toB58: toBase58(toBytes),
+      scope: proof.scope,
+      time_ms: proof.time_ms,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const checkedDelegations = new Map<string, Promise<VerifiedDelegation | null>>();
+
+/** Verify Viso delegation entries from Radica's `"delegations"` log, caching checks per `(author, proof)`. */
+export async function verifiedDelegations(
+  entries: { author: string; proof: DelegationProofV1 | null }[],
+): Promise<Map<string, VerifiedDelegation>> {
+  const out = new Map<string, VerifiedDelegation>();
+  if (!entries.some((e) => e.proof)) return out;
+  const results = await Promise.all(
+    entries.map(({ author, proof }) => {
+      if (!proof) return Promise.resolve(null);
+      const k = `${author}|${JSON.stringify(proof)}`;
+      if (!checkedDelegations.has(k)) {
+        checkedDelegations.set(k, verifyVisoDelegation(proof, author).catch(() => null));
+      }
+      return checkedDelegations.get(k)!;
+    }),
+  );
+  entries.forEach((e, i) => {
+    const v = results[i];
+    if (v) out.set(e.author, v);
+  });
+  return out;
+}
+
+export function parseStoredPoh(raw: string | null): StoredPohRecord | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^[0-9a-fA-F]+$/.test(trimmed)) return { proof: trimmed.toLowerCase() };
+  try {
+    const parsed = JSON.parse(trimmed) as { proof?: unknown; delegation?: unknown };
+    if (typeof parsed?.proof === "string" && /^[0-9a-fA-F]+$/.test(parsed.proof)) {
+      return {
+        proof: parsed.proof.toLowerCase(),
+        ...(isDelegationProofShape(parsed.delegation) ? { delegation: parsed.delegation } : {}),
+      };
+    }
+  } catch {}
+  return null;
+}
+
+export function serializeStoredPoh(proof: string, delegation?: DelegationProofV1 | null): string {
+  return delegation ? JSON.stringify({ proof, delegation }) : proof;
+}
+
+const checkedPoh = new Map<string, Promise<PohBadge | null>>();
+
+/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge`. */
+export async function verifiedPohBadges(
+  entries: PohLogEntry[],
+  issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
+): Promise<Map<string, PohBadge>> {
+  const out = new Map<string, PohBadge>();
+  if (!entries.some((e) => e.proof) || !issuers.length) return out;
+  const issuerSig = issuers.map((i) => i.keyId).join(",");
+  const badges = await Promise.all(
+    entries.map(({ author, proof, delegation }) => {
+      if (!proof) return Promise.resolve(null);
+      const delKey = delegation ? JSON.stringify(delegation) : "";
+      const k = `${author}|${proof}|${delKey}|${issuerSig}`;
+      if (!checkedPoh.has(k)) {
+        checkedPoh.set(
+          k,
+          (async () => {
+            if (delegation) {
+              const del = await verifyVisoDelegation(delegation, author);
+              if (!del) return null;
+              return await verifyVisoPoh(hex(proof), del.toHex, issuers);
+            }
+            return await verifyVisoPoh(hex(proof), author, issuers);
+          })().catch(() => null),
+        );
+      }
+      return checkedPoh.get(k)!;
+    }),
+  );
+  entries.forEach((e, i) => {
+    const b = badges[i];
+    if (b) out.set(e.author, b);
+  });
+  return out;
+}
+
+/** Verify PoH proofs from Radica's `"poh"` log (`hex CBOR PohAttestationV1`), caching checks per `(author, proof, issuers)`. */
+export async function verifiedPohs(
+  entries: PohLogEntry[],
+  issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
+): Promise<string[]> {
+  return [...(await verifiedPohBadges(entries, issuers)).keys()];
 }
 
 /** The signed profile in a persona's identity state, or null (no profile, a destroyed persona, a bad signature). */

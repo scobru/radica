@@ -1,5 +1,19 @@
 import { AI_REPORTERS, RADICA_DEFAULT_MODS, RADICA_MAINTAINER, type SecretChatSession } from "./types.ts";
-import { visoGhostkeyOf, visoProfileOf } from "./viso.ts";
+import {
+  isDelegationProofShape,
+  verifiedDelegations,
+  verifiedPohs,
+  verifyVisoDelegation,
+  verifyVisoPoh,
+  visoGhostkeyOf,
+  visoPohOf,
+  visoPohRawOf,
+  visoProfileOf,
+  type DelegationProofV1,
+  type PohBadge,
+  type PohLogEntry,
+  type VerifiedDelegation,
+} from "./viso.ts";
 import { ANNOUNCE_POW_BITS, COMMENT_POW_BITS, postIdWithPow, solvePoW } from "./pow.ts";
 import type {
   FeedState,
@@ -483,6 +497,8 @@ export class FreenetClient {
       void this.refreshLog("directory", true); // learn who else is on the network, and publish my own entry
       void this.refreshLog("supporters", true);
       void this.refreshLog("ghostkeys", true);
+      void this.refreshLog("poh", true);
+      void this.refreshLog("delegations", true);
       void this.refreshLog("supporter-receipts", true);
       void this.refreshLog("post-edits", true);
     } catch (err) {
@@ -924,6 +940,50 @@ export class FreenetClient {
   /** Publish my GhostKey proof (so others see the badge), or null to take it back. */
   public setGhostkey(bundle: string | null): Promise<void> {
     return this.logAppend("ghostkeys", { type: "ghostkey", bundle });
+  }
+
+  /** Each author's latest Viso PoH proof (hex CBOR PohAttestationV1, optional delegation) in the "poh" log, or null when withdrawn. */
+  public pohProofs(): PohLogEntry[] {
+    const latest = new Map<string, LogEntry>();
+    for (const e of this.logEntries("poh")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
+    return [...latest.values()].map((e) => {
+      try {
+        const b = JSON.parse(e.body);
+        const p = b.proof;
+        const del = isDelegationProofShape(b.delegation) ? b.delegation : null;
+        return {
+          author: e.author,
+          proof: typeof p === "string" && /^[0-9a-f]+$/.test(p) ? p : null,
+          ...(del ? { delegation: del } : {}),
+        };
+      } catch {
+        return { author: e.author, proof: null };
+      }
+    });
+  }
+
+  /** Publish my Viso PoH proof (so others see the Verified Human / GitHub badge), or null to take it back. */
+  public setPohProof(proof: string | null, delegation?: DelegationProofV1 | null): Promise<void> {
+    return this.logAppend("poh", delegation ? { type: "poh", proof, delegation } : { type: "poh", proof });
+  }
+
+  /** Each author's latest Viso persona delegation (`DelegationProofV1`) in the "delegations" log, or null when withdrawn. */
+  public delegationProofs(): { author: string; proof: DelegationProofV1 | null }[] {
+    const latest = new Map<string, LogEntry>();
+    for (const e of this.logEntries("delegations")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
+    return [...latest.values()].map((e) => {
+      try {
+        const p = JSON.parse(e.body).proof;
+        return { author: e.author, proof: isDelegationProofShape(p) ? p : null };
+      } catch {
+        return { author: e.author, proof: null };
+      }
+    });
+  }
+
+  /** Publish my dual-signed Viso persona handoff certificate, or null to unlink it. */
+  public setDelegationProof(proof: DelegationProofV1 | null): Promise<void> {
+    return this.logAppend("delegations", { type: "delegation", proof });
   }
 
   /** Publish a donation proof (RADICA-ZK-V1 token) for the attester bot, which answers in "supporter-receipts". */
@@ -2081,6 +2141,80 @@ export class FreenetClient {
       .visoIdentity(pubkey)
       .then((state) => (state ? visoGhostkeyOf(state) : null))
       .catch(() => null);
+  }
+
+  /** Verified Viso persona delegation (`pubkey` -> active Viso persona), from local durable storage or the `"delegations"` log. */
+  public async visoDelegationOf(
+    pubkey: string,
+  ): Promise<{ raw: DelegationProofV1; verified: VerifiedDelegation } | null> {
+    const localRaw = localStorage.getItem(`radica_delegation_${pubkey}`);
+    if (localRaw) {
+      try {
+        const parsed = JSON.parse(localRaw) as DelegationProofV1;
+        const verified = await verifyVisoDelegation(parsed, pubkey);
+        if (verified) return { raw: parsed, verified };
+      } catch {}
+    }
+    const entry = this.delegationProofs().find((d) => d.author === pubkey && d.proof);
+    if (!entry?.proof) return null;
+    const verified = await verifyVisoDelegation(entry.proof, pubkey).catch(() => null);
+    return verified ? { raw: entry.proof, verified } : null;
+  }
+
+  /** Verified Viso delegation map for all authors on the `"delegations"` log. */
+  public verifiedDelegationMap(): Promise<Map<string, VerifiedDelegation>> {
+    return verifiedDelegations(this.delegationProofs());
+  }
+
+  /** Verified Viso Proof-of-Personhood badges published on `pubkey`'s Viso contract (or via a verified Viso delegation). */
+  public async visoPoh(pubkey: string): Promise<PohBadge[]> {
+    try {
+      const state = await this.net.visoIdentity(pubkey);
+      if (state) {
+        const direct = await visoPohOf(state, pubkey);
+        if (direct.length) return direct;
+      }
+      const del = await this.visoDelegationOf(pubkey);
+      if (!del) return [];
+      const targetState = await this.net.visoIdentity(del.verified.toHex);
+      return targetState ? await visoPohOf(targetState, del.verified.toHex) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Resolve and verify `poh:<provider>` slot bytes (hex) from `pubkey` or its verified Viso delegation target. */
+  public async visoPohResolved(
+    pubkey: string,
+    slot = "poh:github",
+  ): Promise<{ proofHex: string; badge: PohBadge; delegation?: DelegationProofV1 } | null> {
+    try {
+      const state = await this.net.visoIdentity(pubkey);
+      const raw = state ? visoPohRawOf(state, slot) : null;
+      if (raw) {
+        const badge = await verifyVisoPoh(raw, pubkey);
+        if (badge) return { proofHex: bytesToHex(raw), badge };
+      }
+      const del = await this.visoDelegationOf(pubkey);
+      if (!del) return null;
+      const targetState = await this.net.visoIdentity(del.verified.toHex);
+      const targetRaw = targetState ? visoPohRawOf(targetState, slot) : null;
+      if (!targetRaw) return null;
+      const badge = await verifyVisoPoh(targetRaw, del.verified.toHex);
+      return badge ? { proofHex: bytesToHex(targetRaw), badge, delegation: del.raw } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Raw CBOR `poh:<provider>` slot bytes (hex) from `pubkey`'s Viso identity contract (or delegated target), or null. */
+  public visoPohHex(pubkey: string, slot = "poh:github"): Promise<string | null> {
+    return this.visoPohResolved(pubkey, slot).then((r) => r?.proofHex ?? null);
+  }
+
+  /** Verified PoH authors from Radica's public `"poh"` log. */
+  public verifiedPohAuthors(): Promise<string[]> {
+    return verifiedPohs(this.pohProofs());
   }
 
   public getMedia(hash: string): Promise<Uint8Array | null> {

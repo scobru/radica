@@ -81,6 +81,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
           </button>
+          <button class="rail-btn" id="open-apps-btn" title="Apps · Freenet Ecosystem Launcher (g e)">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Apps</span>
+          </button>
           <span class="rail-sep rail-sep-desktop" aria-hidden="true"></span>
           <button class="rail-btn" id="settings-open-btn" title="Settings &amp; Appearance">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -342,7 +346,10 @@
           <div class="profile-page-head">
             <img class="avatar" id="pp-avatar" alt="" style="cursor: pointer;" title="View public profile" />
             <div>
-              <h1 id="pp-name" style="cursor: pointer;" title="View public profile">You</h1>
+              <div class="profile-name-row">
+                <h1 id="pp-name" style="cursor: pointer;" title="View public profile">You</h1>
+                <span id="pp-poh-badge"></span>
+              </div>
               <p class="pp-meta" id="pp-meta"></p>
               <div class="pp-bio" id="pp-bio"></div>
               <p class="pp-counts"><b id="pp-posts-count">0</b> posts · <b id="pp-roots-count">0</b> roots</p>
@@ -1175,6 +1182,35 @@
             </div>
           </div>
 
+          <!-- Or Viso Proof-of-Personhood (Blind RSA) -->
+          <div class="identity-field" id="poh-box" style="margin-top: 16px;">
+            <label><b>🛡️ Or verify as a Human via Viso (Anonymous GitHub PoH)</b></label>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px;">
+              Verified your persona in Viso with an anonymous Blind-RSA Proof-of-Personhood (e.g. a GitHub account &ge; 1 year old)? Radica verifies the cryptographic signature locally without ever learning your GitHub handle, lifts newcomer PoW limits, grants Greenhouse voting, and shows a 🛡️ badge.
+            </p>
+            <div id="poh-status" style="font-size: 0.85rem; margin-bottom: 8px;"></div>
+            <div class="identity-actions">
+              <button type="button" class="btn-secondary btn-sm" id="poh-verify-btn">🛡️ Sync Viso Human Badge</button>
+              <button type="button" class="btn-secondary btn-xs" id="poh-remove-btn" hidden>Remove</button>
+              <span id="poh-msg" style="font-size: 0.8rem;"></span>
+            </div>
+          </div>
+
+          <!-- Viso Persona Delegation (Handoff / Recovery) -->
+          <div class="identity-field" id="delegation-box" style="margin-top: 16px;">
+            <label for="delegation-proof-input"><b>🔗 Or link an active Viso persona (Delegation)</b></label>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px;">
+              Keeping an existing Radica identity (or recovering a persona whose Viso contract was destroyed)? In Viso open <b>Delegate to another persona</b>, sign a certificate toward your active persona, and paste its JSON below to inherit its GitHub PoH badge.
+            </p>
+            <div id="delegation-status" style="font-size: 0.85rem; margin-bottom: 8px;"></div>
+            <textarea id="delegation-proof-input" rows="3" placeholder='Paste DelegationProofV1 JSON from Viso...' spellcheck="false" style="width: 100%; font-family: monospace; font-size: 0.78rem; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); resize: vertical; margin-bottom: 8px;"></textarea>
+            <div class="identity-actions">
+              <button type="button" class="btn-secondary btn-sm" id="delegation-link-btn">🔗 Verify &amp; Link Persona</button>
+              <button type="button" class="btn-secondary btn-xs" id="delegation-remove-btn" hidden>Remove</button>
+              <span id="delegation-msg" style="font-size: 0.8rem;"></span>
+            </div>
+          </div>
+
           <!-- Public supporters wall -->
           <div style="margin-top: 16px;">
             <label><b>Community supporters</b></label>
@@ -1480,6 +1516,14 @@
           <p><b>Other Freenet apps it reads or writes</b>: Viso (identity), FreeNames (name registry &amp; zone sites), Fisherman's Horizon (bookmark lists), FreeTunes (release directory), FreePolls (polls &amp; its ante/proof-of-work delegate), Asocial (games site &amp; records), Freetree (link hubs), Delta (pages, pointer &amp; bundled sites), Orto (blog vault), River (chat rooms, pointer &amp; bundled rooms), and the native Freenet Mail inbox contract (v1/v2).</p>
         </details>
 
+        <details><summary>🧩 Apps Launcher (Freenet Ecosystem)</summary>
+          <ul>
+            <li><b>One home for Freenet apps</b>: Open <b>Apps</b> in the left rail (or press <code>g e</code>) to browse built-in and ecosystem dApps like Articles, River, Freenet Mail, Viso, FreeTunes, FreePolls, FreeNames, Delta, Orto, Asocial, Fisherman's Horizon, FreeHole, Freetree, Aula, Hive, and Atlas.</li>
+            <li><b>Launch on your own node</b>: Apps with a Freenet site key open straight on your local node (<code>/v1/contract/web/&lt;key&gt;/#/</code>) in a dedicated tab so Freenet's gateway wraps each app in its own isolated shell, while built-in tools (Articles, Chat, Mail, Music) can also jump right into Radica's native views.</li>
+            <li><b>Pin &amp; customize</b>: Star favorites to keep them at the top, copy node URLs in 1 click, or click <b>+ Add site</b> to save any Freenet contract key/URL to your personal launcher (persisted in your durable node package).</li>
+          </ul>
+        </details>
+
         <details><summary>🛡️ Checks on your device</summary>
           <ul>
             <li><b>Images and videos</b> are scanned on your computer before you post (for videos, a frame every 2 seconds). Clearly explicit: posting is blocked. Possibly sensitive: posted blurred until clicked, and you can untick that if the scanner is wrong. If the scanner can't run, media can't be posted.</li>
@@ -1605,6 +1649,42 @@
         <div id="updates-eco-tab-content" style="display: none; max-height: 520px; overflow-y: auto;">
           <div id="updates-ecosystem-card" class="updates-eco-section"></div>
         </div>
+      </div>
+    </div>
+    <!-- Apps Launcher: Freenet ecosystem catalog, pinned & custom Freenet sites -->
+    <div id="apps-modal" class="rail-page" style="display: none;">
+      <div class="modal-card" style="max-width: 920px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-md"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Apps</span>
+          </h3>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-secondary btn-sm" id="apps-add-toggle-btn">+ Add site</button>
+            <button type="button" class="btn-secondary btn-sm" id="apps-close-btn">✕</button>
+          </div>
+        </div>
+        <div class="apps-toolbar">
+          <input type="search" id="apps-search-input" class="apps-search-input" placeholder="Search Freenet apps, keys, authors..." autocomplete="off">
+          <div class="apps-filter-row" role="tablist" aria-label="Filter Freenet apps">
+            <button type="button" class="btn-secondary btn-xs apps-chip active" data-apps-filter="all">All</button>
+            <button type="button" class="btn-secondary btn-xs apps-chip" data-apps-filter="pinned">★ Pinned</button>
+            <button type="button" class="btn-secondary btn-xs apps-chip" data-apps-filter="node">On Node</button>
+            <button type="button" class="btn-secondary btn-xs apps-chip" data-apps-filter="builtin">Built-in</button>
+          </div>
+        </div>
+        <form id="apps-add-form" class="apps-add-form" style="display: none;">
+          <div class="apps-add-fields">
+            <input type="text" id="apps-add-name" placeholder="App name (e.g. My Wiki)" maxlength="40" required>
+            <input type="text" id="apps-add-key" placeholder="Freenet contract key or /v1/contract/web/..." maxlength="180" required>
+            <input type="text" id="apps-add-what" placeholder="Short description (optional)" maxlength="120">
+          </div>
+          <div class="apps-add-actions">
+            <button type="submit" class="btn-primary btn-sm" id="apps-add-save-btn">Save site</button>
+            <button type="button" class="btn-secondary btn-sm" id="apps-add-cancel-btn">Cancel</button>
+          </div>
+        </form>
+        <div id="apps-grid" class="apps-grid"></div>
       </div>
     </div>
     <!-- Greenhouse: supporters' ideas and bugs, with votes -->
@@ -2053,7 +2133,10 @@
         <button type="button" class="btn-secondary btn-sm panel-back-btn" id="panel-back-btn">← Back to the feed</button>
         <div class="sidebar-card profile-preview">
           <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%2310b981'/%3E%3Ccircle cx='50' cy='38' r='16' fill='%23ffffff'/%3E%3Cellipse cx='50' cy='82' rx='28' ry='20' fill='%23ffffff'/%3E%3C/svg%3E" alt="Avatar" class="avatar" id="sidebar-avatar" style="cursor: pointer;" title="My profile" />
-          <div class="profile-name" id="sidebar-name" style="cursor: pointer;" title="My profile">Anonymous Persona</div>
+          <div class="profile-name-row">
+            <div class="profile-name" id="sidebar-name" style="cursor: pointer;" title="My profile">Anonymous Persona</div>
+            <span id="sidebar-poh-badge"></span>
+          </div>
           <div class="profile-handle" id="sidebar-handle" title="My profile">@persona</div>
           <div class="profile-bio" id="sidebar-bio">No bio yet.</div>
           <div class="profile-stats">

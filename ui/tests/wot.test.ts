@@ -159,3 +159,20 @@ test("wot: a verified GhostKey makes a stranger trusted, with its own badge", ()
   // a donor badge wins over the GhostKey one
   assert.equal(new WebOfTrust(me, [], [], () => [], [ghost], [ghost]).trustBadge(ghost).label, "Supporter");
 });
+
+test("wot: a verified Viso PoH human makes a stranger trusted Tier 2 with a Verified Human badge", () => {
+  const me = "a".repeat(64);
+  const human = "8".repeat(64);
+  const wot = new WebOfTrust(me, [], [], () => [], [], [], [human]);
+  assert.equal(wot.trustTier(human), 2);
+  assert.equal(wot.isTrusted(human), true);
+  assert.equal(wot.likeWeight(human), 1);
+  assert.equal(wot.dislikeWeight(human), 1.5);
+  const badge = wot.trustBadge(human);
+  assert.equal(badge.label, "Verified Human");
+  assert.equal(badge.icon, "🛡️");
+  assert.equal(badge.badgeClass, "badge-trusted-tier2 badge-poh-human");
+  // Supporter & GhostKey badges take precedence over Verified Human
+  assert.equal(new WebOfTrust(me, [], [], () => [], [], [human], [human]).trustBadge(human).label, "GhostKey");
+  assert.equal(new WebOfTrust(me, [], [], () => [], [human], [], [human]).trustBadge(human).label, "Supporter");
+});

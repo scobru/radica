@@ -16,11 +16,15 @@ import {
   type SupporterTier,
 } from "./supporter.ts";
 import { checkGhostkey, requestGhostkeyProof, verifiedGhostkeys } from "./ghostkey.ts";
+import { parseStoredPoh, serializeStoredPoh, verifiedPohs, verifyVisoDelegation, verifyVisoPoh, type DelegationProofV1 } from "./viso.ts";
+import { hexToBytes, personaName } from "./crypto.ts";
 
 let whoAmI: () => string | null = () => null;
 let displayName: (pubkey: string) => string = (pk) => pk;
 let onBadgeChange: () => void = () => {};
 const ghostkeyKey = (pk: string) => `radica_ghostkey_${pk}`;
+const pohKey = (pk: string) => `radica_poh_${pk}`;
+const delegationKey = (pk: string) => `radica_delegation_${pk}`;
 
 /** My GhostKey proof, if I keep one: what it says, and the Remove button. */
 async function renderGhostkeyStatus() {
@@ -39,9 +43,52 @@ async function renderGhostkeyStatus() {
   }
 }
 
+/** My Viso Proof-of-Personhood proof, if I keep one: what it attests, and the Remove button. */
+async function renderPohStatus() {
+  const status = document.getElementById("poh-status");
+  const remove = document.getElementById("poh-remove-btn");
+  const pk = whoAmI();
+  const stored = pk ? parseStoredPoh(safeStorage.getItem(pohKey(pk))) : null;
+  if (!status || !remove) return;
+  remove.hidden = !stored;
+  if (!stored) return void (status.textContent = "");
+  let targetHex = pk!;
+  let delegatedNote = "";
+  if (stored.delegation) {
+    const del = await verifyVisoDelegation(stored.delegation, pk!).catch(() => null);
+    if (!del) {
+      status.textContent = "⚠️ Stored delegated Viso PoH certificate could not be verified.";
+      return;
+    }
+    targetHex = del.toHex;
+    delegatedNote = ` · via @${del.toB58.slice(0, 10)}…`;
+  }
+  const badge = await verifyVisoPoh(hexToBytes(stored.proof), targetHex).catch(() => null);
+  status.textContent = badge
+    ? `🛡️ Verified Human (${badge.provider} · ${badge.tier} · ${badge.epoch}${delegatedNote})`
+    : "⚠️ Stored Viso PoH proof could not be verified against trusted issuers.";
+}
+
+/** My linked Viso persona delegation (`DelegationProofV1`), if any. */
+async function renderDelegationStatus() {
+  const status = document.getElementById("delegation-status");
+  const remove = document.getElementById("delegation-remove-btn");
+  const pk = whoAmI();
+  const raw = pk ? safeStorage.getItem(delegationKey(pk)) : null;
+  if (!status || !remove) return;
+  remove.hidden = !raw;
+  if (!raw) return void (status.textContent = "");
+  const del = await verifyVisoDelegation(raw, pk!).catch(() => null);
+  status.textContent = del
+    ? `🔗 Linked to active Viso persona @${personaName(del.toHex).slice(0, 12)}… (scope: ${del.scope})`
+    : "⚠️ Stored delegation certificate is invalid for this persona.";
+}
+
 /** Redraw the badge and the wall (before initSupporterPanel: nobody signed in, so the badge is hidden). */
 export function renderSupporterStatus() {
   void renderGhostkeyStatus();
+  void renderPohStatus();
+  void renderDelegationStatus();
   const badgeCard = document.getElementById("supporter-active-badge-card");
   const badgeLabel = document.getElementById("supporter-active-badge-label");
   const badgeDetails = document.getElementById("supporter-active-details");
@@ -124,11 +171,19 @@ async function renderSupporterWall() {
       return row;
     });
   await freenet.refreshLog("ghostkeys");
+  await freenet.refreshLog("poh");
   const ghosts = await verifiedGhostkeys(freenet.ghostkeyBundles()).catch(() => [] as string[]);
   if (ghosts.length) {
     const row = document.createElement("div");
     row.style.marginBottom = "4px";
     row.textContent = `👻 GhostKey: ${ghosts.map(displayName).join(", ")}`;
+    rows.push(row);
+  }
+  const humans = await verifiedPohs(freenet.pohProofs()).catch(() => [] as string[]);
+  if (humans.length) {
+    const row = document.createElement("div");
+    row.style.marginBottom = "4px";
+    row.textContent = `🛡️ Verified Human (Viso PoH): ${humans.map(displayName).join(", ")}`;
     rows.push(row);
   }
   wall.replaceChildren(...rows);
@@ -183,6 +238,102 @@ export function initSupporterPanel(deps: {
     await freenet.setGhostkey(null).catch(() => {});
     onBadgeChange();
     void renderGhostkeyStatus();
+    void renderSupporterWall();
+  });
+
+  document.getElementById("poh-verify-btn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const msg = document.getElementById("poh-msg");
+    const pk = whoAmI();
+    if (!pk || !msg) return;
+    btn.disabled = true;
+    msg.style.color = "var(--text-muted)";
+    msg.textContent = "Checking your Viso Proof-of-Personhood slot…";
+    try {
+      const resolved = await freenet.visoPohResolved(pk);
+      if (!resolved) throw new Error("No GitHub Proof-of-Personhood found on your Viso persona (or linked delegate) yet.");
+      safeStorage.setItem(pohKey(pk), serializeStoredPoh(resolved.proofHex, resolved.delegation));
+      await freenet.setPohProof(resolved.proofHex, resolved.delegation ?? null);
+      msg.style.color = "var(--primary)";
+      msg.textContent = `🛡️ Verified Human (${resolved.badge.provider} · ${resolved.badge.tier}) badge activated.`;
+      onBadgeChange();
+      void renderPohStatus();
+      void renderSupporterWall();
+    } catch (err) {
+      msg.style.color = "var(--danger)";
+      msg.textContent = (err as Error).message || String(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("poh-remove-btn")?.addEventListener("click", async () => {
+    const pk = whoAmI();
+    if (!pk || !confirm("Remove your Verified Human badge from Radica? Your Viso identity slot stays unchanged.")) return;
+    safeStorage.removeItem(pohKey(pk));
+    await freenet.setPohProof(null).catch(() => {});
+    onBadgeChange();
+    void renderPohStatus();
+    void renderSupporterWall();
+  });
+
+  document.getElementById("delegation-link-btn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const input = document.getElementById("delegation-proof-input") as HTMLTextAreaElement | null;
+    const msg = document.getElementById("delegation-msg");
+    const pk = whoAmI();
+    if (!pk || !input || !msg) return;
+    const raw = input.value.trim();
+    if (!raw) {
+      msg.style.color = "var(--danger)";
+      msg.textContent = "Paste the DelegationProofV1 JSON from Viso first.";
+      return;
+    }
+    btn.disabled = true;
+    msg.style.color = "var(--text-muted)";
+    msg.textContent = "Verifying signatures & checking active Viso persona…";
+    try {
+      const verified = await verifyVisoDelegation(raw, pk);
+      if (!verified) throw new Error("Invalid DelegationProofV1, mismatched source key, or unsupported scope.");
+      const proofObj = JSON.parse(raw) as DelegationProofV1;
+      safeStorage.setItem(delegationKey(pk), JSON.stringify(proofObj));
+      await freenet.setDelegationProof(proofObj);
+      input.value = "";
+      const resolved = await freenet.visoPohResolved(pk);
+      if (resolved) {
+        safeStorage.setItem(pohKey(pk), serializeStoredPoh(resolved.proofHex, resolved.delegation ?? proofObj));
+        await freenet.setPohProof(resolved.proofHex, resolved.delegation ?? proofObj);
+        msg.style.color = "var(--primary)";
+        msg.textContent = `🔗 Linked to @${personaName(verified.toHex).slice(0, 10)}… & activated ${resolved.badge.provider} PoH badge!`;
+      } else {
+        msg.style.color = "var(--primary)";
+        msg.textContent = `🔗 Linked to @${personaName(verified.toHex).slice(0, 10)}… (no PoH slot found on target yet — click Sync once linked in Viso).`;
+      }
+      onBadgeChange();
+      void renderDelegationStatus();
+      void renderPohStatus();
+      void renderSupporterWall();
+    } catch (err) {
+      msg.style.color = "var(--danger)";
+      msg.textContent = (err as Error).message || String(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("delegation-remove-btn")?.addEventListener("click", async () => {
+    const pk = whoAmI();
+    if (!pk || !confirm("Unlink your delegated Viso persona from Radica?")) return;
+    safeStorage.removeItem(delegationKey(pk));
+    await freenet.setDelegationProof(null).catch(() => {});
+    const storedPoh = parseStoredPoh(safeStorage.getItem(pohKey(pk)));
+    if (storedPoh?.delegation) {
+      safeStorage.removeItem(pohKey(pk));
+      await freenet.setPohProof(null).catch(() => {});
+    }
+    onBadgeChange();
+    void renderDelegationStatus();
+    void renderPohStatus();
     void renderSupporterWall();
   });
   document.getElementById("supporter-public-toggle")?.addEventListener("change", async (e) => {

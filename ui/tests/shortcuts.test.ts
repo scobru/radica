@@ -134,6 +134,9 @@ test("shortcuts: handleGotoKey dispatches to navigation targets", () => {
   assert.equal(handleGotoKey("f"), true);
   assert.equal(clicked.pop(), "open-tree-btn");
 
+  assert.equal(handleGotoKey("e"), true);
+  assert.equal(clicked.pop(), "open-apps-btn");
+
   assert.equal(handleGotoKey("b"), true);
   assert.equal(clicked.pop(), "blocklists-open-btn");
 

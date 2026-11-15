@@ -17,6 +17,8 @@ export const DURABLE_PREFIXES = [
   "radica_supporter_receipt_",
   "radica_saved_posts_",
   "radica_ghostkey_", // my GhostKey proof: its perks hold here even before the ghostkeys log arrives
+  "radica_poh_", // my Viso Proof-of-Personhood proof: its perks hold here even before the poh log arrives
+  "radica_delegation_", // my Viso persona handoff certificate (DelegationProofV1): recovers PoH/profile from an active persona
   "radica_welcomed_", // the welcome tour, seen or skipped: it must not come back on every visit
   "freenet_notifs_dismissed_", // Activity items I opened: the inbox log would bring them back
   "radica_fmail_store_", // Radica Mail store: messages, drafts, read/unread states
@@ -31,6 +33,8 @@ export const DURABLE_PREFIXES = [
   "radica_accent", // UI accent colour
   "radica_fullwidth", // UI layout width (standard / full)
   "radica_lang", // Reader translation language
+  "radica_apps_pinned_", // Pinned Freenet apps in launcher
+  "radica_apps_custom_", // Custom Freenet sites added to launcher
 ];
 
 /** The delegate refuses values over 256 KB. */

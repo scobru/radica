@@ -1,5 +1,6 @@
 // River rooms: river.wasm (river-wasm/, built from river-core) builds and reads River room states and deltas, so
 // Radica's chat runs on River's own room contract. One JSON call in, one JSON answer out; see river-wasm/src/lib.rs.
+export const RIVER_SITE = "raAqMhMG7KUpXBU2SxgCQ3Vh4PYjttxdSWd9ftV7RLv";
 
 type Exports = {
   memory: WebAssembly.Memory;

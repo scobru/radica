@@ -1,5 +1,27 @@
+5.7.2 / 2026-11-16
+==================
+
+  * **NEW** Viso Persona Delegation (`DelegationProofV1`) & GitHub PoH Badge UI (`ui/src/viso.ts`, `ui/src/base58.ts`, `ui/src/whoiam.ts`, `ui/src/freenet.ts`, `ui/src/durable.ts`, `ui/src/supporterPanel.ts`, `ui/src/greenhousePage.ts`, `ui/src/icons.ts`, `ui/src/main.ts`, `ui/src/style.css`, `ui/index.html`, `ui/tests/viso.test.ts`):
+    * Extracted pure Base58 encoding/decoding into `ui/src/base58.ts` (re-exported from `ui/src/whoiam.ts`) so `ui/src/viso.ts` remains pure and Node-testable.
+    * Added dual-signed Viso `DelegationProofV1` verification (`verifyVisoDelegation`, `verifiedDelegations`, `verifiedPohBadges`, `parseStoredPoh`, `serializeStoredPoh`) supporting `"radica"` / `"*"` scopes and inherited PoH attestation across Freenet's public `"delegations"` log (`radica_delegation_` durable prefix).
+    * Added Identity → Viso Persona Delegation controls (`#delegation-box`, `#delegation-proof-input`, `#delegation-link-btn`, `#delegation-remove-btn`) and delegated PoH resolution (`visoPohResolved`, `visoDelegationOf`) in `freenet.ts` and `supporterPanel.ts`.
+    * Added a prominent GitHub PoH badge (`.badge-github-poh` with GitHub mark SVG) across feed posts, user profile modals (`#uview-name`), profile page (`#pp-poh-badge`), and sidebar (`#sidebar-poh-badge`).
+  * **NEW** Atlas in Apps Launcher (`ui/src/ecosystem.ts`, `ui/index.html`, `ui/tests/ecosystem.test.ts`):
+    * Added **Atlas** (`ATLAS_SITE = 771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) to `ECOSYSTEM` / `LAUNCHER_APPS` and updated the Guide & ecosystem documentation.
+
 5.7.1 / 2026-11-15
 ==================
+
+  * **NEW** Viso Anonymous Proof-of-Personhood (`poh:github`) Integration (`ui/src/viso.ts`, `ui/src/freenet.ts`, `ui/src/wot.ts`, `ui/src/supporterPanel.ts`, `ui/src/greenhousePage.ts`, `ui/src/durable.ts`, `ui/src/main.ts`, `ui/src/style.css`, `ui/index.html`, `ui/tests/viso.test.ts`, `ui/tests/wot.test.ts`):
+    * Added WebCrypto `RSABSSA-SHA384-PSS-Randomized` (RFC 9474) signature verification (`verifyVisoPoh`, `visoPohOf`, `visoPohRawOf`, `verifiedPohs`, `pohMsg`) in `ui/src/viso.ts` to validate CBOR `PohAttestationV1` proofs bound to each persona's Ed25519 pubkey (`poh:<provider>` slots on Viso identity contracts) without revealing the underlying external GitHub account.
+    * Added `pohProofs()`, `setPohProof()`, `visoPoh()`, `visoPohHex()`, and `verifiedPohAuthors()` in `ui/src/freenet.ts` backed by the public `"poh"` log and durable key prefix `radica_poh_`.
+    * Integrated verified Viso Humans into `WebOfTrust` (`humans` Tier-2 set, `🛡️ Verified Human` badge), automatic newcomer PoW/rate-limit exemption (`amVouched` / `vouchedForAll`), Greenhouse voting (`sprout` weight = 1 per verified human), and the Identity → Support Radica panel (`#poh-verify-btn` / `#poh-remove-btn`).
+
+  * **NEW** Freenet Ecosystem Apps Launcher (`ui/src/ecosystem.ts`, `ui/src/durable.ts`, `ui/src/shortcuts.ts`, `ui/src/main.ts`, `ui/src/style.css`, `ui/index.html`, `ui/tests/ecosystem.test.ts`, `ui/tests/shortcuts.test.ts`):
+    * Added a dedicated **Apps** rail page (`#open-apps-btn`, `#apps-modal`, keyboard shortcut `g e`) reusing `LAUNCHER_APPS` (`RADICA_BUILTIN_APPS` including **Articles** + the canonical `ECOSYSTEM` catalog) alongside `hrefOf`, `normalizeSiteKey`, `customRecordToApp`, and `filterLauncherApps`.
+    * Built-in integrated apps (`Articles`, plus `River` via `RIVER_SITE = "raAqMhMG7KUpXBU2SxgCQ3Vh4PYjttxdSWd9ftV7RLv"`, `Freenet Mail` via `FREENET_MAIL_CONTAINER_KEY`, `FreeTunes` via `FREETUNES_SITE`) expose an in-app **Open** button alongside **External App ↗** node contract links when an external Freenet web app key exists.
+    * Replaced **Spore** with **Aula** (`AULA_SITE = "GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes"`, `https://github.com/scobru/aula`) and added **Hive** (`HIVE_SITE = "AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A"`, decentralized Git & code collaboration) in `ECOSYSTEM`, `Updates`, `README.md`, and `#guide-modal`.
+    * Supports live search, filter tabs (`All`, `Pinned`, `On Node`, `Built-in`), 1-click pinning (`★`) to top, built-in view jumps (`Open`) vs. standalone node contract launch (`Launch ↗` / `Node ↗`), 1-click URL copy, and adding/removing custom Freenet site contract keys persisted in durable node storage (`radica_apps_pinned_`, `radica_apps_custom_`).
 
   * **NEW / FIX** 🌱 The Gardener Bot, Owner/Mod Ban Immunity & Greenhouse AI Workflows (`ui/src/types.ts`, `ui/src/logfold.ts`, `ui/src/freenet.ts`, `ui/src/messengerChat.ts`, `ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `ui/src/main.ts`, `ui/index.html`, `attester/src/moderator.js`, `attester/src/main.js`, `ui/tests/logfold.test.ts`, `ui/tests/greenhouse.test.ts`, `attester/src/moderator.test.js`):
     * **Moderator & Owner Ban Immunity**: Hardened `foldCommunities`, `banMemberFromCommunity`, Messenger community member drawer actions, global Moderation `ban` actions, and The Gardener bot (`freshPosts`, `freshChatMessages`, `decideChatAction`, `foldCommunitiesState`) so community founders/owners, community moderators, and global moderators/`RADICA_MAINTAINER` can never be banned or auto-flagged.

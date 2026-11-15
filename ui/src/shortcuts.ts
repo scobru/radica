@@ -25,6 +25,7 @@ export const SHORTCUTS_LIST: ShortcutItem[] = [
   { keyLabel: "g v", category: "Navigation", description: "Go to Moments" },
   { keyLabel: "g f", category: "Navigation", description: "Go to Living Tree (Network Graph)" },
   { keyLabel: "g r", category: "Navigation", description: "Go to Communities (r/...)" },
+  { keyLabel: "g e", category: "Navigation", description: "Go to Apps Launcher (Freenet Ecosystem)" },
   { keyLabel: "?", category: "Navigation", description: "Open Keyboard Shortcuts Help" },
 
   // Feed & Posts
@@ -90,6 +91,7 @@ export type ActiveView =
   | "articles"
   | "music"
   | "tree"
+  | "apps"
   | "profile"
   | "guide"
   | "shortcuts"
@@ -116,6 +118,7 @@ export function getActiveView(): ActiveView {
   if (isVisible("articles-modal")) return "articles";
   if (isVisible("music-modal")) return "music";
   if (isVisible("tree-modal")) return "tree";
+  if (isVisible("apps-modal")) return "apps";
   if (isVisible("user-profile-modal")) return "profile";
   if (isVisible("guide-modal")) return "guide";
 
@@ -155,7 +158,7 @@ export function showGotoHud(visible: boolean, customText?: string): void {
     if (visible) {
       hud.innerHTML =
         customText ||
-        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>b</kbd> blocklists · <kbd>r</kbd> communities · <kbd>f</kbd> tree · <kbd>v</kbd> media · <kbd>?</kbd> help`;
+        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>e</kbd> apps · <kbd>b</kbd> blocklists · <kbd>r</kbd> communities · <kbd>f</kbd> tree · <kbd>v</kbd> media · <kbd>?</kbd> help`;
       if (hud.style) hud.style.display = "flex";
       gotoTimer = setTimeout(() => {
         showGotoHud(false);
@@ -261,6 +264,11 @@ export function handleGotoKey(key: string): boolean {
     case "l": {
       closeOtherPages("tree-modal");
       document.getElementById("open-tree-btn")?.click();
+      return true;
+    }
+    case "e": {
+      closeOtherPages("apps-modal");
+      document.getElementById("open-apps-btn")?.click();
       return true;
     }
     case "?": {

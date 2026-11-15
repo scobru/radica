@@ -2,7 +2,19 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces";
 import { UPDATES } from "./updates";
 import { parseRoomInviteParams } from "./nativeRooms.ts";
-import { ecosystemFooter, ecosystemCard } from "./ecosystem";
+import {
+  ECOSYSTEM,
+  LAUNCHER_APPS,
+  hrefOf,
+  appId,
+  normalizeSiteKey,
+  customRecordToApp,
+  filterLauncherApps,
+  ecosystemFooter,
+  ecosystemCard,
+  type AppFilter,
+  type CustomAppRecord,
+} from "./ecosystem";
 import { closeModal, installModalDismiss } from "./modals";
 import { anchorElementInViewport } from "./scrollAnchor.ts";
 import { initShortcuts, toggleShortcutsModal } from "./shortcuts";
@@ -135,6 +147,8 @@ import { initGreenhouse, openGreenhouse } from "./greenhousePage.ts";
 import { parseGreenhouseHash } from "./greenhouse.ts";
 import { foldSupporters, getStoredReceipt } from "./supporter.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
+import { parseStoredPoh, serializeStoredPoh, verifiedPohBadges, verifyVisoDelegation, verifyVisoPoh } from "./viso.ts";
+import { hexToBytes } from "./crypto.ts";
 import { savedPosts, toggleSaved, isSaved } from "./savedPosts.ts";
 import { likers, RADICA_MAINTAINER, AI_REPORTERS, GARDENER_NAME } from "./types.ts";
 import { isFuture, sortPosts, type FeedSort } from "./topPosts.ts";
@@ -399,6 +413,8 @@ const articlesModal = document.getElementById("articles-modal") as HTMLElement;
 const openArticlesBtn = document.getElementById("open-articles-btn") as HTMLButtonElement | null;
 const musicModal = document.getElementById("music-modal") as HTMLElement;
 const openMusicBtn = document.getElementById("open-music-btn") as HTMLButtonElement | null;
+const appsModal = document.getElementById("apps-modal") as HTMLElement;
+const openAppsBtn = document.getElementById("open-apps-btn") as HTMLButtonElement | null;
 const commRedditViewBtn = document.getElementById("comm-reddit-view-btn") as HTMLButtonElement | null;
 
 const activeFilterBanner = document.getElementById("active-filter-banner") as HTMLElement;
@@ -526,13 +542,30 @@ let supporterKeys: string[] = [];
 /** People a checked GhostKey proof vouches for (the ghostkeys log), plus me when I hold one. */
 let ghostkeyKeys: string[] = [];
 const ghostkeyKey = (pk: string) => `radica_ghostkey_${pk}`;
+/** People verified by an anonymous Viso Proof-of-Personhood (the poh log), plus me when I hold one. */
+let pohKeys: string[] = [];
+/** Subset of `pohKeys` with a verified GitHub PoH attestation (`provider === "github"`). */
+let githubPohKeys = new Set<string>();
+const pohKey = (pk: string) => `radica_poh_${pk}`;
+const githubPohBadgeHtml = (pubkey: string): string =>
+  githubPohKeys.has(pubkey)
+    ? ` <span class="gram-trust-badge badge-github-poh" title="Verified GitHub account (≥ 1 year old) via Anonymous Viso PoH">${renderIcon("github", { className: "icon-xs" })} <span>GitHub</span></span>`
+    : "";
+function renderMyPohBadges(): void {
+  const me = currentIdentity?.pubkey ?? "";
+  const html = me ? githubPohBadgeHtml(me).trim() : "";
+  const sb = document.getElementById("sidebar-poh-badge");
+  if (sb) sb.innerHTML = html;
+  const pp = document.getElementById("pp-poh-badge");
+  if (pp) pp.innerHTML = html;
+}
 function getWebOfTrust(): WebOfTrust {
   const me = currentIdentity?.pubkey ?? "";
   const trusted = trustedCurators();
-  const key = `${me}|${followingKeys.join(",")}|${trusted.join(",")}|${supporterKeys.join(",")}|${ghostkeyKeys.join(",")}`;
+  const key = `${me}|${followingKeys.join(",")}|${trusted.join(",")}|${supporterKeys.join(",")}|${ghostkeyKeys.join(",")}|${pohKeys.join(",")}`;
   if (cachedWot && lastWotKey === key) return cachedWot;
   lastWotKey = key;
-  cachedWot = new WebOfTrust(me, followingKeys, trusted, (pk) => freenet.followingOf(pk), supporterKeys, ghostkeyKeys);
+  cachedWot = new WebOfTrust(me, followingKeys, trusted, (pk) => freenet.followingOf(pk), supporterKeys, ghostkeyKeys, pohKeys);
   return cachedWot;
 }
 /** A newcomer's comment without its anti-bot proof, likely written by a script around Radica: not shown. */
@@ -540,19 +573,61 @@ function unprovenComment(c: Comment, wot: WebOfTrust): boolean {
   return c.timestamp >= POST_POW_SINCE && c.author !== currentIdentity?.pubkey && wot.trustTier(c.author) === 0 && !postHasPow(c, COMMENT_POW_BITS, "comment");
 }
 
-/** Trusted by every reader (on the public supporters wall, or with a published GhostKey proof): my posts need no anti-bot proof. */
+/** Trusted by every reader (on the public supporters wall, with GhostKey, or with Viso PoH): my posts need no anti-bot proof. */
 let vouchedForAll = false;
 
 async function refreshSupporters() {
   const wall = await foldSupporters(freenet.supporterTokens()); // every receipt is checked against the attester's key
   const me = currentIdentity?.pubkey;
-  vouchedForAll = !!me && ([...wall.oak, ...wall.root, ...wall.sprout].includes(me) || !!safeStorage.getItem(ghostkeyKey(me)));
+  // Auto-adopt a verified Viso PoH proof (direct or via linked delegation) for the signed-in persona
+  let myLocalGithub = false;
+  if (me) {
+    const stored = parseStoredPoh(safeStorage.getItem(pohKey(me)));
+    if (stored) {
+      let targetHex = me;
+      if (stored.delegation) {
+        const del = await verifyVisoDelegation(stored.delegation, me).catch(() => null);
+        targetHex = del ? del.toHex : "";
+      }
+      const badge = targetHex ? await verifyVisoPoh(hexToBytes(stored.proof), targetHex).catch(() => null) : null;
+      if (badge?.provider === "github") myLocalGithub = true;
+    } else {
+      const resolved = await freenet.visoPohResolved(me).catch(() => null);
+      if (resolved) {
+        safeStorage.setItem(pohKey(me), serializeStoredPoh(resolved.proofHex, resolved.delegation));
+        if (resolved.badge.provider === "github") myLocalGithub = true;
+      }
+    }
+  }
+  const hasMyPoh = !!me && !!parseStoredPoh(safeStorage.getItem(pohKey(me)));
+  vouchedForAll = !!me && ([...wall.oak, ...wall.root, ...wall.sprout].includes(me) || !!safeStorage.getItem(ghostkeyKey(me)) || hasMyPoh);
   const next = [...new Set([...wall.oak, ...wall.root, ...wall.sprout, ...(me && getStoredReceipt(me) ? [me] : [])])].sort();
   // GhostKey proofs: checked in ghostkey.wasm (certificate chain to the Freenet master key), each once per page
   const ghosts = [...new Set([...(await verifiedGhostkeys(freenet.ghostkeyBundles())), ...(me && safeStorage.getItem(ghostkeyKey(me)) ? [me] : [])])].sort();
-  if (next.join(",") === supporterKeys.join(",") && ghosts.join(",") === ghostkeyKeys.join(",")) return;
+  const badgeMap = await verifiedPohBadges(freenet.pohProofs());
+  const delMap = await freenet.verifiedDelegationMap().catch(() => new Map());
+  for (const [fromHex, del] of delMap) {
+    if (!badgeMap.has(fromHex) && badgeMap.has(del.toHex)) {
+      badgeMap.set(fromHex, badgeMap.get(del.toHex)!);
+    }
+  }
+  const humans = [...new Set([...badgeMap.keys(), ...(hasMyPoh ? [me!] : [])])].sort();
+  const nextGithub = new Set<string>();
+  for (const [pk, b] of badgeMap) if (b.provider === "github") nextGithub.add(pk);
+  if (me && myLocalGithub) nextGithub.add(me);
+  const nextGithubKey = [...nextGithub].sort().join(",");
+  const prevGithubKey = [...githubPohKeys].sort().join(",");
+  const unchanged =
+    next.join(",") === supporterKeys.join(",") &&
+    ghosts.join(",") === ghostkeyKeys.join(",") &&
+    humans.join(",") === pohKeys.join(",") &&
+    nextGithubKey === prevGithubKey;
+  if (unchanged) return;
   supporterKeys = next;
   ghostkeyKeys = ghosts;
+  pohKeys = humans;
+  githubPohKeys = nextGithub;
+  renderMyPohBadges();
   cardCache.clear(); // badges are part of each card
   scheduleRenderTimeline();
 }
@@ -563,11 +638,11 @@ const TRUSTED_KEY = "radica_trusted_blocklists";
 const DEFAULT_CURATOR = RADICA_MAINTAINER;
 /**
  * Whether my newcomer limits (anti-bot PoW, 15 s between posts, trusted-only communities) are lifted: someone I trust
- * follows me, or I hold a supporter receipt.
+ * follows me, or I hold a supporter receipt, GhostKey, or Viso Human Proof.
  */
 function amVouched(): boolean {
   const me = currentIdentity?.pubkey;
-  return !!me && (!!getStoredReceipt(me) || !!safeStorage.getItem(ghostkeyKey(me)) || getWebOfTrust().vouches(me, freenet.followersOf(me)));
+  return !!me && (!!getStoredReceipt(me) || !!safeStorage.getItem(ghostkeyKey(me)) || !!safeStorage.getItem(pohKey(me)) || getWebOfTrust().vouches(me, freenet.followersOf(me)));
 }
 
 let cachedTrustedRaw: string | null | undefined;
@@ -906,6 +981,184 @@ document.getElementById("updates-open-btn")!.addEventListener("click", () => {
   updatesModal.style.display = "flex";
 });
 document.getElementById("updates-close-btn")!.addEventListener("click", () => (updatesModal.style.display = "none"));
+
+// Apps Launcher (#apps-modal): launch ecosystem dApps, pin favorites, or save custom Freenet site keys
+const appsSearchInput = document.getElementById("apps-search-input") as HTMLInputElement | null;
+const appsGridEl = document.getElementById("apps-grid") as HTMLElement | null;
+const appsAddToggleBtn = document.getElementById("apps-add-toggle-btn") as HTMLButtonElement | null;
+const appsAddForm = document.getElementById("apps-add-form") as HTMLFormElement | null;
+const appsAddNameInput = document.getElementById("apps-add-name") as HTMLInputElement | null;
+const appsAddKeyInput = document.getElementById("apps-add-key") as HTMLInputElement | null;
+const appsAddWhatInput = document.getElementById("apps-add-what") as HTMLInputElement | null;
+let appsFilter: AppFilter = "all";
+
+const appsPinnedKey = () => `radica_apps_pinned_${currentIdentity?.pubkey || "anon"}`;
+const appsCustomKey = () => `radica_apps_custom_${currentIdentity?.pubkey || "anon"}`;
+
+function loadPinnedApps(): Set<string> {
+  try {
+    return new Set(JSON.parse(safeStorage.getItem(appsPinnedKey()) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function loadCustomApps(): CustomAppRecord[] {
+  try {
+    const raw = JSON.parse(safeStorage.getItem(appsCustomKey()) || "[]");
+    return Array.isArray(raw) ? raw.filter((r) => r && typeof r.name === "string" && typeof r.key === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderAppsLauncher(): void {
+  if (!appsGridEl) return;
+  const origin = nodeOrigin();
+  const pinned = loadPinnedApps();
+  const customApps = loadCustomApps().map(customRecordToApp);
+  const allApps = [...LAUNCHER_APPS, ...customApps];
+  const visible = filterLauncherApps(allApps, {
+    query: appsSearchInput?.value || "",
+    filter: appsFilter,
+    pinned,
+  });
+
+  if (!visible.length) {
+    appsGridEl.innerHTML = `<div class="apps-empty">No apps match this filter.</div>`;
+    return;
+  }
+
+  appsGridEl.innerHTML = visible
+    .map((app) => {
+      const id = appId(app);
+      const isPinned = pinned.has(id);
+      const url = hrefOf(app, origin);
+      const kindBadge = app.custom
+        ? "Custom site"
+        : app.builtInBtn
+          ? "Built-in"
+          : app.key
+            ? "On Node"
+            : "Desktop / Repo";
+      const primaryAction = app.builtInBtn
+        ? `<button type="button" class="btn-primary btn-xs" data-app-builtin="${escapeHtml(app.builtInBtn)}">Open</button>`
+        : `<a class="btn-primary btn-xs" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${app.key ? "Launch ↗" : "Repo ↗"}</a>`;
+      const secondaryExternal = app.builtInBtn && app.key
+        ? `<a class="btn-secondary btn-xs" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">External App ↗</a>`
+        : "";
+      const copyBtn = !app.builtInBtn || app.key
+        ? `<button type="button" class="btn-secondary btn-xs" data-app-copy="${escapeHtml(url)}" title="Copy URL">Copy</button>`
+        : "";
+      const removeBtn = app.custom
+        ? `<button type="button" class="btn-secondary btn-xs" data-app-remove="${escapeHtml(id)}" title="Remove custom site">✕</button>`
+        : "";
+      const iconHtml = renderIcon((app.icon || "globe") as IconName, { className: "icon-md" });
+      return `
+        <div class="app-tile${isPinned ? " is-pinned" : ""}">
+          <div class="app-tile-head">
+            <div class="app-tile-brand">
+              <span class="app-tile-icon">${iconHtml}</span>
+              <div class="app-tile-title-wrap">
+                <div class="app-tile-name" title="${escapeHtml(app.name)}">${escapeHtml(app.name)}</div>
+                <div class="app-tile-meta">
+                  <span class="app-tile-badge">${kindBadge}</span>
+                  ${app.author ? `<span>${escapeHtml(app.author)}</span>` : ""}
+                </div>
+              </div>
+            </div>
+            <button type="button" class="app-tile-pin-btn${isPinned ? " active" : ""}" data-app-pin="${escapeHtml(id)}" title="${isPinned ? "Unpin" : "Pin to top"}" aria-label="${isPinned ? "Unpin" : "Pin"}">${isPinned ? "★" : "☆"}</button>
+          </div>
+          <p class="app-tile-desc">${escapeHtml(app.what)}</p>
+          <div class="app-tile-actions">
+            ${primaryAction}
+            ${secondaryExternal}
+            ${copyBtn}
+            ${removeBtn}
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+openAppsBtn?.addEventListener("click", () => {
+  closeRailPages(appsModal);
+  renderAppsLauncher();
+  appsModal.style.display = "flex";
+});
+document.getElementById("apps-close-btn")?.addEventListener("click", () => (appsModal.style.display = "none"));
+appsSearchInput?.addEventListener("input", renderAppsLauncher);
+document.querySelectorAll<HTMLButtonElement>("[data-apps-filter]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    appsFilter = (btn.dataset.appsFilter as AppFilter) || "all";
+    document.querySelectorAll<HTMLButtonElement>("[data-apps-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+    renderAppsLauncher();
+  });
+});
+appsAddToggleBtn?.addEventListener("click", () => {
+  if (!appsAddForm) return;
+  const show = appsAddForm.style.display === "none";
+  appsAddForm.style.display = show ? "flex" : "none";
+  if (show) appsAddNameInput?.focus();
+});
+document.getElementById("apps-add-cancel-btn")?.addEventListener("click", () => {
+  if (appsAddForm) appsAddForm.style.display = "none";
+});
+appsAddForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = (appsAddNameInput?.value || "").trim();
+  const key = normalizeSiteKey(appsAddKeyInput?.value || "");
+  const what = (appsAddWhatInput?.value || "").trim();
+  if (!name) return showToast("Enter an app name.", "error");
+  if (!key) return showToast("Enter a valid Freenet contract key or /v1/contract/web/<key> URL.", "error");
+  const existing = loadCustomApps();
+  if (existing.some((r) => r.key === key) || ECOSYSTEM.some((a) => a.key === key)) {
+    return showToast("This Freenet site is already in the launcher.", "error");
+  }
+  existing.push({ id: key, name, what, key });
+  safeStorage.setItem(appsCustomKey(), JSON.stringify(existing));
+  appsAddForm.reset();
+  appsAddForm.style.display = "none";
+  renderAppsLauncher();
+  showToast(`Added ${name} to Apps.`, "info");
+});
+appsGridEl?.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const builtinBtn = target.closest<HTMLElement>("[data-app-builtin]");
+  if (builtinBtn) {
+    const id = builtinBtn.dataset.appBuiltin!;
+    appsModal.style.display = "none";
+    document.getElementById(id)?.click();
+    return;
+  }
+  const pinBtn = target.closest<HTMLElement>("[data-app-pin]");
+  if (pinBtn) {
+    const id = pinBtn.dataset.appPin!;
+    const pinned = loadPinnedApps();
+    if (pinned.has(id)) pinned.delete(id);
+    else pinned.add(id);
+    safeStorage.setItem(appsPinnedKey(), JSON.stringify([...pinned]));
+    renderAppsLauncher();
+    return;
+  }
+  const copyBtn = target.closest<HTMLElement>("[data-app-copy]");
+  if (copyBtn) {
+    const url = copyBtn.dataset.appCopy || "";
+    void navigator.clipboard?.writeText(url).then(() => showToast("Copied app URL.", "info"));
+    return;
+  }
+  const removeBtn = target.closest<HTMLElement>("[data-app-remove]");
+  if (removeBtn) {
+    const id = removeBtn.dataset.appRemove!;
+    const next = loadCustomApps().filter((r) => r.key !== id);
+    safeStorage.setItem(appsCustomKey(), JSON.stringify(next));
+    const pinned = loadPinnedApps();
+    if (pinned.delete(id)) safeStorage.setItem(appsPinnedKey(), JSON.stringify([...pinned]));
+    renderAppsLauncher();
+    showToast("Removed custom site.", "info");
+  }
+});
 // Translate what I write, before publishing: the post composer here, comments and chat in their own markup
 initDraftTranslate(showToast);
 document.getElementById("poll-toggle-btn")?.insertAdjacentHTML("beforebegin", draftTranslateHtml("post-caption"));
@@ -2592,7 +2845,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
       cardCache.set(post.id, hit);
       return hit.html;
     }
-    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted];
+    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted];
   }
 
   const html = `
@@ -2622,7 +2875,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
                 authorTrust.label === "Rooted"
                   ? ""
                   : `<span class="gram-trust-badge ${authorTrust.badgeClass}" title="${escapeHtml(authorTrust.description)}">${authorTrust.icon} ${escapeHtml(authorTrust.label)}</span>`
-              }
+              }${githubPohBadgeHtml(post.author)}
               ${
                 post.category === "thought"
                   ? ""
@@ -5314,6 +5567,7 @@ function applyProfile(updated: ProfileInfo) {
     document.getElementById("pp-name")!.textContent = updated.display_name;
     setProfileBio(document.getElementById("pp-bio"), updated.bio, "No bio yet.");
   }
+  renderMyPohBadges();
   sidebarAvatar.src = composerAvatar.src = updated.avatar_url || generateDefaultAvatar(currentIdentity.pubkey);
   safeStorage.setItem(`radica_profile_${currentIdentity.pubkey}`, JSON.stringify(updated));
   freenet.knownPeers[currentIdentity.pubkey] = {
@@ -5710,7 +5964,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   const isSelf = pubkey === currentIdentity?.pubkey;
   // open at once with what is known; the feed (bio, posts) may take a few seconds to come from the network
   const initialBadge = getWebOfTrust().trustBadge(pubkey);
-  uviewName.innerHTML = `${escapeHtml(getAuthorDisplayName(pubkey))} <span class="gram-trust-badge ${initialBadge.badgeClass}" title="${escapeHtml(initialBadge.description)}">${initialBadge.icon} ${escapeHtml(initialBadge.label)}</span>`;
+  uviewName.innerHTML = `${escapeHtml(getAuthorDisplayName(pubkey))} <span class="gram-trust-badge ${initialBadge.badgeClass}" title="${escapeHtml(initialBadge.description)}">${initialBadge.icon} ${escapeHtml(initialBadge.label)}</span>${githubPohBadgeHtml(pubkey)}`;
   uviewKey.textContent = pubkey;
   uviewAvatar.src = getAuthorAvatarUrl(pubkey);
   uviewBio.textContent = "";
@@ -5802,7 +6056,30 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     uviewAvatar.src = generateDefaultAvatar(pubkey);
   };
   const badge = getWebOfTrust().trustBadge(pubkey);
-  uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${badge.badgeClass}" title="${escapeHtml(badge.description)}">${badge.icon} ${escapeHtml(badge.label)}</span>`;
+  uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${badge.badgeClass}" title="${escapeHtml(badge.description)}">${badge.icon} ${escapeHtml(badge.label)}</span>${githubPohBadgeHtml(pubkey)}`;
+  if (!githubPohKeys.has(pubkey)) {
+    void freenet.visoPoh(pubkey).then((badges) => {
+      if (!badges.length) return;
+      let changed = false;
+      if (!pohKeys.includes(pubkey)) {
+        pohKeys = [...pohKeys, pubkey].sort();
+        lastWotKey = "";
+        changed = true;
+      }
+      if (badges.some((b) => b.provider === "github") && !githubPohKeys.has(pubkey)) {
+        githubPohKeys = new Set([...githubPohKeys, pubkey]);
+        changed = true;
+      }
+      if (changed) {
+        cardCache.clear();
+        if (isSelf) renderMyPohBadges();
+        if (uviewKey.textContent === pubkey) {
+          const updated = getWebOfTrust().trustBadge(pubkey);
+          uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${updated.badgeClass}" title="${escapeHtml(updated.description)}">${updated.icon} ${escapeHtml(updated.label)}</span>${githubPohBadgeHtml(pubkey)}`;
+        }
+      }
+    });
+  }
   uviewKey.textContent = pubkey;
   setProfileBio(uviewBio, feed.profile?.bio, "No bio available.");
   if (uviewChannel) {
@@ -6442,6 +6719,7 @@ const railPages: [HTMLElement, string][] = [
   [updatesModal, "updates-open-btn"],
   [guideModal, "guide-open-btn"],
   [greenhouseModal, "greenhouse-open-btn"],
+  [appsModal, "open-apps-btn"],
   [mediaModal, "open-media-btn"],
   [document.getElementById("tree-modal") as HTMLElement, "open-tree-btn"],
   [communitiesModal, "open-communities-btn"],
@@ -11532,6 +11810,7 @@ function showProfilePage(show: boolean) {
     (document.getElementById("pp-avatar") as HTMLImageElement).src = sidebarAvatar.src;
     document.getElementById("pp-name")!.textContent = sidebarName.textContent;
     document.getElementById("pp-meta")!.textContent = sidebarHandle?.textContent ?? "";
+    renderMyPohBadges();
     setProfileBio(ppBio, currentProfile?.bio, "No bio yet.");
     renderRoots();
     if (currentIdentity) void showLinfa(document.getElementById("pp-linfa"), currentIdentity.pubkey);
@@ -13363,6 +13642,7 @@ async function init() {
   myPubkeyBadge.textContent = `@${shortPersona}`;
   myPubkeyBadge.title = `Persona: ${personaBase58}\nPubkey: ${currentIdentity.pubkey}\nClick to manage identity`;
   sidebarName.textContent = currentProfile?.display_name || `Persona @${shortPersona}`;
+  renderMyPohBadges();
   setProfileBio(sidebarBio, currentProfile?.bio, "No bio yet.");
   if (sidebarHandle) {
     sidebarHandle.textContent = `@${shortPersona}`;

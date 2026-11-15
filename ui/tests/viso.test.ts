@@ -1,6 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { visoIdentityInstance, visoIdentityParams, visoProfileOf } from "../src/viso.ts";
+import { constants as cryptoConstants, generateKeyPairSync, randomBytes, sign as cryptoSign } from "node:crypto";
+import * as ed from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
+import { toBase58 } from "../src/base58.ts";
+import { cborEncode } from "../src/cbor.ts";
+import {
+  delegationMsg,
+  parseStoredPoh,
+  pohMsg,
+  serializeStoredPoh,
+  verifiedDelegations,
+  verifiedPohBadges,
+  verifiedPohs,
+  verifyVisoDelegation,
+  verifyVisoPoh,
+  visoIdentityInstance,
+  visoIdentityParams,
+  visoPohOf,
+  visoPohRawOf,
+  visoProfileOf,
+  type DelegationProofV1,
+  type PohIssuer,
+} from "../src/viso.ts";
+
+if (!ed.etc.sha512Sync) ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+if (!ed.etc.sha512Async) ed.etc.sha512Async = (...m) => Promise.resolve(sha512(ed.etc.concatBytes(...m)));
 
 // made with Viso's own code (viso-core: sign_slot, to_cbor, ContractKey::from_params_and_code), signing key [7; 32]
 const PK = "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c";
@@ -19,4 +44,170 @@ test("viso: the profile is read only when the persona's signature checks out", a
   assert.equal(await visoProfileOf(tampered, PK), null);
   assert.equal(await visoProfileOf(bytes(STATE), "00".repeat(32)), null); // someone else's key
   assert.equal(await visoProfileOf(new Uint8Array(), PK), null);
+});
+
+test("viso poh: verifies RSABSSA-SHA384-PSS-Randomized attestations and rejects wrong persona, wrong issuer, or tampered tier", async () => {
+  const kp1 = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const kp2 = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const issuers: PohIssuer[] = [
+    { keyId: "github:age1y:2026", provider: "github", tier: "age1y", epoch: "2026", spkiDerHex: Buffer.from(kp1.publicKey).toString("hex") },
+    { keyId: "github:dev1y:2026", provider: "github", tier: "dev1y", epoch: "2026", spkiDerHex: Buffer.from(kp2.publicKey).toString("hex") },
+  ];
+
+  const msgRandomizer = new Uint8Array(randomBytes(32));
+  const msg = pohMsg("github:age1y:2026", PK);
+  const input = Buffer.concat([msgRandomizer, msg]);
+  const sig = new Uint8Array(
+    cryptoSign("sha384", input, {
+      key: kp1.privateKey,
+      padding: cryptoConstants.RSA_PKCS1_PSS_PADDING,
+      saltLength: 48,
+    }),
+  );
+
+  const attBytes = cborEncode({
+    version: 1,
+    key_id: "github:age1y:2026",
+    msg_randomizer: msgRandomizer,
+    sig,
+  });
+
+  // Valid slot verification
+  assert.deepEqual(await verifyVisoPoh(attBytes, PK, issuers), {
+    provider: "github",
+    tier: "age1y",
+    epoch: "2026",
+    keyId: "github:age1y:2026",
+  });
+
+  // Identity contract state scanning (live vs destroyed)
+  const pohState = cborEncode({
+    slots: { "poh:github": { time_ms: 1700000000000, bytes: attBytes, sig: new Uint8Array(64) } },
+    destroyed: null,
+  });
+  assert.deepEqual(visoPohRawOf(pohState), attBytes);
+  assert.deepEqual(await visoPohOf(pohState, PK, issuers), [
+    { provider: "github", tier: "age1y", epoch: "2026", keyId: "github:age1y:2026" },
+  ]);
+
+  const destroyedState = cborEncode({
+    slots: { "poh:github": { time_ms: 1700000000000, bytes: attBytes, sig: new Uint8Array(64) } },
+    destroyed: { time_ms: 1700000000001, sig: new Uint8Array(64) },
+  });
+  assert.equal(visoPohRawOf(destroyedState), null);
+  assert.deepEqual(await visoPohOf(destroyedState, PK, issuers), []);
+
+  // Anti-transfer: bound to PK, fails on another persona
+  assert.equal(await verifyVisoPoh(attBytes, "11".repeat(32), issuers), null);
+
+  // Anti-spoof: rewriting key_id fails signature verification under kp2
+  const spoofed = cborEncode({ version: 1, key_id: "github:dev1y:2026", msg_randomizer: msgRandomizer, sig });
+  assert.equal(await verifyVisoPoh(spoofed, PK, issuers), null);
+
+  // Unpinned / revoked issuer is rejected
+  assert.equal(await verifyVisoPoh(attBytes, PK, []), null);
+
+  // Batch log verification (verifiedPohs)
+  const other = "22".repeat(32);
+  const proofHex = Buffer.from(attBytes).toString("hex");
+  assert.deepEqual(
+    await verifiedPohs(
+      [
+        { author: PK, proof: proofHex },
+        { author: other, proof: proofHex }, // stolen proof bound to PK
+        { author: "33".repeat(32), proof: null },
+      ],
+      issuers,
+    ),
+    [PK],
+  );
+});
+
+test("viso delegation: verifies dual-signed DelegationProofV1 and inherited PoH badge", async () => {
+  const fromSk = ed.utils.randomPrivateKey();
+  const fromPk = await ed.getPublicKeyAsync(fromSk);
+  const fromHex = ed.etc.bytesToHex(fromPk);
+  const toSk = ed.utils.randomPrivateKey();
+  const toPk = await ed.getPublicKeyAsync(toSk);
+  const toHex = ed.etc.bytesToHex(toPk);
+
+  const timeMs = 1_794_781_500_000;
+  const msg = delegationMsg(fromPk, toPk, "*", timeMs);
+  const sigFrom = ed.etc.bytesToHex(await ed.signAsync(msg, fromSk));
+  const sigTo = ed.etc.bytesToHex(await ed.signAsync(msg, toSk));
+
+  const proof: DelegationProofV1 = {
+    version: 1,
+    from: toBase58(fromPk),
+    to: toBase58(toPk),
+    scope: "*",
+    time_ms: timeMs,
+    sig_from: sigFrom,
+    sig_to: sigTo,
+  };
+
+  const ok = await verifyVisoDelegation(JSON.stringify(proof), fromHex);
+  assert.ok(ok);
+  assert.equal(ok.fromHex, fromHex);
+  assert.equal(ok.toHex, toHex);
+  assert.equal(ok.scope, "*");
+
+  // Reject wrong expected source, tampered signature, self-delegation, or foreign scope
+  assert.equal(await verifyVisoDelegation(proof, toHex), null);
+  assert.equal(await verifyVisoDelegation({ ...proof, sig_to: "00".repeat(64) }, fromHex), null);
+  assert.equal(await verifyVisoDelegation({ ...proof, scope: "other-app" }, fromHex), null);
+  assert.equal(await verifyVisoDelegation({ ...proof, to: proof.from }, fromHex), null);
+
+  // Batch delegation map
+  const delMap = await verifiedDelegations([
+    { author: fromHex, proof },
+    { author: toHex, proof }, // mismatched author != proof.from
+  ]);
+  assert.equal(delMap.size, 1);
+  assert.equal(delMap.get(fromHex)?.toHex, toHex);
+
+  // Inherited GitHub PoH bound to `toPk` verified for `fromHex` via `proof`
+  const kp = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const issuers: PohIssuer[] = [
+    { keyId: "github:age1y:2026", provider: "github", tier: "age1y", epoch: "2026", spkiDerHex: Buffer.from(kp.publicKey).toString("hex") },
+  ];
+  const msgRandomizer = new Uint8Array(randomBytes(32));
+  const pMsg = pohMsg("github:age1y:2026", toHex);
+  const sig = new Uint8Array(
+    cryptoSign("sha384", Buffer.concat([msgRandomizer, pMsg]), {
+      key: kp.privateKey,
+      padding: cryptoConstants.RSA_PKCS1_PSS_PADDING,
+      saltLength: 48,
+    }),
+  );
+  const attHex = Buffer.from(
+    cborEncode({ version: 1, key_id: "github:age1y:2026", msg_randomizer: msgRandomizer, sig }),
+  ).toString("hex");
+
+  const badges = await verifiedPohBadges(
+    [
+      { author: fromHex, proof: attHex, delegation: proof }, // valid delegated PoH
+      { author: "44".repeat(32), proof: attHex, delegation: proof }, // mismatched author
+    ],
+    issuers,
+  );
+  assert.equal(badges.size, 1);
+  assert.equal(badges.get(fromHex)?.provider, "github");
+
+  // Storage serialization round-trip (both raw legacy and delegated JSON)
+  assert.deepEqual(parseStoredPoh("aabbcc"), { proof: "aabbcc" });
+  const serialized = serializeStoredPoh(attHex, proof);
+  assert.deepEqual(parseStoredPoh(serialized), { proof: attHex, delegation: proof });
 });
