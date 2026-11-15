@@ -63,16 +63,6 @@
   white-space: nowrap;
 }
 
-.mail-pq-badge {
-  background: rgba(99, 102, 241, 0.12);
-  color: #818cf8;
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  font-size: 0.72rem;
-  padding: 2px 8px;
-  border-radius: 12px;
-  white-space: nowrap;
-}
-
 .mail-header-address-wrap {
   display: flex;
   align-items: center;
@@ -742,11 +732,6 @@
 
   .mail-title {
     font-size: 1.05rem;
-  }
-
-  .mail-pq-badge {
-    font-size: 0.68rem;
-    padding: 1px 6px;
   }
 
   .mail-header-actions {

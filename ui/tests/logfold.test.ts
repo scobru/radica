@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -556,4 +556,39 @@ test("logfold: a channel's subscribers are who joined through the link, left out
   assert.deepEqual(roomJoiners(log, "privroom_c", new Set([owner])), [user, mallory]);
   const kicked = [...log, entry(owner, 7, { type: "room_kick", roomId: "privroom_c", target: mallory }), entry(mallory, 8, { type: "room_join", roomId: "privroom_c" })];
   assert.deepEqual(roomJoiners(kicked, "privroom_c", new Set([owner])), [user]);
+});
+
+test("logfold: foldHandledReports attributes each decision to the moderator who made it, newest wins, respects withdrawal", () => {
+  const t1 = `${user}:p1`;
+  const t2 = `${user}:p2`;
+  const t3 = `${user}:p3`;
+  const reports = [
+    entry(user, 5, { type: "report", target: t1, reason: "[AI] scam: fake link" }),
+    entry(mallory, 6, { type: "report", target: t1, reason: "spam" }),
+    entry(user, 7, { type: "report", target: t2, reason: "off-topic" }),
+  ];
+  const modOwnerLog = [
+    entry(owner, 10, { type: "report", target: t1, reason: "Removed by Radica's moderators" }),
+    entry(owner, 20, { type: "dismiss", target: t3 }),
+    entry(mallory, 99, { type: "report", target: t2 }), // written by someone else into owner's log: ignored
+  ];
+  const modPeerLog = [
+    entry(mod, 15, { type: "dismiss", target: t2 }),
+    entry(mod, 30, { type: "dismiss", target: t3 }), // newer override by mod beats owner's ts 20
+    entry(mod, 40, { type: "dismiss", target: t3, on: false }), // mod withdrew ts 30, so owner's ts 20 decision stands
+  ];
+  const handled = foldHandledReports(
+    [{ moderator: owner, entries: modOwnerLog }, { moderator: mod, entries: modPeerLog }],
+    reports,
+    10,
+  );
+  assert.deepEqual(
+    handled.map((h) => [h.target, h.moderator, h.action, h.ts, h.reporters]),
+    [
+      [t3, owner, "dismissed", 20, 0],
+      [t2, mod, "dismissed", 15, 1],
+      [t1, owner, "removed", 10, 2],
+    ],
+  );
+  assert.deepEqual(handled[2].reasons, ["[AI] scam: fake link", "spam"]);
 });

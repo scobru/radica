@@ -79,6 +79,22 @@ export function holdOutcome(blocklistEntries, target) {
   return outcome;
 }
 
+/** Folds any human moderator decisions found in `blocklistEntries` for `heldTargets` into updated
+ *  `{ heldTargets, categoryStats, resolved }`, dropping resolved targets so they are never double-counted. */
+export function applyHoldOutcomes(heldTargets, categoryStats, blocklistEntries) {
+  const nextHeld = { ...(heldTargets ?? {}) };
+  let nextStats = categoryStats ?? {};
+  const resolved = [];
+  for (const [target, category] of Object.entries(nextHeld)) {
+    const outcome = holdOutcome(blocklistEntries, target);
+    if (!outcome) continue;
+    nextStats = recordHoldOutcome(nextStats, category, outcome);
+    delete nextHeld[target];
+    resolved.push(target);
+  }
+  return { heldTargets: nextHeld, categoryStats: nextStats, resolved };
+}
+
 /** The people who announced themselves in the public directory in the last 30 days. */
 export function recentAuthors(directory, now = Date.now()) {
   const seen = new Set();

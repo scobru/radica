@@ -43,7 +43,7 @@
           <span class="badge" id="chat-badge" style="display: none;">0</span>
         </button>
         <!-- Mail Navbar Button -->
-        <button class="rail-btn" id="open-mail-btn" title="Freenet Mail (g m)">
+        <button class="rail-btn" id="open-mail-btn" title="Mail (g m)">
           <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           <span>Mail</span>
           <span class="badge" id="mail-badge" style="display: none;">0</span>
@@ -243,7 +243,10 @@
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               <span>Moderation</span>
             </button>
-            <button class="btn-secondary btn-sm" id="comm-hide-btn" style="display: none;" title="Radica moderator: hide this community for everyone who follows Radica's moderation">🛡️ Hide community</button>
+            <button class="btn-secondary btn-sm btn-icon-text" id="comm-hide-btn" style="display: none;" title="Radica moderator: hide this community for everyone who follows Radica's moderation">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Hide community</span>
+            </button>
             <button class="btn-secondary btn-sm" id="comm-exit-btn">← Back to Timeline</button>
           </div>
         </div>
@@ -341,10 +344,14 @@
             <div>
               <h1 id="pp-name" style="cursor: pointer;" title="View public profile">You</h1>
               <p class="pp-meta" id="pp-meta"></p>
+              <div class="pp-bio" id="pp-bio"></div>
               <p class="pp-counts"><b id="pp-posts-count">0</b> posts · <b id="pp-roots-count">0</b> roots</p>
             </div>
             <div class="pp-actions" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-              <button type="button" class="btn-secondary btn-icon-text" id="pp-share-wall-btn" title="Copy a direct link to your Wall">🔗 <span>Share my Wall</span></button>
+              <button type="button" class="btn-secondary btn-icon-text" id="pp-share-wall-btn" title="Copy a direct link to your Wall">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span>Share my Wall</span>
+              </button>
               <button type="button" class="btn-secondary pp-view-public" id="pp-view-public-btn" title="View your public profile as others see it">View public profile</button>
               <button type="button" class="btn-secondary pp-edit" id="pp-edit-btn">Edit profile</button>
             </div>
@@ -677,9 +684,8 @@
             <div class="mail-header-title-wrap">
               <h3 class="mail-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
                 <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                <span>Freenet Mail</span>
+                <span>Mail</span>
               </h3>
-              <span class="mail-pq-badge identity-badge" style="background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 12px;">● Post-Quantum E2EE</span>
             </div>
             <div class="mail-header-address-wrap" style="display: flex; align-items: center; gap: 6px;">
               <span class="mail-address-badge" id="mail-user-address-chip" title="Click to view & copy your Freenet Mail tokens and addresses">
@@ -893,7 +899,10 @@
             <span>Activity & Notifications</span>
           </h3>
           <div class="notifs-actions" style="display: flex; gap: 8px;">
-            <button type="button" class="btn-secondary btn-sm" id="notifs-sound-btn" title="Toggle notification sound" aria-label="Toggle notification sound">🔔 Sound on</button>
+            <button type="button" class="btn-secondary btn-sm btn-icon-text" id="notifs-sound-btn" title="Toggle notification sound" aria-label="Toggle notification sound">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <span>Sound on</span>
+            </button>
             <button class="btn-secondary btn-sm" id="notifs-mark-read-btn">Mark all read</button>
             <button class="btn-secondary btn-sm" id="notifs-clear-btn" title="Remove all notifications, on every device">Clear all</button>
             <button class="btn-secondary btn-sm" id="notifs-close-btn">✕</button>
@@ -1499,7 +1508,7 @@
             <li><b>Activity</b>: notifications from strangers wait under <b>Others</b>, unless a real comment on your post is behind them.</li>
             <li>Communities can be open only to vouched members.</li>
           </ul>
-          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators, and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held.</p>
+          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators, and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, a <b>Recently moderated</b> team log showing who removed or dismissed each item, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss — fellow global moderators are alerted automatically if another moderator already handled a post: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held.</p>
           <p><b>What a newcomer meets</b>: a 15-second pause between posts and a few seconds of proof; the posts show in <b>Recent</b> from the first one, but not in <b>Top</b> or <b>Following</b> until someone in the reader's network likes or follows them; their comments show, with the proof. A newcomer on an old version of the app, without the proof, is covered until they update. A supporter badge, a GhostKey, or being followed by someone trusted lifts these limits.</p>
           <p><b>What it does not stop</b>: someone with a lot of computing power can still make many accounts with valid proofs. They then fill the newcomers' lane and are covered or hidden for people outside their reach, and reports and blocklists do the rest. Each layer is a brake, none is a wall.</p>
         </details>
@@ -1544,6 +1553,12 @@
         <details><summary>✏️ Editing and deleting</summary>
           <p><b>Edit</b>: your post shows the new text and an "edited" mark. Apps that are not updated yet still show the original.</p>
           <p><b>Delete</b>: the post is removed from the network and never comes back. But on a network with no owner, anyone who already saw it may have kept a copy: post as if it could last.</p>
+        </details>
+
+        <details><summary>Standalone Single Post View &amp; Markdown Profile Bio</summary>
+          <p><b>Single Post View</b>: Click any thread title or <b>Open</b> button in <b>Communities</b>, or click a post's timestamp / <b>Open post</b> menu item in the Feed, to read and reply to that post on its own distraction-free surface with full moderation controls and an optional <b>View in feed</b> jump button.</p>
+          <p><b>Markdown Profile Bio</b>: Your bio supports Markdown links, bold/italic formatting, headings, <code>@mentions</code>, <code>#hashtags</code>, and multi-line spacing across your sidebar, Profile page, and public Wall.</p>
+          <p><b>Moments Mobile Camera &amp; Smooth Living Tree</b>: On mobile, tapping <b>Camera</b> in Moments opens your native camera capture directly without requiring HTTPS origin camera permissions, and panning/pinching the Living Tree uses GPU-composited transforms for smooth 60 FPS interaction.</p>
         </details>
 
         <details><summary>⌨️ Keyboard shortcuts</summary>
@@ -1641,6 +1656,7 @@
         <!-- Quick post composer card -->
         <div id="media-quick-post" class="moments-composer" style="display:none;">
           <input type="file" id="media-file-input" accept="image/*" style="display:none;" />
+          <input type="file" id="media-camera-input" accept="image/*" capture="environment" style="display:none;" />
           <div id="media-preview-area" class="moments-preview-area" style="display:none;">
             <img id="media-preview-img" class="moments-preview-img" alt="Preview" />
             <button type="button" id="media-remove-preview" class="moments-preview-remove" title="Remove photo">✕</button>
@@ -1672,7 +1688,10 @@
           <button type="button" class="moments-filter-btn active" data-mfilter="all">All Moments</button>
           <button type="button" class="moments-filter-btn" data-mfilter="photos">Photos</button>
           <button type="button" class="moments-filter-btn" data-mfilter="videos">Videos</button>
-          <button type="button" class="moments-filter-btn" data-mfilter="reels">🎬 Reels</button>
+          <button type="button" class="moments-filter-btn btn-icon-text" data-mfilter="reels">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+            <span>Reels</span>
+          </button>
           <button type="button" class="moments-filter-btn" data-mfilter="following">Following</button>
         </div>
         <div id="moments-reels-container" class="moments-reels-container" style="display: none;"></div>
@@ -1970,7 +1989,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
             <span id="blocklists-modal-title-text">Blocklists</span>
           </h3>
-          <button class="btn-secondary btn-sm" id="blocklists-close-btn">✕</button>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" class="btn-secondary btn-sm" id="blocklists-refresh-btn" title="Refresh from Freenet network">↻ Refresh</button>
+            <button class="btn-secondary btn-sm" id="blocklists-close-btn">✕</button>
+          </div>
         </div>
         <div class="composer-tabs blocklists-tabs" id="blocklists-tabs" style="margin-bottom: 16px; display: none;">
           <button type="button" class="composer-tab active" id="tab-btn-blocklists">Blocklists</button>
@@ -1998,8 +2020,15 @@
           <div id="blocklists-reports" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;"></div>
         </div>
         <div id="pane-moderation" style="display: none;">
-          <h4>Reported posts <small id="mod-queue-count" style="color: var(--text-muted);"></small></h4>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">Reported posts <small id="mod-queue-count" style="color: var(--text-muted);"></small></h4>
+            <button type="button" class="btn-secondary btn-sm" id="mod-refresh-btn" title="Refresh moderation reports from Freenet network">↻ Refresh queue</button>
+          </div>
           <div id="mod-queue" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;"></div>
+          <div id="mod-handled-section" style="display: none; margin-bottom: 18px;">
+            <h4 style="margin: 0 0 8px 0;">Recently moderated <small id="mod-handled-count" style="color: var(--text-muted);"></small></h4>
+            <div id="mod-handled" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
           <h4>Hidden communities</h4>
           <form id="mod-comm-form" style="display: flex; gap: 8px; margin-bottom: 10px;">
             <input type="text" id="mod-comm-input" class="comment-input" placeholder="Community, e.g. r/spam" required />
@@ -2094,8 +2123,8 @@
         <label style="font-size: 0.85rem; font-weight: 600;">Display Name</label>
         <input type="text" id="modal-name-input" class="composer-input" style="min-height: auto; margin-bottom: 12px;" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Bio</label>
-        <textarea id="modal-bio-input" style="min-height: 110px; margin-bottom: 12px; resize: vertical; line-height: 1.5; font-family: inherit; font-size: 0.92rem;"></textarea>
+        <label style="font-size: 0.85rem; font-weight: 600;">Bio <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(Markdown, line breaks &amp; links supported)</span></label>
+        <textarea id="modal-bio-input" placeholder="Tell people about yourself..." style="min-height: 110px; margin-bottom: 12px; resize: vertical; line-height: 1.5; font-family: inherit; font-size: 0.92rem;"></textarea>
 
         <label style="font-size: 0.85rem; font-weight: 600;">Delta Blog (Optional)</label>
         <input type="text" id="modal-delta-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Delta site address" />
@@ -2540,7 +2569,7 @@
 
         <div style="border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 14px;">
           <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-            <span>🌱 Freenet Decentralized Storage</span>
+            <span>Freenet Decentralized Storage</span>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.78rem;">
@@ -2662,7 +2691,7 @@
     <div id="board-picker-modal" class="modal-overlay" style="display: none; z-index: 2500;" role="dialog" aria-modal="true" aria-label="Save to Board">
       <div class="modal-card" style="max-width: 460px;">
         <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <h3 style="margin:0;">📌 Save to Board</h3>
+          <h3 style="margin:0;">Save to Board</h3>
           <button type="button" class="btn-secondary btn-sm" id="board-picker-close-btn">✕</button>
         </div>
         <div id="board-picker-existing" class="board-picker-existing"></div>
@@ -2673,12 +2702,29 @@
           <input type="text" id="board-item-note" class="input" placeholder="Personal note for this item (optional)" maxlength="240" style="width:100%;margin-bottom:8px;" />
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
             <select id="board-new-visibility" class="input" style="width:auto;">
-              <option value="public">🌐 Public (shareable)</option>
-              <option value="private">🔒 Private (local)</option>
+              <option value="public">Public (shareable)</option>
+              <option value="private">Private (local)</option>
             </select>
             <button type="button" class="btn-primary btn-sm" id="board-create-save-btn">+ Create &amp; Save</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Single Post Detail Modal -->
+    <div id="single-post-modal" class="modal-overlay single-post-modal" style="display: none;" role="dialog" aria-modal="true" aria-label="Post detail">
+      <div class="modal-card single-post-card">
+        <div class="single-post-topbar">
+          <div class="single-post-topbar-left">
+            <button type="button" class="btn-secondary btn-sm" id="single-post-back-btn">← Back</button>
+            <span class="single-post-context" id="single-post-context">Post</span>
+          </div>
+          <div class="single-post-topbar-actions">
+            <button type="button" class="btn-secondary btn-sm" id="single-post-jump-feed-btn" title="Locate this post in the main feed">View in feed</button>
+            <button type="button" class="btn-secondary btn-sm" id="single-post-close-btn" aria-label="Close post view">✕</button>
+          </div>
+        </div>
+        <div id="single-post-body" class="single-post-body"></div>
       </div>
     </div>
 

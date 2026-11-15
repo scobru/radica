@@ -1,8 +1,10 @@
 // Interactive controller for the Living Tree (#tree-modal) visual network navigator.
 import {
+  baseViewBoxDims,
   buildTreeGraph,
   renderTreeInspectorHtml,
   renderTreeSvg,
+  viewBoxFor,
   type TreeGraphModel,
   type TreePeerInput,
   type TreeScope,
@@ -133,11 +135,19 @@ function renderTreeView(cachedData?: { posts: Post[]; communities: Community[]; 
   updateTimeControls(model);
 }
 
+function getTreeSvgEl(): SVGSVGElement | null {
+  const svgHost = document.getElementById("tree-svg-container");
+  return svgHost?.querySelector<SVGSVGElement>("svg.radica-tree-svg") ?? null;
+}
+
 function applySvgViewBoxOnly() {
   if (!lastModel) return renderTreeView();
-  const svgHost = document.getElementById("tree-svg-container");
-  if (svgHost) {
-    svgHost.innerHTML = renderTreeSvg(lastModel, { mode, selection, zoom, panX, panY });
+  const svg = getTreeSvgEl();
+  if (svg) {
+    svg.style.transform = "";
+    svg.setAttribute("viewBox", viewBoxFor(mode, zoom, panX, panY));
+  } else {
+    renderTreeView();
   }
 }
 
@@ -174,6 +184,10 @@ function startGrowthAnimation() {
   const startProgress = timeProgress;
   const durationMs = Math.max(1800, (1 - startProgress) * 7000);
   const startTs = performance.now();
+  const isMobileLike =
+    window.innerWidth <= 900 || (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
+  const minFrameMs = isMobileLike ? 50 : 0;
+  let lastRenderTs = 0;
 
   const cachedData = deps
     ? {
@@ -193,7 +207,10 @@ function startGrowthAnimation() {
     // Smooth easeInOut curve for natural botanical germination, growth, and gentle settling
     const eased = frac < 0.5 ? 2 * frac * frac : 1 - Math.pow(-2 * frac + 2, 2) / 2;
     timeProgress = Math.min(1, startProgress + (1 - startProgress) * eased);
-    renderTreeView(cachedData);
+    if (frac >= 1 || now - lastRenderTs >= minFrameMs) {
+      lastRenderTs = now;
+      renderTreeView(cachedData);
+    }
     if (frac < 1) {
       growthRaf = requestAnimationFrame(step);
     } else {
@@ -304,39 +321,135 @@ export function initTreePage(nextDeps: TreePageDeps): void {
 
   const canvasWrap = document.getElementById("tree-canvas-wrap");
   if (canvasWrap) {
-    let dragging = false;
+    const pointers = new Map<number, { x: number; y: number }>();
     let moved = false;
-    let startX = 0;
-    let startY = 0;
-    let originPanX = 0;
-    let originPanY = 0;
+    let gestureRect: DOMRect | null = null;
+    let originZoom = zoom;
+    let originPanX = panX;
+    let originPanY = panY;
+    let panAnchorX = 0;
+    let panAnchorY = 0;
+    let pinchDist0 = 0;
+    let pinchMid0X = 0;
+    let pinchMid0Y = 0;
+    let previewTx = 0;
+    let previewTy = 0;
+    let previewScale = 1;
+    let transformRaf: number | null = null;
+    let wheelRaf: number | null = null;
+
+    const getScaleFit = (rect: DOMRect) => {
+      const [, , baseW, baseH] = baseViewBoxDims(mode);
+      if (rect.width <= 0 || rect.height <= 0) return 1;
+      return Math.min(rect.width / baseW, rect.height / baseH);
+    };
+
+    const schedulePreviewTransform = () => {
+      if (transformRaf !== null) return;
+      transformRaf = requestAnimationFrame(() => {
+        transformRaf = null;
+        const svg = getTreeSvgEl();
+        if (!svg) return;
+        svg.style.transformOrigin = "center center";
+        svg.style.transform = `translate3d(${previewTx.toFixed(1)}px, ${previewTy.toFixed(1)}px, 0) scale(${previewScale.toFixed(4)})`;
+      });
+    };
+
+    const resetGestureBaseline = () => {
+      gestureRect = canvasWrap.getBoundingClientRect();
+      originZoom = zoom;
+      originPanX = panX;
+      originPanY = panY;
+      previewTx = 0;
+      previewTy = 0;
+      previewScale = 1;
+      const pts = [...pointers.values()];
+      if (pts.length === 1) {
+        panAnchorX = pts[0].x;
+        panAnchorY = pts[0].y;
+      } else if (pts.length >= 2) {
+        const cx = gestureRect.left + gestureRect.width / 2;
+        const cy = gestureRect.top + gestureRect.height / 2;
+        pinchDist0 = Math.max(1, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y));
+        pinchMid0X = (pts[0].x + pts[1].x) / 2 - cx;
+        pinchMid0Y = (pts[0].y + pts[1].y) / 2 - cy;
+      }
+    };
+
+    const commitGestureTransform = () => {
+      if (transformRaf !== null) {
+        cancelAnimationFrame(transformRaf);
+        transformRaf = null;
+      }
+      if (gestureRect && (previewTx !== 0 || previewTy !== 0 || previewScale !== 1)) {
+        const scaleFit = getScaleFit(gestureRect);
+        const nextZoom = Math.max(0.5, Math.min(3.5, originZoom * previewScale));
+        panX = originPanX + previewTx / (scaleFit * nextZoom);
+        panY = originPanY + previewTy / (scaleFit * nextZoom);
+        zoom = nextZoom;
+      }
+      previewTx = 0;
+      previewTy = 0;
+      previewScale = 1;
+      applySvgViewBoxOnly();
+    };
 
     canvasWrap.addEventListener("pointerdown", (e) => {
       if ((e.target as HTMLElement).closest(".tree-zoom-controls")) return;
-      dragging = true;
-      moved = false;
-      startX = e.clientX;
-      startY = e.clientY;
-      originPanX = panX;
-      originPanY = panY;
+      if (pointers.size === 0) {
+        moved = false;
+      } else {
+        commitGestureTransform();
+      }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      canvasWrap.classList.add("is-interacting");
+      resetGestureBaseline();
     });
 
     window.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      if (Math.hypot(dx, dy) > 5) moved = true;
-      if (!moved) return;
-      const rect = canvasWrap.getBoundingClientRect();
-      const worldPerPx = rect.width > 0 ? 740 / zoom / rect.width : 1;
-      panX = originPanX + dx * worldPerPx;
-      panY = originPanY + dy * worldPerPx;
-      applySvgViewBoxOnly();
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!gestureRect) gestureRect = canvasWrap.getBoundingClientRect();
+
+      const pts = [...pointers.values()];
+      if (pts.length === 1) {
+        const dx = pts[0].x - panAnchorX;
+        const dy = pts[0].y - panAnchorY;
+        if (Math.hypot(dx, dy) > 5) moved = true;
+        if (!moved) return;
+        previewTx = dx;
+        previewTy = dy;
+        previewScale = 1;
+        schedulePreviewTransform();
+      } else if (pts.length >= 2) {
+        moved = true;
+        const cx = gestureRect.left + gestureRect.width / 2;
+        const cy = gestureRect.top + gestureRect.height / 2;
+        const dist = Math.max(1, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y));
+        const midX = (pts[0].x + pts[1].x) / 2 - cx;
+        const midY = (pts[0].y + pts[1].y) / 2 - cy;
+        const targetZoom = Math.max(0.5, Math.min(3.5, originZoom * (dist / pinchDist0)));
+        previewScale = targetZoom / originZoom;
+        previewTx = midX - previewScale * pinchMid0X;
+        previewTy = midY - previewScale * pinchMid0Y;
+        schedulePreviewTransform();
+      }
     });
 
-    window.addEventListener("pointerup", () => {
-      dragging = false;
-    });
+    const endPointer = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return;
+      commitGestureTransform();
+      pointers.delete(e.pointerId);
+      if (pointers.size > 0) {
+        resetGestureBaseline();
+      } else {
+        canvasWrap.classList.remove("is-interacting");
+        gestureRect = null;
+      }
+    };
+
+    window.addEventListener("pointerup", endPointer);
+    window.addEventListener("pointercancel", endPointer);
 
     canvasWrap.addEventListener(
       "wheel",
@@ -344,7 +457,12 @@ export function initTreePage(nextDeps: TreePageDeps): void {
         e.preventDefault();
         const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
         zoom = Math.max(0.5, Math.min(3.5, zoom * factor));
-        applySvgViewBoxOnly();
+        if (wheelRaf === null) {
+          wheelRaf = requestAnimationFrame(() => {
+            wheelRaf = null;
+            applySvgViewBoxOnly();
+          });
+        }
       },
       { passive: false }
     );

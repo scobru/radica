@@ -17,7 +17,7 @@ import { CHAIN_ID, RPC_URLS, SUPPORT, SEMAPHORE, GROUPS } from "../../donate-app
 import { CLAIMS_LOG, RECEIPTS_LOG, judgeClaim, issueReceipt, signEntry, bytesToHex, hexToBytes } from "./core.js";
 import {
   REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody,
-  retractBody, budget, shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, modsOf, CATEGORIES,
+  retractBody, budget, shouldHold, categoryDisabled, applyHoldOutcomes, modsOf, CATEGORIES,
 } from "./moderator.js";
 
 const env = process.env;
@@ -155,6 +155,7 @@ const loadMod = async () =>
   existsSync(modFile)
     ? JSON.parse(await readFile(modFile, "utf8"))
     : { judged: [], used: null, heldTargets: {}, categoryStats: {} };
+const saveMod = (state) => writeFile(modFile, JSON.stringify(state));
 
 async function askModel(posts) {
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -170,19 +171,12 @@ async function askModel(posts) {
 /** Checks the maintainer's and every mod's own blocklist log once for what they decided about each held target,
  *  folding any decision found into `categoryStats` and returning the targets to stop tracking (they are decided). */
 async function resolveHeldOutcomes(api, heldTargets, categoryStats) {
-  if (!Object.keys(heldTargets).length) return { categoryStats, resolved: [] };
+  if (!Object.keys(heldTargets).length) return { heldTargets, categoryStats, resolved: [] };
   const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
   const mods = modsOf(maintainerLog, MOD_DEFAULT_MODS);
   const entries = [...maintainerLog];
   for (const m of mods) entries.push(...Object.values((await getEntries(api, `blocklist/${m}`)) ?? {}));
-  const resolved = [];
-  for (const [target, category] of Object.entries(heldTargets)) {
-    const outcome = holdOutcome(entries, target);
-    if (!outcome) continue;
-    categoryStats = recordHoldOutcome(categoryStats, category, outcome);
-    resolved.push(target);
-  }
-  return { categoryStats, resolved };
+  return applyHoldOutcomes(heldTargets, categoryStats, entries);
 }
 
 /** Read the recent public posts, ask the model about the ones not judged yet, report (and sometimes hold) the
@@ -192,14 +186,15 @@ async function resolveHeldOutcomes(api, heldTargets, categoryStats) {
 async function modPass(api, modSk) {
   const mod = await loadMod();
   const judged = new Set(mod.judged);
-  const heldTargets = { ...(mod.heldTargets ?? {}) };
-  let categoryStats = mod.categoryStats ?? {};
-
-  const resolution = await resolveHeldOutcomes(api, heldTargets, categoryStats);
-  categoryStats = resolution.categoryStats;
-  for (const target of resolution.resolved) delete heldTargets[target];
+  const resolution = await resolveHeldOutcomes(api, mod.heldTargets ?? {}, mod.categoryStats ?? {});
+  const heldTargets = resolution.heldTargets;
+  const categoryStats = resolution.categoryStats;
   const disabled = new Set(CATEGORIES.filter((c) => categoryDisabled(categoryStats, c)));
-  if (resolution.resolved.length) log(`[mod] ${resolution.resolved.length} held post(s) decided by a moderator` + (disabled.size ? `; holding is off for: ${[...disabled].join(", ")}` : ""));
+  if (resolution.resolved.length) {
+    log(`[mod] ${resolution.resolved.length} held post(s) decided by a moderator` + (disabled.size ? `; holding is off for: ${[...disabled].join(", ")}` : ""));
+    // persist resolved holds immediately so a 0-post pass never leaves them to be double-counted after restart
+    await saveMod({ judged: [...judged], used: mod.used ?? null, heldTargets, categoryStats });
+  }
 
   const posts = [];
   const authors = recentAuthors(await getEntries(api, "directory"));
@@ -256,7 +251,7 @@ async function modPass(api, modSk) {
       }
     }
     // shortcut: every judged post is kept forever (a few bytes each), prune by age if the file ever gets big
-    await writeFile(modFile, JSON.stringify({ judged: [...judged], used, heldTargets, categoryStats }));
+    await saveMod({ judged: [...judged], used, heldTargets, categoryStats });
   }
   log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${used.requests}/${MOD_LIMITS.requests} requests, ${used.holds}/${MOD_LIMITS.holds} holds today`);
 }

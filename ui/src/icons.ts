@@ -62,7 +62,10 @@ export type IconName =
   | "arrowRight"
   | "mic"
   | "reply"
-  | "repeat";
+  | "repeat"
+  | "volume2"
+  | "volumeX"
+  | "film";
 
 const ICON_PATHS: Record<IconName, string> = {
   radica: `
@@ -348,6 +351,26 @@ const ICON_PATHS: Record<IconName, string> = {
   keyboard: `
     <rect x="2" y="4" width="20" height="16" rx="2"></rect>
     <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8"></path>
+  `,
+  volume2: `
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+  `,
+  volumeX: `
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <line x1="23" y1="9" x2="17" y2="15"></line>
+    <line x1="17" y1="9" x2="23" y2="15"></line>
+  `,
+  film: `
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+    <line x1="7" y1="2" x2="7" y2="22"></line>
+    <line x1="17" y1="2" x2="17" y2="22"></line>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <line x1="2" y1="7" x2="7" y2="7"></line>
+    <line x1="2" y1="17" x2="7" y2="17"></line>
+    <line x1="17" y1="17" x2="22" y2="17"></line>
+    <line x1="17" y1="7" x2="22" y2="7"></line>
   `,
 };
 

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody, retractBody, budget,
-  shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, modsOf, HOLD_CATEGORIES,
+  shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, applyHoldOutcomes, modsOf, HOLD_CATEGORIES,
 } from "./moderator.js";
 
 const NOW = 1_800_000_000_000;
@@ -130,4 +130,22 @@ test("holdOutcome: the newest report/dismiss entry for a target wins, withdrawn 
   assert.equal(holdOutcome([e({ type: "report", target: `${A}:2` }, 1)], target), null);
   assert.equal(holdOutcome([], target), null);
   assert.equal(holdOutcome(null, target), null);
+});
+
+test("applyHoldOutcomes: drops decided holds and never double-counts on subsequent passes", () => {
+  const e = (body, ts) => ({ author: B, ts, body: JSON.stringify(body) });
+  const t1 = `${A}:1`, t2 = `${A}:2`;
+  const held = { [t1]: "threat", [t2]: "scam" };
+  const entries = [e({ type: "report", target: t1 }, 1)];
+
+  const first = applyHoldOutcomes(held, {}, entries);
+  assert.deepEqual(first.resolved, [t1]);
+  assert.deepEqual(first.heldTargets, { [t2]: "scam" });
+  assert.deepEqual(first.categoryStats, { threat: { removed: 1, dismissed: 0 } });
+
+  // Running again with persisted output when no new decisions exist is a no-op (no double-count)
+  const second = applyHoldOutcomes(first.heldTargets, first.categoryStats, entries);
+  assert.deepEqual(second.resolved, []);
+  assert.deepEqual(second.heldTargets, { [t2]: "scam" });
+  assert.deepEqual(second.categoryStats, { threat: { removed: 1, dismissed: 0 } });
 });

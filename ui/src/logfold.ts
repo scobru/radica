@@ -390,6 +390,99 @@ export function foldReportQueue(entries: LogEntry[], resolved: ReadonlySet<strin
   return [...items.values()].sort((a, b) => b.score - a.score || b.reporters - a.reporters || b.ts - a.ts).slice(0, max);
 }
 
+export interface HandledReportItem {
+  /** `<author>:<post id>` */
+  target: string;
+  /** Moderator public key who made the latest active decision. */
+  moderator: string;
+  /** Latest active decision recorded on that moderator's blocklist log. */
+  action: "removed" | "dismissed";
+  /** Reason recorded by the moderator (when removed). */
+  reason: string;
+  /** Timestamp of the moderator's decision. */
+  ts: number;
+  /** Number of distinct active reporters in the public `reports` log. */
+  reporters: number;
+  /** Up to 3 report reasons from the public `reports` log. */
+  reasons: string[];
+}
+
+/**
+ * Recent post-level moderation decisions made by Radica's global moderators (`report` = removed, `dismiss` = dismissed
+ * on each moderator's `blocklist/<moderator>` log). Only each moderator's own entries count, newest per (moderator,
+ * target) wins (`on: false` withdraws that moderator's decision), and across moderators the most recent active
+ * decision wins for a target. Sorted newest decision first.
+ */
+export function foldHandledReports(
+  modLogs: ReadonlyArray<{ moderator: string; entries: LogEntry[] }>,
+  reportEntries: LogEntry[],
+  max = 20,
+): HandledReportItem[] {
+  const latestDecision = new Map<string, { moderator: string; action: "removed" | "dismissed"; reason: string; ts: number }>();
+
+  for (const { moderator, entries } of modLogs) {
+    const byTarget = new Map<string, { action: "removed" | "dismissed"; reason: string; ts: number } | null>();
+    for (const { e, b } of bodies(entries)) {
+      if (e.author !== moderator || typeof b.target !== "string" || !/^[0-9a-f]{64}:.+/.test(b.target)) continue;
+      if (b.type !== "report" && b.type !== "dismiss") continue;
+      if (b.on === false) {
+        byTarget.set(b.target, null);
+      } else {
+        byTarget.set(b.target, {
+          action: b.type === "report" ? "removed" : "dismissed",
+          reason: typeof b.reason === "string" ? b.reason.trim().slice(0, 200) : "",
+          ts: e.ts,
+        });
+      }
+    }
+    for (const [target, dec] of byTarget) {
+      if (!dec) continue;
+      const prev = latestDecision.get(target);
+      if (!prev || dec.ts > prev.ts || (dec.ts === prev.ts && moderator < prev.moderator)) {
+        latestDecision.set(target, { moderator, ...dec });
+      }
+    }
+  }
+
+  if (!latestDecision.size) return [];
+
+  const latestReports = new Map<string, { reporter: string; target: string; reason: string; on: boolean }>();
+  for (const { e, b } of bodies(reportEntries)) {
+    if (b.type !== "report" || typeof b.target !== "string" || !latestDecision.has(b.target)) continue;
+    latestReports.set(`${e.author}|${b.target}`, {
+      reporter: e.author,
+      target: b.target,
+      reason: typeof b.reason === "string" ? b.reason.trim().slice(0, 200) : "",
+      on: b.on !== false,
+    });
+  }
+
+  const reportMeta = new Map<string, { reporters: Set<string>; reasons: string[] }>();
+  for (const r of latestReports.values()) {
+    if (!r.on) continue;
+    const meta = reportMeta.get(r.target) ?? { reporters: new Set<string>(), reasons: [] };
+    meta.reporters.add(r.reporter);
+    if (r.reason && !meta.reasons.includes(r.reason) && meta.reasons.length < 3) meta.reasons.push(r.reason);
+    reportMeta.set(r.target, meta);
+  }
+
+  return [...latestDecision.entries()]
+    .map(([target, dec]) => {
+      const meta = reportMeta.get(target);
+      return {
+        target,
+        moderator: dec.moderator,
+        action: dec.action,
+        reason: dec.reason,
+        ts: dec.ts,
+        reporters: meta?.reporters.size ?? 0,
+        reasons: meta?.reasons ?? [],
+      };
+    })
+    .sort((a, b) => b.ts - a.ts || (a.target < b.target ? -1 : 1))
+    .slice(0, max);
+}
+
 /**
  * The media (an image's or a video's hash) of the posts `curator` reported: hidden wherever they are posted again, not
  * only in the reported post. A report names it in `media`; withdrawing the report frees it.

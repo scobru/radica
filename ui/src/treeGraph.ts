@@ -1,6 +1,7 @@
 // Living Tree (Albero di Radica): pure botanical network graph engine & SVG/Inspector renderer.
 // No DOM globals required — safe to test directly under Node.js.
 import { escapeHtml, shortenKey } from "./html.ts";
+import { renderIcon } from "./icons.ts";
 import { plainMentions } from "./caption.ts";
 import { plantSvg } from "./plant.ts";
 import { freepollsLink } from "./freepolls.ts";
@@ -813,14 +814,17 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
   };
 }
 
-function viewBoxFor(mode: TreeViewMode, zoom = 1, panX = 0, panY = 0): string {
+export function baseViewBoxDims(mode: TreeViewMode): [number, number, number, number] {
+  return mode === "canopy"
+    ? [0, -165, 720, 410]
+    : mode === "roots"
+      ? [0, 145, 720, 380]
+      : [0, -25, 740, 680];
+}
+
+export function viewBoxFor(mode: TreeViewMode, zoom = 1, panX = 0, panY = 0): string {
   const safeZoom = Math.max(0.4, Math.min(4, Number.isFinite(zoom) ? zoom : 1));
-  const [baseCx, baseCy, baseW, baseH] =
-    mode === "canopy"
-      ? [0, -165, 720, 410]
-      : mode === "roots"
-        ? [0, 145, 720, 380]
-        : [0, -25, 740, 680];
+  const [baseCx, baseCy, baseW, baseH] = baseViewBoxDims(mode);
 
   const vbW = baseW / safeZoom;
   const vbH = baseH / safeZoom;
@@ -1004,7 +1008,7 @@ export function renderTreeSvg(
           (p.commentsCount > 0
             ? `<text class="tree-post-count" x="${p.x}" y="${round1(p.y + 3)}" text-anchor="middle">${p.commentsCount}</text>`
             : "") +
-          `<title>${escapeHtml(p.authorName)}: ${escapeHtml(cut(preview || "(media)", 90))} · ♥ ${p.likesCount} · 💬 ${p.commentsCount}</title>` +
+          `<title>${escapeHtml(p.authorName)}: ${escapeHtml(cut(preview || "(media)", 90))} · ${p.likesCount} likes · ${p.commentsCount} replies</title>` +
           `</g>`
       );
     }
@@ -1065,7 +1069,7 @@ export function renderTreeInspectorHtml(
     return (
       `<div class="tree-insp-card">` +
       `<div class="tree-insp-kicker">Network Organism</div>` +
-      `<h4 class="tree-insp-title">🌱 ${escapeHtml(stage.name)}</h4>` +
+      `<h4 class="tree-insp-title">${escapeHtml(stage.name)}</h4>` +
       `<div class="tree-insp-progress"><div class="tree-insp-bar"><span style="width: ${pct}%"></span></div><div class="tree-insp-sub">${nextHint}</div></div>` +
       `<div class="tree-stat-grid">` +
       `<div class="tree-stat-tile"><b>${stats.users}</b><span>Personas</span></div>` +
@@ -1081,7 +1085,7 @@ export function renderTreeInspectorHtml(
       `<div><span class="tree-dot-sample root"></span> Persona root (pulses when active)</div>` +
       `</div>` +
       `<p class="tree-insp-hint">Click any root, bough, post branch, or leaf on the tree to trace sap links and jump straight into Radica.</p>` +
-      `<button type="button" class="btn-secondary btn-sm tree-insp-btn" data-tree-open-milestones="true">🌱 View Network Milestones</button>` +
+      `<button type="button" class="btn-secondary btn-sm tree-insp-btn btn-icon-text" data-tree-open-milestones="true">${renderIcon("radica", { className: "icon-xs" })} <span>View Network Milestones</span></button>` +
       `</div>`
     );
   }
@@ -1104,7 +1108,7 @@ export function renderTreeInspectorHtml(
       const cText = plainMentions(c.text, getDisplayName);
       return (
         `<button type="button" class="tree-insp-leaf-item" data-tree-select-comment="${escapeHtml(c.id)}" data-tree-post-id="${escapeHtml(selection.postId)}" data-tree-author="${escapeHtml(c.author)}">` +
-        `<span class="tree-insp-leaf-who">🍃 ${escapeHtml(cName)}</span>` +
+        `<span class="tree-insp-leaf-who">${escapeHtml(cName)}</span>` +
         `<span class="tree-insp-leaf-text">${escapeHtml(cut(cText, 90))}</span>` +
         `</button>`
       );
@@ -1115,11 +1119,11 @@ export function renderTreeInspectorHtml(
       `<div class="tree-insp-head"><div><div class="tree-insp-kicker">Post Branch</div><h4 class="tree-insp-title">${escapeHtml(authorName)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
       (comm ? `<div class="tree-insp-pill">r/${escapeHtml(comm.slug)}</div>` : `<div class="tree-insp-pill">${escapeHtml(branch?.isPoll ? "poll" : post?.category ?? "thought")}</div>`) +
       `<div class="tree-insp-body">${escapeHtml(cut(caption || "(Media post)", 280))}</div>` +
-      `<div class="tree-insp-metrics"><span>♥ ${likes}</span><span>💬 ${comments.length}</span><span>🔁 ${branch?.repostsCount ?? 0}</span></div>` +
+      `<div class="tree-insp-metrics"><span class="btn-icon-text">${renderIcon("heart", { className: "icon-xs" })} ${likes}</span><span class="btn-icon-text">${renderIcon("messageSquare", { className: "icon-xs" })} ${comments.length}</span><span class="btn-icon-text">${renderIcon("repeat", { className: "icon-xs" })} ${branch?.repostsCount ?? 0}</span></div>` +
       `<div class="tree-insp-actions">` +
-      `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(selection.postId)}" data-tree-author="${escapeHtml(selection.author)}">Open Post in Feed →</button>` +
+      `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(selection.postId)}" data-tree-author="${escapeHtml(selection.author)}">Open Post →</button>` +
       `<button type="button" class="btn-secondary btn-sm" data-tree-open-profile="${escapeHtml(selection.author)}">View Author</button>` +
-      `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.author)}">✨ Trace Author Sap</button>` +
+      `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.author)}">Trace Author Sap</button>` +
       `</div>` +
       (commentItems.length
         ? `<div class="tree-insp-subhead">Leaves on this branch (${comments.length})</div><div class="tree-insp-leaf-list">${commentItems.join("")}</div>`
@@ -1137,11 +1141,11 @@ export function renderTreeInspectorHtml(
 
     return (
       `<div class="tree-insp-card">` +
-      `<div class="tree-insp-head"><div><div class="tree-insp-kicker">Comment Leaf</div><h4 class="tree-insp-title">🍃 ${escapeHtml(authorName)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
+      `<div class="tree-insp-head"><div><div class="tree-insp-kicker">Comment Leaf</div><h4 class="tree-insp-title">${escapeHtml(authorName)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
       `<div class="tree-insp-body">${escapeHtml(cut(text || "(Reply)", 280))}</div>` +
       (parentPreview ? `<div class="tree-insp-quote">On branch: ${escapeHtml(cut(parentPreview, 110))}</div>` : "") +
       `<div class="tree-insp-actions">` +
-      (post ? `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(post.id)}" data-tree-author="${escapeHtml(post.author)}">Open Thread in Feed →</button>` : "") +
+      (post ? `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(post.id)}" data-tree-author="${escapeHtml(post.author)}">Open Thread →</button>` : "") +
       (post ? `<button type="button" class="btn-secondary btn-sm" data-tree-select-post="${escapeHtml(post.id)}" data-tree-author="${escapeHtml(post.author)}">↑ Select Parent Branch</button>` : "") +
       `<button type="button" class="btn-secondary btn-sm" data-tree-open-profile="${escapeHtml(selection.author)}">View Commenter</button>` +
       `</div>` +
@@ -1167,10 +1171,10 @@ export function renderTreeInspectorHtml(
       `<div class="tree-insp-mono">${escapeHtml(shortenKey(selection.pubkey))}</div>` +
       `<div class="tree-insp-pill">${escapeHtml(tierLabel)}</div>` +
       `<div class="tree-insp-mini-plant">${plantSvg(selection.pubkey, linfaTotal)}</div>` +
-      `<div class="tree-insp-metrics"><span>🌿 ${round1(linfaTotal)} Linfa</span><span>🪵 ${root?.postCount ?? 0} posts</span><span>🍃 ${root?.commentCount ?? 0} replies</span></div>` +
+      `<div class="tree-insp-metrics"><span>${round1(linfaTotal)} Linfa</span><span>${root?.postCount ?? 0} posts</span><span>${root?.commentCount ?? 0} replies</span></div>` +
       `<div class="tree-insp-actions">` +
       `<button type="button" class="btn-primary btn-sm" data-tree-open-profile="${escapeHtml(selection.pubkey)}">Open Profile →</button>` +
-      `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.pubkey)}">✨ Highlight Sap Activity</button>` +
+      `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.pubkey)}">Highlight Sap Activity</button>` +
       `</div>` +
       `</div>`
     );
@@ -1183,7 +1187,7 @@ export function renderTreeInspectorHtml(
     `<div class="tree-insp-card">` +
     `<div class="tree-insp-head"><div><div class="tree-insp-kicker">${bough?.isCommunity ? "Community Bough" : "Category Bough"}</div><h4 class="tree-insp-title">${escapeHtml(bough?.label ?? selection.boughId)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
     (comm?.description ? `<div class="tree-insp-body">${escapeHtml(cut(comm.description, 220))}</div>` : "") +
-    `<div class="tree-insp-metrics"><span>🪵 ${bough?.postCount ?? 0} branches</span>${bough?.isCommunity ? `<span>👥 ${bough.memberCount} members</span>` : ""}</div>` +
+    `<div class="tree-insp-metrics"><span>${bough?.postCount ?? 0} branches</span>${bough?.isCommunity ? `<span>${bough.memberCount} members</span>` : ""}</div>` +
     `<div class="tree-insp-actions">` +
     (comm ? `<button type="button" class="btn-primary btn-sm" data-tree-open-comm="${escapeHtml(comm.id)}">Open r/${escapeHtml(comm.slug)} →</button>` : "") +
     (comm ? `<button type="button" class="btn-secondary btn-sm" data-tree-filter-comm="${escapeHtml(comm.id)}">Filter Tree to Bough</button>` : "") +

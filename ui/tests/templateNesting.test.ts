@@ -264,3 +264,42 @@ test("mail: contacts folder button, address book view, and contact management co
   assert.match(mailCss, /\.mail-contact-del-btn/);
   assert.match(mailCss, /\.mail-suggestion-del-btn/);
 });
+
+test("ui improvements: clean Mail header, camera input, smooth tree, Markdown profile bio, Single Post View, and anchored deep links", () => {
+  const indexHtml = read("../index.html");
+  const styleCss = read("../src/style.css");
+  const mailCss = read("../src/mail.css");
+  const mainTs = read("../src/main.ts");
+  const treePageTs = read("../src/treePage.ts");
+
+  // 1. Mail header uses "Mail" without Post-Quantum E2EE badge
+  assert.ok(!indexHtml.includes("mail-pq-badge"), "Expected .mail-pq-badge removed from index.html");
+  assert.ok(!mailCss.includes(".mail-pq-badge"), "Expected .mail-pq-badge rules removed from mail.css");
+  assert.match(indexHtml, /class="mail-title"[\s\S]*?>\s*<span>Mail<\/span>/);
+
+  // 2. Moments mobile native camera capture input & fallback
+  assert.ok(indexHtml.includes('id="media-camera-input"'));
+  assert.ok(indexHtml.includes('capture="environment"'));
+  assert.match(mainTs, /triggerNativeCameraCapture/);
+
+  // 3. Living Tree pan/zoom mutates viewBox + CSS GPU transform instead of rebuilding SVG
+  assert.match(treePageTs, /applySvgViewBoxOnly/);
+  assert.match(treePageTs, /translate3d\(/);
+  assert.match(styleCss, /@media\s*\(max-width:\s*900px\),\s*\(pointer:\s*coarse\)[\s\S]*?\.tree-pulse[\s\S]*?animation:\s*none/);
+
+  // 4. Single Post View modal and entry points from Communities + Feed
+  for (const id of ["single-post-modal", "single-post-back-btn", "single-post-body", "single-post-jump-feed-btn"]) {
+    assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
+  }
+  assert.match(mainTs, /function\s+openSinglePostModal/);
+  assert.match(mainTs, /data-raction="open-single"/);
+
+  // 5. Markdown + preserved newlines in profile bio (#pp-bio, #sidebar-bio, #uview-bio)
+  assert.ok(indexHtml.includes('id="pp-bio"'));
+  assert.match(styleCss, /\.pp-bio\s*\{[^}]*white-space:\s*pre-wrap/);
+  assert.match(styleCss, /\.profile-bio\s*\{[^}]*white-space:\s*pre-wrap/);
+  assert.match(mainTs, /function\s+setProfileBio/);
+
+  // 6. Anchored scroll in showMyPost
+  assert.match(mainTs, /anchorElementInViewport\s*\(\(\)\s*=>\s*document\.getElementById/);
+});

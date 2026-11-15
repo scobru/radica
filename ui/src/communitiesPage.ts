@@ -1,4 +1,5 @@
 import type { Post } from "./types.ts";
+import type { IconName } from "./icons.ts";
 
 export type RedditSort = "hot" | "new" | "top24h" | "top7d" | "topAll";
 export type RedditFlairFilter = "all" | "thought" | "moment" | "event" | "poll";
@@ -117,17 +118,17 @@ export function splitThreadTitleAndBody(caption: string): { title: string; body:
 export function flairInfoForPost(
   post: Post,
   isPoll = false,
-): { key: RedditFlairFilter; label: string; cssClass: string; icon: string } {
+): { key: RedditFlairFilter; label: string; cssClass: string; icon: IconName } {
   if (isPoll) {
-    return { key: "poll", label: "Poll", cssClass: "reddit-flair-poll", icon: "📊" };
+    return { key: "poll", label: "Poll", cssClass: "reddit-flair-poll", icon: "barChart2" };
   }
   if (post.category === "moment") {
-    return { key: "moment", label: "Media", cssClass: "reddit-flair-moment", icon: "📸" };
+    return { key: "moment", label: "Media", cssClass: "reddit-flair-moment", icon: "image" };
   }
   if (post.category === "event") {
-    return { key: "event", label: "Event", cssClass: "reddit-flair-event", icon: "📅" };
+    return { key: "event", label: "Event", cssClass: "reddit-flair-event", icon: "calendar" };
   }
-  return { key: "thought", label: "Discussion", cssClass: "reddit-flair-thought", icon: "💬" };
+  return { key: "thought", label: "Discussion", cssClass: "reddit-flair-thought", icon: "messageSquare" };
 }
 
 /** Combine a Reddit thread title and optional body into a signed post caption. */

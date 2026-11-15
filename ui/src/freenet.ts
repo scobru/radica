@@ -43,7 +43,7 @@ import {
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldAiHolds, type ReportedItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -392,9 +392,9 @@ export class FreenetClient {
         }
         const isSecret = !!(msg.is_secret || msg.text?.startsWith("secret:v1:") || (msg.room_id && this.isSecretRoomId(msg.room_id)));
         const notifText = isSecret
-          ? "sent you a secret chat message 🔐"
+          ? "sent you a secret chat message"
           : msg.text.startsWith("e2e:")
-            ? "sent you an encrypted direct message 🔒"
+            ? "sent you an encrypted direct message"
             : (() => { const s = summarizeChatMediaText(msg.text); return `sent you a message: "${s.length > 30 ? s.substring(0, 30) + '...' : s}"`; })();
         if (msg.recipient === this.me) // local tabs only: notifications to others travel through their inbox
           this.storeNotification(msg.recipient, {
@@ -988,10 +988,15 @@ export class FreenetClient {
     if (toModerators) await this.logAppend("reports", body).catch(() => {});
   }
 
+  /** All global moderators: the maintainer plus whoever they currently name as a moderator. */
+  public globalModerators(): string[] {
+    return [...new Set([RADICA_MAINTAINER, ...this.modsOf(RADICA_MAINTAINER)])];
+  }
+
   /** Reported posts waiting for a Radica moderator: not yet removed (reported on a moderator's blocklist) nor dismissed by one. */
   public reportQueue(weigh?: (reporter: string) => number): ReportedItem[] {
     const resolved = new Set<string>();
-    for (const m of [RADICA_MAINTAINER, ...this.modsOf(RADICA_MAINTAINER)]) {
+    for (const m of this.globalModerators()) {
       const log = this.logEntries(`blocklist/${m}`);
       for (const t of foldReports(log, m).keys()) resolved.add(t);
       for (const t of foldDismissed(log, m)) resolved.add(t);
@@ -999,9 +1004,23 @@ export class FreenetClient {
     return foldReportQueue(this.logEntries("reports"), resolved, 50, weigh);
   }
 
+  /** Recent post/comment decisions already made by Radica's global moderators (removed or dismissed), newest first. */
+  public handledReports(max = 20): HandledReportItem[] {
+    const modLogs = this.globalModerators().map((moderator) => ({
+      moderator,
+      entries: this.logEntries(`blocklist/${moderator}`),
+    }));
+    return foldHandledReports(modLogs, this.logEntries("reports"), max);
+  }
+
+  /** Latest active global-moderator decision for a `<author>:<post id>` target, if another moderator already handled it. */
+  public modDecisionFor(target: string): HandledReportItem | null {
+    return this.handledReports(Number.POSITIVE_INFINITY).find((h) => h.target === target) ?? null;
+  }
+
   /** Moderator: set a report aside without removing the post. Every moderator sees it, since each reads the others' lists. */
-  public dismissReport(target: string): Promise<void> {
-    return this.logAppend(`blocklist/${this.me}`, { type: "dismiss", target });
+  public dismissReport(target: string, on = true): Promise<void> {
+    return this.logAppend(`blocklist/${this.me}`, { type: "dismiss", target, ...(on ? {} : { on: false }) });
   }
 
   /** Posts (`<author>:<post id>`) Radica's AI moderation helper is currently holding: hidden the same way a
@@ -1697,14 +1716,14 @@ export class FreenetClient {
             const seen = Math.max(read[m.room_id] ?? 0, Number(localStorage.getItem(`freenet_chat_cleared_${m.room_id}`) || 0));
             // a DM from someone else rings the bell as soon as the inbox arrives, not only once the chat is opened
             if (m.recipient === this.me && m.sender !== this.me && m.timestamp > seen)
-              this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: m.sender, text: "sent you an encrypted direct message 🔒", timestamp: m.timestamp, read: false, linkRoomId: m.room_id, isSecret: false });
+              this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: m.sender, text: "sent you an encrypted direct message", timestamp: m.timestamp, read: false, linkRoomId: m.room_id, isSecret: false });
           } else if (b.message.room_id === getSecretRoomId(this.me, peer)) {
             rooms.add(b.message.room_id);
             this.addSecretChatPeer(this.me, peer, e.ts);
             const m = b.message as ChatMessage;
             const seen = Math.max(read[m.room_id] ?? 0, Number(localStorage.getItem(`freenet_chat_cleared_${m.room_id}`) || 0));
             if (m.recipient === this.me && m.sender !== this.me && m.timestamp > seen)
-              this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: m.sender, text: "sent you a secret chat message 🔐", timestamp: m.timestamp, read: false, linkRoomId: m.room_id, isSecret: true });
+              this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: m.sender, text: "sent you a secret chat message", timestamp: m.timestamp, read: false, linkRoomId: m.room_id, isSecret: true });
           }
         } else if ((b.type === "chat_delete" || b.type === "chat_burn") && typeof b.roomId === "string" && typeof b.messageId === "string") {
           const roomKey = `freenet_chat_${b.roomId}`;
@@ -1884,7 +1903,7 @@ export class FreenetClient {
       }
       const m = b.type === "chat" ? (b.message as ChatMessage) : null;
       if (m && m.sender === peer && e.author === peer && m.recipient === this.me && m.room_id === roomId && m.timestamp > seen && !this.isBlocked(peer))
-        this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: peer, text: secret ? "sent you a secret chat message 🔐" : "sent you an encrypted direct message 🔒", timestamp: m.timestamp, read: false, linkRoomId: roomId, isSecret: secret });
+        this.storeNotification(this.me, { id: `n_${m.id}`, type: "chat", from: peer, text: secret ? "sent you a secret chat message" : "sent you an encrypted direct message", timestamp: m.timestamp, read: false, linkRoomId: roomId, isSecret: secret });
       else if (b.type === "chat_read" && e.author === peer && b.room === roomId && typeof b.upto === "number") this.savePeerReadUpto(roomId, peer, b.upto);
     }
     // only I can take someone's message out of my own view; a sender takes theirs out for both
@@ -2441,7 +2460,7 @@ export class FreenetClient {
                 id: `${notifPrefix}_${m.id}`,
                 type: "chat",
                 from: m.sender,
-                text: "sent a message in an encrypted Private Room 🔒",
+                text: "sent a message in an encrypted Private Room",
                 linkRoomId: room.id,
                 timestamp: m.timestamp,
                 read: false,
@@ -3775,7 +3794,7 @@ export class FreenetClient {
       this.replacePrivateRoom(room);
       await this.logAppend(`room/${room.id}`, { type: "private_room", room });
       await this.logAppend(`inbox/${newMemberPubkey}`, { type: "room_invite", room, river_join: join }); // the secret in it is sealed to them
-      this.addNotification(newMemberPubkey, { type: "chat", from: identity.pubkey, text: `invited you to an encrypted Private Room 🔒`, linkRoomId: room.id });
+      this.addNotification(newMemberPubkey, { type: "chat", from: identity.pubkey, text: `invited you to an encrypted Private Room`, linkRoomId: room.id });
       this.notifyListeners();
       return room;
     }
@@ -3797,7 +3816,7 @@ export class FreenetClient {
     this.addNotification(newMemberPubkey, {
       type: "chat",
       from: identity.pubkey,
-      text: `invited you to an encrypted Private Room 🔒`,
+      text: `invited you to an encrypted Private Room`,
       linkRoomId: room.id,
     });
 
@@ -4405,8 +4424,8 @@ export class FreenetClient {
       }
     }
     const notifMsg = room.is_channel
-      ? "posted an update in a Broadcast Channel 📢"
-      : "sent a message in an encrypted Private Room 🔒";
+      ? "posted an update in a Broadcast Channel"
+      : "sent a message in an encrypted Private Room";
 
     if (room.river) {
       await (await this.rivers()).say(this.riverKey(identity, room), room.river.owner, text, this.riverJoin(room.id), this.nickname(), replyTo);

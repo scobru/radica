@@ -1320,8 +1320,36 @@ body {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 6px;
-  line-height: 1.4;
+  line-height: 1.5;
+  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.pp-bio {
+  margin: 6px 0 10px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pp-bio .md-h,
+.profile-bio .md-h,
+#uview-bio .md-h {
+  display: inline-block;
+  margin: 2px 0;
+}
+
+.pp-bio .chat-quote,
+.profile-bio .chat-quote,
+#uview-bio .chat-quote {
+  margin: 4px 0;
+}
+
+.pp-bio .bio-empty,
+.profile-bio .bio-empty {
+  color: var(--text-muted);
 }
 
 .btn-secondary {
@@ -7845,6 +7873,7 @@ kbd {
   border-radius: 16px;
   border: 1px solid var(--border-light);
   overflow: hidden;
+  contain: layout style paint;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -7860,6 +7889,11 @@ kbd {
 
 .tree-canvas-wrap:active {
   cursor: grabbing;
+}
+
+.tree-canvas-wrap.is-interacting .tree-pulse,
+.tree-canvas-wrap.is-interacting .tree-sap-filament {
+  animation-play-state: paused;
 }
 
 .tree-zoom-controls {
@@ -7880,6 +7914,7 @@ kbd {
   width: 100%;
   height: 100%;
   min-height: 480px;
+  contain: layout style paint;
 }
 
 .radica-tree-svg {
@@ -7887,6 +7922,7 @@ kbd {
   width: 100%;
   height: 100%;
   min-height: 480px;
+  will-change: transform;
 }
 
 .tree-soil-horizon {
@@ -8121,8 +8157,8 @@ kbd {
 }
 
 @keyframes tree-node-pulse {
-  0% { opacity: 0.75; stroke-width: 1.8; }
-  100% { opacity: 0.1; stroke-width: 0.4; }
+  0% { opacity: 0.78; }
+  100% { opacity: 0.14; }
 }
 
 .tree-sap-filament {
@@ -8380,6 +8416,17 @@ kbd {
   }
   .tree-inspector {
     max-height: none;
+  }
+  .tree-zoom-controls {
+    backdrop-filter: none;
+    background: var(--card-bg);
+  }
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .tree-pulse,
+  .tree-sap-filament {
+    animation: none;
   }
 }
 
@@ -9692,4 +9739,92 @@ body.has-global-audio-player {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+/* ---- Single Post Detail Modal ---- */
+.single-post-modal {
+  z-index: 2200;
+}
+
+.single-post-card {
+  width: min(740px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.single-post-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-bg);
+  flex-shrink: 0;
+}
+
+.single-post-topbar-left,
+.single-post-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.single-post-context {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.single-post-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.single-post-body .gram-card {
+  margin-bottom: 0;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+.single-post-body .single-post-title {
+  margin: 0 0 10px;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  color: var(--text-main);
+}
+
+.gram-time.open-single-post-trigger {
+  cursor: pointer;
+}
+
+.gram-time.open-single-post-trigger:hover {
+  text-decoration: underline;
+  color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .single-post-modal {
+    padding: 0;
+  }
+  .single-post-card {
+    width: 100vw;
+    max-width: 100vw;
+    height: min(var(--rm-vvh, 100dvh), 100dvh);
+    max-height: min(var(--rm-vvh, 100dvh), 100dvh);
+    border-radius: 0;
+  }
+  .single-post-body {
+    padding: 12px;
+  }
 }

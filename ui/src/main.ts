@@ -4,6 +4,7 @@ import { UPDATES } from "./updates";
 import { parseRoomInviteParams } from "./nativeRooms.ts";
 import { ecosystemFooter, ecosystemCard } from "./ecosystem";
 import { closeModal, installModalDismiss } from "./modals";
+import { anchorElementInViewport } from "./scrollAnchor.ts";
 import { initShortcuts, toggleShortcutsModal } from "./shortcuts";
 import { findCommunities, slugOf, type CommunitySort } from "./communityFinder";
 import {
@@ -1059,6 +1060,7 @@ document.getElementById("media-close-btn")!.addEventListener("click", () => {
 // --- Moments quick post bar ---
 const mediaQuickPost = document.getElementById("media-quick-post") as HTMLElement;
 const mediaFileInput = document.getElementById("media-file-input") as HTMLInputElement;
+const mediaCameraInput = document.getElementById("media-camera-input") as HTMLInputElement | null;
 const mediaCameraBtn = document.getElementById("media-camera-btn") as HTMLButtonElement;
 const mediaGalleryBtn = document.getElementById("media-gallery-btn") as HTMLButtonElement;
 const mediaCaptionInput = document.getElementById("media-caption-input") as HTMLInputElement;
@@ -1097,24 +1099,76 @@ function updatePublishState() {
   mediaCaptionCount.textContent = `${mediaCaptionInput.value.length}/400`;
 }
 
+function isMobileCameraPreferred(): boolean {
+  if (typeof window === "undefined") return false;
+  const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+  return coarse || uaMobile;
+}
+
+function triggerNativeCameraCapture(): boolean {
+  if (mediaCameraInput) {
+    mediaCameraInput.click();
+    return true;
+  }
+  return false;
+}
+
+mediaCameraInput?.addEventListener("change", () => {
+  const f = mediaCameraInput.files?.[0];
+  if (f) stageMediaFile(f);
+  mediaCameraInput.value = "";
+});
+
 mediaCameraBtn.addEventListener("click", async () => {
+  // On mobile devices or insecure/sandboxed origins (e.g. LAN HTTP or gateway iframe),
+  // navigator.mediaDevices.getUserMedia fails with "Invalid security origin"; use native capture input.
+  if (isMobileCameraPreferred() || !window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    if (triggerNativeCameraCapture()) return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     const video = document.createElement("video");
+    video.playsInline = true;
+    video.muted = true;
     video.srcObject = stream;
     await video.play();
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      await new Promise<void>((resolve) => {
+        const done = () => resolve();
+        video.addEventListener("loadeddata", done, { once: true });
+        setTimeout(done, 400);
+      });
+    }
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")!.drawImage(video, 0, 0);
-    stream.getTracks().forEach(t => t.stop());
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], "camera.jpg", { type: "image/jpeg" });
-      stageMediaFile(file);
-    }, "image/jpeg", 0.85);
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d")!.drawImage(video, 0, 0, width, height);
+    stream.getTracks().forEach((t) => t.stop());
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], "camera.jpg", { type: "image/jpeg" });
+        stageMediaFile(file);
+      },
+      "image/jpeg",
+      0.85,
+    );
   } catch (err) {
-    showToast("Impossible to access camera: " + (err as Error).message, "error");
+    const msg = (err as Error)?.message || String(err);
+    const name = (err as { name?: string })?.name || "";
+    if (
+      name === "SecurityError" ||
+      name === "NotAllowedError" ||
+      name === "NotFoundError" ||
+      msg.includes("Invalid security origin") ||
+      msg.includes("secure")
+    ) {
+      if (triggerNativeCameraCapture()) return;
+    }
+    showToast("Impossible to access camera: " + msg, "error");
   }
 });
 
@@ -1521,11 +1575,27 @@ blocklistsModal.addEventListener("click", async (e) => {
   if (!amGlobalMod()) return;
   e.preventDefault();
   if (act === "remove") await globalRemove(author, postId, media || null);
-  else if (act === "dismiss") await freenet.dismissReport(target);
-  else if (act === "ban") {
+  else if (act === "dismiss") {
+    await refreshAllGlobalModLogs();
+    if (!guardDuplicateModeration(target, "dismiss")) {
+      renderModDashboard();
+      renderTimeline();
+      return;
+    }
+    await freenet.dismissReport(target);
+    showToast("Report dismissed.", "info");
+    const colon = target.indexOf(":");
+    if (colon > 0) notifyOtherGlobalMods(target.slice(0, colon), target.slice(colon + 1), "dismissed");
+  } else if (act === "undo-mod-decision") {
+    const decision = btn.dataset.action;
+    if (decision === "removed") await freenet.unreportPost(author, postId);
+    else if (decision === "dismissed" && target) await freenet.dismissReport(target, false);
+    showToast("Moderation decision undone.", "info");
+  } else if (act === "ban") {
     if (!confirm(`Ban ${getAuthorDisplayName(author)}? Everything they post is hidden for everyone who follows Radica's moderation.`)) return;
     await freenet.setBlocked(author, true);
     showToast("Banned.", "info");
+    notifyOtherGlobalMods(author, postId, "banned");
   } else if (act === "unban") await freenet.setBlocked(author, false);
   else if (act === "unhide-comm") {
     await freenet.setCommunityHidden(target, false);
@@ -1556,6 +1626,8 @@ const paneBlocklists = document.getElementById("pane-blocklists") as HTMLElement
 const paneModeration = document.getElementById("pane-moderation") as HTMLElement | null;
 const blocklistsModalTitle = document.getElementById("blocklists-modal-title") as HTMLElement | null;
 const blocklistsBadge = document.getElementById("blocklists-badge") as HTMLElement | null;
+const blocklistsRefreshBtn = document.getElementById("blocklists-refresh-btn") as HTMLButtonElement | null;
+const modRefreshBtn = document.getElementById("mod-refresh-btn") as HTMLButtonElement | null;
 let prevReportQueueCount = -1;
 const warmedModPeers = new Set<string>();
 
@@ -1594,16 +1666,65 @@ const paintModButton = () => {
   updateBlocklistsBadge();
 };
 
-function showBlocklistTab(tab: "blocklists" | "moderation") {
+async function refreshAllGlobalModLogs(): Promise<void> {
+  await Promise.all([
+    freenet.refreshLog("reports", true).catch(() => {}),
+    ...freenet.globalModerators().map((m) => freenet.refreshLog(`blocklist/${m}`, true).catch(() => {})),
+  ]);
+}
+
+function notifyOtherGlobalMods(author: string, postId: string, action: "removed" | "dismissed" | "banned"): void {
+  const me = currentIdentity?.pubkey;
+  if (!me || !amGlobalMod()) return;
+  const peers = freenet.globalModerators().filter((m) => m !== me);
+  if (!peers.length) return;
+  const authorLabel = author === me ? "their own" : `@${getAuthorDisplayName(author)}'s`;
+  const text =
+    action === "removed"
+      ? `removed ${authorLabel} post (already moderated)`
+      : action === "dismissed"
+        ? `dismissed the report on ${authorLabel} post (already moderated)`
+        : `banned @${getAuthorDisplayName(author)} (already moderated)`;
+  for (const peer of peers) {
+    void freenet.addNotification(peer, {
+      type: "report",
+      from: me,
+      text,
+      ...(postId ? { linkPostId: postId } : {}),
+      ...(author ? { linkPostOwner: author } : {}),
+    }).catch(() => {});
+  }
+}
+
+/** Warn the current moderator if another global moderator already handled `target`; returns false to abort duplicate action. */
+function guardDuplicateModeration(target: string, desired: "remove" | "dismiss"): boolean {
+  const me = currentIdentity?.pubkey;
+  const existing = freenet.modDecisionFor(target);
+  if (!existing || existing.moderator === me) return true;
+  const who = getAuthorDisplayName(existing.moderator);
+  const when = formatTimeAgo(existing.ts);
+  const sameAction =
+    (existing.action === "removed" && desired === "remove") ||
+    (existing.action === "dismissed" && desired === "dismiss");
+  if (sameAction) {
+    showToast(`Already ${existing.action} by @${who} (${when}).`, "info");
+    return false;
+  }
+  return confirm(`Already ${existing.action} by @${who} (${when}). Override and ${desired} anyway?`);
+}
+
+function showBlocklistTab(tab: "blocklists" | "moderation", refresh = true) {
   if (tab === "moderation") {
     tabBtnModeration?.classList.add("active");
     tabBtnBlocklists?.classList.remove("active");
     if (paneBlocklists) paneBlocklists.style.display = "none";
     if (paneModeration) paneModeration.style.display = "block";
     renderModDashboard();
-    void freenet.refreshLog("reports", true).then(() => {
-      if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
-    });
+    if (refresh) {
+      void refreshAllGlobalModLogs().then(() => {
+        if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
+      });
+    }
   } else {
     tabBtnBlocklists?.classList.add("active");
     tabBtnModeration?.classList.remove("active");
@@ -1615,6 +1736,41 @@ function showBlocklistTab(tab: "blocklists" | "moderation") {
 
 tabBtnBlocklists?.addEventListener("click", () => showBlocklistTab("blocklists"));
 tabBtnModeration?.addEventListener("click", () => showBlocklistTab("moderation"));
+
+async function refreshBlocklistsAndModeration(triggerBtn?: HTMLButtonElement | null) {
+  const origText = triggerBtn?.textContent ?? "";
+  if (triggerBtn) {
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = "↻ Refreshing…";
+  }
+  try {
+    warmedModPeers.clear();
+    refreshTrustedBlocklists();
+    if (amGlobalMod()) {
+      await refreshAllGlobalModLogs();
+      updateBlocklistsBadge();
+    }
+    if (isOpen(blocklistsModal)) {
+      if (paneModeration && paneModeration.style.display !== "none") {
+        renderModDashboard();
+      } else {
+        renderBlocklists();
+      }
+    }
+    showToast("✓ Moderation & blocklists refreshed", "info");
+  } catch (e) {
+    console.warn("[Blocklists] Refresh error:", e);
+    showToast("Could not refresh from network", "warning");
+  } finally {
+    if (triggerBtn) {
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = origText;
+    }
+  }
+}
+
+blocklistsRefreshBtn?.addEventListener("click", () => void refreshBlocklistsAndModeration(blocklistsRefreshBtn));
+modRefreshBtn?.addEventListener("click", () => void refreshBlocklistsAndModeration(modRefreshBtn));
 function renderModDashboard() {
   const me = currentIdentity!.pubkey;
   const btn = (act: string, label: string, attrs: string, cls = "btn-secondary") =>
@@ -1625,14 +1781,17 @@ function renderModDashboard() {
   const held = freenet.aiHeldTargets();
   const queue = freenet.reportQueue((pk) => (mods.has(pk) ? 3 : AI_REPORTERS.includes(pk) ? 1 : wot.dislikeWeight(pk)))
     .sort((a, b) => Number(held.has(b.target)) - Number(held.has(a.target)));
+  const handled = freenet.handledReports(15);
   const [heard, strangers] = [queue.filter((it) => it.score > 0), queue.filter((it) => it.score === 0)];
   document.getElementById("mod-queue-count")!.textContent = queue.length ? `(${queue.length})` : "";
   updateBlocklistsBadge();
 
-  // Warm peers for all reporters and authors so display names and avatars resolve (only warm unseen peers to prevent infinite re-render loops)
+  // Warm peers for all reporters, moderators, and authors so display names and avatars resolve (only warm unseen peers to prevent infinite re-render loops)
   const peersToWarm = [
     ...queue.map((it) => it.target.slice(0, it.target.indexOf(":"))),
     ...queue.flatMap((it) => it.reporterKeys ?? []),
+    ...handled.map((h) => h.target.slice(0, h.target.indexOf(":"))),
+    ...handled.map((h) => h.moderator),
   ].filter((pk) => pk && !warmedModPeers.has(pk));
 
   if (peersToWarm.length) {
@@ -1686,6 +1845,47 @@ function renderModDashboard() {
     (strangers.length
       ? `<details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">Reported only by people outside your network (${strangers.length}): anyone can make a key, so these wait here</summary><div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">${itemHtml(strangers)}</div></details>`
       : ""));
+
+  const handledSection = document.getElementById("mod-handled-section") as HTMLElement | null;
+  const handledEl = document.getElementById("mod-handled") as HTMLElement | null;
+  const handledCountEl = document.getElementById("mod-handled-count") as HTMLElement | null;
+  if (handledSection && handledEl) {
+    handledSection.style.display = handled.length ? "" : "none";
+    if (handledCountEl) handledCountEl.textContent = handled.length ? `(${handled.length})` : "";
+    const handledRowHtml = (h: (typeof handled)[number]) => {
+      const colon = h.target.indexOf(":");
+      const author = h.target.slice(0, colon);
+      const postId = h.target.slice(colon + 1);
+      const post = timelinePosts.find((p) => p.author === author && p.id === postId);
+      const postCaption = post ? (freenet.postEdit(author, postId)?.caption ?? post.caption) : "";
+      const preview = post ? `${post.media_uri ? "🖼 " : ""}${postCaption.slice(0, 140)}` : "(post not loaded here)";
+      const isRemoved = h.action === "removed";
+      const modLabel = h.moderator === me ? "me" : `@${getAuthorDisplayName(h.moderator)}`;
+      const attrs = `data-author="${escapeHtml(author)}" data-post-id="${escapeHtml(postId)}" data-target="${escapeHtml(h.target)}"`;
+      const reasonLine = [
+        h.reason && h.reason !== "Removed by Radica's moderators" ? `Reason: “${escapeHtml(h.reason)}”` : "",
+        h.reporters ? `${h.reporters} report${h.reporters === 1 ? "" : "s"}${h.reasons.length ? ` (${h.reasons.map((r) => `“${escapeHtml(r)}”`).join(" · ")})` : ""}` : "",
+      ].filter(Boolean).join(" · ");
+      return `<div style="border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; opacity: 0.9;">
+        <div style="font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;">
+          <span style="font-weight: 600; color: ${isRemoved ? "var(--danger, #c62828)" : "var(--primary)"};">${isRemoved ? "Removed" : "Dismissed"}</span>
+          <span>by <a href="#" data-act="profile" data-author="${escapeHtml(h.moderator)}" style="font-weight: 600; text-decoration: none;">${escapeHtml(modLabel)}</a></span>
+          <small style="color: var(--text-muted);">· ${escapeHtml(formatTimeAgo(h.ts))}</small>
+          <span style="margin-left: auto;"><a href="#" data-act="profile" data-author="${escapeHtml(author)}"><b>${escapeHtml(getAuthorDisplayName(author))}</b></a>${postId.startsWith("comm_") ? " <small style='color: var(--text-muted);'>· comment</small>" : ""}</span>
+        </div>
+        <div style="font-size: 0.82rem; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted);">${escapeHtml(preview)}</div>
+        ${reasonLine ? `<div style="font-size: 0.76rem; color: var(--text-muted);">${reasonLine}</div>` : ""}
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">${btn("view-post", "View post", attrs)}${h.moderator === me ? btn("undo-mod-decision", "Undo", `${attrs} data-action="${h.action}"`) : ""}</div>
+      </div>`;
+    };
+    const recent = handled.slice(0, 4).map(handledRowHtml).join("");
+    const older = handled.slice(4);
+    setHtmlIfChanged(handledEl,
+      recent +
+      (older.length
+        ? `<details style="margin-top: 4px;"><summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">Show ${older.length} older decision${older.length === 1 ? "" : "s"}</summary><div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">${older.map(handledRowHtml).join("")}</div></details>`
+        : ""));
+  }
 
   const banned: string[] = [];
   for (const mod of [DEFAULT_CURATOR, ...freenet.modsOf(DEFAULT_CURATOR)]) {
@@ -2126,25 +2326,27 @@ interface StagedCommentMedia {
 const stagedCommentMedia = new Map<string, StagedCommentMedia>();
 
 function renderCommentStaging(postId: string) {
-  const stagingEl = document.getElementById(`comment-staging-${postId}`);
-  if (!stagingEl) return;
+  const els = document.querySelectorAll<HTMLElement>(`.comment-staging[data-post-id="${CSS.escape(postId)}"]`);
+  if (els.length === 0) return;
   const staged = stagedCommentMedia.get(postId);
-  if (!staged) {
-    stagingEl.style.display = "none";
-    stagingEl.innerHTML = "";
-    return;
-  }
-  stagingEl.style.display = "flex";
-  stagingEl.innerHTML = `
-    <div class="comment-staging-thumb-wrap">
-      <img src="${safeUrl(staged.previewUrl)}" alt="Preview" class="comment-staging-thumb" />
-    </div>
-    <div class="comment-staging-info">
-      <span class="comment-staging-title">${escapeHtml(staged.label)}</span>
-      <span class="comment-staging-sub">${staged.type === "url" ? "GIF Link" : "Image Attachment"}</span>
-    </div>
-    <button type="button" class="comment-staging-remove" data-post-id="${escapeHtml(postId)}" title="Remove attachment" aria-label="Remove attachment">✕</button>
-  `;
+  els.forEach((stagingEl) => {
+    if (!staged) {
+      stagingEl.style.display = "none";
+      stagingEl.innerHTML = "";
+      return;
+    }
+    stagingEl.style.display = "flex";
+    stagingEl.innerHTML = `
+      <div class="comment-staging-thumb-wrap">
+        <img src="${safeUrl(staged.previewUrl)}" alt="Preview" class="comment-staging-thumb" />
+      </div>
+      <div class="comment-staging-info">
+        <span class="comment-staging-title">${escapeHtml(staged.label)}</span>
+        <span class="comment-staging-sub">${staged.type === "url" ? "GIF Link" : "Image Attachment"}</span>
+      </div>
+      <button type="button" class="comment-staging-remove" data-post-id="${escapeHtml(postId)}" title="Remove attachment" aria-label="Remove attachment">✕</button>
+    `;
+  });
 }
 
 function removeStagedCommentMedia(postId: string) {
@@ -2254,17 +2456,16 @@ function scheduleRenderTimeline() {
   });
 }
 
-function renderTimeline() {
-  if (timelineRenderRaf) {
-    cancelAnimationFrame(timelineRenderRaf);
-    timelineRenderRaf = 0;
-  }
-  postsContainer.classList.remove("media-grid");
-  if (!currentIdentity) return;
-  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
+interface ModerationSets {
+  hidden: Set<string>;
+  reported: Set<string>;
+  reportedMedia: Set<string>;
+  globalMod: boolean;
+  commByRef: Map<string, Community>;
+}
 
-  const me = currentIdentity.pubkey;
-  // ponytail: build hidden author set and community map once per render instead of per-post JSON.parse + linear scans
+/** Build moderation & community lookup sets shared by the timeline, Single Post View, and filters. */
+function buildModerationSets(me: string): ModerationSets {
   const hidden = new Set(hiddenUsers());
   const curators = new Set([...moderationCurators(), me]);
   const globalMod = amGlobalMod();
@@ -2274,8 +2475,6 @@ function renderTimeline() {
     commByRef.set(c.id, c);
     commByRef.set(c.slug, c);
   }
-  const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
-
   const reported = new Set<string>();
   const reportedMedia = new Set<string>();
   for (const c of curators) {
@@ -2283,8 +2482,527 @@ function renderTimeline() {
     for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
   }
   for (const t of freenet.aiHeldTargets()) reported.add(t);
-  // reports made before they named the media: take it from the reported post, when it is here
-  for (const p of timelinePosts) if (reported.has(`${p.author}:${p.id}`)) { const h = postMediaHash(p); if (h) reportedMedia.add(h); }
+  for (const p of timelinePosts) {
+    if (reported.has(`${p.author}:${p.id}`)) {
+      const h = postMediaHash(p);
+      if (h) reportedMedia.add(h);
+    }
+  }
+  return { hidden, reported, reportedMedia, globalMod, commByRef };
+}
+
+function collectKnownPosts(): { allKnownPosts: Map<string, Post>; repostCounts: Map<string, number> } {
+  const allKnownPosts = new Map<string, Post>();
+  for (const p of Object.values(freenet.peerCache)) if (p?.id) allKnownPosts.set(p.id, p);
+  for (const p of timelinePosts) if (p?.id) allKnownPosts.set(p.id, p);
+  return { allKnownPosts, repostCounts: repostCountsOf(allKnownPosts.values()) };
+}
+
+interface BuildPostCardOptions {
+  allKnownPosts: Map<string, Post>;
+  repostCounts: Map<string, number>;
+  mod: ModerationSets;
+  me: string;
+  topWot: ReturnType<typeof getWebOfTrust>;
+  singleView?: boolean;
+}
+
+/** Build the HTML for a single `.gram-card`, reused by both the main feed (cached) and Single Post View. */
+function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
+  const { allKnownPosts, repostCounts, mod, me, topWot, singleView = false } = opts;
+  const domPrefix = singleView ? "single-" : "";
+  const isLiked = !!post.likes?.[me]?.liked;
+  const postLikers = likers(post);
+  const dislikersList = freenet.postDislikers(post.author, post.id);
+  const isDisliked = !!me && dislikersList.includes(me);
+  const dislikeCount = dislikersList.length;
+  const repostCount = repostCounts.get(`${post.author}:${post.id}`) ?? 0;
+  const isReposted = !!me && hasUserReposted(allKnownPosts.values(), me, post.id, post.author);
+  const postComm = post.community_id ? mod.commByRef.get(post.community_id) : undefined;
+  const commMods = postComm ? [postComm.creator, ...postComm.moderators] : [];
+  const wotEval = topWot.evaluatePost(post, postLikers, dislikersList, commMods);
+  // a newcomer's post without its anti-bot proof: written around Radica (a script), so covered like a disliked one
+  const noPow = !wotEval.isPenalized && post.timestamp >= POST_POW_SINCE && post.author !== me && topWot.trustTier(post.author) === 0 && !postHasPow(post);
+  const isWotShielded = isWotModerationEnabled() && (wotEval.isPenalized || noPow) && !revealedWotPosts.has(post.id);
+  const isMyPost = post.author === me;
+  const modScopeComm = activeCommunity ?? (singleView ? postComm : undefined);
+  const isModOrOwner = !!modScopeComm && (modScopeComm.creator === me || modScopeComm.moderators.includes(me));
+  // an empty comment is one its author took back (freenet.deleteComment); hide blocked/reported/AI-held comments for others
+  const liveComments = Object.values(post.comments).filter(
+    (c) => c.text !== "" && (c.author === me || (!mod.hidden.has(c.author) && !mod.reported.has(`${c.author}:${c.id}`))),
+  );
+  const unproven = isWotModerationEnabled() && !revealedUnproven.has(post.id) ? liveComments.filter((c) => unprovenComment(c, topWot)) : [];
+  const commentsArray = liveComments.filter((c) => !unproven.includes(c)).sort((a, b) => a.timestamp - b.timestamp);
+  const shownComments = singleView || expandedComments.has(post.id) ? commentsArray : commentsArray.slice(-COMMENTS_SHOWN);
+  const authorDisplayName = getAuthorDisplayName(post.author);
+  const authorAvatar = getAuthorAvatarUrl(post.author);
+  const authorIsMod = !!postComm && (postComm.creator === post.author || postComm.moderators.includes(post.author));
+  const authorTrust = topWot.trustBadge(post.author);
+  const timeAgo = formatTimeAgo(post.timestamp);
+  const edit = freenet.postEdit(post.author, post.id);
+  const saved = !!me && isSaved(me, post);
+  const caption = edit?.caption ?? post.caption;
+
+  const postSig = `${post.sig ?? ""}\x1f${post.caption}\x1f${post.media_uri ?? ""}\x1f${post.is_nsfw ? 1 : 0}\x1f${post.category}\x1f${post.community_id ?? ""}\x1f${post.event_date ?? ""}\x1f${post.location ?? ""}`;
+  const likesSig = postLikers.length ? postLikers.map((k) => `${k}:${getAuthorDisplayName(k)}`).join(",") : "";
+  let commSig: string | undefined;
+  let mentionSig: string | undefined;
+  const getCommSig = () => (commSig ??= commentsArray.map((c) => {
+    const ck = `${c.author}:${c.id}`;
+    return `${c.id}|${c.text}|${getAuthorDisplayName(c.author)}|${formatTimeAgo(c.timestamp)}|${freenet.commentLikers(post.author, post.id, ck).join(",")}|${postTranslations.get(`${post.author}:${post.id}|${ck}`) ?? ""}`;
+  }).join("\n"));
+  const getMentionSig = () => {
+    if (mentionSig !== undefined) return mentionSig;
+    const mentionText = caption + (commentsArray.length ? commentsArray.map((c) => c.text).join(" ") : "");
+    return (mentionSig = mentionText.includes("@") ? mentionsIn(mentionText).map(getAuthorDisplayName).join("|") : "");
+  };
+
+  let sig: unknown[] | undefined;
+  if (!singleView) {
+    const hit = cardCache.get(post.id);
+    if (
+      hit &&
+      hit.sig[0] === postSig &&
+      hit.sig[1] === likesSig &&
+      hit.sig[2] === isLiked &&
+      hit.sig[3] === isDisliked &&
+      hit.sig[4] === dislikeCount &&
+      hit.sig[5] === isWotShielded &&
+      hit.sig[6] === isModOrOwner &&
+      hit.sig[7] === authorIsMod &&
+      hit.sig[8] === authorDisplayName &&
+      hit.sig[9] === authorAvatar &&
+      hit.sig[10] === timeAgo &&
+      hit.sig[13] === authorTrust.tier &&
+      hit.sig[14] === (edit?.ts ?? 0) &&
+      hit.sig[15] === postTranslations.get(`${post.author}:${post.id}`) &&
+      hit.sig[16] === saved &&
+      hit.sig[17] === shownComments.length &&
+      hit.sig[18] === mod.globalMod &&
+      hit.sig[19] === unproven.length &&
+      hit.sig[20] === repostCount &&
+      hit.sig[21] === isReposted &&
+      hit.sig[11] === getCommSig() &&
+      hit.sig[12] === getMentionSig()
+    ) {
+      cardCache.delete(post.id);
+      cardCache.set(post.id, hit);
+      return hit.html;
+    }
+    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted];
+  }
+
+  const html = `
+      <article class="gram-card${isWotShielded ? " wot-shielded" : ""}" id="${domPrefix}card-${post.id}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
+        ${
+          isWotShielded
+            ? `
+          <div class="wot-shield-banner">
+            <div class="wot-shield-info">
+              <span class="wot-shield-icon">${renderIcon("shield", { className: "icon-sm" })}</span>
+              <div>
+                <div class="wot-shield-title">${noPow ? "Newcomer post without the anti-bot proof" : escapeHtml(wotEval.penaltyReason ?? "Shielded by Web-of-Trust")}</div>
+                <div class="wot-shield-sub">${noPow ? "Radica asks new accounts for a small proof of work; this post was published without it, likely by a script." : `Disliked by ${escapeHtml(wotEval.trustedDislikers.map(getAuthorDisplayName).join(", "))}`}</div>
+              </div>
+            </div>
+            <button type="button" class="btn-reveal-wot btn-secondary btn-sm" data-post-id="${escapeHtml(post.id)}">Show post</button>
+          </div>
+        `
+            : ""
+        }
+        <div class="gram-card-header">
+          <div class="gram-author-info">
+            <img src="${safeUrl(authorAvatar)}" loading="lazy" decoding="async" class="gram-author-img author-clickable" data-author="${escapeHtml(post.author)}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(post.author)}'" style="cursor: pointer;" />
+            <div>
+              <span class="gram-author-name author-clickable" data-author="${escapeHtml(post.author)}" style="cursor: pointer;" title="Persona: ${post.author}">${escapeHtml(authorDisplayName)}</span>
+              ${
+                authorTrust.label === "Rooted"
+                  ? ""
+                  : `<span class="gram-trust-badge ${authorTrust.badgeClass}" title="${escapeHtml(authorTrust.description)}">${authorTrust.icon} ${escapeHtml(authorTrust.label)}</span>`
+              }
+              ${
+                post.category === "thought"
+                  ? ""
+                  : `<span class="gram-category-tag ${escapeHtml(post.category)}" title="${escapeHtml(post.category)}">${renderIcon(CATEGORY_ICON[post.category] ?? "messageCircle", { className: "icon-xs", ariaLabel: post.category })}</span>`
+              }
+              ${authorIsMod ? `<span class="gram-trust-badge badge-mod" title="Moderator of r/${escapeHtml(postComm!.slug)}">mod</span>` : ""}
+              ${repostRef(caption) ? `<span class="gram-category-tag repost" title="Shares someone's post">${renderIcon("repeat", { className: "icon-xs" })} reposted</span>` : ""}
+              ${
+                post.is_nsfw
+                  ? `<span class="gram-category-tag nsfw" title="18+ Adult Content (Moderated On-Device)">NSFW</span>`
+                  : ""
+              }
+              ${
+                post.community_id
+                  ? `<span class="comm-badge community-link" data-community="${escapeHtml(post.community_id)}" title="View Community">r/${escapeHtml(post.community_id.replace(/^c_/, ""))}</span>`
+                  : ""
+              }
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${
+              singleView
+                ? `<span class="gram-time">${formatTimeAgo(post.timestamp)}</span>`
+                : `<button type="button" class="gram-time open-single-post-trigger" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Open single post view">${formatTimeAgo(post.timestamp)}</button>`
+            }
+            ${edit ? `<span class="gram-edited" title="Edited ${formatTimeAgo(edit.ts)}">edited</span>` : ""}
+            ${
+              mod.globalMod && !isMyPost
+                ? `${freenet.reportQueue().some((r) => r.target === `${post.author}:${post.id}`) ? `<button type="button" class="btn-sm btn-icon-text mod-report-flag" data-act="open-moderation" title="This post was reported - click to view in Moderation" style="background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">${renderIcon("alertTriangle", { className: "icon-xs" })} <span>Reported</span></button>` : ""}<button type="button" class="global-remove-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Radica moderator: remove this post for everyone who follows Radica's moderation">${renderIcon("shield", { className: "icon-xs" })} <span>Remove</span></button>`
+                : ""
+            }
+            ${
+              isModOrOwner && !isMyPost
+                ? `<button class="mod-delete-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comm-id="${escapeHtml(modScopeComm!.id)}" title="Moderator: Delete post from community">${renderIcon("shield", { className: "icon-xs" })} <span>Mod Delete</span></button>`
+                : ""
+            }
+            ${
+              isMyPost
+                ? `<button class="edit-post-btn" data-post-id="${escapeHtml(post.id)}" title="Edit this post">${renderIcon("edit", { className: "icon-sm" })}</button><button class="delete-post-btn" data-post-id="${escapeHtml(post.id)}" title="Delete this post">${renderIcon("trash2", { className: "icon-sm" })}</button>`
+                : ""
+            }
+          </div>
+        </div>
+
+        ${
+          post.media_uri
+            ? `
+          <div class="gram-media ${post.is_nsfw ? "nsfw-shielded" : ""}" id="${domPrefix}media-${post.id}">
+            ${
+              videoRef(post.media_uri)
+                ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">\u25B6 <span>Play video</span></button>`
+                : postImagesHtml(post.media_uri)
+            }
+            ${
+              post.is_nsfw
+                ? `
+              <div class="nsfw-overlay" data-media-id="${domPrefix}media-${post.id}">
+                <div class="nsfw-overlay-card">
+                  <div style="font-size: 1.2rem; margin-bottom: 6px; color: #ef4444; display: flex; align-items: center; justify-content: center;">${renderIcon("ban", { className: "icon-lg" })}</div>
+                  <div style="font-weight: 700; font-size: 0.9rem;">Sensitive / Adult Media</div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 10px;">Scanned on-device by Desert Ant</div>
+                  <button type="button" class="btn-reveal-nsfw btn-icon-text" data-media-id="${domPrefix}media-${post.id}">${renderIcon("eye", { className: "icon-xs" })} <span>Click to View</span></button>
+                </div>
+              </div>
+            `
+                : ""
+            }
+          </div>
+        `
+            : ""
+        }
+
+        <div class="gram-content">
+          ${(() => {
+            const articleRef = parseArticleCaption(caption);
+            if (articleRef) {
+              return renderArticleFeedCardHtml(post, articleRef);
+            }
+            const boardRef = parseBoardPostCaption(caption);
+            if (boardRef) {
+              return renderBoardSummaryCardHtml(boardRef, safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0");
+            }
+            const own = repostRef(caption) ? repostText(caption) : caption;
+            const { html, card } = renderPost(own, getAuthorDisplayName);
+            const from = html ? translatableFrom(own) : null;
+            const translated = postTranslations.get(`${post.author}:${post.id}`);
+            const translate = from
+              ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
+                (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
+              : "";
+            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + sporeRadioCard(caption) + repostCard(caption);
+          })()}
+
+          ${
+            post.category === "event" && (post.location || post.event_date)
+              ? `
+            <div class="gram-event-details">
+              ${post.event_date ? `<div class="btn-icon-text">${renderIcon("calendar", { className: "icon-xs" })} <span>Date: ${escapeHtml(post.event_date)}</span></div>` : ""}
+              ${post.location ? `<div class="btn-icon-text">${renderIcon("mapPin", { className: "icon-xs" })} <span>Location: ${escapeHtml(post.location)}</span></div>` : ""}
+            </div>
+          `
+              : ""
+          }
+        </div>
+
+        <div class="gram-actions">
+          <button class="action-btn like-btn ${isLiked ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isLiked ? "Unlike this post" : "Like this post"}">
+            <span>${isLiked ? renderIcon("heartFilled", { className: "icon-sm", ariaLabel: "Liked" }) : renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" })}</span>
+            <span><span class="action-count">${postLikers.length}</span><span class="action-label"> ${postLikers.length === 1 ? "Like" : "Likes"}</span></span>
+          </button>
+          <button class="action-btn dislike-btn ${isDisliked ? "disliked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isDisliked ? "Remove dislike" : "Dislike this post"}">
+            <span>${isDisliked ? renderIcon("thumbsDownFilled", { className: "icon-sm", ariaLabel: "Disliked" }) : renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" })}</span>
+            <span><span class="action-count">${dislikeCount}</span><span class="action-label"> ${dislikeCount === 1 ? "Dislike" : "Dislikes"}</span></span>
+          </button>
+          <button type="button" class="action-btn comment-count-btn" data-post-id="${escapeHtml(post.id)}">
+            <span>${renderIcon("messageSquare", { className: "icon-sm" })}</span>
+            <span><span class="action-count">${commentsArray.length}</span><span class="action-label"> ${commentsArray.length === 1 ? "Comment" : "Comments"}</span></span>
+          </button>
+          <button class="action-btn repost-btn ${isReposted ? "reposted" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isReposted ? "You reposted this" : "Repost: share this post on your feed"}">
+            <span>${renderIcon("repeat", { className: "icon-sm" })}</span>
+            <span><span class="action-count">${repostCount}</span><span class="action-label"> ${repostCount === 1 ? "Repost" : "Reposts"}</span></span>
+          </button>
+          <button class="action-btn share-post-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Share post and view Freenet details">
+            <span>${renderIcon("share2", { className: "icon-sm" })}</span>
+            <span><span class="action-label"> Share</span></span>
+          </button>
+          <details class="post-more">
+            <summary class="action-btn" title="More actions" aria-label="More actions">${renderIcon("moreHorizontal", { className: "icon-sm" })}</summary>
+            <div class="post-more-menu">
+          ${
+            !singleView
+              ? `<button type="button" class="action-btn open-single-post-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Open this post on its own view">
+            ${renderIcon("maximize2", { className: "icon-sm" })}
+            <span class="action-text">Open post</span>
+          </button>`
+              : ""
+          }
+          ${
+            !parseBoardPostCaption(caption)
+              ? `<button class="action-btn save-post-btn ${saved ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${saved ? "Remove from Saved" : "Save this post for later (kept on this device)"}" aria-pressed="${saved}">
+            <span>${renderIcon("bookmark", { className: "icon-sm" })}</span>
+            <span><span class="action-label"> ${saved ? "Saved" : "Save"}</span></span>
+          </button>
+          <button class="action-btn save-to-board-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Save to Curated Board">
+            <span>${renderIcon("pin", { className: "icon-sm" })}</span>
+            <span><span class="action-label"> Board</span></span>
+          </button>`
+              : ""
+          }
+          ${
+            !isMyPost
+              ? `<button class="action-btn talk-btn btn-icon-text" data-author="${escapeHtml(post.author)}" title="Direct Message" aria-label="Talk">
+                   ${renderIcon("chat", { className: "icon-sm" })}
+                   <span class="action-text">Talk</span>
+                 </button>
+                 <button class="action-btn hide-user-btn btn-icon-text" data-author="${escapeHtml(post.author)}" title="Hide all posts from this user on this device" aria-label="Hide user">
+                   ${renderIcon("ban", { className: "icon-sm" })}
+                   <span class="action-text">Hide</span>
+                 </button>
+                 <button class="action-btn report-post-btn btn-icon-text" data-author="${escapeHtml(post.author)}" data-post-id="${escapeHtml(post.id)}" title="Report this post" aria-label="Report">
+                   ${renderIcon("alertTriangle", { className: "icon-sm" })}
+                   <span class="action-text">Report</span>
+                 </button>`
+              : ""
+          }
+            </div>
+          </details>
+        </div>
+        <div class="liked-by" id="${domPrefix}liked-by-${post.id}" data-post-id="${escapeHtml(post.id)}">${reactionsByHtml(post)}</div>
+
+        <div class="gram-comments">
+          <div class="comments-list" id="${domPrefix}comments-${post.id}">
+            ${
+              commentsArray.length > shownComments.length
+                ? `<button type="button" class="show-all-comments" data-post-id="${escapeHtml(post.id)}">Show all ${commentsArray.length} comments</button>`
+                : ""
+            }
+            ${
+              unproven.length
+                ? `<button type="button" class="show-unproven-comments" data-post-id="${escapeHtml(post.id)}">${unproven.length} comment${unproven.length === 1 ? "" : "s"} from newcomers without the anti-bot proof hidden: show</button>`
+                : ""
+            }
+            ${shownComments
+              .map((c) => {
+                const commKey = `${c.author}:${c.id}`;
+                const cLikers = freenet.commentLikers(post.author, post.id, commKey);
+                const isCLiked = me ? cLikers.includes(me) : false;
+                const cTooltip = cLikers.length > 0 ? `Liked by ${cLikers.map(getAuthorDisplayName).join(", ")}` : "Like comment";
+                const cFrom = translatableFrom(c.text);
+                const cTranslated = postTranslations.get(`${post.author}:${post.id}|${commKey}`);
+                const cTranslate = cFrom
+                  ? `<button type="button" class="translate-btn comment-translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-from="${cFrom}" title="Translate from ${LANGS[cFrom]} on this device">${cTranslated === "" ? "Translating…" : cTranslated ? "Hide translation" : "Translate"}</button>`
+                  : "";
+                return `
+              <div class="comment-item" id="${domPrefix}comment-${escapeHtml(c.id)}">
+                <span class="comment-author author-clickable" data-author="${escapeHtml(c.author)}" style="cursor: pointer;" title="Persona: ${c.author}">${escapeHtml(getAuthorDisplayName(c.author))}:</span>
+                <span class="comment-text">${renderComment(c.text, getAuthorDisplayName)}</span>
+                <span class="comment-time" title="${escapeHtml(new Date(c.timestamp).toLocaleString())}">${formatTimeAgo(c.timestamp)}</span>
+                <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="${escapeHtml(cTooltip)}" aria-label="Like comment">
+                  <span class="comment-heart">${renderIcon(isCLiked ? "heartFilled" : "heart", { className: "icon-xs", ariaLabel: isCLiked ? "Liked" : "Like" })}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
+                </button>
+                ${cTranslate}
+                ${mod.globalMod && c.author !== me ? `<button type="button" class="comment-remove-btn" data-comment-author="${escapeHtml(c.author)}" data-comment-id="${escapeHtml(c.id)}" title="Radica moderator: remove this comment for everyone who follows Radica's moderation" aria-label="Remove comment as moderator">${renderIcon("shield", { className: "icon-xs" })}</button>` : ""}
+                ${c.author === me ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>` : ""}
+                ${cTranslated ? `<div class="comment-translation">${escapeHtml(cTranslated)}</div>` : ""}
+              </div>
+            `;
+              })
+              .join("")}
+          </div>
+
+          <form class="comment-form" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
+            <div class="comment-form-row">
+              <div class="comment-input-wrap">
+                <textarea id="${domPrefix}comment-input-${post.id}" class="comment-input" rows="1" enterkeyhint="send" placeholder="Write a comment..."></textarea>
+                <div class="comment-actions">
+                  <button type="button" class="comment-btn-media comment-btn-file" data-post-id="${escapeHtml(post.id)}" title="Attach photo or GIF" aria-label="Attach photo or GIF">
+                    ${renderIcon("image", { className: "icon-xs" })}
+                  </button>
+                  <button type="button" class="comment-btn-media comment-btn-gif" data-post-id="${escapeHtml(post.id)}" title="Choose a GIF" aria-label="Choose a GIF">
+                    <span class="comment-gif-badge">GIF</span>
+                  </button>
+                  ${draftTranslateHtml(`${domPrefix}comment-input-${post.id}`)}
+                </div>
+              </div>
+              <button type="submit" class="btn-primary comment-submit-btn" style="padding: 4px 12px; font-size: 0.8rem;">Send</button>
+            </div>
+            <input type="file" id="${domPrefix}comment-file-${post.id}" class="comment-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;" />
+            <div class="comment-staging" id="${domPrefix}comment-staging-${post.id}" data-post-id="${escapeHtml(post.id)}" style="display: none;"></div>
+          </form>
+        </div>
+      </article>
+    `;
+  if (!singleView && sig) cacheCard(post.id, { sig, html });
+  return html;
+}
+
+const singlePostModal = document.getElementById("single-post-modal") as HTMLElement | null;
+const singlePostBackBtn = document.getElementById("single-post-back-btn") as HTMLButtonElement | null;
+const singlePostCloseBtn = document.getElementById("single-post-close-btn") as HTMLButtonElement | null;
+const singlePostContext = document.getElementById("single-post-context") as HTMLElement | null;
+const singlePostJumpFeedBtn = document.getElementById("single-post-jump-feed-btn") as HTMLButtonElement | null;
+const singlePostBody = document.getElementById("single-post-body") as HTMLElement | null;
+let activeSinglePost: { id: string; author: string } | null = null;
+let singlePostListenersBound = false;
+
+function closeSinglePostModal(): void {
+  activeSinglePost = null;
+  if (singlePostModal) singlePostModal.style.display = "none";
+}
+
+function renderSinglePostContent(post: Post): void {
+  if (!singlePostBody || !currentIdentity) return;
+  const me = currentIdentity.pubkey;
+  const mod = buildModerationSets(me);
+  const { allKnownPosts, repostCounts } = collectKnownPosts();
+  const topWot = getWebOfTrust();
+  const isMyPost = post.author === me;
+  const blockedAuthor = !isMyPost && mod.hidden.has(post.author);
+  const reportedPost =
+    !isMyPost &&
+    (mod.reported.has(`${post.author}:${post.id}`) ||
+      (mod.reportedMedia.size > 0 && mod.reportedMedia.has(postMediaHash(post) ?? "")));
+  const comm = post.community_id ? mod.commByRef.get(post.community_id) : undefined;
+  const deletedInComm = !!comm && comm.deleted_post_ids.includes(post.id);
+
+  if (singlePostContext) {
+    singlePostContext.textContent = comm
+      ? `r/${comm.slug}`
+      : post.community_id
+        ? `r/${post.community_id.replace(/^c_/, "")}`
+        : getAuthorDisplayName(post.author);
+  }
+
+  if (singlePostJumpFeedBtn) {
+    singlePostJumpFeedBtn.onclick = () => {
+      closeSinglePostModal();
+      if (communitiesModal) communitiesModal.style.display = "none";
+      void showMyPost(post.id, post.author);
+    };
+  }
+
+  if (blockedAuthor || reportedPost || deletedInComm) {
+    const reason = blockedAuthor
+      ? "Posts from this author are hidden on this device."
+      : deletedInComm
+        ? "This post was removed by community moderators."
+        : "This post is hidden by active moderation or AI safety hold.";
+    singlePostBody.innerHTML = `<div class="single-post-empty"><p>${escapeHtml(reason)}</p></div>`;
+    return;
+  }
+
+  singlePostBody.innerHTML = buildPostCardHtml(post, {
+    allKnownPosts,
+    repostCounts,
+    mod,
+    me,
+    topWot,
+    singleView: true,
+  });
+
+  if (!singlePostListenersBound) {
+    bindPostCardListeners(singlePostBody);
+    singlePostListenersBound = true;
+  }
+
+  if (stagedCommentMedia.has(post.id)) renderCommentStaging(post.id);
+  showMedia(singlePostBody);
+  fillFreetunes(singlePostBody, (id) => freenet.appContract(id), nodeOrigin(), (pk) => freenet.freetunesArtist(pk));
+  fillFreepolls(singlePostBody, pollNet);
+  fillFreenames(singlePostBody, freenet);
+  fillDelta(singlePostBody, freenet);
+  fillOrto(singlePostBody);
+  fillAsocial(singlePostBody);
+  fillFh(singlePostBody, freenet, nodeOrigin());
+  fillWormhole(singlePostBody);
+  fillReposts(singlePostBody);
+}
+
+function renderSinglePostIfOpen(postId?: string): void {
+  if (!activeSinglePost || !singlePostModal || !isOpen(singlePostModal) || !singlePostBody) return;
+  if (postId && postId !== activeSinglePost.id) return;
+  const latest =
+    timelinePosts.find((p) => p.id === activeSinglePost!.id && p.author === activeSinglePost!.author) ??
+    Object.values(freenet.peerCache).find((p) => p?.id === activeSinglePost!.id && p?.author === activeSinglePost!.author);
+  if (!latest) {
+    singlePostBody.innerHTML = `<div class="single-post-empty"><p>This post is no longer available.</p></div>`;
+    return;
+  }
+  renderSinglePostContent(latest);
+}
+
+/** Open a standalone Single Post View modal from a Communities thread, feed card, or deep link. */
+async function openSinglePostModal(postId: string, author: string): Promise<void> {
+  if (!singlePostModal || !singlePostBody || !SAFE_ID.test(postId) || !HEX64.test(author)) return;
+  activeSinglePost = { id: postId, author };
+  if (singlePostContext) singlePostContext.textContent = "Post";
+  singlePostModal.style.display = "flex";
+
+  const localPost =
+    timelinePosts.find((p) => p.id === postId && p.author === author) ??
+    Object.values(freenet.peerCache).find((p) => p?.id === postId && p?.author === author);
+  if (localPost) {
+    renderSinglePostContent(localPost);
+    return;
+  }
+
+  singlePostBody.innerHTML = `<div class="single-post-empty"><p>Loading post from Freenet...</p></div>`;
+  try {
+    const feed = await freenet.getFeed(author);
+    if (!activeSinglePost || activeSinglePost.id !== postId || !isOpen(singlePostModal)) return;
+    const remotePost = feed?.posts?.[postId];
+    if (remotePost) renderSinglePostContent(remotePost);
+    else singlePostBody.innerHTML = `<div class="single-post-empty"><p>Post not found on this Freenet node yet.</p></div>`;
+  } catch {
+    if (!activeSinglePost || activeSinglePost.id !== postId || !isOpen(singlePostModal)) return;
+    singlePostBody.innerHTML = `<div class="single-post-empty"><p>Could not load this post right now.</p></div>`;
+  }
+}
+
+singlePostBackBtn?.addEventListener("click", closeSinglePostModal);
+singlePostCloseBtn?.addEventListener("click", closeSinglePostModal);
+singlePostModal?.addEventListener("click", (e) => {
+  if (e.target === singlePostModal) closeSinglePostModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && singlePostModal && isOpen(singlePostModal)) closeSinglePostModal();
+});
+
+function renderTimeline() {
+  if (timelineRenderRaf) {
+    cancelAnimationFrame(timelineRenderRaf);
+    timelineRenderRaf = 0;
+  }
+  postsContainer.classList.remove("media-grid");
+  if (!currentIdentity) return;
+  if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
+  renderSinglePostIfOpen();
+
+  const me = currentIdentity.pubkey;
+  const mod = buildModerationSets(me);
+  const { hidden, reported, reportedMedia, commByRef } = mod;
+  const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
 
   const deletedSet = activeCommunity?.deleted_post_ids ? new Set(activeCommunity.deleted_post_ids) : null;
   const tagLower = activeTagFilter ? "#" + activeTagFilter.toLowerCase() : null;
@@ -2406,356 +3124,22 @@ function renderTimeline() {
       ? `<div class="load-more"><button type="button" class="btn-secondary" id="load-more-btn">Show more (${filtered.length - visiblePosts} left)</button></div>`
       : "";
 
-  const allKnownPosts = new Map<string, Post>();
-  for (const p of Object.values(freenet.peerCache)) if (p?.id) allKnownPosts.set(p.id, p);
-  for (const p of timelinePosts) if (p?.id) allKnownPosts.set(p.id, p);
-  const repostCounts = repostCountsOf(allKnownPosts.values());
+  const { allKnownPosts, repostCounts } = collectKnownPosts();
 
   const items = filtered
     .slice(0, visiblePosts)
     .filter((post) => SAFE_ID.test(post.id) && HEX64.test(post.author))
-    .map((post) => {
-      const isLiked = !!post.likes?.[currentIdentity!.pubkey]?.liked;
-      const postLikers = likers(post);
-      const dislikersList = freenet.postDislikers(post.author, post.id);
-      const isDisliked = !!currentIdentity && dislikersList.includes(currentIdentity.pubkey);
-      const dislikeCount = dislikersList.length;
-      const repostCount = repostCounts.get(`${post.author}:${post.id}`) ?? 0;
-      const isReposted = !!currentIdentity && hasUserReposted(allKnownPosts.values(), currentIdentity.pubkey, post.id, post.author);
-      const postComm = commOf(post);
-      const commMods = postComm ? [postComm.creator, ...postComm.moderators] : [];
-      const wot = topWot;
-      const wotEval = wot.evaluatePost(post, postLikers, dislikersList, commMods);
-      // a newcomer's post without its anti-bot proof: written around Radica (a script), so covered like a disliked one
-      const noPow = !wotEval.isPenalized && post.timestamp >= POST_POW_SINCE && post.author !== currentIdentity!.pubkey && wot.trustTier(post.author) === 0 && !postHasPow(post);
-      const isWotShielded = isWotModerationEnabled() && (wotEval.isPenalized || noPow) && !revealedWotPosts.has(post.id);
-      const isMyPost = post.author === currentIdentity!.pubkey;
-      const isModOrOwner =
-        activeCommunity &&
-        (activeCommunity.creator === currentIdentity!.pubkey ||
-          activeCommunity.moderators.includes(currentIdentity!.pubkey));
-      // an empty comment is one its author took back (freenet.deleteComment)
-      // a reported comment is `<author>:<comment id>`, like a post
-      const liveComments = Object.values(post.comments).filter((c) => c.text !== "" && (c.author === me || !reported.has(`${c.author}:${c.id}`)));
-      // newcomers' comments without the anti-bot proof wait behind a "show" button (not dropped: a newcomer on an old app would vanish)
-      const unproven = isWotModerationEnabled() && !revealedUnproven.has(post.id) ? liveComments.filter((c) => unprovenComment(c, wot)) : [];
-      const commentsArray = liveComments.filter((c) => !unproven.includes(c)).sort((a, b) => a.timestamp - b.timestamp);
-      // the newest few, so a long thread does not turn into a box that scrolls inside the feed
-      const shownComments = expandedComments.has(post.id) ? commentsArray : commentsArray.slice(-COMMENTS_SHOWN);
-      const authorDisplayName = getAuthorDisplayName(post.author);
-      const authorAvatar = getAuthorAvatarUrl(post.author);
-      const authorIsMod = !!postComm && (postComm.creator === post.author || postComm.moderators.includes(post.author));
-      const authorTrust = wot.trustBadge(post.author);
-      // everything the card shows: unchanged since the last draw, its html (and its DOM node) are reused
-      const timeAgo = formatTimeAgo(post.timestamp);
-      const edit = freenet.postEdit(post.author, post.id); // the feed keeps the first version; edits come from a log
-      const saved = !!currentIdentity && isSaved(currentIdentity.pubkey, post);
-      const caption = edit?.caption ?? post.caption;
-      const key = `card-${post.id}`;
-      const hit = cardCache.get(post.id);
-      const postSig = `${post.sig ?? ""}\x1f${post.caption}\x1f${post.media_uri ?? ""}\x1f${post.is_nsfw ? 1 : 0}\x1f${post.category}\x1f${post.community_id ?? ""}\x1f${post.event_date ?? ""}\x1f${post.location ?? ""}`;
-      const likesSig = postLikers.length ? postLikers.map((k) => `${k}:${getAuthorDisplayName(k)}`).join(",") : "";
-      let commSig: string | undefined;
-      let mentionSig: string | undefined;
-      const getCommSig = () => (commSig ??= commentsArray.map((c) => {
-        const ck = `${c.author}:${c.id}`;
-        return `${c.id}|${c.text}|${getAuthorDisplayName(c.author)}|${formatTimeAgo(c.timestamp)}|${freenet.commentLikers(post.author, post.id, ck).join(",")}|${postTranslations.get(`${post.author}:${post.id}|${ck}`) ?? ""}`;
-      }).join("\n"));
-      const getMentionSig = () => {
-        if (mentionSig !== undefined) return mentionSig;
-        const mentionText = caption + (commentsArray.length ? commentsArray.map((c) => c.text).join(" ") : "");
-        return (mentionSig = mentionText.includes("@") ? mentionsIn(mentionText).map(getAuthorDisplayName).join("|") : "");
-      };
-
-      if (
-        hit &&
-        hit.sig[0] === postSig &&
-        hit.sig[1] === likesSig &&
-        hit.sig[2] === isLiked &&
-        hit.sig[3] === isDisliked &&
-        hit.sig[4] === dislikeCount &&
-        hit.sig[5] === isWotShielded &&
-        hit.sig[6] === isModOrOwner &&
-        hit.sig[7] === authorIsMod &&
-        hit.sig[8] === authorDisplayName &&
-        hit.sig[9] === authorAvatar &&
-        hit.sig[10] === timeAgo &&
-        hit.sig[13] === authorTrust.tier &&
-        hit.sig[14] === (edit?.ts ?? 0) &&
-        hit.sig[15] === postTranslations.get(`${post.author}:${post.id}`) &&
-        hit.sig[16] === saved &&
-        hit.sig[17] === shownComments.length &&
-        hit.sig[18] === globalMod &&
-        hit.sig[19] === unproven.length &&
-        hit.sig[20] === repostCount &&
-        hit.sig[21] === isReposted &&
-        hit.sig[11] === getCommSig() &&
-        hit.sig[12] === getMentionSig()
-      ) {
-        cardCache.delete(post.id);
-        cardCache.set(post.id, hit);
-        return { key, html: hit.html };
-      }
-
-      const sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, globalMod, unproven.length, repostCount, isReposted];
-
-      const html = `
-      <article class="gram-card${isWotShielded ? " wot-shielded" : ""}" id="card-${post.id}">
-        ${
-          isWotShielded
-            ? `
-          <div class="wot-shield-banner">
-            <div class="wot-shield-info">
-              <span class="wot-shield-icon">${renderIcon("shield", { className: "icon-sm" })}</span>
-              <div>
-                <div class="wot-shield-title">${noPow ? "Newcomer post without the anti-bot proof" : escapeHtml(wotEval.penaltyReason ?? "Shielded by Web-of-Trust")}</div>
-                <div class="wot-shield-sub">${noPow ? "Radica asks new accounts for a small proof of work; this post was published without it, likely by a script." : `Disliked by ${escapeHtml(wotEval.trustedDislikers.map(getAuthorDisplayName).join(", "))}`}</div>
-              </div>
-            </div>
-            <button type="button" class="btn-reveal-wot btn-secondary btn-sm" data-post-id="${escapeHtml(post.id)}">Show post</button>
-          </div>
-        `
-            : ""
-        }
-        <div class="gram-card-header">
-          <div class="gram-author-info">
-            <img src="${safeUrl(authorAvatar)}" loading="lazy" decoding="async" class="gram-author-img author-clickable" data-author="${escapeHtml(post.author)}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(post.author)}'" style="cursor: pointer;" />
-            <div>
-              <span class="gram-author-name author-clickable" data-author="${escapeHtml(post.author)}" style="cursor: pointer;" title="Persona: ${post.author}">${escapeHtml(authorDisplayName)}</span>
-              ${
-                // "Rooted" is most of the feed: only the exceptions get a badge here (the profile still shows it)
-                authorTrust.label === "Rooted"
-                  ? ""
-                  : `<span class="gram-trust-badge ${authorTrust.badgeClass}" title="${escapeHtml(authorTrust.description)}">${authorTrust.icon} ${escapeHtml(authorTrust.label)}</span>`
-              }
-              ${
-                // a plain thought is most of the feed: its icon is noise; moments and events keep theirs
-                post.category === "thought"
-                  ? ""
-                  : `<span class="gram-category-tag ${escapeHtml(post.category)}" title="${escapeHtml(post.category)}">${renderIcon(CATEGORY_ICON[post.category] ?? "messageCircle", { className: "icon-xs", ariaLabel: post.category })}</span>`
-              }
-              ${authorIsMod ? `<span class="gram-trust-badge badge-mod" title="Moderator of r/${escapeHtml(postComm!.slug)}">mod</span>` : ""}
-              ${repostRef(caption) ? `<span class="gram-category-tag repost" title="Shares someone's post">${renderIcon("repeat", { className: "icon-xs" })} reposted</span>` : ""}
-              ${
-                post.is_nsfw
-                  ? `<span class="gram-category-tag nsfw" title="18+ Adult Content (Moderated On-Device)">NSFW</span>`
-                  : ""
-              }
-              ${
-                post.community_id
-                  ? `<span class="comm-badge community-link" data-community="${escapeHtml(post.community_id)}" title="View Community">r/${escapeHtml(post.community_id.replace(/^c_/, ""))}</span>`
-                  : ""
-              }
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="gram-time">${formatTimeAgo(post.timestamp)}</span>
-            ${edit ? `<span class="gram-edited" title="Edited ${formatTimeAgo(edit.ts)}">edited</span>` : ""}
-            ${
-              globalMod && !isMyPost
-                ? `${freenet.reportQueue().some((r) => r.target === `${post.author}:${post.id}`) ? `<button type="button" class="btn-sm btn-icon-text mod-report-flag" data-act="open-moderation" title="This post was reported - click to view in Moderation" style="background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">⚠️ Reported</button>` : ""}<button type="button" class="global-remove-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Radica moderator: remove this post for everyone who follows Radica's moderation">${renderIcon("shield", { className: "icon-xs" })} <span>Remove</span></button>`
-                : ""
-            }
-            ${
-              isModOrOwner && !isMyPost
-                ? `<button class="mod-delete-btn btn-icon-text" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Moderator: Delete post from community">${renderIcon("shield", { className: "icon-xs" })} <span>Mod Delete</span></button>`
-                : ""
-            }
-            ${
-              isMyPost
-                ? `<button class="edit-post-btn" data-post-id="${escapeHtml(post.id)}" title="Edit this post">${renderIcon("edit", { className: "icon-sm" })}</button><button class="delete-post-btn" data-post-id="${escapeHtml(post.id)}" title="Delete this post">${renderIcon("trash2", { className: "icon-sm" })}</button>`
-                : ""
-            }
-          </div>
-        </div>
-
-        ${
-          post.media_uri
-            ? `
-          <div class="gram-media ${post.is_nsfw ? "nsfw-shielded" : ""}" id="media-${post.id}">
-            ${
-              videoRef(post.media_uri)
-                ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">\u25B6 <span>Play video</span></button>`
-                : postImagesHtml(post.media_uri)
-            }
-            ${
-              post.is_nsfw
-                ? `
-              <div class="nsfw-overlay" data-media-id="media-${post.id}">
-                <div class="nsfw-overlay-card">
-                  <div style="font-size: 1.2rem; margin-bottom: 6px; color: #ef4444; display: flex; align-items: center; justify-content: center;">${renderIcon("ban", { className: "icon-lg" })}</div>
-                  <div style="font-weight: 700; font-size: 0.9rem;">Sensitive / Adult Media</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 10px;">Scanned on-device by Desert Ant</div>
-                  <button type="button" class="btn-reveal-nsfw btn-icon-text" data-media-id="media-${post.id}">${renderIcon("eye", { className: "icon-xs" })} <span>Click to View</span></button>
-                </div>
-              </div>
-            `
-                : ""
-            }
-          </div>
-        `
-            : ""
-        }
-
-        <div class="gram-content">
-          ${(() => {
-            const articleRef = parseArticleCaption(caption);
-            if (articleRef) {
-              return renderArticleFeedCardHtml(post, articleRef);
-            }
-            const boardRef = parseBoardPostCaption(caption);
-            if (boardRef) {
-              return renderBoardSummaryCardHtml(boardRef, safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0");
-            }
-            const own = repostRef(caption) ? repostText(caption) : caption; // a repost: the shared post's card stands for its link
-            const { html, card } = renderPost(own, getAuthorDisplayName);
-            const from = html ? translatableFrom(own) : null;
-            const translated = postTranslations.get(`${post.author}:${post.id}`);
-            const translate = from
-              ? `<button type="button" class="translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-from="${from}">${translated === "" ? TRANSLATING : translated ? "Hide translation" : `Translate from ${LANGS[from]}`}</button>` +
-                (translated ? `<p class="gram-translation">${escapeHtml(translated)}</p>` : "")
-              : "";
-            return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + sporeRadioCard(caption) + repostCard(caption);
-          })()}
-
-          ${
-            post.category === "event" && (post.location || post.event_date)
-              ? `
-            <div class="gram-event-details">
-              ${post.event_date ? `<div class="btn-icon-text">${renderIcon("calendar", { className: "icon-xs" })} <span>Date: ${escapeHtml(post.event_date)}</span></div>` : ""}
-              ${post.location ? `<div class="btn-icon-text">${renderIcon("mapPin", { className: "icon-xs" })} <span>Location: ${escapeHtml(post.location)}</span></div>` : ""}
-            </div>
-          `
-              : ""
-          }
-        </div>
-
-        <div class="gram-actions">
-          <button class="action-btn like-btn ${isLiked ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isLiked ? "Unlike this post" : "Like this post"}">
-            <span>${isLiked ? renderIcon("heartFilled", { className: "icon-sm", ariaLabel: "Liked" }) : renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" })}</span>
-            <span><span class="action-count">${likers(post).length}</span><span class="action-label"> ${likers(post).length === 1 ? "Like" : "Likes"}</span></span>
-          </button>
-          <button class="action-btn dislike-btn ${isDisliked ? "disliked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isDisliked ? "Remove dislike" : "Dislike this post"}">
-            <span>${isDisliked ? renderIcon("thumbsDownFilled", { className: "icon-sm", ariaLabel: "Disliked" }) : renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" })}</span>
-            <span><span class="action-count">${dislikeCount}</span><span class="action-label"> ${dislikeCount === 1 ? "Dislike" : "Dislikes"}</span></span>
-          </button>
-          <button class="action-btn comment-count-btn" onclick="document.getElementById('comment-input-${post.id}')?.focus()">
-            <span>${renderIcon("messageSquare", { className: "icon-sm" })}</span>
-            <span><span class="action-count">${commentsArray.length}</span><span class="action-label"> ${commentsArray.length === 1 ? "Comment" : "Comments"}</span></span>
-          </button>
-          <button class="action-btn repost-btn ${isReposted ? "reposted" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${isReposted ? "You reposted this" : "Repost: share this post on your feed"}">
-            <span>${renderIcon("repeat", { className: "icon-sm" })}</span>
-            <span><span class="action-count">${repostCount}</span><span class="action-label"> ${repostCount === 1 ? "Repost" : "Reposts"}</span></span>
-          </button>
-          <button class="action-btn share-post-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Share post and view Freenet details">
-            <span>${renderIcon("share2", { className: "icon-sm" })}</span>
-            <span><span class="action-label"> Share</span></span>
-          </button>
-          <!-- the less frequent actions wait in a menu, so the row stays readable -->
-          <details class="post-more">
-            <summary class="action-btn" title="More actions" aria-label="More actions">${renderIcon("moreHorizontal", { className: "icon-sm" })}</summary>
-            <div class="post-more-menu">
-          ${
-            !parseBoardPostCaption(caption)
-              ? `<button class="action-btn save-post-btn ${saved ? "liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="${saved ? "Remove from Saved" : "Save this post for later (kept on this device)"}" aria-pressed="${saved}">
-            <span>${renderIcon("bookmark", { className: "icon-sm" })}</span>
-            <span><span class="action-label"> ${saved ? "Saved" : "Save"}</span></span>
-          </button>
-          <button class="action-btn save-to-board-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Save to Curated Board">
-            <span>📌</span>
-            <span><span class="action-label"> Board</span></span>
-          </button>`
-              : ""
-          }
-          ${
-            !isMyPost
-              ? `<button class="action-btn talk-btn btn-icon-text" data-author="${escapeHtml(post.author)}" title="Direct Message" aria-label="Talk">
-                   ${renderIcon("chat", { className: "icon-sm" })}
-                   <span class="action-text">Talk</span>
-                 </button>
-                 <button class="action-btn hide-user-btn btn-icon-text" data-author="${escapeHtml(post.author)}" title="Hide all posts from this user on this device" aria-label="Hide user">
-                   ${renderIcon("ban", { className: "icon-sm" })}
-                   <span class="action-text">Hide</span>
-                 </button>
-                 <button class="action-btn report-post-btn btn-icon-text" data-author="${escapeHtml(post.author)}" data-post-id="${escapeHtml(post.id)}" title="Report this post" aria-label="Report">
-                   ${renderIcon("alertTriangle", { className: "icon-sm" })}
-                   <span class="action-text">Report</span>
-                 </button>`
-              : ""
-          }
-            </div>
-          </details>
-        </div>
-        <div class="liked-by" id="liked-by-${post.id}">${reactionsByHtml(post)}</div>
-
-        <div class="gram-comments">
-          <div class="comments-list" id="comments-${post.id}">
-            ${
-              commentsArray.length > shownComments.length
-                ? `<button type="button" class="show-all-comments" data-post-id="${escapeHtml(post.id)}">Show all ${commentsArray.length} comments</button>`
-                : ""
-            }
-            ${
-              unproven.length
-                ? `<button type="button" class="show-unproven-comments" data-post-id="${escapeHtml(post.id)}">${unproven.length} comment${unproven.length === 1 ? "" : "s"} from newcomers without the anti-bot proof hidden: show</button>`
-                : ""
-            }
-            ${shownComments
-              .map(
-                (c) => {
-                  const commKey = `${c.author}:${c.id}`;
-                  const cLikers = freenet.commentLikers(post.author, post.id, commKey);
-                  const isCLiked = currentIdentity ? cLikers.includes(currentIdentity.pubkey) : false;
-                  const cTooltip = cLikers.length > 0 ? `Liked by ${cLikers.map(getAuthorDisplayName).join(", ")}` : "Like comment";
-                  const cFrom = translatableFrom(c.text);
-                  const cTranslated = postTranslations.get(`${post.author}:${post.id}|${commKey}`);
-                  const cTranslate = cFrom
-                    ? `<button type="button" class="translate-btn comment-translate-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-from="${cFrom}" title="Translate from ${LANGS[cFrom]} on this device">${cTranslated === "" ? "Translating…" : cTranslated ? "Hide translation" : "Translate"}</button>`
-                    : "";
-                  return `
-              <div class="comment-item" id="comment-${escapeHtml(c.id)}">
-                <span class="comment-author author-clickable" data-author="${escapeHtml(c.author)}" style="cursor: pointer;" title="Persona: ${c.author}">${escapeHtml(getAuthorDisplayName(c.author))}:</span>
-                <span class="comment-text">${renderComment(c.text, getAuthorDisplayName)}</span>
-                <span class="comment-time" title="${escapeHtml(new Date(c.timestamp).toLocaleString())}">${formatTimeAgo(c.timestamp)}</span>
-                <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="${escapeHtml(cTooltip)}" aria-label="Like comment">
-                  <span class="comment-heart">${isCLiked ? "❤️" : "🤍"}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
-                </button>
-                ${cTranslate}
-                ${globalMod && c.author !== me ? `<button type="button" class="comment-remove-btn" data-comment-author="${escapeHtml(c.author)}" data-comment-id="${escapeHtml(c.id)}" title="Radica moderator: remove this comment for everyone who follows Radica's moderation" aria-label="Remove comment as moderator">🛡️</button>` : ""}
-                ${c.author === currentIdentity!.pubkey ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>` : ""}
-                ${cTranslated ? `<div class="comment-translation">${escapeHtml(cTranslated)}</div>` : ""}
-              </div>
-            `;
-                }
-              )
-              .join("")}
-          </div>
-
-          <form class="comment-form" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
-            <div class="comment-form-row">
-              <div class="comment-input-wrap">
-                <textarea id="comment-input-${post.id}" class="comment-input" rows="1" enterkeyhint="send" placeholder="Write a comment..."></textarea>
-                <div class="comment-actions">
-                  <button type="button" class="comment-btn-media comment-btn-file" data-post-id="${escapeHtml(post.id)}" title="Attach photo or GIF" aria-label="Attach photo or GIF">
-                    ${renderIcon("image", { className: "icon-xs" })}
-                  </button>
-                  <button type="button" class="comment-btn-media comment-btn-gif" data-post-id="${escapeHtml(post.id)}" title="Choose a GIF" aria-label="Choose a GIF">
-                    <span class="comment-gif-badge">GIF</span>
-                  </button>
-                  ${draftTranslateHtml(`comment-input-${post.id}`)}
-                </div>
-              </div>
-              <button type="submit" class="btn-primary comment-submit-btn" style="padding: 4px 12px; font-size: 0.8rem;">Send</button>
-            </div>
-            <input type="file" id="comment-file-${post.id}" class="comment-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;" />
-            <div class="comment-staging" id="comment-staging-${post.id}" style="display: none;"></div>
-          </form>
-        </div>
-      </article>
-    `;
-      cacheCard(post.id, { sig, html });
-      return { key, html };
-    });
+    .map((post) => ({
+      key: `card-${post.id}`,
+      html: buildPostCardHtml(post, {
+        allKnownPosts,
+        repostCounts,
+        mod,
+        me,
+        topWot,
+        singleView: false,
+      }),
+    }));
   if (moreHtml) items.push({ key: "load-more", html: moreHtml });
   // a changed card is rebuilt (a new comment, "12m ago" turning "13m ago"): what is being typed in its comment box stays
   const typing = Array.from(postsContainer.querySelectorAll<HTMLTextAreaElement>(".comment-input")).filter((i) => i.value);
@@ -3141,6 +3525,7 @@ function redrawCard(postId: string) {
   cardCache.delete(postId);
   document.getElementById(`card-${postId}`)?.remove(); // an identical html would keep the old node, editor and all
   renderTimeline();
+  renderSinglePostIfOpen(postId);
 }
 
 /** Post translations made on this device this session, by "author:id"; shown under the original. */
@@ -3174,17 +3559,18 @@ function okToPublish(text: string): boolean {
 }
 
 /** Turn my post's caption into an editor: what it says now (the newest edit, or the original). */
-function startEditPost(postId: string) {
+function startEditPost(postId: string, cardEl?: HTMLElement | null) {
   const me = currentIdentity?.pubkey;
   const post = timelinePosts.find((p) => p.id === postId && p.author === me);
   if (!me || !post) return;
   const currentCaption = freenet.postEdit(me, postId)?.caption ?? post.caption;
   if (parseArticleCaption(currentCaption)) {
+    closeSinglePostModal();
     closeRailPages(articlesModal);
     void loadArticlesPage().then((p) => p.openEdit(postId, me));
     return;
   }
-  const content = document.getElementById(`card-${postId}`)?.querySelector(".gram-content");
+  const content = (cardEl ?? document.getElementById(`card-${postId}`))?.querySelector(".gram-content");
   if (!content || content.querySelector(".edit-post-box")) return;
   const box = document.createElement("div");
   box.className = "edit-post-box";
@@ -3199,8 +3585,8 @@ function startEditPost(postId: string) {
   input.focus();
 }
 
-async function saveEditPost(postId: string) {
-  const input = document.getElementById(`card-${postId}`)?.querySelector<HTMLTextAreaElement>(".edit-post-input");
+async function saveEditPost(postId: string, cardEl?: HTMLElement | null) {
+  const input = (cardEl ?? document.getElementById(`card-${postId}`))?.querySelector<HTMLTextAreaElement>(".edit-post-input");
   const text = input?.value.trim();
   if (!input || !text) return showToast("A post cannot be empty: delete it instead.", "warning");
   if (!okToPublish(text)) return;
@@ -3492,10 +3878,10 @@ function pushBackStep(step: "page" | "thread" | "drawer") {
   } catch {}
 }
 
-// One pair of listeners on the feed, set up once: cards come and go as the feed is reconciled, so none sit on the cards.
-function initCardListeners() {
+// One set of delegated listeners per post-card container (used for both the main feed and Single Post View).
+function bindPostCardListeners(container: HTMLElement) {
   // scroll does not bubble: caught on the way down
-  postsContainer.addEventListener(
+  container.addEventListener(
     "scroll",
     (e) => {
       const track = e.target as HTMLElement;
@@ -3505,7 +3891,7 @@ function initCardListeners() {
     },
     true
   );
-  postsContainer.addEventListener("click", (e) => {
+  container.addEventListener("click", (e) => {
     const t = e.target as Element;
     const hit = <T extends HTMLElement = HTMLElement>(sel: string) => t.closest<T>(sel);
     let el: HTMLElement | null;
@@ -3516,9 +3902,14 @@ function initCardListeners() {
         d.closest(".gram-card")?.classList.remove("menu-open");
       }
     }
-    if ((el = hit(".btn-reveal-nsfw, .nsfw-overlay"))) {
+    if ((el = hit(".open-single-post-trigger, .open-single-post-btn"))) {
       e.stopPropagation();
-      document.getElementById(el.dataset.mediaId!)?.classList.toggle("revealed"); // NSFW reveal toggle
+      const pid = el.dataset.postId;
+      const auth = el.dataset.author;
+      if (pid && auth) void openSinglePostModal(pid, auth);
+    } else if ((el = hit(".btn-reveal-nsfw, .nsfw-overlay"))) {
+      e.stopPropagation();
+      el.closest(".gram-media")?.classList.toggle("revealed"); // NSFW reveal toggle (scoped so feed & single view do not collide)
     } else if ((el = hit(".carousel-nav"))) {
       const track = el.parentElement!.querySelector(".carousel-track")!;
       track.scrollBy({ left: (el.classList.contains("prev") ? -1 : 1) * track.clientWidth, behavior: "smooth" });
@@ -3562,16 +3953,21 @@ function initCardListeners() {
       });
     } else if ((el = hit(".clickable-hashtag"))) {
       e.stopPropagation();
+      closeSinglePostModal();
       setTagFilter(el.dataset.tag!);
     } else if ((el = hit(".community-link"))) {
       e.stopPropagation();
       const cId = el.dataset.community!;
       const found = allCommunities.find((c) => c.id === cId || c.slug === cId);
-      if (found) selectCommunity(found);
+      if (found) {
+        closeSinglePostModal();
+        selectCommunity(found);
+      }
     } else if ((el = hit<HTMLAnchorElement>(".post-link, .fn-card-inner"))) {
       // links in posts: open in a new tab; the sandboxed page may not be allowed to, so fall back to the shell
       openPostLink.call(el as HTMLAnchorElement, e);
     } else if ((el = hit(".talk-btn"))) {
+      closeSinglePostModal();
       openChatWithPeer(el.dataset.author!);
     } else if ((el = hit(".hide-user-btn"))) {
       const author = el.dataset.author!;
@@ -3580,6 +3976,7 @@ function initCardListeners() {
       renderTimeline();
       if (blocklistsModal.style.display === "flex") renderBlocklists();
     } else if ((el = hit(".mod-report-flag"))) {
+      closeSinglePostModal();
       paintModButton();
       showBlocklistTab("moderation");
       blocklistsModal.style.display = "flex";
@@ -3589,6 +3986,7 @@ function initCardListeners() {
     } else if ((el = hit(".share-post-btn"))) {
       void openSharePostModal(el.dataset.postId!, el.dataset.author!);
     } else if ((el = hit(".repost-btn"))) {
+      closeSinglePostModal();
       stageRepost({ id: el.dataset.postId!, author: el.dataset.author! });
     } else if ((el = hit(".comment-del-btn"))) {
       void deleteCommentFromCard(el);
@@ -3614,7 +4012,10 @@ function initCardListeners() {
     } else if ((el = hit(".board-item-chip"))) {
       const pid = el.dataset.postId;
       const auth = el.dataset.author;
-      if (pid) void showMyPost(pid, auth);
+      if (pid) {
+        closeSinglePostModal();
+        void showMyPost(pid, auth);
+      }
     } else if ((el = hit(".board-copy-link-btn"))) {
       const bid = el.dataset.boardId;
       const own = el.dataset.owner;
@@ -3642,11 +4043,13 @@ function initCardListeners() {
     } else if ((el = hit(".translate-btn"))) {
       void translatePostFromCard(el as HTMLButtonElement);
     } else if ((el = hit(".edit-post-btn"))) {
-      startEditPost(el.dataset.postId!);
+      startEditPost(el.dataset.postId!, el.closest<HTMLElement>(".gram-card"));
     } else if ((el = hit(".edit-post-save"))) {
-      void saveEditPost(el.dataset.postId!);
+      void saveEditPost(el.dataset.postId!, el.closest<HTMLElement>(".gram-card"));
     } else if ((el = hit(".edit-post-cancel"))) {
       redrawCard(el.dataset.postId!);
+    } else if ((el = hit(".comment-count-btn"))) {
+      el.closest(".gram-card")?.querySelector<HTMLTextAreaElement>("textarea.comment-input")?.focus();
     } else if ((el = hit(".dislike-btn"))) {
       void toggleDislikeFromCard(el);
     } else if ((el = hit(".like-btn"))) {
@@ -3656,11 +4059,8 @@ function initCardListeners() {
     } else if ((el = hit(".author-clickable"))) {
       openUserProfile(el.dataset.author!);
     } else if ((el = hit(".comment-btn-file"))) {
-      const pid = el.dataset.postId;
-      if (pid) {
-        const fileInput = document.getElementById(`comment-file-${pid}`) as HTMLInputElement | null;
-        fileInput?.click();
-      }
+      const fileInput = el.closest(".comment-form")?.querySelector<HTMLInputElement>(".comment-file-input");
+      fileInput?.click();
     } else if ((el = hit(".comment-btn-gif"))) {
       const pid = el.dataset.postId;
       if (pid) {
@@ -3676,15 +4076,19 @@ function initCardListeners() {
         removeStagedCommentMedia(pid);
       }
     } else if ((el = hit(".repost-card")) && !t.closest("a")) {
+      closeSinglePostModal();
       openRepost(el); // the shared post opens; a link inside it keeps its own click
     }
   });
-  postsContainer.addEventListener("keydown", (e) => {
+  container.addEventListener("keydown", (e) => {
     const card = e.target as HTMLElement;
-    if (e.key === "Enter" && card.classList?.contains("repost-card")) openRepost(card);
+    if (e.key === "Enter" && card.classList?.contains("repost-card")) {
+      closeSinglePostModal();
+      openRepost(card);
+    }
   });
 
-  postsContainer.addEventListener("change", (e) => {
+  container.addEventListener("change", (e) => {
     const input = (e.target as Element).closest<HTMLInputElement>(".comment-file-input");
     if (!input || !input.files?.[0]) return;
     const form = input.closest<HTMLFormElement>(".comment-form");
@@ -3695,7 +4099,7 @@ function initCardListeners() {
     }
   });
 
-  postsContainer.addEventListener("paste", (e) => {
+  container.addEventListener("paste", (e) => {
     const input = (e.target as Element).closest<HTMLTextAreaElement>(".comment-input");
     if (!input) return;
     const form = input.closest<HTMLFormElement>(".comment-form");
@@ -3720,26 +4124,26 @@ function initCardListeners() {
   });
 
   // a comment box: Enter sends, Shift+Enter starts a new line; the box grows with its lines
-  postsContainer.addEventListener("keydown", (e) => {
+  container.addEventListener("keydown", (e) => {
     const box = (e.target as Element).closest<HTMLTextAreaElement>("textarea.comment-input");
     if (!box || e.key !== "Enter" || e.shiftKey || e.isComposing || e.defaultPrevented) return;
     e.preventDefault();
     box.form?.requestSubmit();
   });
-  postsContainer.addEventListener("input", (e) => {
+  container.addEventListener("input", (e) => {
     const box = (e.target as Element).closest<HTMLTextAreaElement>("textarea.comment-input");
     if (!box) return;
     box.style.height = "auto";
     box.style.height = `${box.scrollHeight}px`;
   });
 
-  postsContainer.addEventListener("dragover", (e) => {
+  container.addEventListener("dragover", (e) => {
     const form = (e.target as Element).closest<HTMLFormElement>(".comment-form");
     if (!form) return;
     e.preventDefault();
   });
 
-  postsContainer.addEventListener("drop", (e) => {
+  container.addEventListener("drop", (e) => {
     const form = (e.target as Element).closest<HTMLFormElement>(".comment-form");
     if (!form) return;
     const postId = form.dataset.postId;
@@ -3751,7 +4155,7 @@ function initCardListeners() {
     }
   });
 
-  postsContainer.addEventListener("submit", (e) => {
+  container.addEventListener("submit", (e) => {
     const form = (e.target as Element).closest<HTMLFormElement>(".comment-form");
     if (!form) return;
     e.preventDefault();
@@ -3761,7 +4165,7 @@ function initCardListeners() {
 
 function paintCommentLikeButton(btn: HTMLElement, likers: string[], isLiked: boolean) {
   btn.classList.toggle("liked", isLiked);
-  const heart = isLiked ? "❤️" : "🤍";
+  const heart = renderIcon(isLiked ? "heartFilled" : "heart", { className: "icon-xs", ariaLabel: isLiked ? "Liked" : "Like" });
   const countHtml = likers.length > 0 ? `<span class="comment-like-count">${likers.length}</span>` : "";
   btn.innerHTML = `<span class="comment-heart">${heart}</span>${countHtml}`;
   const names = likers.map(getAuthorDisplayName).join(", ");
@@ -3820,6 +4224,7 @@ async function deleteCommentFromCard(btn: HTMLElement) {
     // ponytail: clone post in timelinePosts so freenet.feedCache is not mutated before freenet.deleteComment reads old.text
     timelinePosts[idx] = { ...post, comments: { ...post.comments, [key]: { ...old, text: "" } } };
     renderTimeline();
+    renderSinglePostIfOpen(postId);
   }
   const ok = await freenet.deleteComment(currentIdentity, author, postId, key).catch(() => false);
   if (!ok) {
@@ -3827,6 +4232,7 @@ async function deleteCommentFromCard(btn: HTMLElement) {
     if (post && old && idx !== -1) {
       timelinePosts[idx] = post;
       renderTimeline();
+      renderSinglePostIfOpen(postId);
     }
   }
 }
@@ -3834,12 +4240,20 @@ async function deleteCommentFromCard(btn: HTMLElement) {
 /** Emergency moderation of the public timeline: a report on my blocklist, which everyone following the maintainer's follows. */
 async function globalRemove(author: string, id: string, media?: string | null) {
   try {
+    await refreshAllGlobalModLogs();
+    if (!guardDuplicateModeration(`${author}:${id}`, "remove")) {
+      if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
+      renderTimeline();
+      return;
+    }
     await freenet.reportPost(author, id, "Removed by Radica's moderators", media);
+    notifyOtherGlobalMods(author, id, "removed");
     showToast("Removed for everyone who follows Radica's moderation.", "info");
   } catch (e) {
     showToast(`Could not remove it: ${(e as Error).message}`, "error");
   }
   renderTimeline();
+  renderSinglePostIfOpen(id);
 }
 
 async function modDeleteFromCard(btn: HTMLElement) {
@@ -3857,6 +4271,7 @@ async function modDeleteFromCard(btn: HTMLElement) {
       targetComm.deleted_post_ids.push(postId);
     }
     renderTimeline();
+    renderSinglePostIfOpen(postId);
   }
 }
 
@@ -3868,6 +4283,7 @@ async function deletePostFromCard(btn: HTMLElement) {
   const prev = [...timelinePosts];
   timelinePosts = timelinePosts.filter((p) => p.id !== postId);
   if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
+  renderSinglePostIfOpen(postId);
   const card = document.getElementById(`card-${postId}`);
   if (card) {
     card.style.transition = "opacity 0.2s, transform 0.2s";
@@ -3883,6 +4299,25 @@ async function deletePostFromCard(btn: HTMLElement) {
     showToast("Could not delete post from Freenet.", "error");
     timelinePosts = prev;
     renderTimeline();
+    renderSinglePostIfOpen(postId);
+  });
+}
+
+function paintCardLikeButtons(postId: string, count: number, isLiked: boolean): void {
+  const icon = isLiked ? renderIcon("heartFilled", { className: "icon-sm", ariaLabel: "Liked" }) : renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" });
+  const html = `<span>${icon}</span> <span><span class="action-count">${count}</span><span class="action-label"> ${count === 1 ? "Like" : "Likes"}</span></span>`;
+  document.querySelectorAll<HTMLButtonElement>(`.like-btn[data-post-id="${CSS.escape(postId)}"]`).forEach((b) => {
+    b.classList.toggle("liked", isLiked);
+    b.innerHTML = html;
+  });
+}
+
+function paintCardDislikeButtons(postId: string, count: number, isDisliked: boolean): void {
+  const icon = isDisliked ? renderIcon("thumbsDownFilled", { className: "icon-sm", ariaLabel: "Disliked" }) : renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" });
+  const html = `<span>${icon}</span> <span><span class="action-count">${count}</span><span class="action-label"> ${count === 1 ? "Dislike" : "Dislikes"}</span></span>`;
+  document.querySelectorAll<HTMLButtonElement>(`.dislike-btn[data-post-id="${CSS.escape(postId)}"]`).forEach((b) => {
+    b.classList.toggle("disliked", isDisliked);
+    b.innerHTML = html;
   });
 }
 
@@ -3902,22 +4337,13 @@ async function toggleLikeFromCard(target: HTMLElement) {
   const optimisticPost: Post = { ...post, likes: { ...post.likes, [identity.pubkey]: { liked: newLiked, ts: Date.now(), sig: "" } } };
   timelinePosts[idx] = optimisticPost;
 
-  const card = document.getElementById(`card-${postId}`);
-  const btnEl = card?.querySelector(`.like-btn[data-post-id="${postId}"]`) as HTMLButtonElement | null;
-  if (btnEl) {
-    btnEl.classList.toggle("liked", newLiked);
-    btnEl.innerHTML = `<span>${newLiked ? renderIcon("heartFilled", { className: "icon-sm", ariaLabel: "Liked" }) : renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" })}</span> <span><span class="action-count">${likers(optimisticPost).length}</span><span class="action-label"> ${likers(optimisticPost).length === 1 ? "Like" : "Likes"}</span></span>`;
-  }
+  paintCardLikeButtons(postId, likers(optimisticPost).length, newLiked);
 
   // Mutual exclusivity: if liking, remove any existing dislike
   const curDislikers = freenet.postDislikers(author, postId);
   if (newLiked && curDislikers.includes(identity.pubkey)) {
-    const dislikeBtn = card?.querySelector(`.dislike-btn[data-post-id="${postId}"]`) as HTMLButtonElement | null;
     const nextDislikers = curDislikers.filter((k) => k !== identity.pubkey);
-    if (dislikeBtn) {
-      dislikeBtn.classList.remove("disliked");
-      dislikeBtn.innerHTML = `<span>${renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" })}</span> <span><span class="action-count">${nextDislikers.length}</span><span class="action-label"> ${nextDislikers.length === 1 ? "Dislike" : "Dislikes"}</span></span>`;
-    }
+    paintCardDislikeButtons(postId, nextDislikers.length, false);
     void freenet.toggleDislike(identity, author, postId).catch((err) => console.error("Failed to undislike on like:", err));
   }
 
@@ -3929,12 +4355,8 @@ async function toggleLikeFromCard(target: HTMLElement) {
     console.error("Failed to toggle like:", err);
     const curIdx = timelinePosts.findIndex((p) => p.id === postId);
     if (curIdx !== -1) timelinePosts[curIdx] = post;
-    const b = document.getElementById(`card-${postId}`)?.querySelector(`.like-btn[data-post-id="${postId}"]`) as HTMLButtonElement | null;
-    if (b) {
-      b.classList.toggle("liked", currentlyLiked);
-      b.innerHTML = `<span>${currentlyLiked ? renderIcon("heartFilled", { className: "icon-sm", ariaLabel: "Liked" }) : renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" })}</span> <span><span class="action-count">${likers(post).length}</span><span class="action-label"> ${likers(post).length === 1 ? "Like" : "Likes"}</span></span>`;
-      paintReactionsBy(post);
-    }
+    paintCardLikeButtons(postId, likers(post).length, currentlyLiked);
+    paintReactionsBy(post);
     updateNotificationsBadge();
     if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
   });
@@ -3950,10 +4372,6 @@ async function toggleDislikeFromCard(btn: HTMLElement) {
   const currentlyDisliked = curDislikers.includes(identity.pubkey);
   const newDisliked = !currentlyDisliked;
 
-  const card = document.getElementById(`card-${postId}`);
-  const dislikeBtn = card?.querySelector(`.dislike-btn[data-post-id="${postId}"]`) as HTMLButtonElement | null;
-  const likeBtn = card?.querySelector(`.like-btn[data-post-id="${postId}"]`) as HTMLButtonElement | null;
-
   const idx = timelinePosts.findIndex((p) => p.id === postId);
   const post = idx !== -1 ? timelinePosts[idx] : undefined;
 
@@ -3963,10 +4381,7 @@ async function toggleDislikeFromCard(btn: HTMLElement) {
   if (newDisliked && currentlyLiked && post) {
     optimisticPost = { ...post, likes: { ...post.likes, [identity.pubkey]: { liked: false, ts: Date.now(), sig: "" } } };
     timelinePosts[idx] = optimisticPost;
-    if (likeBtn) {
-      likeBtn.classList.remove("liked");
-      likeBtn.innerHTML = `<span>${renderIcon("heart", { className: "icon-sm", ariaLabel: "Like" })}</span> <span><span class="action-count">${likers(optimisticPost).length}</span><span class="action-label"> ${likers(optimisticPost).length === 1 ? "Like" : "Likes"}</span></span>`;
-    }
+    paintCardLikeButtons(postId, likers(optimisticPost).length, false);
     void freenet.toggleLike(identity, author, postId).catch((err) => console.error("Failed to unlike on dislike:", err));
   }
 
@@ -3974,10 +4389,7 @@ async function toggleDislikeFromCard(btn: HTMLElement) {
     ? [...curDislikers.filter((k) => k !== identity.pubkey), identity.pubkey]
     : curDislikers.filter((k) => k !== identity.pubkey);
 
-  if (dislikeBtn) {
-    dislikeBtn.classList.toggle("disliked", newDisliked);
-    dislikeBtn.innerHTML = `<span>${newDisliked ? renderIcon("thumbsDownFilled", { className: "icon-sm", ariaLabel: "Disliked" }) : renderIcon("thumbsDown", { className: "icon-sm", ariaLabel: "Dislike" })}</span> <span><span class="action-count">${nextDislikers.length}</span><span class="action-label"> ${nextDislikers.length === 1 ? "Dislike" : "Dislikes"}</span></span>`;
-  }
+  paintCardDislikeButtons(postId, nextDislikers.length, newDisliked);
   if (optimisticPost) paintReactionsBy(optimisticPost);
   if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
 
@@ -4036,6 +4448,7 @@ async function reportPostFromCard(el: HTMLElement) {
     alert(`Could not report the post: ${err?.message || err}`);
   }
   renderTimeline();
+  renderSinglePostIfOpen(postId);
 }
 
 /** "Liked by A, B · Disliked by X": the names open the reactor's profile. */
@@ -4059,7 +4472,7 @@ function reactionsByHtml(post: Post): string {
       .map((k) => {
         const isTrusted = wot.isTrusted(k);
         const name = escapeHtml(getAuthorDisplayName(k));
-        return `<span class="author-clickable${isTrusted ? " wot-trusted" : ""}" data-author="${escapeHtml(k)}" title="${isTrusted ? "In your Web-of-Trust" : ""}">${name}${isTrusted ? " 🛡️" : ""}</span>`;
+        return `<span class="author-clickable${isTrusted ? " wot-trusted" : ""}" data-author="${escapeHtml(k)}" title="${isTrusted ? "In your Web-of-Trust" : ""}">${name}${isTrusted ? ` ${renderIcon("shield", { className: "icon-xs" })}` : ""}</span>`;
       })
       .join(", ");
     parts.push(`Disliked by ${names}${dislikeKeys.length > 3 ? ` and ${dislikeKeys.length - 3} more` : ""}`);
@@ -4068,8 +4481,10 @@ function reactionsByHtml(post: Post): string {
   return parts.join(" · ");
 }
 function paintReactionsBy(post: Post): void {
-  const el = document.getElementById(`liked-by-${post.id}`);
-  if (el) el.innerHTML = reactionsByHtml(post);
+  const html = reactionsByHtml(post);
+  document.querySelectorAll<HTMLElement>(`.liked-by[data-post-id="${CSS.escape(post.id)}"]`).forEach((el) => {
+    el.innerHTML = html;
+  });
 }
 
 async function submitCommentFromCard(target: HTMLFormElement) {
@@ -4162,21 +4577,22 @@ async function submitCommentFromCard(target: HTMLFormElement) {
     optimisticPost = { ...post, comments: { ...(post.comments || {}), [tempKey]: optimisticComment } };
     timelinePosts[idx] = optimisticPost;
 
-    const commentsContainer = document.getElementById(`comments-${postId}`);
-    if (commentsContainer) {
-      commentsContainer.insertAdjacentHTML(
-        "beforeend",
-        `<div class="comment-item" id="comment-${tempCommentId}">
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(`.gram-card[data-post-id="${CSS.escape(postId)}"]`));
+    if (cards.length > 0) {
+      const countHtml = `<span>${renderIcon("messageSquare", { className: "icon-sm" })}</span> <span><span class="action-count">${visibleCommentCount(optimisticPost)}</span><span class="action-label"> ${visibleCommentCount(optimisticPost) === 1 ? "Comment" : "Comments"}</span></span>`;
+      const commentHtml = `<div class="comment-item" data-temp-comment="${escapeHtml(tempCommentId)}">
           <span class="comment-author author-clickable" data-author="${escapeHtml(identity.pubkey)}" style="cursor: pointer;" title="Persona: ${identity.pubkey}">${escapeHtml(getAuthorDisplayName(identity.pubkey))}:</span>
           <span class="comment-text">${renderComment(finalText, getAuthorDisplayName)}</span>
           <span class="comment-time" title="${escapeHtml(new Date(now).toLocaleString())}">${formatTimeAgo(now)}</span>
-        </div>`
-      );
-      showMedia(commentsContainer);
-      const card = document.getElementById(`card-${postId}`);
-      const countBtn = card?.querySelector(".comment-count-btn");
-      if (countBtn) {
-        countBtn.innerHTML = `<span>${renderIcon("messageSquare", { className: "icon-sm" })}</span> <span><span class="action-count">${visibleCommentCount(optimisticPost)}</span><span class="action-label"> ${visibleCommentCount(optimisticPost) === 1 ? "Comment" : "Comments"}</span></span>`;
+        </div>`;
+      for (const card of cards) {
+        const list = card.querySelector<HTMLElement>(".comments-list");
+        if (list) {
+          list.insertAdjacentHTML("beforeend", commentHtml);
+          showMedia(list);
+        }
+        const countBtn = card.querySelector(".comment-count-btn");
+        if (countBtn) countBtn.innerHTML = countHtml;
       }
     } else {
       renderTimeline();
@@ -4190,14 +4606,13 @@ async function submitCommentFromCard(target: HTMLFormElement) {
       const realKey = `${realComment.author}:${realComment.id}`;
       delete optimisticPost.comments[tempKey];
       optimisticPost.comments[realKey] = realComment;
-      const el = document.getElementById(`comment-${tempCommentId}`);
-      if (el) {
-        el.id = `comment-${realComment.id}`;
+      document.querySelectorAll<HTMLElement>(`.comment-item[data-temp-comment="${CSS.escape(tempCommentId)}"]`).forEach((el) => {
+        el.removeAttribute("data-temp-comment");
         el.insertAdjacentHTML(
           "beforeend",
           `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(postId)}" data-author="${escapeHtml(author)}" data-key="${escapeHtml(realKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>`
         );
-      }
+      });
       if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
     }
   }).catch((err) => {
@@ -4205,18 +4620,17 @@ async function submitCommentFromCard(target: HTMLFormElement) {
     showToast("Could not post comment to Freenet.", "error");
     if (optimisticPost) {
       delete optimisticPost.comments[tempKey];
-      document.getElementById(`comment-${tempCommentId}`)?.remove();
-      const card = document.getElementById(`card-${postId}`);
-      const countBtn = card?.querySelector(".comment-count-btn");
-      if (countBtn) {
-        countBtn.innerHTML = `<span>${renderIcon("messageSquare", { className: "icon-sm" })}</span> <span><span class="action-count">${visibleCommentCount(optimisticPost)}</span><span class="action-label"> ${visibleCommentCount(optimisticPost) === 1 ? "Comment" : "Comments"}</span></span>`;
-      }
+      document.querySelectorAll(`.comment-item[data-temp-comment="${CSS.escape(tempCommentId)}"]`).forEach((el) => el.remove());
+      const countHtml = `<span>${renderIcon("messageSquare", { className: "icon-sm" })}</span> <span><span class="action-count">${visibleCommentCount(optimisticPost)}</span><span class="action-label"> ${visibleCommentCount(optimisticPost) === 1 ? "Comment" : "Comments"}</span></span>`;
+      document.querySelectorAll<HTMLElement>(`.gram-card[data-post-id="${CSS.escape(postId)}"] .comment-count-btn`).forEach((countBtn) => {
+        countBtn.innerHTML = countHtml;
+      });
       if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
     }
   });
 }
 
-initCardListeners();
+bindPostCardListeners(postsContainer);
 
 // Anti-Flood & Rate Limiting Controls
 let lastPostTime = 0;
@@ -4848,11 +5262,55 @@ modalCancelBtn.addEventListener("click", () => {
 });
 
 /** Show my newly saved profile everywhere, and tell the network. */
+/** Render a user's profile bio with full Markdown formatting, preserved newlines/spaces, and clickable links. */
+function setProfileBio(el: HTMLElement | null, rawBio: string | undefined, emptyText: string): void {
+  if (!el) return;
+  const normalized = rawBio?.replace(/\r\n?/g, "\n");
+  if (!normalized || !normalized.trim()) {
+    el.textContent = emptyText;
+    el.classList.add("is-empty");
+    return;
+  }
+  el.classList.remove("is-empty");
+  el.innerHTML = renderCaption(normalized, getAuthorDisplayName);
+}
+
+function wireBioLinks(el: HTMLElement | null): void {
+  el?.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest<HTMLAnchorElement>("a.post-link");
+    if (link) {
+      openPostLink.call(link, e);
+      return;
+    }
+    const mention = target.closest<HTMLElement>(".author-clickable");
+    if (mention?.dataset.author) {
+      e.preventDefault();
+      openUserProfile(mention.dataset.author);
+      return;
+    }
+    const tagEl = target.closest<HTMLElement>(".clickable-hashtag");
+    if (tagEl?.dataset.tag) {
+      e.preventDefault();
+      showProfilePage(false);
+      userProfileModal.style.display = "none";
+      setTagFilter(tagEl.dataset.tag);
+    }
+  });
+}
+
+wireBioLinks(sidebarBio);
+wireBioLinks(uviewBio);
+
 function applyProfile(updated: ProfileInfo) {
   if (!currentIdentity) return;
   currentProfile = updated;
   sidebarName.textContent = updated.display_name;
-  sidebarBio.textContent = updated.bio || "No bio yet.";
+  setProfileBio(sidebarBio, updated.bio, "No bio yet.");
+  if (profilePage && !profilePage.hidden) {
+    document.getElementById("pp-name")!.textContent = updated.display_name;
+    setProfileBio(document.getElementById("pp-bio"), updated.bio, "No bio yet.");
+  }
   sidebarAvatar.src = composerAvatar.src = updated.avatar_url || generateDefaultAvatar(currentIdentity.pubkey);
   safeStorage.setItem(`radica_profile_${currentIdentity.pubkey}`, JSON.stringify(updated));
   freenet.knownPeers[currentIdentity.pubkey] = {
@@ -5343,7 +5801,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   const badge = getWebOfTrust().trustBadge(pubkey);
   uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${badge.badgeClass}" title="${escapeHtml(badge.description)}">${badge.icon} ${escapeHtml(badge.label)}</span>`;
   uviewKey.textContent = pubkey;
-  uviewBio.innerHTML = feed.profile?.bio ? renderCaption(feed.profile.bio, getAuthorDisplayName) : "No bio available.";
+  setProfileBio(uviewBio, feed.profile?.bio, "No bio available.");
   if (uviewChannel) {
     uviewChannel.innerHTML = feed.profile?.bio ? renderProfileChannelCard(feed.profile.bio, pubkey, name) : "";
   }
@@ -9059,9 +9517,11 @@ async function showMyPost(postId: string, author = currentIdentity?.pubkey) {
     const stored = localStorage.getItem(`freenet_feed_${owner}`) !== null; // no stored feed: the author's feed has not reached this device
     return showToast(GONE_MESSAGE[whyGone(stored ? await freenet.getFeed(owner) : null, postId)], "info");
   }
-  card.scrollIntoView({ block: "center", behavior: "smooth" });
   card.classList.add("notif-flash");
   setTimeout(() => card.classList.remove("notif-flash"), 2500);
+  // Async images, videos, and link embeds above the target card expand after initial scroll;
+  // keep anchoring the target card in view until layout settles or the user interacts.
+  anchorElementInViewport(() => document.getElementById(`card-${postId}`), postsContainer);
 }
 
 /** Whether a notification points anywhere: a post, a profile, a chat or a mail. */
@@ -9085,11 +9545,23 @@ async function openNotification(n: NotificationItem) {
   } else if (n.type === "report") {
     if (amGlobalMod()) {
       paintModButton();
-      showBlocklistTab("moderation");
+      showBlocklistTab("moderation", false);
       blocklistsModal.style.display = "flex";
       renderModDashboard();
-      void freenet.refreshLog("reports", true).then(() => {
+      const target = n.linkPostOwner && n.linkPostId ? `${n.linkPostOwner}:${n.linkPostId}` : "";
+      let toasted = false;
+      const announceIfHandled = () => {
+        if (!target || toasted) return;
+        const existing = freenet.modDecisionFor(target);
+        if (!existing) return;
+        toasted = true;
+        const who = existing.moderator === currentIdentity!.pubkey ? "you" : `@${getAuthorDisplayName(existing.moderator)}`;
+        showToast(`Already ${existing.action} by ${who} (${formatTimeAgo(existing.ts)}).`, "info");
+      };
+      announceIfHandled();
+      void refreshAllGlobalModLogs().then(() => {
         if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
+        announceIfHandled();
       });
     } else if (n.linkPostId) {
       await showMyPost(n.linkPostId, n.linkPostOwner);
@@ -9176,7 +9648,7 @@ notifsMarkReadBtn.addEventListener("click", async () => {
 function updateNotifsSoundBtn() {
   const enabled = isSoundEnabled();
   if (notifsSoundBtn) {
-    notifsSoundBtn.textContent = enabled ? "🔔 Sound on" : "🔕 Sound off";
+    notifsSoundBtn.innerHTML = `${renderIcon(enabled ? "volume2" : "volumeX", { className: "icon-xs" })}<span>${enabled ? "Sound on" : "Sound off"}</span>`;
     notifsSoundBtn.title = enabled ? "Notification sound enabled (click to mute)" : "Notification sound muted (click to enable)";
   }
   if (settingsSoundToggle) {
@@ -9936,7 +10408,7 @@ function renderCommunitiesPage() {
   const slugTaken = typedSlug ? allCommunities.some((c) => c.slug === typedSlug) : false;
 
   const pillsHtml = [
-    `<button type="button" class="comm-pill ${!selectedRedditCommunity ? "active" : ""}" data-comm-id="">🌐 r/all <span class="comm-pill-count">${allCommPosts.length}</span></button>`,
+    `<button type="button" class="comm-pill ${!selectedRedditCommunity ? "active" : ""}" data-comm-id="">${renderIcon("globe", { className: "icon-xs" })} r/all <span class="comm-pill-count">${allCommPosts.length}</span></button>`,
     ...finder.shown.map((c) => {
       const active = selectedRedditCommunity?.id === c.id;
       const joinedDot = isJoined(c) ? `<span class="comm-pill-joined" title="Joined">●</span>` : "";
@@ -9988,21 +10460,21 @@ function renderCommunitiesPage() {
           <h4 class="reddit-hero-name">${escapeHtml(c.name)}</h4>
           <p class="reddit-hero-desc">${c.description ? linkify(c.description) : "Decentralized Freenet community forum."}</p>
           <div class="reddit-hero-meta">
-            <span>👥 <b>${c.members.length}</b> ${c.members.length === 1 ? "member" : "members"}</span>
+            <span>${renderIcon("users", { className: "icon-xs" })} <b>${c.members.length}</b> ${c.members.length === 1 ? "member" : "members"}</span>
             <span>·</span>
-            <span>🧵 <b>${commThreads}</b> ${commThreads === 1 ? "thread" : "threads"}</span>
+            <span>${renderIcon("messageSquare", { className: "icon-xs" })} <b>${commThreads}</b> ${commThreads === 1 ? "thread" : "threads"}</span>
             <span>·</span>
-            <span>🛡️ <b>${c.moderators.length}</b> ${c.moderators.length === 1 ? "mod" : "mods"}</span>
+            <span>${renderIcon("shield", { className: "icon-xs" })} <b>${c.moderators.length}</b> ${c.moderators.length === 1 ? "mod" : "mods"}</span>
           </div>
         </div>
       </div>
       <div class="reddit-hero-actions">
         <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rhero-action="join">${joined ? "✓ Joined" : "+ Join"}</button>
-        <button type="button" class="btn-secondary btn-sm" data-rhero-action="chat" title="Open community chat">💬 Chat</button>
+        <button type="button" class="btn-secondary btn-sm" data-rhero-action="chat" title="Open community chat">${renderIcon("chat", { className: "icon-xs" })} Chat</button>
         <button type="button" class="btn-secondary btn-sm" data-rhero-action="feed" title="View in main feed">Feed View</button>
-        ${isOwner ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community info">✏️ Edit</button>` : ""}
-        ${isMod ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="mod" title="Open community moderation tools">🛡️ Mod</button>` : ""}
-        ${amGlobalMod() ? `<button type="button" class="btn-secondary btn-sm danger" data-rhero-action="hide" title="Radica moderator: hide community">🚫 Hide</button>` : ""}
+        ${isOwner ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community info">${renderIcon("edit", { className: "icon-xs" })} Edit</button>` : ""}
+        ${isMod ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="mod" title="Open community moderation tools">${renderIcon("shield", { className: "icon-xs" })} Mod</button>` : ""}
+        ${amGlobalMod() ? `<button type="button" class="btn-secondary btn-sm danger" data-rhero-action="hide" title="Radica moderator: hide community">${renderIcon("ban", { className: "icon-xs" })} Hide</button>` : ""}
       </div>
       `,
     );
@@ -10016,9 +10488,9 @@ function renderCommunitiesPage() {
           <h4 class="reddit-hero-name">All Decentralized Communities</h4>
           <p class="reddit-hero-desc">Browse popular threads across every community on your Freenet node, or select an r/community pill above.</p>
           <div class="reddit-hero-meta">
-            <span>🌐 <b>${visibleComms.length}</b> ${visibleComms.length === 1 ? "community" : "communities"}</span>
+            <span>${renderIcon("globe", { className: "icon-xs" })} <b>${visibleComms.length}</b> ${visibleComms.length === 1 ? "community" : "communities"}</span>
             <span>·</span>
-            <span>🧵 <b>${allCommPosts.length}</b> ${allCommPosts.length === 1 ? "thread" : "threads"}</span>
+            <span>${renderIcon("messageSquare", { className: "icon-xs" })} <b>${allCommPosts.length}</b> ${allCommPosts.length === 1 ? "thread" : "threads"}</span>
           </div>
         </div>
       </div>
@@ -10077,7 +10549,7 @@ function renderCommunitiesPage() {
       redditThreadsContainer,
       `
       <div class="reddit-empty-state">
-        <div class="reddit-empty-icon">🧵</div>
+        <div class="reddit-empty-icon">${renderIcon("messageSquare", { className: "icon-lg" })}</div>
         <h4>${selectedRedditCommunity ? `No threads in r/${escapeHtml(selectedRedditCommunity.slug)} yet` : "No community threads match this filter"}</h4>
         <p>${selectedRedditCommunity ? "Start the conversation using the thread box above!" : "Try clearing your search or flair filter, or create a new thread."}</p>
       </div>
@@ -10135,8 +10607,8 @@ function renderCommunitiesPage() {
         const eventMetaHtml =
           post.category === "event" && (post.event_date || post.location)
             ? `<div class="reddit-event-bar">
-                ${post.event_date ? `<span>📅 ${escapeHtml(post.event_date)}</span>` : ""}
-                ${post.location ? `<span>📍 ${escapeHtml(post.location)}</span>` : ""}
+                ${post.event_date ? `<span>${renderIcon("calendar", { className: "icon-xs" })} ${escapeHtml(post.event_date)}</span>` : ""}
+                ${post.location ? `<span>${renderIcon("mapPin", { className: "icon-xs" })} ${escapeHtml(post.location)}</span>` : ""}
               </div>`
             : "";
 
@@ -10158,21 +10630,22 @@ function renderCommunitiesPage() {
               <span class="reddit-meta-sep">•</span>
               <span title="${escapeHtml(new Date(post.timestamp).toLocaleString())}">${formatTimeAgo(post.timestamp)}</span>
               ${edit ? `<span class="reddit-edited-tag">(edited)</span>` : ""}
-              <span class="reddit-flair ${flair.cssClass}">${flair.icon} ${escapeHtml(flair.label)}</span>
+              <span class="reddit-flair ${flair.cssClass}">${renderIcon(flair.icon, { className: "icon-xs" })} ${escapeHtml(flair.label)}</span>
             </div>
 
-            <h4 class="reddit-post-title" data-raction="toggle-comments" data-post-id="${escapeHtml(post.id)}">${title ? renderCaption(title, getAuthorDisplayName) : `<span class="reddit-untitled">${flair.icon} ${escapeHtml(flair.label)} thread</span>`}</h4>
+            <h4 class="reddit-post-title" data-raction="open-single" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Open post">${title ? renderCaption(title, getAuthorDisplayName) : `<span class="reddit-untitled">${renderIcon(flair.icon, { className: "icon-xs" })} ${escapeHtml(flair.label)} thread</span>`}</h4>
 
             ${showExpandedBody && body && embedRender.html ? `<div class="reddit-post-text">${embedRender.html}</div>` : ""}
             ${showExpandedBody ? eventMetaHtml + embedsHtml + mediaHtml : ""}
 
             <div class="reddit-post-footer">
-              <button type="button" class="reddit-footer-btn ${isExpanded ? "active" : ""}" data-raction="toggle-comments" data-post-id="${escapeHtml(post.id)}">💬 ${visibleComments.length} ${visibleComments.length === 1 ? "Comment" : "Comments"}</button>
-              <button type="button" class="reddit-footer-btn" data-raction="repost" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">🔁 Repost</button>
-              <button type="button" class="reddit-footer-btn ${saved ? "active" : ""}" data-raction="save" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">${saved ? "🔖 Saved" : "🔖 Save"}</button>
-              <button type="button" class="reddit-footer-btn" data-raction="share" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">↗ Share</button>
-              ${isMyPost ? `<button type="button" class="reddit-footer-btn danger" data-raction="delete" data-post-id="${escapeHtml(post.id)}">🗑️ Delete</button>` : ""}
-              ${isCommMod && !isMyPost && comm ? `<button type="button" class="reddit-footer-btn danger" data-raction="mod-delete" data-post-id="${escapeHtml(post.id)}" data-comm-id="${escapeHtml(comm.id)}">🛡️ Mod Remove</button>` : ""}
+              <button type="button" class="reddit-footer-btn ${isExpanded ? "active" : ""}" data-raction="toggle-comments" data-post-id="${escapeHtml(post.id)}">${renderIcon("messageSquare", { className: "icon-xs" })} ${visibleComments.length} ${visibleComments.length === 1 ? "Comment" : "Comments"}</button>
+              <button type="button" class="reddit-footer-btn" data-raction="open-single" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" title="Open post in standalone view">${renderIcon("maximize2", { className: "icon-xs" })} Open</button>
+              <button type="button" class="reddit-footer-btn" data-raction="repost" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">${renderIcon("repeat", { className: "icon-xs" })} Repost</button>
+              <button type="button" class="reddit-footer-btn ${saved ? "active" : ""}" data-raction="save" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">${renderIcon("bookmark", { className: "icon-xs" })} ${saved ? "Saved" : "Save"}</button>
+              <button type="button" class="reddit-footer-btn" data-raction="share" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">${renderIcon("share2", { className: "icon-xs" })} Share</button>
+              ${isMyPost ? `<button type="button" class="reddit-footer-btn danger" data-raction="delete" data-post-id="${escapeHtml(post.id)}">${renderIcon("trash2", { className: "icon-xs" })} Delete</button>` : ""}
+              ${isCommMod && !isMyPost && comm ? `<button type="button" class="reddit-footer-btn danger" data-raction="mod-delete" data-post-id="${escapeHtml(post.id)}" data-comm-id="${escapeHtml(comm.id)}">${renderIcon("shield", { className: "icon-xs" })} Mod Remove</button>` : ""}
             </div>
 
             ${
@@ -10201,7 +10674,7 @@ function renderCommunitiesPage() {
                                 <span class="author-clickable reddit-comment-author" data-author="${escapeHtml(c.author)}">${escapeHtml(getAuthorDisplayName(c.author))}</span>
                                 <span class="reddit-comment-time">${formatTimeAgo(c.timestamp)}</span>
                                 <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="Like comment">
-                                  <span class="comment-heart">${isCLiked ? "❤️" : "🤍"}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
+                                  <span class="comment-heart">${renderIcon(isCLiked ? "heartFilled" : "heart", { className: "icon-xs", ariaLabel: isCLiked ? "Liked" : "Like" })}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
                                 </button>
                                 ${c.author === me ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete comment">✕</button>` : ""}
                               </div>
@@ -10252,7 +10725,7 @@ function renderCommunitiesPage() {
           </div>
           <div class="reddit-about-btns">
             <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rside-join="${escapeHtml(c.id)}">${joined ? "✓ Joined" : "Join Community"}</button>
-            <button type="button" class="btn-secondary btn-sm" data-rside-chat="${escapeHtml(c.id)}">💬 Community Chat</button>
+            <button type="button" class="btn-secondary btn-sm" data-rside-chat="${escapeHtml(c.id)}">${renderIcon("chat", { className: "icon-xs" })} Community Chat</button>
           </div>
         </div>`;
       })()
@@ -10296,7 +10769,7 @@ function renderCommunitiesPage() {
             })
             .join("")}
         </div>
-        ${me && selectedRedditCommunity.moderators.includes(me) ? `<button type="button" class="btn-secondary btn-sm" style="width: 100%; margin-top: 8px;" data-rside-mod="${escapeHtml(selectedRedditCommunity.id)}">🛡️ Open Mod Panel</button>` : ""}
+        ${me && selectedRedditCommunity.moderators.includes(me) ? `<button type="button" class="btn-secondary btn-sm" style="width: 100%; margin-top: 8px;" data-rside-mod="${escapeHtml(selectedRedditCommunity.id)}">${renderIcon("shield", { className: "icon-xs" })} Open Mod Panel</button>` : ""}
       </div>`
     : "";
 
@@ -10913,7 +11386,9 @@ redditThreadsContainer.addEventListener("click", async (e) => {
   const postId = actionBtn.dataset.postId;
   const author = actionBtn.dataset.author;
 
-  if (raction === "toggle-comments" && postId) {
+  if (raction === "open-single" && postId && author) {
+    void openSinglePostModal(postId, author);
+  } else if (raction === "toggle-comments" && postId) {
     if (expandedRedditComments.has(postId)) expandedRedditComments.delete(postId);
     else expandedRedditComments.add(postId);
     renderCommunitiesPage();
@@ -11011,6 +11486,8 @@ redditSidebarContent.addEventListener("click", async (e) => {
 // The rail opens pages of the main column. The profile page opens from my picture, the logo (or the back button) returns to the feed.
 const feedView = document.getElementById("feed-view") as HTMLElement;
 const profilePage = document.getElementById("profile-page") as HTMLElement;
+const ppBio = document.getElementById("pp-bio") as HTMLElement | null;
+wireBioLinks(ppBio);
 const headAvatar = document.getElementById("head-avatar") as HTMLImageElement;
 // the pictures in the feed header and the post box follow the one in the sidebar (set from several places)
 const syncHeadAvatar = () => (headAvatar.src = composerAvatar.src = sidebarAvatar.src);
@@ -11023,7 +11500,8 @@ function showProfilePage(show: boolean) {
   if (show) {
     (document.getElementById("pp-avatar") as HTMLImageElement).src = sidebarAvatar.src;
     document.getElementById("pp-name")!.textContent = sidebarName.textContent;
-    document.getElementById("pp-meta")!.textContent = `${sidebarHandle?.textContent ?? ""} · ${sidebarBio.textContent}`;
+    document.getElementById("pp-meta")!.textContent = sidebarHandle?.textContent ?? "";
+    setProfileBio(ppBio, currentProfile?.bio, "No bio yet.");
     renderRoots();
     if (currentIdentity) void showLinfa(document.getElementById("pp-linfa"), currentIdentity.pubkey);
   }
@@ -12053,9 +12531,9 @@ function renderMailContacts() {
             </div>
           </div>
           <div class="mail-contact-actions">
-            <button type="button" class="btn-secondary btn-sm mail-contact-send-btn" data-name="${escapeHtml(c.name)}" data-addr="${escapeHtml(c.address)}" title="Send Mail">✉️</button>
-            <button type="button" class="btn-secondary btn-sm mail-contact-copy-btn" data-addr="${escapeHtml(c.address)}" title="Copy Address">📋</button>
-            <button type="button" class="btn-secondary btn-sm mail-contact-del-btn" data-addr="${escapeHtml(c.address)}" title="Delete Contact">🗑️</button>
+            <button type="button" class="btn-secondary btn-sm mail-contact-send-btn" data-name="${escapeHtml(c.name)}" data-addr="${escapeHtml(c.address)}" title="Send Mail" aria-label="Send Mail"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="icon-xs" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></button>
+            <button type="button" class="btn-secondary btn-sm mail-contact-copy-btn" data-addr="${escapeHtml(c.address)}" title="Copy Address" aria-label="Copy Address">${renderIcon("copy", { className: "icon-xs" })}</button>
+            <button type="button" class="btn-secondary btn-sm mail-contact-del-btn" data-addr="${escapeHtml(c.address)}" title="Delete Contact" aria-label="Delete Contact">${renderIcon("trash2", { className: "icon-xs" })}</button>
           </div>
         </div>
       `;
@@ -12854,7 +13332,7 @@ async function init() {
   myPubkeyBadge.textContent = `@${shortPersona}`;
   myPubkeyBadge.title = `Persona: ${personaBase58}\nPubkey: ${currentIdentity.pubkey}\nClick to manage identity`;
   sidebarName.textContent = currentProfile?.display_name || `Persona @${shortPersona}`;
-  sidebarBio.textContent = currentProfile?.bio || "No bio yet.";
+  setProfileBio(sidebarBio, currentProfile?.bio, "No bio yet.");
   if (sidebarHandle) {
     sidebarHandle.textContent = `@${shortPersona}`;
     sidebarHandle.title = `Persona: ${personaBase58}\nClick to open my profile`;
@@ -12892,7 +13370,11 @@ async function init() {
     if (mine.profile && (mine.profile.updated_at ?? 0) > (currentProfile?.updated_at ?? 0)) {
       currentProfile = mine.profile;
       sidebarName.textContent = mine.profile.display_name;
-      sidebarBio.textContent = mine.profile.bio || "No bio yet.";
+      setProfileBio(sidebarBio, mine.profile.bio, "No bio yet.");
+      if (profilePage && !profilePage.hidden) {
+        document.getElementById("pp-name")!.textContent = mine.profile.display_name;
+        setProfileBio(ppBio, mine.profile.bio, "No bio yet.");
+      }
       if (mine.profile.avatar_url) sidebarAvatar.src = mine.profile.avatar_url;
       freenet.knownPeers[currentIdentity!.pubkey] = { display_name: mine.profile.display_name, avatar_url: mine.profile.avatar_url };
       void freenet.announceIdentity(currentIdentity!, mine.profile);
