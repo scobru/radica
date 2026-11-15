@@ -5,6 +5,9 @@ import {
   roomMetaOf,
   STAGE_SWIPE_IGNORED_SELECTOR,
   isStageBackSwipe,
+  resolveMessageSwipeStep,
+  resolveThreadScrollAction,
+  type MessageSwipePhase,
   type PreviewItem,
   type RoomMeta,
 } from "./messengerLogic.ts";
@@ -673,6 +676,33 @@ export function createMessengerChat(deps: MessengerDeps) {
   const pinnedUnpinBtn = rootEl.querySelector("#rm-pinned-unpin-btn") as HTMLButtonElement;
   const messagesScrollerEl = rootEl.querySelector("#rm-messages-scroller") as HTMLElement;
   const messagesTrackEl = rootEl.querySelector("#rm-messages-track") as HTMLElement;
+
+  let isScrollerTouching = false;
+  let isScrollerMomentum = false;
+  let scrollerIdleTimer = 0;
+  messagesScrollerEl.addEventListener(
+    "touchstart",
+    () => {
+      isScrollerTouching = true;
+    },
+    { passive: true }
+  );
+  const endScrollerTouch = () => {
+    isScrollerTouching = false;
+  };
+  messagesScrollerEl.addEventListener("touchend", endScrollerTouch, { passive: true });
+  messagesScrollerEl.addEventListener("touchcancel", endScrollerTouch, { passive: true });
+  messagesScrollerEl.addEventListener(
+    "scroll",
+    () => {
+      isScrollerMomentum = true;
+      clearTimeout(scrollerIdleTimer);
+      scrollerIdleTimer = window.setTimeout(() => {
+        isScrollerMomentum = false;
+      }, 160);
+    },
+    { passive: true }
+  );
 
   const replyBannerEl = rootEl.querySelector("#rm-reply-banner") as HTMLElement;
   const replyBannerTextEl = rootEl.querySelector("#rm-reply-banner-text") as HTMLElement;
@@ -1873,9 +1903,16 @@ export function createMessengerChat(deps: MessengerDeps) {
       fillWormhole(messagesTrackEl);
     }
 
-    if (scrollToBottom || switchedConv || wasNearBottom) {
+    const scrollAction = resolveThreadScrollAction({
+      scrollToBottom,
+      switchedConv,
+      rowsChanged,
+      wasNearBottom,
+      isUserScrolling: isScrollerTouching || isScrollerMomentum,
+    });
+    if (scrollAction === "bottom") {
       messagesScrollerEl.scrollTop = messagesScrollerEl.scrollHeight;
-    } else {
+    } else if (scrollAction === "preserve") {
       messagesScrollerEl.scrollTop = prevScrollTop;
     }
   }
@@ -2655,7 +2692,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     }
   });
   convListEl.addEventListener("scroll", closeConvMenu, { passive: true });
-  messagesTrackEl.addEventListener("scroll", closeReactPicker, { passive: true });
+  messagesScrollerEl.addEventListener("scroll", closeReactPicker, { passive: true });
 
   // Conversation click in unified inbox
   let convSelectSeq = 0;
@@ -2835,38 +2872,59 @@ export function createMessengerChat(deps: MessengerDeps) {
 
   // Delegated interactions inside messages stream
   // phones: swipe someone's message to the right to mention them in the box (not from the screen edge: that is Back)
-  let swipe: { row: HTMLElement; x: number; y: number; dx: number } | null = null;
+  let swipe: { row: HTMLElement; x: number; y: number; dx: number; phase: MessageSwipePhase } | null = null;
+  const clearRowSwipe = (s: typeof swipe) => {
+    if (!s) return;
+    if (s.phase === "horizontal") {
+      s.row.style.transform = "";
+      s.row.style.willChange = "";
+    }
+  };
   messagesTrackEl.addEventListener("touchstart", (e) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>(".rm-msg-row.theirs");
     const t = e.touches[0];
-    swipe = row && e.touches.length === 1 && t.clientX > 24 ? { row, x: t.clientX, y: t.clientY, dx: 0 } : null;
+    swipe = row && e.touches.length === 1 && t.clientX > 24 ? { row, x: t.clientX, y: t.clientY, dx: 0, phase: "pending" } : null;
     if (swipe) stageSwipeStart = null;
   }, { passive: true });
   messagesTrackEl.addEventListener("touchmove", (e) => {
     if (!swipe) return;
     stageSwipeStart = null;
-    const dx = e.touches[0].clientX - swipe.x;
-    if (Math.abs(e.touches[0].clientY - swipe.y) > 30 || dx < 0) {
-      swipe.row.style.transform = "";
+    const step = resolveMessageSwipeStep({
+      phase: swipe.phase,
+      dx: e.touches[0].clientX - swipe.x,
+      dy: e.touches[0].clientY - swipe.y,
+    });
+    if (!step) {
+      clearRowSwipe(swipe);
       swipe = null;
       return;
     }
-    swipe.dx = Math.min(dx, 80);
-    swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+    swipe.phase = step.phase;
+    swipe.dx = step.offset;
+    if (step.phase === "horizontal") {
+      swipe.row.style.willChange = "transform";
+      swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+    }
   }, { passive: true });
   messagesTrackEl.addEventListener("touchend", () => {
     if (!swipe) return;
     stageSwipeStart = null;
-    const { row, dx } = swipe;
+    const finished = swipe;
     swipe = null;
-    row.style.transform = "";
-    const m = dx >= 60 ? deps.getActiveState().shownMessages.find((x) => x.id === row.dataset.msgId) : undefined;
+    clearRowSwipe(finished);
+    const m = finished.phase === "horizontal" && finished.dx >= 60
+      ? deps.getActiveState().shownMessages.find((x) => x.id === finished.row.dataset.msgId)
+      : undefined;
     if (!m || composerInputEl.disabled) return;
     const v = composerInputEl.value;
     composerInputEl.value = `${v}${v && !v.endsWith(" ") ? " " : ""}@${deps.getAuthorDisplayName(m.sender)} `;
     fitInput();
     composerInputEl.focus();
-  });
+  }, { passive: true });
+  messagesTrackEl.addEventListener("touchcancel", () => {
+    clearRowSwipe(swipe);
+    swipe = null;
+  }, { passive: true });
 
   messagesTrackEl.addEventListener("click", async (e) => {
     const t = e.target as HTMLElement;

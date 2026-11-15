@@ -521,6 +521,9 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 #chat-modal .rm-conv-list {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 6px 8px 14px;
   display: flex;
   flex-direction: column;
@@ -964,6 +967,11 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  will-change: scroll-position;
+  contain: layout style;
   padding: 18px 22px 16px;
   display: flex;
   flex-direction: column;
@@ -1107,6 +1115,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   width: 100%;
   min-width: 0;
   position: relative;
+  contain: layout style;
 }
 
 #chat-modal .rm-msg-row.grouped-prev {
@@ -1468,6 +1477,12 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   pointer-events: auto;
 }
 
+@media (hover: none) {
+  #chat-modal .rm-msg-row:not(.actions-open) .rm-hover-bar {
+    display: none;
+  }
+}
+
 #chat-modal .rm-hover-bar button {
   border: none;
   background: transparent;
@@ -1784,6 +1799,8 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   flex-direction: column;
   flex-shrink: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   min-height: 0;
   z-index: 15;
 }

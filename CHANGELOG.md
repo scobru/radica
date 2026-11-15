@@ -1,6 +1,12 @@
 5.7.1 / 2026-11-15
 ==================
 
+  * **PERF / FIX** Mobile Chat Scrolling Smoothness (`ui/src/messengerChat.css`, `ui/src/style.css`, `ui/src/messengerChat.ts`, `ui/src/messengerLogic.ts`, `ui/src/main.ts`, `ui/tests/messengerChat.test.ts`):
+    * Added `overscroll-behavior: contain`, `-webkit-overflow-scrolling: touch`, and `touch-action: pan-y` on `.rm-messages-scroller`, `.rm-conv-list`, `#chat-messages-list`, and `.rm-drawer` (plus `overscroll-behavior: none` on `body.chat-open` / `body.chat-fullscreen` on `<= 768px`) to prevent scroll chaining into the mobile browser viewport.
+    * Added `will-change: scroll-position` and `contain: layout style` on `.rm-messages-scroller` and `.rm-msg-row`, and hid unexpanded `.rm-hover-bar` elements on `@media (hover: none)` touch devices.
+    * Added directional gesture locking (`resolveMessageSwipeStep`) so swipe-to-mention does not apply `translateX` transforms during vertical/diagonal scrolling, and `resolveThreadScrollAction` so `renderThread` does not interrupt native momentum scrolling when rows are unchanged or the user is actively scrolling; also fixed the `closeReactPicker` scroll listener to attach to `#rm-messages-scroller`.
+    * Coalesced `syncMobileViewport()` updates on `visualViewport` `resize`/`scroll` via `requestAnimationFrame` and skipped redundant `--rm-vvh` / `--rm-vvt` style writes when unchanged.
+
   * **NEW** Edit & Delete Published Articles from Articles UX (`ui/src/articles.ts`, `ui/src/articlesPage.ts`, `ui/src/main.ts`, `ui/src/freenet.ts`, `ui/src/style.css`, `ui/tests/articles.test.ts`):
     * Added **Edit** and **Delete** actions for the article's author directly in the **Articles & Newsletters** list cards and Reader view (`#articles-modal`).
     * Editing a published article uploads a revised `ArticlePayload` (preserving `publishedAt`, recording `editedAt`, and supporting cover replacement/removal via `coverRemoved`) and publishes a signed `post-edits` log entry pointing the post to the updated BLAKE3 hash.

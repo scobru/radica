@@ -158,3 +158,49 @@ export function isStageBackSwipe(opts: {
   return opts.dx > 76 && opts.dy < 48 && opts.dx > opts.dy * 1.8 && opts.dt < 550;
 }
 
+export type MessageSwipePhase = "pending" | "horizontal";
+
+/**
+ * Classifies a touchmove step for swipe-to-mention on incoming messages so vertical
+ * or slightly diagonal scrolling cancels immediately without mutating row transforms.
+ */
+export function resolveMessageSwipeStep(opts: {
+  phase: MessageSwipePhase;
+  dx: number;
+  dy: number;
+  maxOffset?: number;
+}): { phase: MessageSwipePhase; offset: number } | null {
+  const { phase, dx, dy, maxOffset = 80 } = opts;
+  const absDy = Math.abs(dy);
+  if (absDy > 30 || dx < -6) return null;
+
+  if (phase === "pending") {
+    if (absDy > 10) return null;
+    const absDx = Math.abs(dx);
+    if (absDy >= absDx && Math.hypot(dx, dy) > 8) return null;
+    if (dx >= 12 && dx > absDy * 1.6) {
+      return { phase: "horizontal", offset: Math.min(dx, maxOffset) };
+    }
+    return { phase: "pending", offset: 0 };
+  }
+
+  return { phase: "horizontal", offset: Math.max(0, Math.min(dx, maxOffset)) };
+}
+
+/**
+ * Decides whether `renderThread` should adjust `scrollTop` after reconciling rows.
+ * Skips redundant writes when rows did not change or while the user is actively
+ * touching/scrolling (preserving native mobile momentum).
+ */
+export function resolveThreadScrollAction(opts: {
+  scrollToBottom: boolean;
+  switchedConv: boolean;
+  rowsChanged: boolean;
+  wasNearBottom: boolean;
+  isUserScrolling: boolean;
+}): "bottom" | "preserve" | "none" {
+  if (opts.scrollToBottom || opts.switchedConv) return "bottom";
+  if (!opts.rowsChanged || opts.isUserScrolling) return "none";
+  return opts.wasNearBottom ? "bottom" : "preserve";
+}
+

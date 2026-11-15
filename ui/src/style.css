@@ -1864,6 +1864,9 @@ body.chat-fullscreen .rail {
 #chat-messages-list {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -4030,6 +4033,7 @@ body {
   body.mail-open {
     padding-bottom: 0 !important;
     overflow: hidden;
+    overscroll-behavior: none;
   }
   body.chat-open .rail,
   body.chat-fullscreen .rail,

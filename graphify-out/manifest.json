@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794745164.368107,
-    "ast_hash": "9fb80edefed0869a1fa3ee45b6839b30",
+    "mtime": 1794746962.3585553,
+    "ast_hash": "9788f6f1b58a74ceea49862f1f86e197",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794745201.6774187,
-    "ast_hash": "68e6f439e4708f368a1abc8f8f0be423",
+    "mtime": 1794746995.7796364,
+    "ast_hash": "9957629297b2c563b6667cb96a293f91",
     "semantic_hash": ""
   },
   "README.md": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794745198.3506331,
-    "ast_hash": "d49ed5b5fc1a4c94d10e05d1380ee03e",
+    "mtime": 1794746994.088511,
+    "ast_hash": "08997173bf914804a2d5f7b747dad4c3",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,13 +285,13 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1794616625.3546085,
-    "ast_hash": "5d8a86fec7a0989307cb973eb9eef00e",
+    "mtime": 1794746945.3053606,
+    "ast_hash": "e95b9e04ea7f3ceaea83e73593d431ec",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
-    "mtime": 1794614899.982191,
-    "ast_hash": "53358476d3241144a9827757f857830d",
+    "mtime": 1794746923.061386,
+    "ast_hash": "85208ceb8f428fe4c771c2a44c1b834c",
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
@@ -1005,8 +1005,8 @@
     "semantic_hash": ""
   },
   "ui/tests/messengerChat.test.ts": {
-    "mtime": 1794615020.4485343,
-    "ast_hash": "fd24f264849a4222f20e9ad5dd47f52e",
+    "mtime": 1794746985.412179,
+    "ast_hash": "2d8141aefcfc93faeff1620d62489d49",
     "semantic_hash": ""
   },
   "ui/tests/milestones.test.ts": {

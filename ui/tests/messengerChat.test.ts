@@ -4,6 +4,8 @@ import {
   canPostInRoom,
   computeSafetyBlocks,
   isStageBackSwipe,
+  resolveMessageSwipeStep,
+  resolveThreadScrollAction,
   roomMetaOf,
   shouldHydratePreview,
   shouldUpdateCachedPreview,
@@ -281,5 +283,99 @@ test("isStageBackSwipe: message rows and composer are excluded from mobile back 
   assert.equal(isStageBackSwipe({ dx: 50, dy: 10, dt: 200, isIgnoredTarget: false }), false);
   assert.equal(isStageBackSwipe({ dx: 80, dy: 50, dt: 200, isIgnoredTarget: false }), false);
   assert.equal(isStageBackSwipe({ dx: 80, dy: 10, dt: 600, isIgnoredTarget: false }), false);
+});
+
+test("resolveMessageSwipeStep: cancels vertical/diagonal scrolling before mutating transform, locks clean horizontal swipe", () => {
+  // Slight initial diagonal jitter does not lock or offset yet
+  assert.deepEqual(resolveMessageSwipeStep({ phase: "pending", dx: 4, dy: 2 }), {
+    phase: "pending",
+    offset: 0,
+  });
+
+  // Vertical scroll cancels immediately
+  assert.equal(resolveMessageSwipeStep({ phase: "pending", dx: 4, dy: 12 }), null);
+  assert.equal(resolveMessageSwipeStep({ phase: "pending", dx: 8, dy: 8 }), null);
+  assert.equal(resolveMessageSwipeStep({ phase: "pending", dx: -8, dy: 0 }), null);
+
+  // Clean rightward swipe locks into horizontal and caps offset
+  assert.deepEqual(resolveMessageSwipeStep({ phase: "pending", dx: 18, dy: 4 }), {
+    phase: "horizontal",
+    offset: 18,
+  });
+  assert.deepEqual(resolveMessageSwipeStep({ phase: "horizontal", dx: 95, dy: 6 }), {
+    phase: "horizontal",
+    offset: 80,
+  });
+
+  // Large vertical drift after lock still cancels
+  assert.equal(resolveMessageSwipeStep({ phase: "horizontal", dx: 40, dy: 35 }), null);
+});
+
+test("resolveThreadScrollAction: preserves native scroll momentum during active user scrolling and no-op renders", () => {
+  // Switching conversation or explicit scrollToBottom always scrolls to bottom
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: true,
+      switchedConv: false,
+      rowsChanged: false,
+      wasNearBottom: false,
+      isUserScrolling: true,
+    }),
+    "bottom"
+  );
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: false,
+      switchedConv: true,
+      rowsChanged: false,
+      wasNearBottom: false,
+      isUserScrolling: true,
+    }),
+    "bottom"
+  );
+
+  // Unchanged rows or active user scroll must not write scrollTop
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: false,
+      switchedConv: false,
+      rowsChanged: false,
+      wasNearBottom: true,
+      isUserScrolling: false,
+    }),
+    "none"
+  );
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: false,
+      switchedConv: false,
+      rowsChanged: true,
+      wasNearBottom: false,
+      isUserScrolling: true,
+    }),
+    "none"
+  );
+
+  // When rows changed and user is idle, scroll to bottom if near bottom else preserve
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: false,
+      switchedConv: false,
+      rowsChanged: true,
+      wasNearBottom: true,
+      isUserScrolling: false,
+    }),
+    "bottom"
+  );
+  assert.equal(
+    resolveThreadScrollAction({
+      scrollToBottom: false,
+      switchedConv: false,
+      rowsChanged: true,
+      wasNearBottom: false,
+      isUserScrolling: false,
+    }),
+    "preserve"
+  );
 });
 

@@ -6707,11 +6707,21 @@ if (virtualKb) {
   virtualKb.addEventListener?.("geometrychange", syncMobileViewport);
 }
 
+let lastVvh: number | null = null;
+let lastVvt: number | null = null;
+let mobileViewportRaf = 0;
+
 function syncMobileViewport() {
   const vv = window.visualViewport;
   if (!vv || (vv.scale && Math.abs(vv.scale - 1) >= 0.05)) {
-    document.documentElement.style.removeProperty("--rm-vvh");
-    document.documentElement.style.removeProperty("--rm-vvt");
+    if (lastVvh !== null) {
+      document.documentElement.style.removeProperty("--rm-vvh");
+      lastVvh = null;
+    }
+    if (lastVvt !== null) {
+      document.documentElement.style.removeProperty("--rm-vvt");
+      lastVvt = null;
+    }
     return;
   }
   const kbH = virtualKb?.boundingRect ? Math.round(virtualKb.boundingRect.height || 0) : 0;
@@ -6726,20 +6736,35 @@ function syncMobileViewport() {
   }
   const h = Math.max(180, Math.round(kbH > 0 ? Math.min(rawH, window.innerHeight - kbH) : rawH));
   const t = Math.max(0, Math.round(vv.offsetTop));
-  document.documentElement.style.setProperty("--rm-vvh", `${h}px`);
-  document.documentElement.style.setProperty("--rm-vvt", `${t}px`);
+  if (h !== lastVvh) {
+    document.documentElement.style.setProperty("--rm-vvh", `${h}px`);
+    lastVvh = h;
+  }
+  if (t !== lastVvt) {
+    document.documentElement.style.setProperty("--rm-vvt", `${t}px`);
+    lastVvt = t;
+  }
   if (isOpen(chatModal) && window.scrollY !== 0) window.scrollTo(0, 0);
   messengerChat.onViewportResize(h);
 }
-window.visualViewport?.addEventListener("resize", syncMobileViewport);
-window.visualViewport?.addEventListener("scroll", syncMobileViewport);
-window.addEventListener("resize", syncMobileViewport);
+
+function scheduleSyncMobileViewport() {
+  if (mobileViewportRaf) return;
+  mobileViewportRaf = requestAnimationFrame(() => {
+    mobileViewportRaf = 0;
+    syncMobileViewport();
+  });
+}
+
+window.visualViewport?.addEventListener("resize", scheduleSyncMobileViewport);
+window.visualViewport?.addEventListener("scroll", scheduleSyncMobileViewport);
+window.addEventListener("resize", scheduleSyncMobileViewport);
 document.addEventListener("fullscreenchange", () => {
   syncMobileViewport();
   setTimeout(syncMobileViewport, 80);
   setTimeout(syncMobileViewport, 220);
 });
-new MutationObserver(syncMobileViewport).observe(chatModal, { attributes: true, attributeFilter: ["style", "class"] });
+new MutationObserver(scheduleSyncMobileViewport).observe(chatModal, { attributes: true, attributeFilter: ["style", "class"] });
 document.addEventListener("focusin", (e) => {
   const t = e.target as HTMLElement | null;
   if (!isMobileTextEntry(t)) return;
