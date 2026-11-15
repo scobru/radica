@@ -2305,11 +2305,11 @@ export class FreenetClient {
     return Object.values(postMap).sort((a, b) => b.timestamp - a.timestamp);
   }
 
-  /** Members of a community plus everyone who spoke in its chat (nobody has to "join" to chat). */
+  /** Moderators and members of a community plus everyone who spoke in its chat (nobody has to "join" to chat). */
   public getCommunityParticipants(comm: Community): string[] {
     const banned = comm.banned_members ?? [];
     const speakers = this.visibleChat(`comm_${comm.id}`).map((m) => m.sender);
-    return [...new Set([...comm.members, ...speakers])].filter((pk) => pk !== "system" && !banned.includes(pk)); // "system" is the seed communities' creator, not a person
+    return [...new Set([...comm.moderators, ...comm.members, ...speakers])].filter((pk) => pk !== "system" && !banned.includes(pk)); // "system" is the seed communities' creator, not a person
   }
 
   public getDiscoveredPeers(myPubkey: string): { pubkey: string; name: string }[] {
