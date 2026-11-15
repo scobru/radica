@@ -18,6 +18,7 @@ import { CLAIMS_LOG, RECEIPTS_LOG, judgeClaim, issueReceipt, signEntry, bytesToH
 import {
   REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody,
   retractBody, budget, shouldHold, categoryDisabled, applyHoldOutcomes, modsOf, CATEGORIES,
+  foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
 
 const env = process.env;
@@ -39,6 +40,9 @@ const MOD_LIMITS = {
 // Whose blocklists decide a hold's outcome (same set Radica's own moderation queue reads; see ui/src/types.ts).
 const MOD_MAINTAINER = env.RADICA_MAINTAINER || "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b";
 const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split(",") : ["3ac3e7f1f7535888597dbd8b25e362fa153eb10bfedd1e2df1b50299d7f2bf98"];
+const GITHUB_REPO = env.GITHUB_REPO ?? "scobru/radica";
+const GITHUB_TOKEN = env.GITHUB_TOKEN || "";
+const GH_POLL_MS = Number(env.GH_POLL_MS || 30 * 60_000);
 const TIMEOUT_MS = 45_000;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -151,21 +155,128 @@ async function pass(api, sk, st) {
 }
 
 const modFile = join(DATA, "moderated.json");
-const loadMod = async () =>
-  existsSync(modFile)
-    ? JSON.parse(await readFile(modFile, "utf8"))
-    : { judged: [], used: null, heldTargets: {}, categoryStats: {} };
+const loadMod = async () => {
+  const base = existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : {};
+  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenChat: [], chatStrikes: {}, lastGhSha: "", ...base };
+};
 const saveMod = (state) => writeFile(modFile, JSON.stringify(state));
 
-async function askModel(posts) {
+async function askRaw(messages) {
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { authorization: `Bearer ${MOD_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: MOD_MODEL, temperature: 0, messages: buildMessages(posts) }),
+    body: JSON.stringify({ model: MOD_MODEL, temperature: 0, messages }),
     signal: AbortSignal.timeout(120_000),
   });
   if (!r.ok) throw new Error(`OpenRouter HTTP ${r.status}`);
   return (await r.json()).choices?.[0]?.message?.content ?? "";
+}
+const askModel = (posts) => askRaw(buildMessages(posts));
+
+async function globalProtectedSet(api, extraKeys = []) {
+  const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
+  return new Set([MOD_MAINTAINER, ...modsOf(maintainerLog, MOD_DEFAULT_MODS), ...extraKeys.filter(Boolean)]);
+}
+
+async function signCommunityChat(modSk, communityId, text) {
+  const sender = bytesToHex(await ed.getPublicKeyAsync(modSk));
+  const room_id = `comm_${communityId}`;
+  const timestamp = Date.now();
+  const id = `msg_${timestamp}_${bytesToHex(crypto.getRandomValues(new Uint8Array(3)))}`;
+  const msg = `${id}:${room_id}:${sender}:community:${text}:${timestamp}`;
+  const sig = bytesToHex(await ed.signAsync(new TextEncoder().encode(msg), modSk));
+  return { id, room_id, sender, community_id: communityId, text, timestamp, sig };
+}
+
+/** Patrol public community chats where The Gardener is an active moderator: warn 1st offense, ban + delete on 2nd. */
+async function chatModPass(api, modSk, modPk, mod, globalProtected, b) {
+  const comms = foldCommunitiesState(await getEntries(api, "communities"), MOD_MAINTAINER).filter((c) => c.moderators.has(modPk));
+  if (!comms.length) return;
+  const seenChat = new Set(mod.seenChat ?? []);
+  let strikes = { ...(mod.chatStrikes ?? {}) };
+  let dirty = false;
+  for (const comm of comms) {
+    if (b.requestsLeft <= 0) break;
+    const chatProtected = new Set([...globalProtected, comm.creator, ...comm.moderators]);
+    const msgs = freshChatMessages(await getEntries(api, `community-chat/${comm.id}`), comm, seenChat, chatProtected);
+    for (let i = 0; i < msgs.length && b.requestsLeft > 0; i += BATCH, b.requestsLeft--) {
+      const batch = msgs.slice(i, i + BATCH);
+      b.used.requests++;
+      let verdicts = null;
+      try { verdicts = parseVerdicts(await askModel(batch), batch.length); } catch (e) { log("[gardener:chat] model unreachable:", e.message || e); }
+      if (!verdicts) continue;
+      for (const v of verdicts) {
+        const msg = batch[v.i];
+        const decision = decideChatAction(strikes, comm.id, msg.sender, chatProtected);
+        strikes = decision.nextStrikes;
+        const short = msg.sender.slice(0, 8);
+        if (decision.action === "warn") {
+          const warnTxt = `⚠️ @${short}: The Gardener flagged ${v.category} (${v.reason}). Please keep r/${comm.slug} clean — next violation leads to a ban.`;
+          const chatMsg = await signCommunityChat(modSk, comm.id, warnTxt);
+          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat", message: chatMsg }));
+          log("[gardener:chat] warned", short, "in", comm.slug, v.category);
+        } else if (decision.action === "ban") {
+          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat_delete", roomId: `comm_${comm.id}`, messageId: msg.msgId }));
+          await append(api, "communities", await signEntry(modSk, "communities", APP, { type: "community_ban", community_id: comm.id, target: msg.sender }));
+          const banTxt = `🌱 The Gardener banned @${short} from r/${comm.slug} after a prior warning (${v.category}).`;
+          const chatMsg = await signCommunityChat(modSk, comm.id, banTxt);
+          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat", message: chatMsg }));
+          log("[gardener:chat] banned", short, "from", comm.slug, v.category);
+        }
+      }
+      for (const m of batch) seenChat.add(m.key);
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    mod.seenChat = [...seenChat].slice(-2000);
+    mod.chatStrikes = strikes;
+  }
+}
+
+async function ghFetch(path, init = {}) {
+  const headers = { accept: "application/vnd.github+json", "user-agent": "radica-gardener", ...(GITHUB_TOKEN ? { authorization: `Bearer ${GITHUB_TOKEN}` } : {}), ...init.headers };
+  const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}${path}`, { ...init, headers, signal: AbortSignal.timeout(30_000) });
+  if (!r.ok) throw new Error(`GitHub HTTP ${r.status}`);
+  return r.json();
+}
+
+/** Watch Greenhouse proposals against GitHub commits (and optionally mirror/close GitHub Issues when GITHUB_TOKEN is set). */
+async function greenhousePass(api, modSk, modPk, mod, b) {
+  if (!GITHUB_REPO) return;
+  const openSeeds = openGreenhouseSeeds(await getEntries(api, "greenhouse"), MOD_MAINTAINER, [modPk]);
+  if (!openSeeds.length) return;
+  const markDone = async (id, why) => {
+    await append(api, "greenhouse", await signEntry(modSk, "greenhouse", APP, { type: "status", seed: id, status: "done" }));
+    log("[gardener:gh] marked done:", id, why);
+  };
+  if (GITHUB_TOKEN) {
+    try {
+      const issues = await ghFetch("/issues?labels=greenhouse&state=all&per_page=100");
+      for (const iss of issues) {
+        if (iss.state !== "closed") continue;
+        const m = /Seed ID:\s*`?([^\s`]+)`?/.exec(iss.body ?? "");
+        if (m && openSeeds.some((s) => s.id === m[1])) await markDone(m[1], `issue #${iss.number} closed`);
+      }
+      const existingIds = new Set(issues.map((i) => /Seed ID:\s*`?([^\s`]+)`?/.exec(i.body ?? "")?.[1]).filter(Boolean));
+      for (const s of openSeeds.filter((x) => !existingIds.has(x.id)).slice(0, 5)) {
+        const body = `Seed ID: \`${s.id}\`\nKind: ${s.kind}\nPermalink: #greenhouse&seed=${encodeURIComponent(s.id)}\n\n${s.text || "_No extra description._"}`;
+        await ghFetch("/issues", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `[Greenhouse] ${s.title}`, body, labels: ["greenhouse"] }) });
+        log("[gardener:gh] opened issue for", s.id);
+      }
+    } catch (e) { log("[gardener:gh] issues sync skipped:", e.message || e); }
+  }
+  if (b.requestsLeft <= 0) return;
+  try {
+    const rawCommits = await ghFetch("/commits?per_page=25");
+    const headSha = rawCommits?.[0]?.sha ?? "";
+    if (!headSha || headSha === mod.lastGhSha) return;
+    const commits = rawCommits.map((c) => ({ sha: c.sha, message: c.commit?.message ?? "" }));
+    b.used.requests++; b.requestsLeft--;
+    const matches = parseGithubMatches(await askRaw(buildGithubSyncMessages(openSeeds.slice(0, 20), commits)), new Set(openSeeds.map((s) => s.id)));
+    for (const m of matches) await markDone(m.id, `${m.sha}: ${m.reason}`);
+    mod.lastGhSha = headSha;
+  } catch (e) { log("[gardener:gh] commit check skipped:", e.message || e); }
 }
 
 /** Checks the maintainer's and every mod's own blocklist log once for what they decided about each held target,
@@ -183,9 +294,10 @@ async function resolveHeldOutcomes(api, heldTargets, categoryStats) {
  *  flagged ones. Before any of that: fold in what moderators decided about posts the bot is already holding, since
  *  that decides whether each category keeps holding (see moderator.js's categoryDisabled) and retracts the hold
  *  from the bot's own tracking once a human has acted on it (the "reports" log entry itself is theirs to keep). */
-async function modPass(api, modSk) {
+async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = false) {
   const mod = await loadMod();
   const judged = new Set(mod.judged);
+  const protectedSet = await globalProtectedSet(api, [modPk, ...extraProtected]);
   const resolution = await resolveHeldOutcomes(api, mod.heldTargets ?? {}, mod.categoryStats ?? {});
   const heldTargets = resolution.heldTargets;
   const categoryStats = resolution.categoryStats;
@@ -193,15 +305,16 @@ async function modPass(api, modSk) {
   if (resolution.resolved.length) {
     log(`[mod] ${resolution.resolved.length} held post(s) decided by a moderator` + (disabled.size ? `; holding is off for: ${[...disabled].join(", ")}` : ""));
     // persist resolved holds immediately so a 0-post pass never leaves them to be double-counted after restart
-    await saveMod({ judged: [...judged], used: mod.used ?? null, heldTargets, categoryStats });
+    await saveMod({ ...mod, judged: [...judged], heldTargets, categoryStats });
   }
 
   const posts = [];
   const authors = recentAuthors(await getEntries(api, "directory"));
   const edits = postEdits(await getEntries(api, "post-edits"));
   for (let i = 0; i < authors.length; i += 4) // four feeds at a time: a missing one takes the whole timeout
-    for (const [k, raw] of (await Promise.all(authors.slice(i, i + 4).map((a) => getFeed(api, a)))).entries()) posts.push(...freshPosts(raw, authors[i + k], judged, Date.now(), edits));
-  let { used, requestsLeft, reportsLeft, holdsLeft } = budget(mod.used, MOD_LIMITS);
+    for (const [k, raw] of (await Promise.all(authors.slice(i, i + 4).map((a) => getFeed(api, a)))).entries()) posts.push(...freshPosts(raw, authors[i + k], judged, Date.now(), edits, protectedSet));
+  const b = budget(mod.used, MOD_LIMITS);
+  let { used, requestsLeft, reportsLeft, holdsLeft } = b;
   let flagged = 0, held = 0, retracted = 0;
   for (let i = 0; i < posts.length && requestsLeft > 0; i += BATCH, requestsLeft--) {
     const batch = posts.slice(i, i + BATCH);
@@ -251,17 +364,23 @@ async function modPass(api, modSk) {
       }
     }
     // shortcut: every judged post is kept forever (a few bytes each), prune by age if the file ever gets big
-    await saveMod({ judged: [...judged], used, heldTargets, categoryStats });
+    await saveMod({ ...mod, judged: [...judged], used, heldTargets, categoryStats });
   }
-  log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${used.requests}/${MOD_LIMITS.requests} requests, ${used.holds}/${MOD_LIMITS.holds} holds today`);
+  const rem = { used, requestsLeft, reportsLeft, holdsLeft };
+  await chatModPass(api, modSk, modPk, mod, protectedSet, rem).catch((e) => log("[gardener:chat] failed:", e.message || e));
+  if (runGithubSync) await greenhousePass(api, modSk, modPk, mod, rem).catch((e) => log("[gardener:gh] failed:", e.message || e));
+  await saveMod({ ...mod, judged: [...judged], used: rem.used, heldTargets, categoryStats });
+  log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${rem.used.requests}/${MOD_LIMITS.requests} requests, ${rem.used.holds}/${MOD_LIMITS.holds} holds today`);
 }
 
 const sk = await loadKey();
-log("attester key (add to RECEIPT_ISSUERS):", bytesToHex(await ed.getPublicKeyAsync(sk)));
+const attesterPk = bytesToHex(await ed.getPublicKeyAsync(sk));
+log("attester key (add to RECEIPT_ISSUERS):", attesterPk);
 const st = await loadState();
 const modSk = MOD_KEY ? await loadKey("moderator.key") : null;
-if (modSk) log("AI moderation helper on, model", MOD_MODEL, "- reports as", bytesToHex(await ed.getPublicKeyAsync(modSk)));
-let modNext = 0;
+const modPk = modSk ? bytesToHex(await ed.getPublicKeyAsync(modSk)) : "";
+if (modSk) log("The Gardener (AI helper) on, model", MOD_MODEL, "- reports/mods as", modPk);
+let modNext = 0, ghNext = 0;
 for (;;) {
   try {
     const api = await connect();
@@ -270,7 +389,9 @@ for (;;) {
       await pass(api, sk, st);
       if (modSk && Date.now() >= modNext) {
         modNext = Date.now() + MOD_POLL_MS;
-        await modPass(api, modSk).catch((e) => log("[mod] pass failed:", e.message || e)); // never in the way of receipts
+        const doGh = Date.now() >= ghNext;
+        if (doGh) ghNext = Date.now() + GH_POLL_MS;
+        await modPass(api, modSk, modPk, [attesterPk], doGh).catch((e) => log("[mod] pass failed:", e.message || e)); // never in the way of receipts
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }

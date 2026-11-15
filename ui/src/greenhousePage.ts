@@ -5,8 +5,8 @@ import { safeStorage } from "./storage";
 import { escapeHtml } from "./html.ts";
 import { renderChatText } from "./caption.ts";
 import { verifyReceipt, supporterStorageKey, type SupporterTier } from "./supporter.ts";
-import { foldGreenhouse, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
-import { RADICA_MAINTAINER } from "./types.ts";
+import { foldGreenhouse, formatSeedsForAi, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
+import { AI_REPORTERS, RADICA_MAINTAINER } from "./types.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 import { renderIcon } from "./icons.ts";
 
@@ -81,6 +81,9 @@ function seedHtml(s: Seed, canVote: boolean, isMaintainer: boolean): string {
       <button type="button" class="btn-secondary btn-xs gh-share-btn" data-gh-share="${escapeHtml(s.id)}" data-gh-title="${escapeHtml(s.title)}" title="Share link to this proposal">
         ${renderIcon("share2", { className: "icon-xs" })} Share
       </button>
+      <button type="button" class="btn-secondary btn-xs gh-copy-ai-btn" data-gh-copy="${escapeHtml(s.id)}" title="Copy proposal formatted for an AI agent">
+        🤖 Copy for AI
+      </button>
     </div>
   </div>`;
 }
@@ -108,15 +111,45 @@ export async function renderGreenhouse(): Promise<void> {
       gate.innerHTML = `Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network)${progress}, or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).`;
     }
   }
-  const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0);
+  const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0, AI_REPORTERS);
+  lastRenderedSeeds = seeds;
   list.innerHTML = seeds.length ? seeds.map((s) => seedHtml(s, canVote, me === RADICA_MAINTAINER)).join("") : `<p style="color: var(--text-muted); font-size: 0.85rem;">Nothing planted yet.</p>`;
 }
+
+let lastRenderedSeeds: Seed[] = [];
 
 async function append(body: object): Promise<void> {
   const token = myToken();
   if (!token && !myGhostkey() && whoAmI() !== RADICA_MAINTAINER && myLinfaWeight <= 0) return;
   await freenet.greenhouseAppend(token ? { ...body, receipt: token } : body); // a GhostKey's proof is on the ghostkeys log, and Linfa is checked from signed posts
   await renderGreenhouse();
+}
+
+async function copyTextWithFeedback(text: string, btn: HTMLButtonElement | null, toastMsg: string, shareMeta?: { title: string; text: string; url: string }): Promise<void> {
+  const markCopied = () => {
+    if (btn) {
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = `${renderIcon("check", { className: "icon-xs" })} Copied!`;
+      setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+    }
+    showToastNotice?.(toastMsg, "info");
+  };
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      markCopied();
+      return;
+    }
+  } catch {}
+  if (shareMeta && typeof navigator.share === "function") {
+    try {
+      await navigator.share(shareMeta);
+      return;
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+    }
+  }
+  prompt("Copy to clipboard:", text);
 }
 
 async function handleShareSeed(btn: HTMLButtonElement): Promise<void> {
@@ -126,38 +159,11 @@ async function handleShareSeed(btn: HTMLButtonElement): Promise<void> {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const pathname = typeof window !== "undefined" ? window.location.pathname : "";
   const permalink = greenhousePermalink(seedId, `${origin}${pathname}`);
-
-  const origHtml = btn.innerHTML;
-  const markCopied = () => {
-    btn.innerHTML = `${renderIcon("check", { className: "icon-xs" })} Copied!`;
-    setTimeout(() => {
-      btn.innerHTML = origHtml;
-    }, 2000);
-    showToastNotice?.("Greenhouse proposal link copied to clipboard!", "info");
-  };
-
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(permalink);
-      markCopied();
-    } else {
-      prompt("Copy proposal link:", permalink);
-    }
-  } catch {
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: `Radica Greenhouse: ${title}`,
-          text: `Vote on "${title}" in the Radica Greenhouse`,
-          url: permalink,
-        });
-        return;
-      } catch (err: any) {
-        if (err?.name === "AbortError") return;
-      }
-    }
-    prompt("Copy proposal link:", permalink);
-  }
+  await copyTextWithFeedback(permalink, btn, "Greenhouse proposal link copied to clipboard!", {
+    title: `Radica Greenhouse: ${title}`,
+    text: `Vote on "${title}" in the Radica Greenhouse`,
+    url: permalink,
+  });
 }
 
 export function focusGreenhouseSeed(seedId: string): boolean {
@@ -223,6 +229,16 @@ export function initGreenhouse(deps: {
       void handleShareSeed(shareBtn);
       return;
     }
+    const copyBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-copy]");
+    if (copyBtn) {
+      const seed = lastRenderedSeeds.find((s) => s.id === copyBtn.dataset.ghCopy);
+      if (seed) void copyTextWithFeedback(formatSeedsForAi([seed], displayName), copyBtn, "Proposal copied for AI agent!");
+      return;
+    }
+  });
+  const exportAiBtn = document.getElementById("greenhouse-export-ai-btn") as HTMLButtonElement | null;
+  exportAiBtn?.addEventListener("click", () => {
+    void copyTextWithFeedback(formatSeedsForAi(lastRenderedSeeds, displayName, true), exportAiBtn, "Open Greenhouse proposals copied for AI agent!");
   });
   list?.addEventListener("change", (e) => {
     const sel = (e.target as HTMLElement).closest<HTMLSelectElement>(".gh-status");

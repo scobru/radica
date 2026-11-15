@@ -93,10 +93,10 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
         if (t !== c.creator && (a === c.creator || a === t)) c.moderators = c.moderators.filter((m) => m !== t);
         break;
       case "community_ban":
-        if (isMod(c, a) && t && t !== c.creator) {
+        // Moderators, the creator/owner, and Radica's maintainer cannot be banned directly (creator must demote a mod first).
+        if (isMod(c, a) && t && t !== c.creator && !c.moderators.includes(t) && t !== RADICA_MAINTAINER) {
           if (!banned.includes(t)) banned.push(t);
           c.members = c.members.filter((m) => m !== t);
-          c.moderators = c.moderators.filter((m) => m !== t);
         }
         break;
       case "community_unban":

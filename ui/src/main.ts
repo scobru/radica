@@ -136,7 +136,7 @@ import { parseGreenhouseHash } from "./greenhouse.ts";
 import { foldSupporters, getStoredReceipt } from "./supporter.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 import { savedPosts, toggleSaved, isSaved } from "./savedPosts.ts";
-import { likers, RADICA_MAINTAINER, AI_REPORTERS } from "./types.ts";
+import { likers, RADICA_MAINTAINER, AI_REPORTERS, GARDENER_NAME } from "./types.ts";
 import { isFuture, sortPosts, type FeedSort } from "./topPosts.ts";
 import { splitNotifs } from "./notifTrust.ts";
 import { GONE_MESSAGE, whyGone } from "./postGone.ts";
@@ -1592,6 +1592,10 @@ blocklistsModal.addEventListener("click", async (e) => {
     else if (decision === "dismissed" && target) await freenet.dismissReport(target, false);
     showToast("Moderation decision undone.", "info");
   } else if (act === "ban") {
+    if (author === currentIdentity!.pubkey || freenet.globalModerators().includes(author)) {
+      alert("Moderators and owners cannot be banned.");
+      return;
+    }
     if (!confirm(`Ban ${getAuthorDisplayName(author)}? Everything they post is hidden for everyone who follows Radica's moderation.`)) return;
     await freenet.setBlocked(author, true);
     showToast("Banned.", "info");
@@ -1627,7 +1631,6 @@ const paneModeration = document.getElementById("pane-moderation") as HTMLElement
 const blocklistsModalTitle = document.getElementById("blocklists-modal-title") as HTMLElement | null;
 const blocklistsBadge = document.getElementById("blocklists-badge") as HTMLElement | null;
 const blocklistsRefreshBtn = document.getElementById("blocklists-refresh-btn") as HTMLButtonElement | null;
-const modRefreshBtn = document.getElementById("mod-refresh-btn") as HTMLButtonElement | null;
 let prevReportQueueCount = -1;
 const warmedModPeers = new Set<string>();
 
@@ -1770,7 +1773,6 @@ async function refreshBlocklistsAndModeration(triggerBtn?: HTMLButtonElement | n
 }
 
 blocklistsRefreshBtn?.addEventListener("click", () => void refreshBlocklistsAndModeration(blocklistsRefreshBtn));
-modRefreshBtn?.addEventListener("click", () => void refreshBlocklistsAndModeration(modRefreshBtn));
 function renderModDashboard() {
   const me = currentIdentity!.pubkey;
   const btn = (act: string, label: string, attrs: string, cls = "btn-secondary") =>
@@ -1989,6 +1991,7 @@ function getAuthorDisplayName(pubkey: string): string {
   if (peer?.display_name) {
     return peer.display_name;
   }
+  if (AI_REPORTERS.includes(pubkey)) return GARDENER_NAME;
   return `@${shortenKey(personaName(pubkey))}`;
 }
 
@@ -10087,6 +10090,34 @@ function openModerationPanel(comm: Community) {
     `
       )
       .join("");
+  }
+
+  const gardenerBtn = document.getElementById("comm-gardener-btn") as HTMLButtonElement | null;
+  const gardenerPk = AI_REPORTERS[0];
+  if (gardenerBtn && gardenerPk) {
+    const hasGardener = comm.moderators.includes(gardenerPk);
+    const canRemoveGardener = hasGardener && currentIdentity!.pubkey === comm.creator;
+    gardenerBtn.disabled = hasGardener && !canRemoveGardener;
+    gardenerBtn.textContent = !hasGardener
+      ? "🌱 Invite The Gardener"
+      : canRemoveGardener
+        ? "Remove The Gardener"
+        : "🌱 The Gardener active";
+    gardenerBtn.onclick = async () => {
+      if (!currentIdentity) return;
+      const res = hasGardener
+        ? await freenet.removeCommunityModerator(currentIdentity, comm.id, gardenerPk)
+        : await freenet.addCommunityModerator(currentIdentity, comm.id, gardenerPk);
+      showToast(res.msg, res.success ? "info" : "warning");
+      if (res.success) {
+        allCommunities = await loadCommunities();
+        const updated = allCommunities.find((c) => c.id === comm.id)!;
+        if (activeCommunity?.id === comm.id) activeCommunity = updated;
+        if (selectedRedditCommunity?.id === comm.id) selectedRedditCommunity = updated;
+        openModerationPanel(updated);
+        renderCommunities();
+      }
+    };
   }
 
   commModModal.style.display = "flex";

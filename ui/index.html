@@ -1508,7 +1508,7 @@
             <li><b>Activity</b>: notifications from strangers wait under <b>Others</b>, unless a real comment on your post is behind them.</li>
             <li>Communities can be open only to vouched members.</li>
           </ul>
-          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators, and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, a <b>Recently moderated</b> team log showing who removed or dismissed each item, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss — fellow global moderators are alerted automatically if another moderator already handled a post: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held.</p>
+          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators (owners and moderators can never be banned), and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, a <b>Recently moderated</b> team log showing who removed or dismissed each item, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss — fellow global moderators are alerted automatically if another moderator already handled a post: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper (<b>🌱 The Gardener</b>) reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held. Public Communities can also invite <b>🌱 The Gardener</b> via the Community Moderation Panel to warn abusive senders in public community chat on a 1st offense and ban on a 2nd offense.</p>
           <p><b>What a newcomer meets</b>: a 15-second pause between posts and a few seconds of proof; the posts show in <b>Recent</b> from the first one, but not in <b>Top</b> or <b>Following</b> until someone in the reader's network likes or follows them; their comments show, with the proof. A newcomer on an old version of the app, without the proof, is covered until they update. A supporter badge, a GhostKey, or being followed by someone trusted lifts these limits.</p>
           <p><b>What it does not stop</b>: someone with a lot of computing power can still make many accounts with valid proofs. They then fill the newcomers' lane and are covered or hidden for people outside their reach, and reports and blocklists do the rest. Each layer is a brake, none is a wall.</p>
         </details>
@@ -1615,7 +1615,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
           </h3>
-          <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" class="btn-secondary btn-sm" id="greenhouse-export-ai-btn" title="Copy all open proposals formatted for an AI coding agent">🤖 Copy all for AI</button>
+            <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
+          </div>
         </div>
         <p style="font-size: 0.85rem; margin: 0 0 8px;">Community members (with <b>🌱 Sapling+ Linfa</b>) and supporters plant ideas and bugs here and vote on them until they close. The votes show what the community thinks: <b>they are a guide, not a promise</b> that something will be built.</p>
         <p class="testnet-note">⚠️ <b>In testing.</b> The Greenhouse and supporter badges run on a test network for now: seeds and votes may be reset when Radica moves to Base mainnet.</p>
@@ -2020,10 +2023,7 @@
           <div id="blocklists-reports" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;"></div>
         </div>
         <div id="pane-moderation" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h4 style="margin: 0;">Reported posts <small id="mod-queue-count" style="color: var(--text-muted);"></small></h4>
-            <button type="button" class="btn-secondary btn-sm" id="mod-refresh-btn" title="Refresh moderation reports from Freenet network">↻ Refresh queue</button>
-          </div>
+          <h4 style="margin: 0 0 8px 0;">Reported posts <small id="mod-queue-count" style="color: var(--text-muted);"></small></h4>
           <div id="mod-queue" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;"></div>
           <div id="mod-handled-section" style="display: none; margin-bottom: 18px;">
             <h4 style="margin: 0 0 8px 0;">Recently moderated <small id="mod-handled-count" style="color: var(--text-muted);"></small></h4>
@@ -2529,13 +2529,17 @@
         <div id="comm-mods-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; max-height: 240px; overflow-y: auto;"></div>
 
         <h4 style="margin-bottom: 8px;">Promote Member to Moderator</h4>
-        <form id="add-mod-form" style="display: flex; gap: 8px; margin-bottom: 20px;">
+        <form id="add-mod-form" style="display: flex; gap: 8px; margin-bottom: 10px;">
           <input type="text" id="add-mod-pubkey-input" class="composer-input" style="min-height: auto; flex: 1; font-size: 0.8rem;" placeholder="User Ed25519 PubKey..." required />
           <button type="submit" class="btn-primary btn-sm btn-icon-text">
             <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>Add Mod</span>
           </button>
         </form>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 18px; font-size: 0.8rem;">
+          <span><b>🌱 The Gardener (AI Chat Mod)</b>: warns on 1st spam/scam/threat, bans on 2nd (owners &amp; mods immune).</span>
+          <button type="button" class="btn-secondary btn-sm" id="comm-gardener-btn" style="flex-shrink: 0;">🌱 Invite The Gardener</button>
+        </div>
 
         <h4 style="margin-bottom: 8px;">Moderation Log / Removed Posts (<span id="mod-deleted-count">0</span>)</h4>
         <div id="comm-deleted-posts-list" style="font-size: 0.8rem; color: var(--text-muted); max-height: 120px; overflow-y: auto;">

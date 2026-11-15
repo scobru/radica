@@ -2349,6 +2349,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         .map((mPk) => {
           const isCreator = mPk === comm.creator;
           const isMod = comm.moderators.includes(mPk);
+          const isGlobalMod = freenet.globalModerators().includes(mPk);
           const isYou = mPk === me;
           const isBanned = !!(comm.banned_members && comm.banned_members.includes(mPk));
           const mName = mPk === "system" ? "Radica Genesis" : deps.getAuthorDisplayName(mPk);
@@ -2377,7 +2378,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                     : ""
                 }
                 ${
-                  isUserMod && !isYou && !isCreator && mPk !== "system"
+                  isUserMod && !isYou && !isCreator && !isMod && !isGlobalMod && mPk !== "system"
                     ? isBanned
                       ? `<button type="button" class="rm-mini-act" data-comm-unban="${escapeHtml(mPk)}">Unban</button>`
                       : `<button type="button" class="rm-mini-act danger" data-comm-ban="${escapeHtml(mPk)}">Ban</button>`

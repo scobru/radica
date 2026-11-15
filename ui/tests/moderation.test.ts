@@ -101,9 +101,9 @@ test("personal data is listed for the author's warning; bad words are not", asyn
   assert.deepEqual(personalDataIn("che cazzo"), []);
 });
 
-test("moderation: index.html provides refresh buttons for blocklists and moderation queue", async () => {
+test("moderation: index.html provides a single header refresh button for blocklists and moderation", async () => {
   const { readFileSync } = await import("node:fs");
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(html, /id="blocklists-refresh-btn"/, "blocklists modal must have a refresh button");
-  assert.match(html, /id="mod-refresh-btn"/, "moderation pane must have a queue refresh button");
+  assert.match(html, /id="blocklists-refresh-btn"/, "blocklists modal must have a header refresh button");
+  assert.doesNotMatch(html, /id="mod-refresh-btn"/, "duplicate queue refresh button should not exist");
 });

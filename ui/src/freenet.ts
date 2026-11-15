@@ -3361,8 +3361,8 @@ export class FreenetClient {
     if (identity.pubkey !== comm.creator && !comm.moderators.includes(identity.pubkey)) {
       return { success: false, msg: "Only moderators or owner can ban members." };
     }
-    if (targetPubkey === comm.creator) {
-      return { success: false, msg: "The community creator/owner cannot be banned!" };
+    if (targetPubkey === comm.creator || comm.moderators.includes(targetPubkey) || this.globalModerators().includes(targetPubkey)) {
+      return { success: false, msg: "Moderators and the community owner cannot be banned!" };
     }
     const updated = await this.communityEvent("community_ban", comm.id, { target: targetPubkey });
     return { success: true, msg: "User banned from community.", community: updated ?? undefined };

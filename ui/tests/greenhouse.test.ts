@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { foldGreenhouse, greenhouseTokens, parseGreenhouseHash, greenhousePermalink } from "../src/greenhouse.ts";
+import { foldGreenhouse, formatSeedsForAi, greenhouseTokens, parseGreenhouseHash, greenhousePermalink } from "../src/greenhouse.ts";
 import type { LogEntry } from "../src/logfold.ts";
 import type { SupporterTier } from "../src/supporter.ts";
 
@@ -105,5 +105,39 @@ test("parseGreenhouseHash extracts greenhouse modal navigation and targeted seed
     isGreenhouse: true,
     seedId: "carol:e3",
   });
+});
+
+test("statusIssuers (e.g. The Gardener bot) can update seed status while untrusted keys cannot, and maintainer overrides", () => {
+  const bug = entry("alice", t0, { type: "seed", kind: "bug", title: "Fix scroll bug", days: 14, receipt: "r" });
+  const id = `alice:${bug.id}`;
+  const bot = "gardener_bot_key";
+  const out = foldGreenhouse(
+    [
+      bug,
+      entry("carol", t0 + 1, { type: "status", seed: id, status: "done" }), // ignored
+      entry(bot, t0 + 2, { type: "status", seed: id, status: "done" }),
+    ],
+    tierOf,
+    "alice",
+    "boss",
+    () => 0,
+    [bot]
+  );
+  assert.equal(out[0].status, "done");
+});
+
+test("formatSeedsForAi outputs readable Markdown for AI agents and filters open seeds when requested", () => {
+  const openSeed = entry("alice", t0, { type: "seed", kind: "feature", title: "Dark mode toggle", text: "Need toggle.", days: 14, receipt: "r" });
+  const doneSeed = entry("bob", t0 + 1, { type: "seed", kind: "bug", title: "Already fixed", days: 14, receipt: "r" });
+  const seeds = foldGreenhouse(
+    [openSeed, doneSeed, entry("boss", t0 + 2, { type: "status", seed: `bob:${doneSeed.id}`, status: "done" })],
+    tierOf,
+    "alice",
+    "boss"
+  );
+  const openMd = formatSeedsForAi(seeds, (pk) => `@${pk}`, true);
+  assert.match(openMd, /Dark mode toggle/);
+  assert.doesNotMatch(openMd, /Already fixed/);
+  assert.match(openMd, /#greenhouse&seed=alice%3A/);
 });
 

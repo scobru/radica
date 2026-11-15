@@ -32,6 +32,27 @@ test("logfold: community authority comes from the creator and its moderators", (
   assert.deepEqual(foldCommunities([...log].reverse(), []), [c]);
 });
 
+test("logfold: community moderators, owners, and RADICA_MAINTAINER cannot be banned directly", () => {
+  const c = foldCommunities([
+    entry(owner, 1, { type: "community_create", community: { id: "c_safe", name: "Safe" } }),
+    entry(owner, 2, { type: "community_mod_add", community_id: "c_safe", target: mod }),
+    entry(owner, 3, { type: "community_mod_add", community_id: "c_safe", target: user }),
+    // peer moderator attempts to ban another moderator or RADICA_MAINTAINER -> ignored
+    entry(mod, 4, { type: "community_ban", community_id: "c_safe", target: user }),
+    entry(mod, 5, { type: "community_ban", community_id: "c_safe", target: RADICA_MAINTAINER }),
+  ], [])[0];
+  assert.deepEqual(c.banned_members, []);
+  assert.equal(c.moderators.includes(user), true);
+  // after owner demotes user from mod, banning succeeds
+  const afterDemote = foldCommunities([
+    entry(owner, 1, { type: "community_create", community: { id: "c_safe", name: "Safe" } }),
+    entry(owner, 2, { type: "community_mod_add", community_id: "c_safe", target: user }),
+    entry(owner, 3, { type: "community_mod_remove", community_id: "c_safe", target: user }),
+    entry(owner, 4, { type: "community_ban", community_id: "c_safe", target: user }),
+  ], [])[0];
+  assert.deepEqual(afterDemote.banned_members, [user]);
+});
+
 test("logfold: c_radica always includes RADICA_MAINTAINER as moderator", () => {
   const [c] = foldCommunities([], [{
     id: "c_radica",

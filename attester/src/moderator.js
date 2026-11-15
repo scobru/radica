@@ -125,7 +125,8 @@ export function postEdits(entries) {
  * `{ key: "<author>:<id>", text, mark }`, newest first. An edited post reads as its edit and is judged again (`mark`
  * carries the edit's time), so a post cannot pass as harmless and be rewritten afterwards.
  */
-export function freshPosts(feedText, author, judged, now = Date.now(), edits = new Map()) {
+export function freshPosts(feedText, author, judged, now = Date.now(), edits = new Map(), immuneAuthors = new Set()) {
+  if (immuneAuthors.has(author)) return [];
   let feed;
   try {
     feed = JSON.parse(feedText);
@@ -201,6 +202,115 @@ export function confirmsHold(secondOpinion, category) {
  *  that does not know the field still sees a plain report. */
 export function reportBody(post, v, hold = false) {
   return { type: "report", target: post.key, reason: `[AI] ${v.category}: ${v.reason}`.slice(0, 200), ...(hold ? { hold: true } : {}) };
+}
+
+function sortedParsed(entries) {
+  const list = Array.isArray(entries) ? entries : Object.values(entries ?? {});
+  return [...list]
+    .sort((a, b) => (a?.ts ?? 0) - (b?.ts ?? 0) || String(a?.id ?? "").localeCompare(String(b?.id ?? "")))
+    .map((e) => {
+      try { return { e, b: JSON.parse(e.body) }; } catch { return null; }
+    })
+    .filter(Boolean);
+}
+
+/** Minimal community authority state from `communities` log for The Gardener: tracks creator, moderators and banned. */
+export function foldCommunitiesState(entries, maintainer = "") {
+  const map = new Map([
+    ["c_radica", { id: "c_radica", slug: "radica", creator: "system", moderators: new Set(["system", ...(maintainer ? [maintainer] : [])]), banned: new Set() }],
+    ["c_tech", { id: "c_tech", slug: "tech", creator: "system", moderators: new Set(["system"]), banned: new Set() }],
+  ]);
+  for (const { e, b } of sortedParsed(entries)) {
+    const a = e.author;
+    if (b?.type === "community_create") {
+      const id = b.community?.id;
+      if (typeof id !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(id) || map.has(id)) continue;
+      map.set(id, { id, slug: id.slice(2), creator: a, moderators: new Set([a]), banned: new Set() });
+      continue;
+    }
+    const c = map.get(b?.community_id);
+    if (!c) continue;
+    const isMod = a === c.creator || c.moderators.has(a);
+    const t = typeof b.target === "string" ? b.target : "";
+    if (b.type === "community_mod_add" && isMod && t && !c.banned.has(t)) c.moderators.add(t);
+    else if (b.type === "community_mod_remove" && t !== c.creator && (a === c.creator || a === t)) c.moderators.delete(t);
+    else if (b.type === "community_ban" && isMod && t && t !== c.creator && !c.moderators.has(t) && t !== maintainer) c.banned.add(t);
+    else if (b.type === "community_unban" && isMod) c.banned.delete(t);
+  }
+  return [...map.values()];
+}
+
+/** Recent public community chat messages not yet judged and not sent by protected owners/moderators/banned users. */
+export function freshChatMessages(entries, community, seenIds, protectedSet, now = Date.now()) {
+  const roomId = `comm_${community.id}`;
+  const out = [];
+  for (const { e, b } of sortedParsed(entries)) {
+    const m = b?.message;
+    if (b?.type !== "chat" || !m || m.sender !== e.author || m.room_id !== roomId || typeof m.id !== "string") continue;
+    const ts = Number(m.timestamp || e.ts || 0);
+    if (now - ts > DAY) continue;
+    if (protectedSet.has(m.sender) || community.banned?.has(m.sender)) continue;
+    const key = `${community.id}:${m.id}`;
+    if (seenIds.has(key) || typeof m.text !== "string" || m.text.trim().length <= 2) continue;
+    out.push({ key, msgId: m.id, sender: m.sender, text: m.text.slice(0, 1000), ts });
+  }
+  return out;
+}
+
+/** Decide warn -> ban action for a flagged community chat sender; owners/mods/protected keys are always skipped. */
+export function decideChatAction(strikes, communityId, sender, protectedSet) {
+  if (protectedSet.has(sender)) return { action: "skip", nextStrikes: strikes ?? {} };
+  const cur = strikes ?? {};
+  const k = `${communityId}:${sender}`;
+  const prev = Number(cur[k] ?? 0);
+  return { action: prev === 0 ? "warn" : "ban", nextStrikes: { ...cur, [k]: prev + 1 } };
+}
+
+/** Open Greenhouse proposals (`status` not "done" or "not-now"), newest first, honoring `maintainer` + `statusIssuers`. */
+export function openGreenhouseSeeds(entries, maintainer, statusIssuers = []) {
+  const canSetStatus = new Set([maintainer, ...statusIssuers]);
+  const seeds = new Map();
+  const parsed = sortedParsed(entries);
+  for (const { e, b } of parsed) {
+    if (b?.type === "seed" && typeof b.title === "string" && b.title.trim()) {
+      const id = `${e.author}:${e.id}`;
+      seeds.set(id, { id, kind: b.kind === "bug" ? "bug" : "feature", title: b.title.trim().slice(0, 120), text: String(b.text ?? "").slice(0, 1500), author: e.author, ts: e.ts, status: undefined });
+    }
+  }
+  for (const { e, b } of parsed) {
+    const s = typeof b?.seed === "string" ? seeds.get(b.seed) : undefined;
+    if (s && b?.type === "status" && canSetStatus.has(e.author)) s.status = b.status ?? undefined;
+  }
+  return [...seeds.values()].filter((s) => s.status !== "done" && s.status !== "not-now").sort((a, b) => b.ts - a.ts);
+}
+
+/** Build prompt asking the model to match open Greenhouse proposals against recent GitHub commits (only clear fixes). */
+export function buildGithubSyncMessages(seeds, commits) {
+  const system =
+    "You match Radica Greenhouse bug/feature proposals to recent GitHub commits. " +
+    "Only return a match when commit messages clearly show that specific proposal was fixed or implemented. " +
+    'Answer with JSON array only: [{"id":"<seed id>","sha":"<short sha>","confidence":"high"|"low","reason":"<under 12 words>"}]. ' +
+    "When unsure, omit it. Answer [] if none match clearly.";
+  const sTxt = seeds.map((s) => `<seed id="${s.id}" kind="${s.kind}">\n${s.title}\n${s.text.slice(0, 400)}\n</seed>`).join("\n");
+  const cTxt = commits.map((c) => `- ${String(c.sha ?? "").slice(0, 7)}: ${String(c.message ?? "").split("\n")[0].slice(0, 160)}`).join("\n");
+  return [{ role: "system", content: system }, { role: "user", content: `Proposals:\n${sTxt}\n\nRecent commits:\n${cTxt}` }];
+}
+
+/** Keep only `confidence: "high"` matches whose seed `id` exists in `validIds`. */
+export function parseGithubMatches(answer, validIds) {
+  const from = String(answer ?? "").indexOf("["), to = String(answer ?? "").lastIndexOf("]");
+  if (from < 0 || to < from) return [];
+  let list;
+  try { list = JSON.parse(String(answer).slice(from, to + 1)); } catch { return []; }
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const m of list) {
+    if (!m || typeof m.id !== "string" || !validIds.has(m.id) || m.confidence !== "high" || seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push({ id: m.id, sha: String(m.sha ?? "").slice(0, 12), reason: String(m.reason ?? "").slice(0, 120) });
+  }
+  return out;
 }
 
 /** The entry that lifts an earlier report, once an edited post no longer deserves one: same target, `on: false`. */

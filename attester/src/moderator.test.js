@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody, retractBody, budget,
   shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, applyHoldOutcomes, modsOf, HOLD_CATEGORIES,
+  foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
 
 const NOW = 1_800_000_000_000;
@@ -148,4 +149,62 @@ test("applyHoldOutcomes: drops decided holds and never double-counts on subseque
   assert.deepEqual(second.resolved, []);
   assert.deepEqual(second.heldTargets, { [t2]: "scam" });
   assert.deepEqual(second.categoryStats, { threat: { removed: 1, dismissed: 0 } });
+});
+
+test("freshPosts: skips authors in immuneAuthors (owners and moderators)", () => {
+  const f = feed(post("1", "spam link buy now"));
+  assert.equal(freshPosts(f, A, new Set(), NOW, new Map(), new Set([A])).length, 0);
+  assert.equal(freshPosts(f, A, new Set(), NOW, new Map(), new Set([B])).length, 1);
+});
+
+test("foldCommunitiesState + freshChatMessages + decideChatAction: warns then bans users, never bans mods/owners", () => {
+  const bot = "ee".repeat(32);
+  const owner = A, user = B;
+  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
+  const comms = foldCommunitiesState([
+    le(owner, 1, { type: "community_create", community: { id: "c_garden", name: "Garden" } }),
+    le(owner, 2, { type: "community_mod_add", community_id: "c_garden", target: bot }),
+    le(bot, 3, { type: "community_ban", community_id: "c_garden", target: owner }),
+  ]);
+  const comm = comms.find((c) => c.id === "c_garden");
+  assert.ok(comm && comm.moderators.has(bot));
+  assert.equal(comm.banned.has(owner), false); // owner immune
+
+  const chatLog = [
+    le(owner, NOW - 500, { type: "chat", message: { id: "m1", room_id: "comm_c_garden", sender: owner, text: "owner msg", timestamp: NOW - 500 } }, "m1"),
+    le(user, NOW - 400, { type: "chat", message: { id: "m2", room_id: "comm_c_garden", sender: user, text: "buy crypto giveaway!", timestamp: NOW - 400 } }, "m2"),
+  ];
+  const prot = new Set([owner, bot]);
+  const msgs = freshChatMessages(chatLog, comm, new Set(), prot, NOW);
+  assert.deepEqual(msgs.map((m) => m.msgId), ["m2"]);
+
+  assert.equal(decideChatAction({}, "c_garden", owner, prot).action, "skip");
+  const first = decideChatAction({}, "c_garden", user, prot);
+  assert.equal(first.action, "warn");
+  const second = decideChatAction(first.nextStrikes, "c_garden", user, prot);
+  assert.equal(second.action, "ban");
+});
+
+test("openGreenhouseSeeds + parseGithubMatches: honors maintainer/bot statuses and accepts high-confidence commit matches", () => {
+  const bot = "ee".repeat(32);
+  const le = (author, ts, body, id) => ({ author, id, ts, body: JSON.stringify(body) });
+  const entries = [
+    le(A, 1, { type: "seed", kind: "bug", title: "Fix crash on mobile", text: "Mobile feed crashes" }, "s1"),
+    le(A, 2, { type: "seed", kind: "feature", title: "Dark theme", text: "Add dark mode" }, "s2"),
+    le(bot, 3, { type: "status", seed: `${A}:s2`, status: "done" }, "st1"),
+  ];
+  const open = openGreenhouseSeeds(entries, B, [bot]);
+  assert.deepEqual(open.map((s) => s.id), [`${A}:s1`]);
+
+  const msgs = buildGithubSyncMessages(open, [{ sha: "abc1234", message: "fix: resolve crash on mobile feed" }]);
+  assert.equal(msgs.length, 2);
+  const parsed = parseGithubMatches(
+    JSON.stringify([
+      { id: `${A}:s1`, sha: "abc1234", confidence: "high", reason: "Fixes mobile crash" },
+      { id: `${A}:s2`, sha: "abc1234", confidence: "high", reason: "Already closed / not open" },
+      { id: "unknown:1", sha: "abc1234", confidence: "high", reason: "Invalid" },
+    ]),
+    new Set(open.map((s) => s.id))
+  );
+  assert.deepEqual(parsed, [{ id: `${A}:s1`, sha: "abc1234", reason: "Fixes mobile crash" }]);
 });

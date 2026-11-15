@@ -75,8 +75,9 @@ Settings (environment):
 - `MOD_DAILY_REQUESTS` (default 40; ten posts go in one request, plus one more for each post it double-checks before
   holding), `MOD_DAILY_REPORTS` (default 20) and `MOD_DAILY_HOLDS` (default 5): a ceiling per day, so a flood of
   posts or a post written to fool the model cannot use up the quota, fill the queue, or hide too much at once.
-- `RADICA_MAINTAINER`, `RADICA_DEFAULT_MODS` (comma separated): whose blocklists decide a hold's outcome. Defaults to
-  Radica's own (`ui/src/types.ts`); only change these to point the bot at a different deployment's moderation.
+- `RADICA_MAINTAINER`, `RADICA_DEFAULT_MODS` (comma separated): whose blocklists decide a hold's outcome (and who remain immune alongside community owners/moderators). Defaults to Radica's own (`ui/src/types.ts`).
+- `GITHUB_REPO` (default `scobru/radica`), `GH_POLL_MS` (default 30 minutes), `GITHUB_TOKEN` (optional): enables **🌱 The Gardener** to watch public GitHub commits (and mirror/close labeled `greenhouse` Issues when `GITHUB_TOKEN` is set) and automatically set resolved Greenhouse proposals to `done`.
+- **Community chat gardening (opt-in)**: promote the Gardener pubkey to moderator in any public community (`Community Moderation Panel → 🌱 Invite The Gardener`) so it monitors `community-chat/<id>`, posts a warning on a 1st offense, and bans + removes the message on a 2nd offense (private E2EE rooms are never read).
 
 The text of public posts goes to OpenRouter and to the model it picks (see TERMS.md, section 6).
 

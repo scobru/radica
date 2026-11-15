@@ -55,7 +55,8 @@ export function foldGreenhouse(
   tierOf: (author: string) => SupporterTier | undefined,
   me: string,
   maintainer: string,
-  linfaWeightOf: (author: string) => number = () => 0
+  linfaWeightOf: (author: string) => number = () => 0,
+  statusIssuers: readonly string[] = []
 ): Seed[] {
   const weightOf = (author: string): number => {
     const tier = tierOf(author);
@@ -63,6 +64,7 @@ export function foldGreenhouse(
     const lw = Math.max(0, Math.min(3, Math.floor(linfaWeightOf(author) || 0)));
     return Math.max(tw, lw);
   };
+  const canSetStatus = new Set([maintainer, ...statusIssuers]);
   const sorted = [...entries].sort((a, b) => a.ts - b.ts || a.id.localeCompare(b.id));
   const seeds = new Map<string, Seed>();
   for (const e of sorted) {
@@ -81,7 +83,7 @@ export function foldGreenhouse(
     const b = parse(e);
     const seed = typeof b?.seed === "string" ? seeds.get(b.seed) : undefined;
     if (!seed) continue;
-    if (b.type === "status" && e.author === maintainer && (b.status === null || b.status in SEED_STATUSES)) seed.status = b.status ?? undefined;
+    if (b.type === "status" && canSetStatus.has(e.author) && (b.status === null || b.status in SEED_STATUSES)) seed.status = b.status ?? undefined;
     if (b.type === "vote" && weightOf(e.author) > 0 && e.ts >= seed.ts && e.ts <= seed.closes && [-1, 0, 1].includes(b.v))
       votes.set(`${e.author}|${seed.id}`, { seed, author: e.author, v: seed.kind === "bug" ? Math.max(0, b.v) : b.v });
   }
@@ -127,5 +129,31 @@ export function parseGreenhouseHash(hash: string): { isGreenhouse: boolean; seed
 export function greenhousePermalink(seedId: string, baseUrl = ""): string {
   const prefix = baseUrl ? baseUrl.replace(/#.*$/, "") : "";
   return `${prefix}#greenhouse&seed=${encodeURIComponent(seedId)}`;
+}
+
+/** Format one or more Greenhouse seeds into compact Markdown for pasting into an AI coding agent. */
+export function formatSeedsForAi(
+  seeds: Seed[],
+  displayName: (pubkey: string) => string = (pk) => pk.slice(0, 8),
+  onlyOpen = false
+): string {
+  const now = Date.now();
+  const list = onlyOpen ? seeds.filter((s) => s.status !== "done" && s.status !== "not-now" && s.closes > now) : seeds;
+  if (!list.length) return "No open Greenhouse proposals right now.";
+  return list
+    .map((s) => {
+      const status = s.status ? SEED_STATUSES[s.status] : s.closes > now ? "Open" : "Closed";
+      const votes = s.kind === "bug" ? `+${s.up} (${s.voters} voters)` : `+${s.up}/-${s.down} (${s.voters} voters)`;
+      const lines = [
+        `### [${s.kind.toUpperCase()}] ${s.title}`,
+        `- Seed ID: \`${s.id}\``,
+        `- Permalink: ${greenhousePermalink(s.id)}`,
+        `- Author: ${displayName(s.author)} (\`${s.author.slice(0, 12)}\`)`,
+        `- Status: ${status} | Votes: ${votes}`,
+      ];
+      if (s.text.trim()) lines.push("", s.text.trim());
+      return lines.join("\n");
+    })
+    .join("\n\n---\n\n");
 }
 
