@@ -15,6 +15,7 @@ import {
   parseArticlePayload,
   renderArticleFeedCardHtml,
   renderArticleMarkdown,
+  resolveArticleCoverUri,
   saveArticleDraft,
   serializeArticlePayload,
   type ArticlePayload,
@@ -65,6 +66,18 @@ test("articles: serializeArticlePayload and parseArticlePayload round-trip", () 
   assert.equal(parseArticlePayload(new TextEncoder().encode("{}")), null);
   assert.equal(parseArticlePayload(new TextEncoder().encode(JSON.stringify({ ...payload, v: 2 }))), null);
   assert.equal(parseArticlePayload(new TextEncoder().encode(JSON.stringify({ ...payload, author: "short" }))), null);
+
+  // Preserves editedAt and coverRemoved on edited articles
+  const edited: ArticlePayload = {
+    ...payload,
+    editedAt: 1700000100000,
+    coverRemoved: true,
+  };
+  const editedParsed = parseArticlePayload(serializeArticlePayload(edited));
+  assert.deepEqual(editedParsed, edited);
+  assert.equal(resolveArticleCoverUri(editedParsed, "freenet-media:abc"), undefined);
+  assert.equal(resolveArticleCoverUri({ coverUri: "freenet-media:new" }, "freenet-media:old"), "freenet-media:new");
+  assert.equal(resolveArticleCoverUri(null, "freenet-media:old"), "freenet-media:old");
 });
 
 test("articles: formatArticlePostCaption and parseArticleCaption round-trip", () => {

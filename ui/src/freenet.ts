@@ -2083,6 +2083,7 @@ export class FreenetClient {
     const feed = await this.getFeed(identity.pubkey);
     // tombstone even when the post is not in the local copy yet: the network may still hold it
     delete feed.posts[postId];
+    delete this.peerCache[postId];
     const sig = await identity.sign(formatDeleteSignatureMessage(identity.pubkey, postId));
     feed.deleted = { ...feed.deleted, [postId]: { sig, cert: identity.cert } };
     await this.saveFeed(feed, { owner: feed.owner, posts: {}, following: [], deleted: { [postId]: feed.deleted[postId] } });

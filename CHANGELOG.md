@@ -1,6 +1,12 @@
 5.7.1 / 2026-11-15
 ==================
 
+  * **NEW** Edit & Delete Published Articles from Articles UX (`ui/src/articles.ts`, `ui/src/articlesPage.ts`, `ui/src/main.ts`, `ui/src/freenet.ts`, `ui/src/style.css`, `ui/tests/articles.test.ts`):
+    * Added **Edit** and **Delete** actions for the article's author directly in the **Articles & Newsletters** list cards and Reader view (`#articles-modal`).
+    * Editing a published article uploads a revised `ArticlePayload` (preserving `publishedAt`, recording `editedAt`, and supporting cover replacement/removal via `coverRemoved`) and publishes a signed `post-edits` log entry pointing the post to the updated BLAKE3 hash.
+    * `articlesPage.ts` now resolves `freenet.postEdit` captions and displays `Edited` badges in both the list and Reader; clicking the Edit button on an article card in the main Feed now opens the full Markdown Article editor instead of raw post text.
+    * `freenet.deletePost` now also evicts `postId` from `peerCache` so deleted articles/posts do not reappear in Articles or Explore.
+
   * **NEW** Greenhouse Proposal Sharing & Permalinks (`ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `ui/src/main.ts`, `ui/src/caption.ts`, `ui/src/style.css`, `ui/tests/greenhouse.test.ts`, `ui/tests/caption.test.ts`):
     * Added dedicated "Share" action buttons to all Greenhouse proposal and bug report cards.
     * Generates shareable permalinks (`#greenhouse&seed=<author:id>`), copies them to the clipboard with instant visual confirmation (`✓ Copied!`) and toast notifications, and invokes the native mobile share sheet when available.

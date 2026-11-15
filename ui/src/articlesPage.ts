@@ -13,6 +13,7 @@ import {
   parseArticleCaption,
   parseArticlePayload,
   renderArticleMarkdown,
+  resolveArticleCoverUri,
   saveArticleDraft,
   serializeArticlePayload,
   type ArticleDraft,
@@ -34,6 +35,9 @@ export interface ArticlesPageDeps {
   getArticleBytes: (hash: string) => Promise<Uint8Array | null>;
   putArticleBytes: (bytes: Uint8Array) => Promise<string>;
   publishArticlePost: (caption: string, coverUri?: string, isNsfw?: boolean, nsfwScore?: number) => Promise<Post>;
+  getPostEdit?: (author: string, postId: string) => { caption: string; ts: number } | undefined;
+  editArticlePost?: (postId: string, caption: string) => Promise<void>;
+  deleteArticlePost?: (postId: string) => Promise<void>;
   compressCoverImage: (file: File) => Promise<string>;
   getMailIdentity: () => FreenetMailIdentity | null;
   openUserWall: (pubkey: string) => void;
@@ -97,6 +101,13 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
   let activeFilter: ArticlesFilter = "all";
   let activeView: ArticlesView = "list";
   let editingDraftId = "";
+  let editingPublished: {
+    postId: string;
+    author: string;
+    publishedAt: number;
+    hadPostMedia: boolean;
+  } | null = null;
+  let returnToReaderPost: { postId: string; author: string } | null = null;
   let composeCoverUri = "";
   let composeIsNsfw = false;
   let composeNsfwScore = 0;
@@ -117,15 +128,21 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     if (newBtn) newBtn.style.display = view === "list" ? "" : "none";
   }
 
-  function collectArticlePosts(): Array<{ post: Post; ref: ArticleRef }> {
+  function effectiveCaptionOf(post: Post): { caption: string; editedAt?: number } {
+    const edit = deps.getPostEdit?.(post.author, post.id);
+    return { caption: edit?.caption ?? post.caption, editedAt: edit?.ts };
+  }
+
+  function collectArticlePosts(): Array<{ post: Post; ref: ArticleRef; editedAt?: number }> {
     const seen = new Set<string>();
-    const items: Array<{ post: Post; ref: ArticleRef }> = [];
+    const items: Array<{ post: Post; ref: ArticleRef; editedAt?: number }> = [];
     for (const post of deps.getAllPosts()) {
       const key = `${post.author}:${post.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const ref = parseArticleCaption(post.caption);
-      if (ref) items.push({ post, ref });
+      const { caption, editedAt } = effectiveCaptionOf(post);
+      const ref = parseArticleCaption(caption);
+      if (ref) items.push({ post, ref, editedAt });
     }
     items.sort((a, b) => b.post.timestamp - a.post.timestamp);
     return items;
@@ -213,24 +230,29 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     }
 
     gridEl.innerHTML = filtered
-      .map(({ post, ref }) => {
+      .map(({ post, ref, editedAt }) => {
         const authorName = deps.getAuthorName(post.author);
         const avatar = deps.getAuthorAvatar(post.author);
         const dateStr = new Date(post.timestamp).toLocaleDateString();
         const likeCount = Object.values(post.likes || {}).filter((l) => l.liked).length;
         const commentCount = Object.keys(post.comments || {}).length;
+        const cachedPayload = getCachedArticlePayload(ref.hash);
+        const coverUri = resolveArticleCoverUri(cachedPayload, post.media_uri);
+        const effectiveEditedAt = editedAt || cachedPayload?.editedAt;
+        const isMine = Boolean(me && post.author === me);
         const tagsHtml = ref.tags.length
           ? `<div class="article-card-tags">${ref.tags.map((t) => `<span class="article-tag-pill">#${esc(t)}</span>`).join("")}</div>`
           : "";
         return (
           `<article class="article-list-card">` +
-            (post.media_uri ? `<div class="article-list-cover" data-cover-uri="${esc(post.media_uri)}"></div>` : "") +
+            (coverUri ? `<div class="article-list-cover" data-cover-uri="${esc(coverUri)}"></div>` : "") +
             `<div class="article-list-card-body">` +
               `<div class="article-list-author-row">` +
                 `<img class="article-author-avatar" src="${esc(avatar)}" alt="" />` +
                 `<button type="button" class="article-author-link" data-author="${esc(post.author)}">${esc(authorName)}</button>` +
                 `<span class="article-dot">·</span>` +
                 `<span class="article-date">${esc(dateStr)}</span>` +
+                (effectiveEditedAt ? `<span class="article-edited-pill" title="Edited ${esc(new Date(effectiveEditedAt).toLocaleString())}">Edited</span>` : "") +
                 `<span class="article-read-time">${ref.readingMinutes} min read</span>` +
               `</div>` +
               `<h4 class="article-list-card-title">${esc(ref.title)}</h4>` +
@@ -238,7 +260,15 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
               tagsHtml +
               `<div class="article-list-card-actions">` +
                 `<button type="button" class="btn-primary btn-sm article-open-btn" data-post-id="${esc(post.id)}" data-author="${esc(post.author)}" data-hash="${esc(ref.hash)}">Read Article →</button>` +
-                `<span class="article-stat-pill">♥ ${likeCount} · 💬 ${commentCount}</span>` +
+                `<div class="article-list-card-actions-right">` +
+                  `<span class="article-stat-pill">♥ ${likeCount} · 💬 ${commentCount}</span>` +
+                  (isMine && deps.editArticlePost
+                    ? `<button type="button" class="btn-secondary btn-sm article-edit-post-btn" data-post-id="${esc(post.id)}" data-author="${esc(post.author)}" title="Edit article">Edit</button>`
+                    : "") +
+                  (isMine && deps.deleteArticlePost
+                    ? `<button type="button" class="btn-secondary btn-sm article-delete-post-btn" data-post-id="${esc(post.id)}" data-author="${esc(post.author)}" title="Delete article">Delete</button>`
+                    : "") +
+                `</div>` +
               `</div>` +
             `</div>` +
           `</article>`
@@ -271,6 +301,26 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
         if (postId && author && hash) void openReader({ postId, author, hash });
       };
     });
+
+    gridEl.querySelectorAll<HTMLButtonElement>(".article-edit-post-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const postId = btn.dataset.postId;
+        const author = btn.dataset.author;
+        if (!postId || !author) return;
+        btn.disabled = true;
+        void openEditById(postId, author, false).finally(() => {
+          btn.disabled = false;
+        });
+      };
+    });
+
+    gridEl.querySelectorAll<HTMLButtonElement>(".article-delete-post-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const postId = btn.dataset.postId;
+        const author = btn.dataset.author;
+        if (postId && author) void handleDeleteArticle(postId, author);
+      };
+    });
   }
 
   async function resolvePayload(hash: string): Promise<ArticlePayload | null> {
@@ -289,7 +339,8 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     showView("reader");
 
     const post = deps.getAllPosts().find((p) => p.id === target.postId && p.author === target.author);
-    const ref = post ? parseArticleCaption(post.caption) : null;
+    const { caption: effectiveCaption, editedAt: captionEditedAt } = post ? effectiveCaptionOf(post) : { caption: "", editedAt: undefined };
+    const ref = post ? parseArticleCaption(effectiveCaption) : null;
     const hash = target.hash || ref?.hash || "";
 
     const me = deps.getIdentity()?.pubkey || "";
@@ -304,7 +355,8 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     const readingMinutes = payload?.readingMinutes || ref?.readingMinutes || 1;
     const tags = payload?.tags?.length ? payload.tags : ref?.tags || [];
     const publishedAt = payload?.publishedAt || post?.timestamp || Date.now();
-    const coverUri = payload?.coverUri || post?.media_uri;
+    const editedAt = payload?.editedAt || captionEditedAt;
+    const coverUri = resolveArticleCoverUri(payload, post?.media_uri);
     const coverSrc = coverUri ? await deps.getMediaUrl(coverUri) : undefined;
     const bodyHtml = payload
       ? renderArticleMarkdown(payload.body, deps.shouldMaskBadWords?.() ?? true)
@@ -314,6 +366,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     const likedByMe = Boolean(post && me && post.likes?.[me]?.liked);
     const commentCount = post ? Object.keys(post.comments || {}).length : 0;
     const permalink = `${deps.getAppBaseUrl()}#article=${encodeURIComponent(target.postId)}&author=${encodeURIComponent(target.author)}`;
+    const isMine = Boolean(me && target.author === me);
 
     readerView.innerHTML =
       `<div class="article-reader-shell">` +
@@ -321,7 +374,13 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
           `<button type="button" class="btn-secondary btn-sm" id="article-reader-back-btn">← All Articles</button>` +
           `<div class="article-reader-top-actions">` +
             `<button type="button" class="btn-secondary btn-sm" id="article-reader-copy-link-btn">Copy Permalink</button>` +
-            (target.author === me && payload
+            (isMine && post && payload && deps.editArticlePost
+              ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-edit-btn">Edit Article</button>`
+              : "") +
+            (isMine && deps.deleteArticlePost
+              ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-delete-btn">Delete</button>`
+              : "") +
+            (isMine && payload
               ? `<button type="button" class="btn-primary btn-sm" id="article-reader-newsletter-btn">✉ Send as Newsletter</button>`
               : "") +
           `</div>` +
@@ -335,6 +394,9 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
             `<button type="button" class="article-author-link" id="article-reader-author-btn">${esc(authorName)}</button>` +
             `<span class="article-dot">·</span>` +
             `<span>${esc(new Date(publishedAt).toLocaleDateString())}</span>` +
+            (editedAt
+              ? `<span class="article-dot">·</span><span class="article-edited-pill" title="Edited ${esc(new Date(editedAt).toLocaleString())}">Edited ${esc(new Date(editedAt).toLocaleDateString())}</span>`
+              : "") +
             `<span class="article-dot">·</span>` +
             `<span class="article-read-time">${readingMinutes} min read</span>` +
           `</div>` +
@@ -362,6 +424,12 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     document.getElementById("article-reader-copy-link-btn")?.addEventListener("click", () => {
       void navigator.clipboard?.writeText(permalink);
       deps.showToast("Article permalink copied!");
+    });
+    document.getElementById("article-reader-edit-btn")?.addEventListener("click", () => {
+      if (post && payload) openComposerForEdit(post, payload, true);
+    });
+    document.getElementById("article-reader-delete-btn")?.addEventListener("click", () => {
+      void handleDeleteArticle(target.postId, target.author);
     });
     const likeBtn = document.getElementById("article-reader-like-btn") as HTMLButtonElement | null;
     likeBtn?.addEventListener("click", async () => {
@@ -419,6 +487,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
   }
 
   function persistDraftNow() {
+    if (editingPublished) return;
     const me = deps.getIdentity()?.pubkey;
     if (!me) return;
     const title = composeTitleInput?.value.trim() || "";
@@ -440,6 +509,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
   }
 
   function scheduleDraftSave() {
+    if (editingPublished) return;
     if (composeDraftStatusEl) composeDraftStatusEl.textContent = "Saving…";
     clearTimeout(draftTimer);
     draftTimer = setTimeout(persistDraftNow, 700);
@@ -447,21 +517,41 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
 
   function renderCoverPreview() {
     if (!composeCoverPreview) return;
-    if (!composeCoverUri) {
+    const targetUri = composeCoverUri;
+    if (!targetUri) {
       composeCoverPreview.innerHTML = "";
       composeCoverPreview.style.display = "none";
       return;
     }
     composeCoverPreview.style.display = "flex";
     composeCoverPreview.innerHTML =
-      `<img src="${esc(composeCoverUri)}" alt="Cover preview" />` +
+      `<img alt="Cover preview" style="display: none;" />` +
       `<button type="button" class="btn-secondary btn-sm" id="article-compose-cover-clear">Remove cover</button>`;
+    const imgEl = composeCoverPreview.querySelector("img");
+    void deps.getMediaUrl(targetUri).then((src) => {
+      if (composeCoverUri !== targetUri || !imgEl) return;
+      if (src) {
+        imgEl.src = src;
+        imgEl.style.display = "";
+      } else {
+        imgEl.remove();
+      }
+    });
     document.getElementById("article-compose-cover-clear")?.addEventListener("click", () => {
       composeCoverUri = "";
+      composeIsNsfw = false;
+      composeNsfwScore = 0;
       if (composeCoverInput) composeCoverInput.value = "";
       renderCoverPreview();
       scheduleDraftSave();
     });
+  }
+
+  function resetComposeTabs() {
+    if (composeBodyInput) composeBodyInput.style.display = "";
+    if (composePreviewEl) composePreviewEl.style.display = "none";
+    composeWriteTab?.classList.add("active");
+    composePreviewTab?.classList.remove("active");
   }
 
   function openComposer(draft?: ArticleDraft) {
@@ -469,21 +559,103 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
       deps.showToast("Sign in first to write an article.", true);
       return;
     }
+    editingPublished = null;
+    returnToReaderPost = null;
     editingDraftId = draft?.id || "";
     composeCoverUri = draft?.coverUri || "";
+    composeIsNsfw = false;
+    composeNsfwScore = 0;
     if (composeTitleInput) composeTitleInput.value = draft?.title || "";
     if (composeSubInput) composeSubInput.value = draft?.subtitle || "";
     if (composeTagsInput) composeTagsInput.value = draft?.tags?.join(", ") || "";
     if (composeBodyInput) composeBodyInput.value = draft?.body || "";
+    if (composeCoverInput) composeCoverInput.value = "";
     if (composeNewsletterCheck) composeNewsletterCheck.checked = false;
     if (composeDraftStatusEl) composeDraftStatusEl.textContent = draft ? "Draft loaded" : "";
-    if (composeBodyInput) composeBodyInput.style.display = "";
-    if (composePreviewEl) composePreviewEl.style.display = "none";
-    composeWriteTab?.classList.add("active");
-    composePreviewTab?.classList.remove("active");
+    if (composeSaveDraftBtn) composeSaveDraftBtn.style.display = "";
+    if (composePublishBtn) composePublishBtn.textContent = "Publish Article";
+    resetComposeTabs();
     renderCoverPreview();
     updateComposeStats();
     showView("compose");
+  }
+
+  function openComposerForEdit(post: Post, payload: ArticlePayload, fromReader: boolean) {
+    const me = deps.getIdentity()?.pubkey;
+    if (!me || post.author !== me) {
+      deps.showToast("Only the article author can edit this article.", true);
+      return;
+    }
+    if (!deps.editArticlePost) {
+      deps.showToast("Article editing is unavailable right now.", true);
+      return;
+    }
+    clearTimeout(draftTimer);
+    editingDraftId = "";
+    editingPublished = {
+      postId: post.id,
+      author: post.author,
+      publishedAt: payload.publishedAt || post.timestamp,
+      hadPostMedia: Boolean(post.media_uri),
+    };
+    returnToReaderPost = fromReader ? { postId: post.id, author: post.author } : null;
+    composeCoverUri = resolveArticleCoverUri(payload, post.media_uri) || "";
+    composeIsNsfw = Boolean(post.is_nsfw);
+    composeNsfwScore = post.nsfw_score ?? 0;
+    if (composeTitleInput) composeTitleInput.value = payload.title;
+    if (composeSubInput) composeSubInput.value = payload.subtitle || "";
+    if (composeTagsInput) composeTagsInput.value = payload.tags.join(", ");
+    if (composeBodyInput) composeBodyInput.value = payload.body;
+    if (composeCoverInput) composeCoverInput.value = "";
+    if (composeNewsletterCheck) composeNewsletterCheck.checked = false;
+    if (composeDraftStatusEl) composeDraftStatusEl.textContent = "Editing published article";
+    if (composeSaveDraftBtn) composeSaveDraftBtn.style.display = "none";
+    if (composePublishBtn) composePublishBtn.textContent = "Save Changes";
+    resetComposeTabs();
+    renderCoverPreview();
+    updateComposeStats();
+    showView("compose");
+  }
+
+  async function openEditById(postId: string, author: string, fromReader = false) {
+    if (!modal) return;
+    modal.style.display = "flex";
+    const me = deps.getIdentity()?.pubkey;
+    if (!me || author !== me) {
+      deps.showToast("Only the article author can edit this article.", true);
+      return;
+    }
+    const post = deps.getAllPosts().find((p) => p.id === postId && p.author === author);
+    if (!post) {
+      deps.showToast("Article not found.", true);
+      return;
+    }
+    const { caption } = effectiveCaptionOf(post);
+    const ref = parseArticleCaption(caption);
+    if (!ref) {
+      deps.showToast("This post is not a Radica article.", true);
+      return;
+    }
+    const payload = await resolvePayload(ref.hash);
+    if (!payload) {
+      deps.showToast("Article body is still loading from Freenet. Please try again in a moment.", true);
+      return;
+    }
+    openComposerForEdit(post, payload, fromReader);
+  }
+
+  async function handleDeleteArticle(postId: string, author: string) {
+    const me = deps.getIdentity()?.pubkey;
+    if (!me || author !== me || !deps.deleteArticlePost) return;
+    if (!confirm("Delete this article from your Freenet feed?")) return;
+    try {
+      await deps.deleteArticlePost(postId);
+      deps.showToast("Article deleted from Freenet.");
+      showView("list");
+      renderList();
+    } catch (e) {
+      deps.showToast(`Delete failed: ${(e as Error).message}`, true);
+    }
   }
 
   function openNewsletterPanel(data: {
@@ -527,8 +699,17 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     closeBtn?.addEventListener("click", () => deps.closeModal());
     newBtn?.addEventListener("click", () => openComposer());
     composeBackBtn?.addEventListener("click", () => {
-      showView("list");
-      renderList();
+      const targetReader = returnToReaderPost;
+      editingPublished = null;
+      returnToReaderPost = null;
+      if (composeSaveDraftBtn) composeSaveDraftBtn.style.display = "";
+      if (composePublishBtn) composePublishBtn.textContent = "Publish Article";
+      if (targetReader) {
+        void openReader(targetReader);
+      } else {
+        showView("list");
+        renderList();
+      }
     });
 
     searchInput?.addEventListener("input", () => renderList());
@@ -619,47 +800,67 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
         if (!proceed) return;
       }
 
+      const isEditing = editingPublished;
       const readingMinutes = estimateReadingMinutes(body);
       const payload: ArticlePayload = {
         v: 1,
         title,
         subtitle,
         body,
-        coverUri: composeCoverUri || undefined,
+        ...(composeCoverUri
+          ? { coverUri: composeCoverUri }
+          : isEditing?.hadPostMedia
+            ? { coverRemoved: true }
+            : {}),
         tags,
         readingMinutes,
-        publishedAt: Date.now(),
+        publishedAt: isEditing ? isEditing.publishedAt : Date.now(),
+        ...(isEditing ? { editedAt: Date.now() } : {}),
         author: identity.pubkey,
       };
 
       composePublishBtn.disabled = true;
-      composePublishBtn.textContent = "Publishing…";
+      composePublishBtn.textContent = isEditing ? "Saving…" : "Publishing…";
       try {
         const bytes = serializeArticlePayload(payload);
         const hash = await deps.putArticleBytes(bytes);
         cacheArticlePayload(hash, payload);
         const caption = formatArticlePostCaption({ title, subtitle, readingMinutes, tags, hash });
-        const post = await deps.publishArticlePost(caption, composeCoverUri || undefined, composeIsNsfw, composeNsfwScore);
 
-        if (editingDraftId) {
-          deleteArticleDraft(identity.pubkey, editingDraftId);
-          editingDraftId = "";
+        let targetPostId: string;
+        let targetAuthor: string;
+        if (isEditing) {
+          if (!deps.editArticlePost) throw new Error("Article editing is unavailable.");
+          await deps.editArticlePost(isEditing.postId, caption);
+          targetPostId = isEditing.postId;
+          targetAuthor = isEditing.author;
+          editingPublished = null;
+          returnToReaderPost = null;
+          if (composeSaveDraftBtn) composeSaveDraftBtn.style.display = "";
+        } else {
+          const post = await deps.publishArticlePost(caption, composeCoverUri || undefined, composeIsNsfw, composeNsfwScore);
+          targetPostId = post.id;
+          targetAuthor = post.author;
+          if (editingDraftId) {
+            deleteArticleDraft(identity.pubkey, editingDraftId);
+            editingDraftId = "";
+          }
         }
 
         const sendNl = Boolean(composeNewsletterCheck?.checked);
-        deps.showToast("Article published to Freenet!");
+        deps.showToast(isEditing ? "Article updated on Freenet!" : "Article published to Freenet!");
         deps.onPublished?.();
 
-        await openReader({ postId: post.id, author: post.author, hash });
+        await openReader({ postId: targetPostId, author: targetAuthor, hash });
         if (sendNl) {
-          const permalink = `${deps.getAppBaseUrl()}#article=${encodeURIComponent(post.id)}&author=${encodeURIComponent(post.author)}`;
+          const permalink = `${deps.getAppBaseUrl()}#article=${encodeURIComponent(targetPostId)}&author=${encodeURIComponent(targetAuthor)}`;
           openNewsletterPanel({ title, subtitle, body, readingMinutes, permalink });
         }
       } catch (e) {
-        deps.showToast(`Publish failed: ${(e as Error).message}`, true);
+        deps.showToast(`${isEditing ? "Save" : "Publish"} failed: ${(e as Error).message}`, true);
       } finally {
         composePublishBtn.disabled = false;
-        composePublishBtn.textContent = "Publish Article";
+        composePublishBtn.textContent = editingPublished ? "Save Changes" : "Publish Article";
       }
     });
 
@@ -736,6 +937,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
       openComposer();
     },
     openReader,
+    openEdit: (postId: string, author: string) => openEditById(postId, author, false),
     refresh: () => {
       if (modal && modal.style.display !== "none" && activeView === "list") renderList();
     },

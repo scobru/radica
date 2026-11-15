@@ -8548,9 +8548,34 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: auto;
   padding-top: 6px;
+}
+
+.article-list-card-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.article-edited-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.article-delete-post-btn:hover,
+#article-reader-delete-btn:hover {
+  color: var(--danger, #ef4444);
+  border-color: var(--danger, #ef4444);
 }
 
 .article-stat-pill {

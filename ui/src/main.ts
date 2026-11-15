@@ -3177,15 +3177,22 @@ function okToPublish(text: string): boolean {
 function startEditPost(postId: string) {
   const me = currentIdentity?.pubkey;
   const post = timelinePosts.find((p) => p.id === postId && p.author === me);
+  if (!me || !post) return;
+  const currentCaption = freenet.postEdit(me, postId)?.caption ?? post.caption;
+  if (parseArticleCaption(currentCaption)) {
+    closeRailPages(articlesModal);
+    void loadArticlesPage().then((p) => p.openEdit(postId, me));
+    return;
+  }
   const content = document.getElementById(`card-${postId}`)?.querySelector(".gram-content");
-  if (!me || !post || !content || content.querySelector(".edit-post-box")) return;
+  if (!content || content.querySelector(".edit-post-box")) return;
   const box = document.createElement("div");
   box.className = "edit-post-box";
   box.innerHTML = `<textarea class="composer-input edit-post-input" maxlength="4000" aria-label="Edit post"></textarea>
     <div class="edit-post-actions"><button type="button" class="btn-secondary btn-sm edit-post-cancel" data-post-id="${escapeHtml(postId)}">Cancel</button>
     <button type="button" class="btn-primary btn-sm edit-post-save" data-post-id="${escapeHtml(postId)}">Save</button></div>`;
   const input = box.querySelector("textarea")!;
-  input.value = freenet.postEdit(me, postId)?.caption ?? post.caption;
+  input.value = currentCaption;
   const shown = content.querySelector(".gram-caption");
   if (shown) shown.replaceWith(box);
   else content.prepend(box);
@@ -10344,6 +10351,27 @@ function loadArticlesPage() {
         publishArticlePost: (caption, coverUri, isNsfw, nsfwScore) => {
           if (!currentIdentity) throw new Error("Not signed in");
           return freenet.publishPost(currentIdentity, "thought", caption, coverUri, undefined, undefined, undefined, isNsfw, nsfwScore);
+        },
+        getPostEdit: (author, postId) => freenet.postEdit(author, postId),
+        editArticlePost: async (postId, caption) => {
+          await freenet.editPost(postId, caption);
+          cardCache.delete(postId);
+          scheduleRenderTimeline();
+        },
+        deleteArticlePost: async (postId) => {
+          if (!currentIdentity) throw new Error("Not signed in");
+          const prev = [...timelinePosts];
+          timelinePosts = timelinePosts.filter((p) => p.id !== postId);
+          cardCache.delete(postId);
+          if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
+          scheduleRenderTimeline();
+          try {
+            await freenet.deletePost(currentIdentity, postId);
+          } catch (err) {
+            timelinePosts = prev;
+            scheduleRenderTimeline();
+            throw err;
+          }
         },
         compressCoverImage: (file) => compressPostImageFile(file, 1024, 0.8),
         getMailIdentity: () => getOrDeriveFmailIdentity(),

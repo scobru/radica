@@ -19,9 +19,11 @@ export interface ArticlePayload {
   subtitle: string;
   body: string;
   coverUri?: string;
+  coverRemoved?: boolean;
   tags: string[];
   readingMinutes: number;
   publishedAt: number;
+  editedAt?: number;
   author: string; // 64-hex pubkey
 }
 
@@ -97,15 +99,29 @@ export function parseArticlePayload(bytes: Uint8Array): ArticlePayload | null {
       title: obj.title.trim(),
       subtitle: typeof obj.subtitle === "string" ? obj.subtitle.trim() : "",
       body: obj.body,
-      ...(typeof obj.coverUri === "string" && obj.coverUri.trim() ? { coverUri: obj.coverUri.trim() } : {}),
+      ...(obj.coverRemoved === true
+        ? { coverRemoved: true }
+        : typeof obj.coverUri === "string" && obj.coverUri.trim()
+          ? { coverUri: obj.coverUri.trim() }
+          : {}),
       tags: Array.isArray(obj.tags) ? obj.tags.filter((t): t is string => typeof t === "string" && t.length > 0).slice(0, 6) : [],
       readingMinutes: typeof obj.readingMinutes === "number" && obj.readingMinutes > 0 ? Math.round(obj.readingMinutes) : estimateReadingMinutes(obj.body),
       publishedAt: typeof obj.publishedAt === "number" && obj.publishedAt > 0 ? obj.publishedAt : Date.now(),
+      ...(typeof obj.editedAt === "number" && obj.editedAt > 0 ? { editedAt: obj.editedAt } : {}),
       author: obj.author.toLowerCase(),
     };
   } catch {
     return null;
   }
+}
+
+/** Resolve the effective cover URI for an article, respecting explicit removal in an edited payload. */
+export function resolveArticleCoverUri(
+  payload?: Pick<ArticlePayload, "coverUri" | "coverRemoved"> | null,
+  postMediaUri?: string
+): string | undefined {
+  if (payload?.coverRemoved) return undefined;
+  return payload?.coverUri || postMediaUri || undefined;
 }
 
 /**
