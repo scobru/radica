@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1794763808.1445103,
-    "ast_hash": "0183a0f30e51a4793011eeabd9040895",
+    "mtime": 1794764136.144862,
+    "ast_hash": "715d75dd288b96a094701b7863cf90a6",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794762653.7069132,
-    "ast_hash": "2b7255228bfe01d4fc96a3e3047c0b32",
+    "mtime": 1794764144.275522,
+    "ast_hash": "44820e0cffeada319388567909bed19e",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794763816.1156352,
-    "ast_hash": "41f9676b8f8e4f3c0bc030f881b85445",
+    "mtime": 1794764202.3036487,
+    "ast_hash": "4582048d8714110946ab18b0b892ee73",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794762810.282109,
-    "ast_hash": "35bed77be5860e108a55c8b955c9dab4",
+    "mtime": 1794764140.1242776,
+    "ast_hash": "9aa390d6c667c62b72bba9c1ae833c4e",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "ui/src/logfold.ts": {
-    "mtime": 1794762524.0394876,
-    "ast_hash": "f2532c6f65dacfd2c2b8da6b7f63819e",
+    "mtime": 1794764131.5588114,
+    "ast_hash": "a760147f645ad3aaa56efecf9f93ba35",
     "semantic_hash": ""
   },
   "ui/src/network.ts": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794763812.593606,
-    "ast_hash": "242eda2020fbc906eca24d08ce2bcf62",
+    "mtime": 1794764200.196277,
+    "ast_hash": "82e0184e11fea845811ae0b463fff95d",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1794762536.3236444,
-    "ast_hash": "376899c51ef957dfa76e090152184908",
+    "mtime": 1794764171.4314835,
+    "ast_hash": "cac6963e353bf10e03ac231c6ba6ad53",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "attester/src/main.js": {
-    "mtime": 1794762753.043266,
-    "ast_hash": "c8b74e912b94c537ee5f324bdd67cdc1",
+    "mtime": 1794764178.745795,
+    "ast_hash": "7240b61ee449ae116b9e4424ea854f75",
     "semantic_hash": ""
   },
   "attester/start.sh": {
@@ -850,8 +850,8 @@
     "semantic_hash": ""
   },
   "attester/README.md": {
-    "mtime": 1794762819.394984,
-    "ast_hash": "9990a19225cf28b7c9cda04e6828b083",
+    "mtime": 1794764197.8366005,
+    "ast_hash": "bfbd57800fe0dc503d506defd72df1e8",
     "semantic_hash": ""
   },
   "attester/docker-compose.yml": {
@@ -995,8 +995,8 @@
     "semantic_hash": ""
   },
   "ui/tests/logfold.test.ts": {
-    "mtime": 1794762668.5470097,
-    "ast_hash": "cc3bb4e28f37faac31479e75cec7a0aa",
+    "mtime": 1794764195.1335406,
+    "ast_hash": "ca3acd1939edc10ad7ed11757d2bf7af",
     "semantic_hash": ""
   },
   "ui/tests/media.test.ts": {
@@ -1355,8 +1355,8 @@
     "semantic_hash": ""
   },
   "attester/src/moderator.js": {
-    "mtime": 1794762709.8667395,
-    "ast_hash": "d8fcc5eaae754a9f88aae418c69c06aa",
+    "mtime": 1794764174.0144653,
+    "ast_hash": "bdd75c0a44b90d6384a2edca2acd9600",
     "semantic_hash": ""
   },
   "attester/src/moderator.test.js": {

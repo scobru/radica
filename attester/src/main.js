@@ -43,6 +43,7 @@ const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split
 const GITHUB_REPO = env.GITHUB_REPO ?? "scobru/radica";
 const GITHUB_TOKEN = env.GITHUB_TOKEN || "";
 const GH_POLL_MS = Number(env.GH_POLL_MS || 30 * 60_000);
+const GARDENER_COMMUNITIES = env.GARDENER_COMMUNITIES ? new Set(env.GARDENER_COMMUNITIES.split(",").map((s) => s.trim()).filter(Boolean)) : null;
 const TIMEOUT_MS = 45_000;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -190,7 +191,7 @@ async function signCommunityChat(modSk, communityId, text) {
 
 /** Patrol public community chats where The Gardener is an active moderator: warn 1st offense, ban + delete on 2nd. */
 async function chatModPass(api, modSk, modPk, mod, globalProtected, b) {
-  const comms = foldCommunitiesState(await getEntries(api, "communities"), MOD_MAINTAINER).filter((c) => c.moderators.has(modPk));
+  const comms = foldCommunitiesState(await getEntries(api, "communities"), MOD_MAINTAINER, [modPk]).filter((c) => c.moderators.has(modPk) && (!GARDENER_COMMUNITIES || GARDENER_COMMUNITIES.has(c.id)));
   if (!comms.length) return;
   const seenChat = new Set(mod.seenChat ?? []);
   let strikes = { ...(mod.chatStrikes ?? {}) };

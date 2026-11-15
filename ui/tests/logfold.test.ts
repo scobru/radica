@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RADICA_MAINTAINER } from "../src/types.ts";
+import { AI_REPORTERS, RADICA_MAINTAINER } from "../src/types.ts";
 import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
@@ -51,6 +51,25 @@ test("logfold: community moderators, owners, and RADICA_MAINTAINER cannot be ban
     entry(owner, 4, { type: "community_ban", community_id: "c_safe", target: user }),
   ], [])[0];
   assert.deepEqual(afterDemote.banned_members, [user]);
+});
+
+test("logfold: community moderators can remove The Gardener AI bot and bots in system genesis communities", () => {
+  const bot = AI_REPORTERS[0];
+  const comm = foldCommunities([
+    entry(owner, 1, { type: "community_create", community: { id: "c_bot", name: "Bot Room" } }),
+    entry(owner, 2, { type: "community_mod_add", community_id: "c_bot", target: mod }),
+    entry(mod, 3, { type: "community_mod_add", community_id: "c_bot", target: bot }),
+    entry(mod, 4, { type: "community_mod_remove", community_id: "c_bot", target: bot }),
+  ], [])[0];
+  assert.equal(comm.moderators.includes(bot), false);
+  const radica = foldCommunities([
+    entry(RADICA_MAINTAINER, 1, { type: "community_mod_add", community_id: "c_radica", target: bot }),
+    entry(RADICA_MAINTAINER, 2, { type: "community_mod_remove", community_id: "c_radica", target: bot }),
+  ], [{
+    id: "c_radica", name: "Radica Hub", slug: "radica", description: "", created_at: 1,
+    creator: "system", moderators: ["system", RADICA_MAINTAINER], members: [], deleted_post_ids: [], sig: "genesis",
+  }])[0];
+  assert.equal(radica.moderators.includes(bot), false);
 });
 
 test("logfold: c_radica always includes RADICA_MAINTAINER as moderator", () => {

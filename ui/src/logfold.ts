@@ -1,6 +1,6 @@
 // Turning the signed entries of a log (log-contract) into app state. The contract guarantees who wrote each entry;
 // what an author may do (moderate, edit a community) is decided here, by replaying entries in a fixed order.
-import { RADICA_MAINTAINER, type ChatMessage, type Community, type PrivateRoom } from "./types.ts";
+import { AI_REPORTERS, RADICA_MAINTAINER, type ChatMessage, type Community, type PrivateRoom } from "./types.ts";
 import type { Cert } from "./whoiam.ts";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { ANNOUNCE_POW_BITS, powBits } from "./pow.ts";
@@ -90,7 +90,8 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
         if (isMod(c, a) && t && !banned.includes(t) && !c.moderators.includes(t)) c.moderators.push(t);
         break;
       case "community_mod_remove":
-        if (t !== c.creator && (a === c.creator || a === t)) c.moderators = c.moderators.filter((m) => m !== t);
+        if (t !== c.creator && (a === c.creator || a === t || (isMod(c, a) && (AI_REPORTERS.includes(t) || c.creator === "system"))))
+          c.moderators = c.moderators.filter((m) => m !== t);
         break;
       case "community_ban":
         // Moderators, the creator/owner, and Radica's maintainer cannot be banned directly (creator must demote a mod first).

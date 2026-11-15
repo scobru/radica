@@ -10092,19 +10092,19 @@ function openModerationPanel(comm: Community) {
       .join("");
   }
 
+  const gardenerRow = document.getElementById("comm-gardener-row") as HTMLElement | null;
   const gardenerBtn = document.getElementById("comm-gardener-btn") as HTMLButtonElement | null;
   const gardenerPk = AI_REPORTERS[0];
-  if (gardenerBtn && gardenerPk) {
+  const isCommMod = currentIdentity!.pubkey === comm.creator || comm.moderators.includes(currentIdentity!.pubkey);
+  if (gardenerRow) gardenerRow.style.display = isCommMod && gardenerPk ? "flex" : "none";
+  if (gardenerBtn && gardenerPk && isCommMod) {
     const hasGardener = comm.moderators.includes(gardenerPk);
-    const canRemoveGardener = hasGardener && currentIdentity!.pubkey === comm.creator;
-    gardenerBtn.disabled = hasGardener && !canRemoveGardener;
-    gardenerBtn.textContent = !hasGardener
-      ? "🌱 Invite The Gardener"
-      : canRemoveGardener
-        ? "Remove The Gardener"
-        : "🌱 The Gardener active";
+    gardenerBtn.disabled = false;
+    gardenerBtn.className = hasGardener ? "btn-danger btn-sm" : "btn-secondary btn-sm";
+    gardenerBtn.textContent = hasGardener ? "🗑️ Delete Gardener" : "🌱 Add Gardener";
     gardenerBtn.onclick = async () => {
       if (!currentIdentity) return;
+      if (hasGardener && !confirm(`Remove 🌱 The Gardener from r/${comm.slug}?`)) return;
       const res = hasGardener
         ? await freenet.removeCommunityModerator(currentIdentity, comm.id, gardenerPk)
         : await freenet.addCommunityModerator(currentIdentity, comm.id, gardenerPk);

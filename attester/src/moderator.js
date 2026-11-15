@@ -215,7 +215,8 @@ function sortedParsed(entries) {
 }
 
 /** Minimal community authority state from `communities` log for The Gardener: tracks creator, moderators and banned. */
-export function foldCommunitiesState(entries, maintainer = "") {
+export function foldCommunitiesState(entries, maintainer = "", botKeys = []) {
+  const bots = new Set(botKeys);
   const map = new Map([
     ["c_radica", { id: "c_radica", slug: "radica", creator: "system", moderators: new Set(["system", ...(maintainer ? [maintainer] : [])]), banned: new Set() }],
     ["c_tech", { id: "c_tech", slug: "tech", creator: "system", moderators: new Set(["system"]), banned: new Set() }],
@@ -233,7 +234,7 @@ export function foldCommunitiesState(entries, maintainer = "") {
     const isMod = a === c.creator || c.moderators.has(a);
     const t = typeof b.target === "string" ? b.target : "";
     if (b.type === "community_mod_add" && isMod && t && !c.banned.has(t)) c.moderators.add(t);
-    else if (b.type === "community_mod_remove" && t !== c.creator && (a === c.creator || a === t)) c.moderators.delete(t);
+    else if (b.type === "community_mod_remove" && t !== c.creator && (a === c.creator || a === t || (isMod && (bots.has(t) || c.creator === "system")))) c.moderators.delete(t);
     else if (b.type === "community_ban" && isMod && t && t !== c.creator && !c.moderators.has(t) && t !== maintainer) c.banned.add(t);
     else if (b.type === "community_unban" && isMod) c.banned.delete(t);
   }

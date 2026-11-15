@@ -15,6 +15,7 @@ export { computeSafetyBlocks, shouldHydratePreview, shouldUpdateCachedPreview, t
 import { personaName } from "./crypto.ts";
 import { plainMentions, renderChatText } from "./caption.ts";
 import { CHAT_REACTIONS } from "./logfold.ts";
+import { AI_REPORTERS } from "./types.ts";
 import { safeStorage } from "./storage.ts";
 import { durable } from "./durable.ts";
 import { generateDefaultAvatar, compressAvatarFile } from "./avatar.ts";
@@ -2390,6 +2391,8 @@ export function createMessengerChat(deps: MessengerDeps) {
         })
         .join("");
 
+      const gardenerPk = AI_REPORTERS[0];
+      const hasGardener = !!(gardenerPk && comm.moderators.includes(gardenerPk));
       drawerContentEl.innerHTML = `
         <div class="rm-drawer-hero">
           <div class="rm-drawer-monogram rm-room-monogram comm">${escapeHtml(makeMonogram(comm.slug, true))}</div>
@@ -2398,6 +2401,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           ${comm.description ? `<p style="font-size:0.79rem;color:var(--rm-text-secondary);margin:8px 0 0;">${escapeHtml(comm.description)}</p>` : ""}
           <div class="rm-quick-tiles">
             <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span></button>
+            ${isUserMod && gardenerPk ? `<button type="button" class="rm-tile-btn" data-comm-gardener="${hasGardener ? "0" : "1"}"><span>${hasGardener ? "🗑️" : "🌱"}</span><span>${hasGardener ? "Delete Gardener" : "Add Gardener"}</span></button>` : ""}
             ${isUserMod ? `<button type="button" class="rm-tile-btn" data-clear-chat="1">${renderIcon("trash2", { size: 18 })}<span>Clear</span></button>` : ""}
           </div>
         </div>
@@ -3309,6 +3313,23 @@ export function createMessengerChat(deps: MessengerDeps) {
         else alert(res.msg);
       } catch (err: any) {
         alert(`Could not ban member: ${err.message || err}`);
+      }
+      return;
+    }
+
+    const gardenerBtn = t.closest<HTMLElement>("[data-comm-gardener]");
+    if (gardenerBtn && st.community && AI_REPORTERS[0]) {
+      const add = gardenerBtn.dataset.commGardener === "1";
+      if (!add && !confirm(`Remove 🌱 The Gardener from #r/${st.community.slug}?`)) return;
+      try {
+        const res = add
+          ? await freenet.addCommunityModerator(identity, st.community.id, AI_REPORTERS[0])
+          : await freenet.removeCommunityModerator(identity, st.community.id, AI_REPORTERS[0]);
+        deps.showToast(res.msg, res.success ? "info" : "warning");
+        const updated = res.success ? await freenet.getCommunity(st.community.id) : null;
+        if (updated) await deps.onSelectCommunity(updated);
+      } catch (err: any) {
+        alert(`Could not update Gardener: ${err.message || err}`);
       }
       return;
     }

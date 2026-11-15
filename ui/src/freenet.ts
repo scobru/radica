@@ -3344,11 +3344,13 @@ export class FreenetClient {
     if (modPubkey === comm.creator) {
       return { success: false, msg: "The community creator/owner cannot be demoted!" };
     }
-    if (identity.pubkey !== comm.creator && identity.pubkey !== modPubkey) {
-      return { success: false, msg: "Only the community creator can demote moderators." };
+    const isMod = identity.pubkey === comm.creator || comm.moderators.includes(identity.pubkey);
+    const canRemoveTarget = identity.pubkey === comm.creator || identity.pubkey === modPubkey || (isMod && (AI_REPORTERS.includes(modPubkey) || comm.creator === "system"));
+    if (!canRemoveTarget) {
+      return { success: false, msg: "Only the community creator (or a moderator for bots/genesis rooms) can remove this moderator." };
     }
     await this.communityEvent("community_mod_remove", comm.id, { target: modPubkey });
-    return { success: true, msg: "Moderator removed." };
+    return { success: true, msg: AI_REPORTERS.includes(modPubkey) ? "The Gardener removed." : "Moderator removed." };
   }
 
   public async banMemberFromCommunity(
