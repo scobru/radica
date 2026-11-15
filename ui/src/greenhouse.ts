@@ -99,3 +99,33 @@ export function foldGreenhouse(
     return ao ? b.up - b.down - (a.up - a.down) || b.ts - a.ts : b.closes - a.closes;
   });
 }
+
+/**
+ * Parse a URL hash for Greenhouse navigation.
+ * Supports:
+ * - #greenhouse (open greenhouse)
+ * - #greenhouse&seed=<author:id>
+ * - #seed=<author:id>
+ * - #greenhouse=<author:id>
+ */
+export function parseGreenhouseHash(hash: string): { isGreenhouse: boolean; seedId?: string } {
+  const clean = (hash || "").replace(/^#/, "");
+  if (!clean) return { isGreenhouse: false };
+  if (clean === "greenhouse") return { isGreenhouse: true, seedId: undefined };
+  const params = new URLSearchParams(clean);
+  const hasGreenhouse = params.has("greenhouse") || clean.startsWith("greenhouse");
+  const seed = params.get("seed")?.trim();
+  const ghVal = params.get("greenhouse")?.trim();
+  const seedId = seed || (ghVal && ghVal !== "1" && ghVal !== "true" ? ghVal : undefined);
+  if (hasGreenhouse || seedId) {
+    return { isGreenhouse: true, seedId: seedId || undefined };
+  }
+  return { isGreenhouse: false };
+}
+
+/** Construct a shareable permalink to a Greenhouse proposal / voting. */
+export function greenhousePermalink(seedId: string, baseUrl = ""): string {
+  const prefix = baseUrl ? baseUrl.replace(/#.*$/, "") : "";
+  return `${prefix}#greenhouse&seed=${encodeURIComponent(seedId)}`;
+}
+

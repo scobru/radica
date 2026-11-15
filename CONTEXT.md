@@ -48,6 +48,12 @@ Terms the code and its reviews use. Keep them exact.
 - **Plant** — the SVG drawn for a Linfa (`plant.ts`). Its whole shape comes from the persona's key; the Linfa only says how far along its life it is, so it never reshuffles.
 - **Fresh growth** — the leaves that appeared in the last seven days, drawn lighter.
 - **Living Tree** — the network-wide botanical graph (`treeGraph.ts`, `treePage.ts`, `#tree-modal`): underground roots are known personas arranged by Web-of-Trust tier, upper boughs are communities (`r/slug`) and post categories, branches are posts, and leaves are replies. Its vitality stage (`Seed` to `Ancient Yggdrasil`) is counted locally from what this node holds, never stored.
+
+## Greenhouse
+
+- **Greenhouse** (`ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `#greenhouse-modal`) — community idea and bug report voting board where supporters (Sprout, Root, Oak) and active Linfa members (Sapling+) plant seeds and cast weighted votes.
+- **Greenhouse Permalink** (`#greenhouse&seed=<author:id>` / `#seed=<author:id>`) — shareable deep link to a specific proposal or voting, parsed by `parseGreenhouseHash`, formatted inline in captions as `↪ Greenhouse proposal`, and scrolled/flashed upon opening.
+
 - **Greenhouse Linfa weight** (`linfaGreenhouseWeight` in `linfa.ts`) — Sybil-resistant governance weight for non-supporters in Greenhouse (`greenhouse.ts`). Ignores Tier-0 strangers, enforces `MIN_TRUSTED_RECEIVED = 2` from the reader's web of trust, caps unilateral `given` (`3×`) and `posting` (`2×`) relative to trusted feedback received, and maps effective Linfa to weight `1` (Sapling/Young tree `12+`), `2` (Tree `120+`), or `3` (Elder tree `300+`). Effective vote/proposal weight is `Math.max(tierWeight, linfaWeight)`.
 
 ## Mail

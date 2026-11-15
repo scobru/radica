@@ -3224,7 +3224,8 @@ body {
 }
 
 /* the post a notification opened */
-.gram-card.notif-flash {
+.gram-card.notif-flash,
+.gh-seed.notif-flash {
   animation: notif-flash 2.5s ease-out;
 }
 
@@ -3234,7 +3235,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gram-card.notif-flash { animation: none; background: var(--primary-soft); }
+  .gram-card.notif-flash,
+  .gh-seed.notif-flash { animation: none; background: var(--primary-soft); }
 }
 
 .gram-card {
@@ -6127,11 +6129,19 @@ html[data-fullwidth="true"] #width-toggle-btn {
 .gh-seed-votes {
   display: flex;
   gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 .gh-seed-votes .active {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
+}
+.gh-seed-votes .gh-share-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Supporters run on Base Sepolia for now. shortcut: remove every .testnet-note (index.html) and this rule at the mainnet switch */

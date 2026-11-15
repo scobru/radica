@@ -200,6 +200,10 @@ function resolve(
     if (plainUserRef && !customLabel) {
       return { href, label: `\u21AA ${nameOf(plainUserRef[1])}'s Wall` };
     }
+    const plainGhRef = /#(?:greenhouse(?:&seed=([^&\s]+))?|seed=([^&\s]+))/.exec(url);
+    if (plainGhRef && !customLabel) {
+      return { href, label: plainGhRef[1] || plainGhRef[2] ? `\u21AA Greenhouse proposal` : `\u21AA Greenhouse` };
+    }
     return { href, label: customLabel ?? webLabel(url) };
   }
   const [, id, path] = m;
@@ -209,6 +213,10 @@ function resolve(
   const userRef = /#(?:user|wall)=([0-9a-f]{64})/.exec(path);
   if (userRef && !customLabel) {
     return { href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`, label: `\u21AA ${nameOf(userRef[1])}'s Wall` };
+  }
+  const ghRef = /#(?:greenhouse(?:&seed=([^&\s]+))?|seed=([^&\s]+))/.exec(path);
+  if (ghRef && !customLabel) {
+    return { href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`, label: ghRef[1] || ghRef[2] ? `\u21AA Greenhouse proposal` : `\u21AA Greenhouse` };
   }
   return {
     href: `${nodeOrigin()}/v1/contract/web/${id}/${path}`,

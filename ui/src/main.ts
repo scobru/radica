@@ -131,6 +131,7 @@ import type {
 } from "./types.ts";
 import { initSupporterPanel, renderSupporterStatus } from "./supporterPanel.ts";
 import { initGreenhouse, openGreenhouse } from "./greenhousePage.ts";
+import { parseGreenhouseHash } from "./greenhouse.ts";
 import { foldSupporters, getStoredReceipt } from "./supporter.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 import { savedPosts, toggleSaved, isSaved } from "./savedPosts.ts";
@@ -3401,6 +3402,20 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
     }
     void handleJoinFromInviteUrl(href);
     return;
+  }
+  if (/#(?:greenhouse|seed=)/i.test(href)) {
+    try {
+      const u = new URL(href, window.location.href);
+      const ghHash = parseGreenhouseHash(u.hash);
+      if (ghHash.isGreenhouse) {
+        e.preventDefault();
+        closeRailPages(greenhouseModal);
+        greenhouseModal.style.display = "flex";
+        document.body.classList.add("page-open");
+        void openGreenhouse(ghHash.seedId);
+        return;
+      }
+    } catch {}
   }
   if (/#board=[^&]+/.test(href)) {
     const u = new URL(href, window.location.href);
@@ -8926,6 +8941,19 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
     return;
   }
 
+  const ghHash = parseGreenhouseHash(hash);
+  if (ghHash.isGreenhouse) {
+    try {
+      closeRailPages(greenhouseModal);
+      greenhouseModal.style.display = "flex";
+      document.body.classList.add("page-open");
+      await openGreenhouse(ghHash.seedId);
+    } catch (err) {
+      console.warn("Could not navigate to Greenhouse from hash:", err);
+    }
+    return;
+  }
+
   const boardHash = parseBoardHash(hash);
   if (boardHash?.owner) {
     try {
@@ -10742,34 +10770,6 @@ redditPublishBtn.addEventListener("click", async () => {
       redditPublishBtn.textContent = "Uploading image…";
       const compressed = await compressPostImageFile(redditStagedFile);
       const bytes = dataUrlBytes(compressed) ?? new Uint8Array(await redditStagedFile.arrayBuffer());
-      const hash = await freenet.putMedia(bytes);
-      mediaUri = MEDIA_PREFIX + hash;
-    }
-
-    let powProof: PoWProof | undefined;
-    if (!vouchedForAll) {
-      redditPublishBtn.textContent = "Anti-bot PoW…";
-      powProof = await solvePoW(currentIdentity.pubkey, now, POST_POW_BITS, "post");
-    }
-
-    const loc = redditComposeFlair === "event" ? redditEventLocation.value.trim() || undefined : undefined;
-    const evDate = redditComposeFlair === "event" ? redditEventDate.value.trim() || undefined : undefined;
-    const post = await freenet.publishPost(
-      currentIdentity,
-      redditComposeFlair,
-      rawCaption,
-      mediaUri,
-      loc,
-      evDate,
-      commId,
-      false,
-      0,
-      powProof,
-    );
-    timelinePosts.unshift(post);
-    lastPostTime = now;
-    recentPostTimestamps.push(now);
-    if (normalizedCaption) {
       recentPostContents.push(normalizedCaption);
       if (recentPostContents.length > 5) recentPostContents.shift();
     }
@@ -12565,6 +12565,7 @@ identityPubkeyVal.addEventListener("click", () => {
 initGreenhouse({
   whoAmI: () => currentIdentity?.pubkey ?? null,
   displayName: getAuthorDisplayName,
+  showToast: (msg, type) => showToast(msg, type),
   linfaForAuthors: async (authors) => {
     if (!currentIdentity) return { weights: new Map() };
     const [seen, feeds] = await Promise.all([
@@ -12924,7 +12925,7 @@ async function init() {
     freenetStatusLabel.textContent = "Local-First Storage";
     freenetStatusLabel.title = `Freenet node unreachable: ${freenet.connectError}`;
   }
-  if (/(?:post|user|wall)=/.test(postLink)) void checkUrlPostHash(postLink);
+  if (postLink) void checkUrlPostHash(postLink);
 
   // Load Timeline (Explore by default so all posts on network are immediately visible)
   bootStep("Loading posts…");

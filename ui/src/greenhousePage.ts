@@ -5,9 +5,10 @@ import { safeStorage } from "./storage";
 import { escapeHtml } from "./html.ts";
 import { renderChatText } from "./caption.ts";
 import { verifyReceipt, supporterStorageKey, type SupporterTier } from "./supporter.ts";
-import { foldGreenhouse, greenhouseTokens, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
+import { foldGreenhouse, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
 import { RADICA_MAINTAINER } from "./types.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
+import { renderIcon } from "./icons.ts";
 
 export interface GreenhouseLinfaInfo {
   weights: Map<string, number>;
@@ -18,7 +19,9 @@ export interface GreenhouseLinfaInfo {
 let whoAmI: () => string | null = () => null;
 let displayName: (pubkey: string) => string = (pk) => pk.slice(0, 8);
 let linfaForAuthors: (authors: string[]) => Promise<GreenhouseLinfaInfo> = async () => ({ weights: new Map() });
+let showToastNotice: ((msg: string, type?: "info" | "warning" | "error") => void) | undefined;
 let myLinfaWeight = 0;
+let targetSeedToFocus: string | null = null;
 const verified = new Map<string, SupporterTier | null>(); // `${author}|${token}` -> tier, or null when it does not verify
 
 const myGhostkey = (): string | null => {
@@ -69,11 +72,16 @@ function seedHtml(s: Seed, canVote: boolean, isMaintainer: boolean): string {
     : s.status
       ? `<span class="identity-badge">${SEED_STATUSES[s.status]}</span>`
       : "";
-  return `<div class="gh-seed${open ? "" : " closed"}">
+  return `<div class="gh-seed${open ? "" : " closed"}" id="gh-seed-${escapeHtml(s.id)}" data-gh-seed="${escapeHtml(s.id)}">
     <div class="gh-seed-head"><span class="identity-badge">${s.kind === "bug" ? "🐛 Bug" : "💡 Feature"}</span><strong>${escapeHtml(s.title)}</strong></div>
     ${s.text ? `<div class="gh-seed-text">${renderChatText(s.text, displayName)}</div>` : ""}
     <div class="gh-seed-meta">by <span class="author-clickable" data-author="${escapeHtml(s.author)}">${escapeHtml(displayName(s.author))}</span> · ${outcome} · ${s.voters} ${s.voters === 1 ? "voter" : "voters"} ${status}</div>
-    <div class="gh-seed-votes">${vote(1, `▲ ${s.up}`, s.kind === "bug" ? "Me too" : "I want this")}${s.kind === "feature" ? vote(-1, `▼ ${s.down}`, "I don't want this") : ""}</div>
+    <div class="gh-seed-votes">
+      ${vote(1, `▲ ${s.up}`, s.kind === "bug" ? "Me too" : "I want this")}${s.kind === "feature" ? vote(-1, `▼ ${s.down}`, "I don't want this") : ""}
+      <button type="button" class="btn-secondary btn-xs gh-share-btn" data-gh-share="${escapeHtml(s.id)}" data-gh-title="${escapeHtml(s.title)}" title="Share link to this proposal">
+        ${renderIcon("share2", { className: "icon-xs" })} Share
+      </button>
+    </div>
   </div>`;
 }
 
@@ -111,14 +119,72 @@ async function append(body: object): Promise<void> {
   await renderGreenhouse();
 }
 
+async function handleShareSeed(btn: HTMLButtonElement): Promise<void> {
+  const seedId = btn.dataset.ghShare;
+  if (!seedId) return;
+  const title = btn.dataset.ghTitle || "Greenhouse Proposal";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const permalink = greenhousePermalink(seedId, `${origin}${pathname}`);
+
+  const origHtml = btn.innerHTML;
+  const markCopied = () => {
+    btn.innerHTML = `${renderIcon("check", { className: "icon-xs" })} Copied!`;
+    setTimeout(() => {
+      btn.innerHTML = origHtml;
+    }, 2000);
+    showToastNotice?.("Greenhouse proposal link copied to clipboard!", "info");
+  };
+
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(permalink);
+      markCopied();
+    } else {
+      prompt("Copy proposal link:", permalink);
+    }
+  } catch {
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: `Radica Greenhouse: ${title}`,
+          text: `Vote on "${title}" in the Radica Greenhouse`,
+          url: permalink,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+    prompt("Copy proposal link:", permalink);
+  }
+}
+
+export function focusGreenhouseSeed(seedId: string): boolean {
+  const list = document.getElementById("greenhouse-list");
+  if (!list) return false;
+  const card =
+    list.querySelector<HTMLElement>(`[data-gh-seed="${CSS.escape(seedId)}"]`) ||
+    document.getElementById(`gh-seed-${seedId}`);
+  if (card) {
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+    card.classList.add("notif-flash");
+    setTimeout(() => card.classList.remove("notif-flash"), 2500);
+    return true;
+  }
+  return false;
+}
+
 export function initGreenhouse(deps: {
   whoAmI: () => string | null;
   displayName: (pubkey: string) => string;
   linfaForAuthors?: (authors: string[]) => Promise<GreenhouseLinfaInfo>;
+  showToast?: (msg: string, type?: "info" | "warning" | "error") => void;
 }): void {
   whoAmI = deps.whoAmI;
   displayName = deps.displayName;
   if (deps.linfaForAuthors) linfaForAuthors = deps.linfaForAuthors;
+  showToastNotice = deps.showToast;
   const days = document.getElementById("greenhouse-days") as HTMLSelectElement | null;
   if (days) days.innerHTML = SEED_DAYS.map((d) => `<option value="${d}"${d === 14 ? " selected" : ""}>${d} days</option>`).join("");
   const weights = document.getElementById("greenhouse-weights");
@@ -145,11 +211,18 @@ export function initGreenhouse(deps: {
 
   const list = document.getElementById("greenhouse-list");
   list?.addEventListener("click", (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-vote]");
-    if (!btn) return;
-    const v = Number(btn.dataset.ghVote);
-    // pressing my current vote again takes it back
-    void append({ type: "vote", seed: btn.dataset.ghSeed, v: btn.classList.contains("active") ? 0 : v }).catch((err) => alert(`Could not vote: ${err.message || err}`));
+    const voteBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-vote]");
+    if (voteBtn) {
+      const v = Number(voteBtn.dataset.ghVote);
+      // pressing my current vote again takes it back
+      void append({ type: "vote", seed: voteBtn.dataset.ghSeed, v: voteBtn.classList.contains("active") ? 0 : v }).catch((err) => alert(`Could not vote: ${err.message || err}`));
+      return;
+    }
+    const shareBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-share]");
+    if (shareBtn) {
+      void handleShareSeed(shareBtn);
+      return;
+    }
   });
   list?.addEventListener("change", (e) => {
     const sel = (e.target as HTMLElement).closest<HTMLSelectElement>(".gh-status");
@@ -161,16 +234,24 @@ const greenhouseLoaderHtml = (msg = "Loading Greenhouse proposals…") =>
   `<div class="greenhouse-loader" role="status" aria-live="polite"><div class="boot-bar"><span></span></div><p>${msg}</p></div>`;
 
 /** Open the page: draw what is here, then what the network has. */
-export async function openGreenhouse(): Promise<void> {
+export async function openGreenhouse(targetSeedId?: string): Promise<void> {
+  if (targetSeedId) targetSeedToFocus = targetSeedId;
   const list = document.getElementById("greenhouse-list");
   const hadSeeds = !!list?.querySelector(".gh-seed");
   if (list && !hadSeeds) {
     list.innerHTML = greenhouseLoaderHtml("Loading Greenhouse proposals…");
   }
   await renderGreenhouse();
+  if (targetSeedToFocus && focusGreenhouseSeed(targetSeedToFocus)) {
+    targetSeedToFocus = null;
+  }
   if (list && !list.querySelector(".gh-seed")) {
     list.innerHTML = greenhouseLoaderHtml("Fetching proposals from the network…");
   }
   await freenet.refreshLog("greenhouse").catch(() => {});
   await renderGreenhouse();
+  if (targetSeedToFocus) {
+    focusGreenhouseSeed(targetSeedToFocus);
+    targetSeedToFocus = null;
+  }
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { foldGreenhouse, greenhouseTokens } from "../src/greenhouse.ts";
+import { foldGreenhouse, greenhouseTokens, parseGreenhouseHash, greenhousePermalink } from "../src/greenhouse.ts";
 import type { LogEntry } from "../src/logfold.ts";
 import type { SupporterTier } from "../src/supporter.ts";
 
@@ -80,3 +80,30 @@ test("non-supporters with Sapling+ Linfa can plant and vote, taking the max of s
   assert.equal(out[0].title, "Linfa proposal");
   assert.deepEqual([out[0].up, out[0].down, out[0].voters], [5, 0, 2]);
 });
+
+test("greenhousePermalink builds a clean shareable URL hash", () => {
+  assert.equal(greenhousePermalink("alice:e1"), "#greenhouse&seed=alice%3Ae1");
+  assert.equal(
+    greenhousePermalink("alice:e1", "https://radica.eth/#post=123"),
+    "https://radica.eth/#greenhouse&seed=alice%3Ae1"
+  );
+});
+
+test("parseGreenhouseHash extracts greenhouse modal navigation and targeted seed id", () => {
+  assert.deepEqual(parseGreenhouseHash(""), { isGreenhouse: false });
+  assert.deepEqual(parseGreenhouseHash("#post=123"), { isGreenhouse: false });
+  assert.deepEqual(parseGreenhouseHash("#greenhouse"), { isGreenhouse: true, seedId: undefined });
+  assert.deepEqual(parseGreenhouseHash("#greenhouse&seed=alice%3Ae1"), {
+    isGreenhouse: true,
+    seedId: "alice:e1",
+  });
+  assert.deepEqual(parseGreenhouseHash("#seed=bob%3Ae2"), {
+    isGreenhouse: true,
+    seedId: "bob:e2",
+  });
+  assert.deepEqual(parseGreenhouseHash("#greenhouse=carol%3Ae3"), {
+    isGreenhouse: true,
+    seedId: "carol:e3",
+  });
+});
+

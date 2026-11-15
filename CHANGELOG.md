@@ -1,3 +1,12 @@
+5.7.1 / 2026-11-15
+==================
+
+  * **NEW** Greenhouse Proposal Sharing & Permalinks (`ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `ui/src/main.ts`, `ui/src/caption.ts`, `ui/src/style.css`, `ui/tests/greenhouse.test.ts`, `ui/tests/caption.test.ts`):
+    * Added dedicated "Share" action buttons to all Greenhouse proposal and bug report cards.
+    * Generates shareable permalinks (`#greenhouse&seed=<author:id>`), copies them to the clipboard with instant visual confirmation (`✓ Copied!`) and toast notifications, and invokes the native mobile share sheet when available.
+    * Added deep linking navigation support: opening a `#greenhouse&seed=...` or `#seed=...` link automatically opens the Greenhouse rail page, loads the proposal log, scrolls directly to the targeted seed card, and applies a smooth notification flash highlight.
+    * Enhanced caption and chat linkification in `caption.ts` and `main.ts` so shared Greenhouse links automatically format as clean `↪ Greenhouse proposal` link pills.
+
 5.7.0 / 2026-11-14
 ==================
 

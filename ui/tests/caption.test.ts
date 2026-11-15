@@ -224,6 +224,18 @@ test("caption: user and wall permalinks format cleanly with display name", () =>
   assert.match(byWebUrl, />↪ holdmylatte&#39;s Wall<\/a>$/);
 });
 
+test("caption: greenhouse proposal permalinks format cleanly", () => {
+  const ghGeneral = renderCaption("https://radica.example/#greenhouse");
+  assert.match(ghGeneral, />↪ Greenhouse<\/a>$/);
+
+  const ghProposal = renderCaption("https://radica.example/#greenhouse&seed=alice%3Ae1");
+  assert.match(ghProposal, />↪ Greenhouse proposal<\/a>$/);
+
+  const ghContract = renderCaption("freenet:Ex88TLxyzAbcL2Sw/#greenhouse&seed=alice%3Ae1");
+  assert.match(ghContract, />↪ Greenhouse proposal<\/a>$/);
+});
+
+
 test("caption: # headings at the start of a line, while #tags stay tags", () => {
   const html = renderCaption("# Pasta and Breadcrumbs\n\n**PRESENTATION**\n### Step one\nlove #italy");
   assert.match(html, /<strong class="md-h md-h1">Pasta and Breadcrumbs<\/strong>/);
