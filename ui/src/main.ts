@@ -11294,7 +11294,7 @@ function renderIdentityModal() {
           fmailKeyWordsBadge.textContent = `key: ${currentFmailIdentity.fingerprintShort}`;
         }
         if (fmailAddressVal) {
-          fmailAddressVal.textContent = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
+          fmailAddressVal.textContent = `${currentFmailIdentity.alias}@${currentFmailIdentity.inboxAddress}`;
         }
         if (fmailOpenAppLink) {
           fmailOpenAppLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
@@ -11460,10 +11460,10 @@ if (fmailSaveAliasBtn) {
         fmailKeyWordsBadge.textContent = `key: ${fmail.fingerprintShort}`;
       }
       if (fmailAddressVal) {
-        fmailAddressVal.textContent = `${fmail.alias}@${fmail.address}`;
+        fmailAddressVal.textContent = `${fmail.alias}@${fmail.inboxAddress}`;
       }
       if (mailUserAddressDisplay) {
-        mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 6)}…`;
+        mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.inboxAddress.substring(0, 6)}…`;
       }
     }
     renderMailList();
@@ -11534,7 +11534,7 @@ if (fmailContactCardVal) {
 if (fmailAddressVal) {
   fmailAddressVal.addEventListener("click", async () => {
     if (!currentFmailIdentity) return;
-    const full = `${currentFmailIdentity.alias}@${currentFmailIdentity.address}`;
+    const full = `${currentFmailIdentity.alias}@${currentFmailIdentity.inboxAddress}`;
     try {
       await navigator.clipboard.writeText(full);
       if (fmailStatusMsg) fmailStatusMsg.textContent = `✓ Mail address copied: ${full}`;
@@ -11631,8 +11631,8 @@ function renderMailList() {
   const filtered = filterMailMessages(store.messages, activeMailFolder, query);
 
   if (mailUserAddressDisplay && fmail) {
-    mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.address.substring(0, 6)}…`;
-    mailUserAddressChip?.setAttribute("title", `Freenet Mail: ${fmail.alias}@${fmail.address}\nClick to copy full post-quantum address`);
+    mailUserAddressDisplay.textContent = `${fmail.alias}@${fmail.inboxAddress.substring(0, 6)}…`;
+    mailUserAddressChip?.setAttribute("title", `Freenet Mail: ${fmail.alias}@${fmail.inboxAddress}\nClick to view Tokens & Keys`);
   }
   if (mailCompanionLink) {
     mailCompanionLink.href = `${nodeOrigin()}/v1/contract/web/${FREENET_MAIL_CONTAINER_KEY}/#/`;
@@ -11760,6 +11760,8 @@ function selectMail(m: MailMessage) {
         name: aliasName || "Contact",
         address: rawAddr,
       });
+      safeStorage.flush();
+      void durable.flush();
       mailAddContactBtn.style.display = "none";
       showToast(`✓ Saved "${saved.name}" to Mail Contacts!`, "info");
     };
@@ -12304,6 +12306,8 @@ if (mailContactModalSaveBtn && mailContactModal) {
       name: parsed.name,
       address: parsed.address,
     });
+    safeStorage.flush();
+    void durable.flush();
     mailContactModal.style.display = "none";
     showToast(`✓ Contact "${saved.name}" saved!`, "info");
     if (mailToInput) {

@@ -402,18 +402,19 @@ export function loadMailStore(pubkey: string, identity?: FreenetMailIdentity | n
   const alreadyWelcomed = safeStorage.getItem(WELCOMED_KEY(pubkey)) === "true";
 
   if (identity && !alreadyWelcomed) {
+    const myAddr = `${identity.alias}@${identity.inboxAddress || identity.address}`;
     const welcomeMail: MailMessage = {
       id: "welcome_radica_mail",
       from: "Freenet Mail <welcome@official>",
       fromAddress: "welcome@official",
-      to: `${identity.alias}@${identity.address}`,
+      to: myAddr,
       subject: "🌱 Welcome to Radica Mail — Post-Quantum Decentralized Email",
       content: `Welcome to Radica Mail!
 
 Your mailbox is powered by Freenet Mail post-quantum cryptography (ML-DSA-65 signatures and ML-KEM-768 encryption).
 
 Your public decentralized email address is:
-${identity.alias}@${identity.address}
+${myAddr}
 
 Key Capabilities:
 • End-to-End Post-Quantum Security: All communications follow NIST FIPS 203 (ML-KEM-768) and FIPS 204 (ML-DSA-65) standards.
@@ -588,7 +589,7 @@ export async function sendMailMessage(
   const store = loadMailStore(pubkey, identity);
   const now = Date.now();
   const msgId = `mail_${now}_${Math.random().toString(36).substring(2, 9)}`;
-  const myFullAddress = `${identity.alias}@${identity.address}`;
+  const myFullAddress = `${identity.alias}@${identity.inboxAddress || identity.address}`;
 
   const sentMessage: MailMessage = {
     id: msgId,
@@ -706,7 +707,7 @@ export async function sendMailMessage(
           networkDetails = "Recipient inbox contract found, but has no valid post-quantum encapsulation key.";
         }
       } else {
-        networkDetails = "Recipient inbox contract not found on the network (they may need to publish their inbox first).";
+        networkDetails = "Recipient inbox contract not found on the network (they may need to open Freenet Mail once with their Recovery Key to publish their inbox).";
       }
     } catch (netErr: any) {
       console.warn("[MailClient] Network send attempt:", netErr);
@@ -714,6 +715,8 @@ export async function sendMailMessage(
     }
   } else if (targetContractId.length >= 43 && targetContractId.length <= 44) {
     networkDetails = "Freenet network client offline or not ready. Message stored locally in Sent.";
+  } else if (!isSelf && !cleanTo.endsWith("@official")) {
+    networkDetails = "Recipient address is not a 44-char Inbox Address. Ask them for their Inbox Address (Tokens & Keys) to deliver over the network. Stored in local mailbox.";
   }
 
   return {
@@ -833,7 +836,7 @@ export function saveDraftMessage(
 ): MailMessage {
   const store = loadMailStore(pubkey, identity);
   const now = Date.now();
-  const myFullAddress = `${identity.alias}@${identity.address}`;
+  const myFullAddress = `${identity.alias}@${identity.inboxAddress || identity.address}`;
 
   if (existingDraftId) {
     const idx = store.messages.findIndex((m) => m.id === existingDraftId && m.folder === "drafts");

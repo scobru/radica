@@ -1,6 +1,10 @@
 5.7.0 / 2026-11-14
 ==================
 
+  * **FIX** Radica Mail Contacts Persistence & Peer-to-Peer Inbox Addressing (`ui/src/durable.ts`, `ui/src/mailClient.ts`, `ui/src/main.ts`):
+    * Added `radica_fmail_contacts_` and `radica_fmail_aft_assignments_` to `DURABLE_PREFIXES` in `durable.ts` (previously mismatched as `radica_mail_contacts_`), ensuring saved Mail contacts survive sandboxed refreshes, and flushed durable storage immediately when adding contacts.
+    * Updated Radica Mail display, clipboard copy, and `myFullAddress` to use the 44-character `inboxAddress` instead of the 36-character v2 `address`, fixing `"Stored in local mailbox."` when emailing between two Radica IDs.
+
   * **NEW** Mobile Profile Connections Tab (`ui/index.html`, `ui/src/style.css`, `ui/src/main.ts`):
     * Added a `🔗 Connections` filter tab inside `#uview-tabs` (shown on `<= 820px` viewports) so Linfa Tree and connected Freenet apps appear on demand without stacking at the bottom of the profile posts list.
 

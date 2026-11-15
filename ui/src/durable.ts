@@ -21,8 +21,10 @@ export const DURABLE_PREFIXES = [
   "freenet_notifs_dismissed_", // Activity items I opened: the inbox log would bring them back
   "radica_fmail_store_", // Radica Mail store: messages, drafts, read/unread states
   "radica_fmail_deleted_", // Radica Mail: ids deleted locally, so a sync does not bring them back from the inbox contract
+  "radica_fmail_contacts_", // Radica Mail address book contacts (CONTACTS_STORAGE_PREFIX)
+  "radica_fmail_aft_assignments_", // Radica Mail AFT token assignments
   "radica_mail_alias_", // Radica Mail custom handle
-  "radica_mail_contacts_", // Radica Mail address book contacts
+  "radica_mail_contacts_", // Legacy alias kept for compatibility
   "radica_mail_welcomed_", // Flag to prevent duplicate welcome mail on fresh loads
   "radica_article_drafts_", // Long-form article drafts
   "radica_theme", // UI theme (light / dark)
