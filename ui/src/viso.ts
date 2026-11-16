@@ -4,6 +4,7 @@
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { blake3 } from "@noble/hashes/blake3.js";
+import { bitsOf, challengeBytes, checkProof } from "./ante.ts";
 import { fromBase58, toBase58 } from "./base58.ts";
 import { asBytes, asNumber, asString, cborDecode, cborEncode, mapGet } from "./cbor.ts";
 
@@ -321,12 +322,12 @@ export function serializeStoredPoh(proof: string, delegation?: DelegationProofV1
 
 const checkedPoh = new Map<string, Promise<PohBadge | null>>();
 
-/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge`. */
-export async function verifiedPohBadges(
+/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge[]`. */
+export async function verifiedPohBadgesByAuthor(
   entries: PohLogEntry[],
   issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
-): Promise<Map<string, PohBadge>> {
-  const out = new Map<string, PohBadge>();
+): Promise<Map<string, PohBadge[]>> {
+  const out = new Map<string, PohBadge[]>();
   if (!entries.some((e) => e.proof) || !issuers.length) return out;
   const issuerSig = issuers.map((i) => i.keyId).join(",");
   const badges = await Promise.all(
@@ -352,8 +353,26 @@ export async function verifiedPohBadges(
   );
   entries.forEach((e, i) => {
     const b = badges[i];
-    if (b) out.set(e.author, b);
+    if (!b) return;
+    const list = out.get(e.author) ?? [];
+    const idx = list.findIndex((x) => x.provider === b.provider);
+    if (idx >= 0) list[idx] = b;
+    else list.push(b);
+    out.set(e.author, list);
   });
+  return out;
+}
+
+/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge`. */
+export async function verifiedPohBadges(
+  entries: PohLogEntry[],
+  issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
+): Promise<Map<string, PohBadge>> {
+  const byAuthor = await verifiedPohBadgesByAuthor(entries, issuers);
+  const out = new Map<string, PohBadge>();
+  for (const [author, list] of byAuthor) {
+    if (list.length) out.set(author, list[list.length - 1]);
+  }
   return out;
 }
 
@@ -381,6 +400,37 @@ export async function visoProfileOf(state: Uint8Array, pkHex: string): Promise<{
     const p = cborDecode(bytes);
     // Viso's own limits (64 and 280 characters); plain text, never markup
     return { name: [...asString(mapGet(p, "name"))].slice(0, 64).join("").trim(), bio: [...asString(mapGet(p, "bio"))].slice(0, 280).join("") };
+  } catch {
+    return null;
+  }
+}
+
+export const VISO_ANTE_PURPOSE = "viso:persona-level:v1";
+
+export interface AnteTier {
+  id: "bronze" | "silver" | "gold";
+  label: string;
+  minBits: number;
+}
+
+/** Map achieved Viso `ante` PoW bits to a standard UI commitment tier badge (`16b Seeded`, `20b Forged`, `24b Veteran`). */
+export function anteTierOf(bits: number): AnteTier | null {
+  if (!Number.isFinite(bits) || bits < 16) return null;
+  if (bits >= 24) return { id: "gold", label: "Veteran", minBits: 24 };
+  if (bits >= 20) return { id: "silver", label: "Forged", minBits: 20 };
+  return { id: "bronze", label: "Seeded", minBits: 16 };
+}
+
+/** Decode and verify a Viso persona's `ante` PoW commitment slot (`viso:persona-level:v1`), returning achieved bits or null. */
+export async function visoAnteBits(state: Uint8Array, pkHex: string): Promise<number | null> {
+  try {
+    const s = cborDecode(state);
+    if (mapGet(s, "destroyed") != null) return null;
+    const bytes = asBytes(mapGet(mapGet(mapGet(s, "slots"), "ante"), "bytes"));
+    if (!bytes.length) return null;
+    const p = await checkProof(bytes, VISO_ANTE_PURPOSE, 0);
+    if (ed.etc.bytesToHex(p.vk) !== pkHex.toLowerCase()) return null;
+    return bitsOf(challengeBytes(p.purpose, p.vk), p.nonce);
   } catch {
     return null;
   }

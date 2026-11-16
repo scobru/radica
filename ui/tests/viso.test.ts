@@ -3,18 +3,23 @@ import assert from "node:assert/strict";
 import { constants as cryptoConstants, generateKeyPairSync, randomBytes, sign as cryptoSign } from "node:crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
+import { challengeBytes, grind, makeProof } from "../src/ante.ts";
 import { toBase58 } from "../src/base58.ts";
 import { cborEncode } from "../src/cbor.ts";
 import {
+  VISO_ANTE_PURPOSE,
+  anteTierOf,
   delegationMsg,
   parseStoredPoh,
   pohMsg,
   serializeStoredPoh,
   verifiedDelegations,
   verifiedPohBadges,
+  verifiedPohBadgesByAuthor,
   verifiedPohs,
   verifyVisoDelegation,
   verifyVisoPoh,
+  visoAnteBits,
   visoIdentityInstance,
   visoIdentityParams,
   visoPohOf,
@@ -210,4 +215,88 @@ test("viso delegation: verifies dual-signed DelegationProofV1 and inherited PoH 
   assert.deepEqual(parseStoredPoh("aabbcc"), { proof: "aabbcc" });
   const serialized = serializeStoredPoh(attHex, proof);
   assert.deepEqual(parseStoredPoh(serialized), { proof: attHex, delegation: proof });
+});
+
+test("viso ante: maps commitment bit tiers and verifies ante slot proofs", async () => {
+  assert.equal(anteTierOf(15), null);
+  assert.equal(anteTierOf(16)?.label, "Seeded");
+  assert.equal(anteTierOf(19)?.id, "bronze");
+  assert.equal(anteTierOf(20)?.label, "Forged");
+  assert.equal(anteTierOf(23)?.id, "silver");
+  assert.equal(anteTierOf(24)?.label, "Veteran");
+  assert.equal(anteTierOf(32)?.id, "gold");
+
+  const sk = ed.utils.randomPrivateKey();
+  const pk = await ed.getPublicKeyAsync(sk);
+  const pkHex = ed.etc.bytesToHex(pk);
+  const nonce = await grind(challengeBytes(VISO_ANTE_PURPOSE, pk), 8);
+  const anteBytes = await makeProof(sk, VISO_ANTE_PURPOSE, nonce, 1_794_790_000_000);
+  const state = cborEncode({ slots: { ante: { bytes: anteBytes, time_ms: 1_794_790_000_000, sig: new Uint8Array(64) } } });
+
+  const bits = await visoAnteBits(state, pkHex);
+  assert.ok(bits !== null && bits >= 8);
+
+  // Rejects wrong persona key, foreign purpose, or destroyed persona state
+  assert.equal(await visoAnteBits(state, "11".repeat(32)), null);
+  const badPurpose = await makeProof(sk, "ante:identity-level:v1", nonce, 1_794_790_000_000);
+  assert.equal(await visoAnteBits(cborEncode({ slots: { ante: { bytes: badPurpose } } }), pkHex), null);
+  assert.equal(await visoAnteBits(cborEncode({ destroyed: { time_ms: 1 }, slots: { ante: { bytes: anteBytes } } }), pkHex), null);
+});
+
+test("viso poh google: verifies google:verified issuer and preserves multiple providers per author", async () => {
+  const sk = ed.utils.randomPrivateKey();
+  const pk = await ed.getPublicKeyAsync(sk);
+  const pkHex = ed.etc.bytesToHex(pk);
+
+  const kpGh = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const kpGoog = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const issuers: PohIssuer[] = [
+    { keyId: "github:age1y:2026", provider: "github", tier: "age1y", epoch: "2026", spkiDerHex: Buffer.from(kpGh.publicKey).toString("hex") },
+    { keyId: "google:verified:2026", provider: "google", tier: "verified", epoch: "2026", spkiDerHex: Buffer.from(kpGoog.publicKey).toString("hex") },
+  ];
+
+  const signSlotHex = (keyId: string, privateKey: typeof kpGoog.privateKey) => {
+    const r = new Uint8Array(randomBytes(32));
+    const sig = new Uint8Array(
+      cryptoSign("sha384", Buffer.concat([r, pohMsg(keyId, pkHex)]), {
+        key: privateKey,
+        padding: cryptoConstants.RSA_PKCS1_PSS_PADDING,
+        saltLength: 48,
+      }),
+    );
+    return Buffer.from(cborEncode({ version: 1, key_id: keyId, msg_randomizer: r, sig })).toString("hex");
+  };
+
+  const ghHex = signSlotHex("github:age1y:2026", kpGh.privateKey);
+  const googHex = signSlotHex("google:verified:2026", kpGoog.privateKey);
+  const googRaw = Buffer.from(googHex, "hex");
+  const verifiedGoogle = await verifyVisoPoh(googRaw, pkHex, issuers);
+  assert.deepEqual(verifiedGoogle, { provider: "google", tier: "verified", epoch: "2026", keyId: "google:verified:2026" });
+
+  // Slot discovery works for poh:google as well as poh:github
+  const state = cborEncode({
+    slots: {
+      "poh:google": { bytes: googRaw },
+      "poh:github": { bytes: Buffer.from(ghHex, "hex") },
+    },
+  });
+  const found = await visoPohOf(state, pkHex, issuers);
+  assert.deepEqual(found.map((b) => b.provider).sort(), ["github", "google"]);
+
+  const byAuthor = await verifiedPohBadgesByAuthor(
+    [
+      { author: pkHex, proof: ghHex },
+      { author: pkHex, proof: googHex },
+    ],
+    issuers,
+  );
+  assert.deepEqual((byAuthor.get(pkHex) ?? []).map((b) => b.provider).sort(), ["github", "google"]);
 });

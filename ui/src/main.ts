@@ -147,7 +147,7 @@ import { initGreenhouse, openGreenhouse } from "./greenhousePage.ts";
 import { parseGreenhouseHash } from "./greenhouse.ts";
 import { foldSupporters, getStoredReceipt } from "./supporter.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
-import { parseStoredPoh, serializeStoredPoh, verifiedPohBadges, verifyVisoDelegation, verifyVisoPoh } from "./viso.ts";
+import { anteTierOf, parseStoredPoh, serializeStoredPoh, verifiedPohBadgesByAuthor, verifyVisoDelegation, verifyVisoPoh } from "./viso.ts";
 import { hexToBytes } from "./crypto.ts";
 import { savedPosts, toggleSaved, isSaved } from "./savedPosts.ts";
 import { likers, RADICA_MAINTAINER, AI_REPORTERS, GARDENER_NAME } from "./types.ts";
@@ -546,14 +546,30 @@ const ghostkeyKey = (pk: string) => `radica_ghostkey_${pk}`;
 let pohKeys: string[] = [];
 /** Subset of `pohKeys` with a verified GitHub PoH attestation (`provider === "github"`). */
 let githubPohKeys = new Set<string>();
+/** Subset of `pohKeys` with a verified Google PoH attestation (`provider === "google"`). */
+let googlePohKeys = new Set<string>();
+/** Verified Viso `ante` commitment bit counts keyed by persona pubkey. */
+let anteBitsByKey = new Map<string, number>();
 const pohKey = (pk: string) => `radica_poh_${pk}`;
 const githubPohBadgeHtml = (pubkey: string): string =>
   githubPohKeys.has(pubkey)
     ? ` <span class="gram-trust-badge badge-github-poh" title="Verified GitHub account (≥ 1 year old) via Anonymous Viso PoH">${renderIcon("github", { className: "icon-xs" })} <span>GitHub</span></span>`
     : "";
+const googlePohBadgeHtml = (pubkey: string): string =>
+  googlePohKeys.has(pubkey)
+    ? ` <span class="gram-trust-badge badge-google-poh" title="Verified Google account via Anonymous Viso PoH">${renderIcon("google", { className: "icon-xs" })} <span>Google</span></span>`
+    : "";
+const pohProviderBadgesHtml = (pubkey: string): string => `${githubPohBadgeHtml(pubkey)}${googlePohBadgeHtml(pubkey)}`;
+const anteBadgeHtml = (pubkey: string): string => {
+  const bits = anteBitsByKey.get(pubkey);
+  const tier = bits !== undefined ? anteTierOf(bits) : null;
+  return tier
+    ? ` <span class="gram-trust-badge badge-ante-${tier.id}" title="Verified Viso ante PoW commitment (${bits} bits)">⚡ <span>${escapeHtml(tier.label)} · ${bits}b</span></span>`
+    : "";
+};
 function renderMyPohBadges(): void {
   const me = currentIdentity?.pubkey ?? "";
-  const html = me ? githubPohBadgeHtml(me).trim() : "";
+  const html = me ? `${pohProviderBadgesHtml(me)}${anteBadgeHtml(me)}`.trim() : "";
   const sb = document.getElementById("sidebar-poh-badge");
   if (sb) sb.innerHTML = html;
   const pp = document.getElementById("pp-poh-badge");
@@ -581,6 +597,7 @@ async function refreshSupporters() {
   const me = currentIdentity?.pubkey;
   // Auto-adopt a verified Viso PoH proof (direct or via linked delegation) for the signed-in persona
   let myLocalGithub = false;
+  let myLocalGoogle = false;
   if (me) {
     const stored = parseStoredPoh(safeStorage.getItem(pohKey(me)));
     if (stored) {
@@ -591,20 +608,27 @@ async function refreshSupporters() {
       }
       const badge = targetHex ? await verifyVisoPoh(hexToBytes(stored.proof), targetHex).catch(() => null) : null;
       if (badge?.provider === "github") myLocalGithub = true;
+      if (badge?.provider === "google") myLocalGoogle = true;
     } else {
       const resolved = await freenet.visoPohResolved(me).catch(() => null);
       if (resolved) {
         safeStorage.setItem(pohKey(me), serializeStoredPoh(resolved.proofHex, resolved.delegation));
         if (resolved.badge.provider === "github") myLocalGithub = true;
+        if (resolved.badge.provider === "google") myLocalGoogle = true;
       }
     }
+    const myBadges = await freenet.visoPoh(me).catch(() => []);
+    for (const b of myBadges) {
+      if (b.provider === "github") myLocalGithub = true;
+      if (b.provider === "google") myLocalGoogle = true;
+    }
   }
-  const hasMyPoh = !!me && !!parseStoredPoh(safeStorage.getItem(pohKey(me)));
+  const hasMyPoh = !!me && (!!parseStoredPoh(safeStorage.getItem(pohKey(me))) || myLocalGithub || myLocalGoogle);
   vouchedForAll = !!me && ([...wall.oak, ...wall.root, ...wall.sprout].includes(me) || !!safeStorage.getItem(ghostkeyKey(me)) || hasMyPoh);
   const next = [...new Set([...wall.oak, ...wall.root, ...wall.sprout, ...(me && getStoredReceipt(me) ? [me] : [])])].sort();
   // GhostKey proofs: checked in ghostkey.wasm (certificate chain to the Freenet master key), each once per page
   const ghosts = [...new Set([...(await verifiedGhostkeys(freenet.ghostkeyBundles())), ...(me && safeStorage.getItem(ghostkeyKey(me)) ? [me] : [])])].sort();
-  const badgeMap = await verifiedPohBadges(freenet.pohProofs());
+  const badgeMap = await verifiedPohBadgesByAuthor(freenet.pohProofs());
   const delMap = await freenet.verifiedDelegationMap().catch(() => new Map());
   for (const [fromHex, del] of delMap) {
     if (!badgeMap.has(fromHex) && badgeMap.has(del.toHex)) {
@@ -613,20 +637,40 @@ async function refreshSupporters() {
   }
   const humans = [...new Set([...badgeMap.keys(), ...(hasMyPoh ? [me!] : [])])].sort();
   const nextGithub = new Set<string>();
-  for (const [pk, b] of badgeMap) if (b.provider === "github") nextGithub.add(pk);
+  const nextGoogle = new Set<string>();
+  for (const [pk, list] of badgeMap) {
+    for (const b of list) {
+      if (b.provider === "github") nextGithub.add(pk);
+      if (b.provider === "google") nextGoogle.add(pk);
+    }
+  }
   if (me && myLocalGithub) nextGithub.add(me);
+  if (me && myLocalGoogle) nextGoogle.add(me);
   const nextGithubKey = [...nextGithub].sort().join(",");
   const prevGithubKey = [...githubPohKeys].sort().join(",");
+  const nextGoogleKey = [...nextGoogle].sort().join(",");
+  const prevGoogleKey = [...googlePohKeys].sort().join(",");
   const unchanged =
     next.join(",") === supporterKeys.join(",") &&
     ghosts.join(",") === ghostkeyKeys.join(",") &&
     humans.join(",") === pohKeys.join(",") &&
-    nextGithubKey === prevGithubKey;
+    nextGithubKey === prevGithubKey &&
+    nextGoogleKey === prevGoogleKey;
+  if (me && !anteBitsByKey.has(me)) {
+    void freenet.visoAnte(me).then((bits) => {
+      if (bits === null || anteBitsByKey.get(me) === bits) return;
+      anteBitsByKey.set(me, bits);
+      renderMyPohBadges();
+      cardCache.clear();
+      scheduleRenderTimeline();
+    });
+  }
   if (unchanged) return;
   supporterKeys = next;
   ghostkeyKeys = ghosts;
   pohKeys = humans;
   githubPohKeys = nextGithub;
+  googlePohKeys = nextGoogle;
   renderMyPohBadges();
   cardCache.clear(); // badges are part of each card
   scheduleRenderTimeline();
@@ -2838,6 +2882,8 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
       hit.sig[19] === unproven.length &&
       hit.sig[20] === repostCount &&
       hit.sig[21] === isReposted &&
+      hit.sig[24] === (anteBitsByKey.get(post.author) ?? 0) &&
+      hit.sig[25] === googlePohKeys.has(post.author) &&
       hit.sig[11] === getCommSig() &&
       hit.sig[12] === getMentionSig()
     ) {
@@ -2845,7 +2891,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
       cardCache.set(post.id, hit);
       return hit.html;
     }
-    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted];
+    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author)];
   }
 
   const html = `
@@ -2875,7 +2921,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
                 authorTrust.label === "Rooted"
                   ? ""
                   : `<span class="gram-trust-badge ${authorTrust.badgeClass}" title="${escapeHtml(authorTrust.description)}">${authorTrust.icon} ${escapeHtml(authorTrust.label)}</span>`
-              }${githubPohBadgeHtml(post.author)}
+              }${pohProviderBadgesHtml(post.author)}${anteBadgeHtml(post.author)}
               ${
                 post.category === "thought"
                   ? ""
@@ -5962,9 +6008,12 @@ async function openAuthorWallInFeed(pubkey: string) {
 async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" | "moments" | "videos" | "boards" = "posts") {
   markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
+  const uviewNameHtml = (displayName: string) => {
+    const b = getWebOfTrust().trustBadge(pubkey);
+    return `${escapeHtml(displayName)} <span class="gram-trust-badge ${b.badgeClass}" title="${escapeHtml(b.description)}">${b.icon} ${escapeHtml(b.label)}</span>${pohProviderBadgesHtml(pubkey)}${anteBadgeHtml(pubkey)}`;
+  };
   // open at once with what is known; the feed (bio, posts) may take a few seconds to come from the network
-  const initialBadge = getWebOfTrust().trustBadge(pubkey);
-  uviewName.innerHTML = `${escapeHtml(getAuthorDisplayName(pubkey))} <span class="gram-trust-badge ${initialBadge.badgeClass}" title="${escapeHtml(initialBadge.description)}">${initialBadge.icon} ${escapeHtml(initialBadge.label)}</span>${githubPohBadgeHtml(pubkey)}`;
+  uviewName.innerHTML = uviewNameHtml(getAuthorDisplayName(pubkey));
   uviewKey.textContent = pubkey;
   uviewAvatar.src = getAuthorAvatarUrl(pubkey);
   uviewBio.textContent = "";
@@ -6055,9 +6104,8 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   uviewAvatar.onerror = () => {
     uviewAvatar.src = generateDefaultAvatar(pubkey);
   };
-  const badge = getWebOfTrust().trustBadge(pubkey);
-  uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${badge.badgeClass}" title="${escapeHtml(badge.description)}">${badge.icon} ${escapeHtml(badge.label)}</span>${githubPohBadgeHtml(pubkey)}`;
-  if (!githubPohKeys.has(pubkey)) {
+  uviewName.innerHTML = uviewNameHtml(name);
+  if (!githubPohKeys.has(pubkey) || !googlePohKeys.has(pubkey)) {
     void freenet.visoPoh(pubkey).then((badges) => {
       if (!badges.length) return;
       let changed = false;
@@ -6070,14 +6118,24 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
         githubPohKeys = new Set([...githubPohKeys, pubkey]);
         changed = true;
       }
+      if (badges.some((b) => b.provider === "google") && !googlePohKeys.has(pubkey)) {
+        googlePohKeys = new Set([...googlePohKeys, pubkey]);
+        changed = true;
+      }
       if (changed) {
         cardCache.clear();
         if (isSelf) renderMyPohBadges();
-        if (uviewKey.textContent === pubkey) {
-          const updated = getWebOfTrust().trustBadge(pubkey);
-          uviewName.innerHTML = `${escapeHtml(name)} <span class="gram-trust-badge ${updated.badgeClass}" title="${escapeHtml(updated.description)}">${updated.icon} ${escapeHtml(updated.label)}</span>${githubPohBadgeHtml(pubkey)}`;
-        }
+        if (uviewKey.textContent === pubkey) uviewName.innerHTML = uviewNameHtml(name);
       }
+    });
+  }
+  if (!anteBitsByKey.has(pubkey)) {
+    void freenet.visoAnte(pubkey).then((bits) => {
+      if (bits === null || anteBitsByKey.get(pubkey) === bits) return;
+      anteBitsByKey.set(pubkey, bits);
+      cardCache.clear();
+      if (isSelf) renderMyPohBadges();
+      if (uviewKey.textContent === pubkey) uviewName.innerHTML = uviewNameHtml(name);
     });
   }
   uviewKey.textContent = pubkey;
