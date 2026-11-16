@@ -1109,9 +1109,10 @@ function renderAppsLauncher(): void {
             <div class="app-tile-brand">
               <span class="app-tile-icon">${iconHtml}</span>
               <div class="app-tile-title-wrap">
-                <div class="app-tile-name" title="${escapeHtml(app.name)}">${escapeHtml(app.name)}</div>
+                <div class="app-tile-name" title="${escapeHtml(app.name)}">${escapeHtml(app.launcherLabel || app.name)}</div>
                 <div class="app-tile-meta">
                   <span class="app-tile-badge">${kindBadge}</span>
+                  ${app.launcherLabel ? `<span class="app-tile-badge">${escapeHtml(app.name)}</span>` : ""}
                   ${app.author ? `<span>${escapeHtml(app.author)}</span>` : ""}
                 </div>
               </div>
@@ -9762,6 +9763,17 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
   const params = new URLSearchParams(hash);
   const articleId = params.get("article");
   const articleAuthor = params.get("author") || undefined;
+  const anonArticleHash = articleId?.startsWith("hash:") ? articleId.slice(5) : null;
+  if (anonArticleHash && /^[0-9a-f]{64}$/i.test(anonArticleHash)) {
+    try {
+      closeRailPages(articlesModal);
+      const articlesPage = await loadArticlesPage();
+      await articlesPage.openAnonymousReader(anonArticleHash.toLowerCase());
+    } catch (err) {
+      console.warn("Could not navigate to anonymous article from hash:", err);
+    }
+    return;
+  }
   if (articleId && articleAuthor) {
     try {
       const cached = await freenet.getFeed(articleAuthor).catch(() => null);

@@ -52,24 +52,27 @@ export interface EcosystemApp {
   builtInBtn?: string;
   /** User-added custom Freenet site */
   custom?: boolean;
+  /** Generic, function-first heading shown ONLY in the Apps launcher grid (e.g. "Chat" for River), with `name`
+   *  (the actual product) shown underneath it there. Everywhere else (search, footer, tests) still uses `name`. */
+  launcherLabel?: string;
 }
 
 export const ECOSYSTEM: EcosystemApp[] = [
-  { name: "Chat", what: "group chat via River; Radica's private rooms are River rooms", key: RIVER_SITE, repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
-  { name: "Freenet Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core", category: "integrated", group: "communication", icon: "messageCircle", builtInBtn: "open-mail-btn" },
-  { name: "Viso", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru", category: "integrated", group: "identity", icon: "shield" },
-  { name: "FreeTunes", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru", category: "integrated", group: "media", icon: "music", builtInBtn: "open-music-btn" },
-  { name: "FreePolls", what: "anonymous polls in posts and chat", key: FREEPOLLS_SITE, repo: "https://github.com/scobru/freepolls", author: "by @scobru", category: "integrated", group: "tools", icon: "barChart2" },
-  { name: "FreeNames", what: "short names, profile sites and resolved links in posts", key: FREENAMES_KEY, repo: "https://github.com/scobru/freenames", author: "by @scobru", category: "integrated", group: "identity", icon: "globe" },
-  { name: "Delta", what: "blogs linked from profiles", key: DELTA_WEB, repo: "https://github.com/freenet/delta", author: "Freenet core", category: "integrated", group: "media", icon: "fileText" },
-  { name: "Orto", what: "encrypted organizer; reads your Radica feed in its Feeds tab", key: ORTO_SITE, repo: "https://github.com/scobru/orto", author: "by @scobru", category: "integrated", group: "tools", icon: "calendar" },
-  { name: "Asocial", what: "browser & HTML5 games, played inside posts", key: ASOCIAL_SITE, repo: ASOCIAL_REPO, author: "by porky11", category: "integrated", group: "media", icon: "smile" },
-  { name: "Fisherman's Horizon", what: "curate & pin Freenet sites; shared bookmark lists", key: FH_SITE, repo: FH_REPO, author: "by @scobru", category: "integrated", group: "tools", icon: "bookmark" },
-  { name: "FreeHole", what: "sovereign P2P & Freenet file transfer; send & receive files via mnemonic codes", key: FREEHOLE_SITE, repo: FREEHOLE_REPO, author: "by @scobru", category: "integrated", group: "tools", icon: "share2" },
-  { name: "Freetree", what: "decentralized linktree; transforms Delta link pages into profile hubs", key: FREETREE_SITE, repo: FREETREE_REPO, author: "by @scobru", category: "integrated", group: "identity", icon: "link" },
-  { name: "Aula", what: "decentralized classroom & coursework on Freenet (classes, assignments, grades)", key: AULA_SITE, repo: "https://github.com/scobru/aula", author: "by @scobru", category: "affiliated", group: "tools", icon: "layers" },
-  { name: "Hive", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", author: "by @holdmylatte", category: "affiliated", group: "tools", icon: "folder" },
-  { name: "Atlas", what: "companion Freenet web app launched directly on your local node", key: ATLAS_SITE, repo: "", category: "affiliated", group: "tools", icon: "globe" },
+  { name: "River", launcherLabel: "Chat", what: "group chat; Radica's private rooms are River rooms", key: RIVER_SITE, repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
+  { name: "Freenet Mail", launcherLabel: "Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core", category: "integrated", group: "communication", icon: "messageCircle", builtInBtn: "open-mail-btn" },
+  { name: "Viso", launcherLabel: "Identity", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru", category: "integrated", group: "identity", icon: "shield" },
+  { name: "FreeTunes", launcherLabel: "Music", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru", category: "integrated", group: "media", icon: "music", builtInBtn: "open-music-btn" },
+  { name: "FreePolls", launcherLabel: "Polls", what: "anonymous polls in posts and chat", key: FREEPOLLS_SITE, repo: "https://github.com/scobru/freepolls", author: "by @scobru", category: "integrated", group: "tools", icon: "barChart2" },
+  { name: "FreeNames", launcherLabel: "Names", what: "short names, profile sites and resolved links in posts", key: FREENAMES_KEY, repo: "https://github.com/scobru/freenames", author: "by @scobru", category: "integrated", group: "identity", icon: "globe" },
+  { name: "Delta", launcherLabel: "Blog", what: "blogs linked from profiles", key: DELTA_WEB, repo: "https://github.com/freenet/delta", author: "Freenet core", category: "integrated", group: "media", icon: "fileText" },
+  { name: "Orto", launcherLabel: "Organizer", what: "encrypted organizer; reads your Radica feed in its Feeds tab", key: ORTO_SITE, repo: "https://github.com/scobru/orto", author: "by @scobru", category: "integrated", group: "tools", icon: "calendar" },
+  { name: "Asocial", launcherLabel: "Games", what: "browser & HTML5 games, played inside posts", key: ASOCIAL_SITE, repo: ASOCIAL_REPO, author: "by porky11", category: "integrated", group: "media", icon: "smile" },
+  { name: "Fisherman's Horizon", launcherLabel: "Bookmarks", what: "curate & pin Freenet sites; shared bookmark lists", key: FH_SITE, repo: FH_REPO, author: "by @scobru", category: "integrated", group: "tools", icon: "bookmark" },
+  { name: "FreeHole", launcherLabel: "File Transfer", what: "sovereign P2P & Freenet file transfer; send & receive files via mnemonic codes", key: FREEHOLE_SITE, repo: FREEHOLE_REPO, author: "by @scobru", category: "integrated", group: "tools", icon: "share2" },
+  { name: "Freetree", launcherLabel: "Linktree", what: "decentralized linktree; transforms Delta link pages into profile hubs", key: FREETREE_SITE, repo: FREETREE_REPO, author: "by @scobru", category: "integrated", group: "identity", icon: "link" },
+  { name: "Aula", launcherLabel: "Classroom", what: "decentralized classroom & coursework on Freenet (classes, assignments, grades)", key: AULA_SITE, repo: "https://github.com/scobru/aula", author: "by @scobru", category: "affiliated", group: "tools", icon: "layers" },
+  { name: "Hive", launcherLabel: "Git", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", author: "by @holdmylatte", category: "affiliated", group: "tools", icon: "folder" },
+  { name: "Atlas", launcherLabel: "Web App", what: "companion Freenet web app launched directly on your local node", key: ATLAS_SITE, repo: "", category: "affiliated", group: "tools", icon: "globe" },
 ];
 
 export const RADICA_BUILTIN_APPS: EcosystemApp[] = [
@@ -150,6 +153,7 @@ export function filterLauncherApps(
     if (!q) return true;
     return (
       a.name.toLowerCase().includes(q) ||
+      (a.launcherLabel || "").toLowerCase().includes(q) ||
       a.what.toLowerCase().includes(q) ||
       (a.author || "").toLowerCase().includes(q) ||
       (a.key || "").toLowerCase().includes(q)
