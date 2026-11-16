@@ -269,6 +269,7 @@ test("a post can be reposted with my own words, and my profile grows a plant", a
   await expect(page.locator("#composer-repost")).toBeHidden();
 
   await repost.locator(".gram-author-name").click();
+  await page.locator('#uview-tabs [data-tab="connections"]').click(); // Linfa & connected apps: a tab, not a sidebar
   await expect(page.locator("#uview-linfa .linfa-plant")).toBeVisible();
   await expect(page.locator("#uview-linfa .linfa-stage")).toHaveText("Seedling"); // a first post wakes the seed
   await expect(page.locator('#uview-tabs [data-tab="reposts"]')).toHaveText("Reposts (1)", { timeout: 30_000 });
