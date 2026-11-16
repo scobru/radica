@@ -1175,6 +1175,71 @@ document.getElementById("rail-more-group")?.addEventListener("click", (e) => (e.
 document.addEventListener("pointerdown", (e) => !(e.target as HTMLElement).closest(".rail") && setRailMore(false));
 document.addEventListener("keydown", (e) => e.key === "Escape" && setRailMore(false));
 
+// Which 3 of the rail's content pages always show (the rest live behind More): user-chosen, not fixed to Chat/Mail/Activity.
+const DASHBOARD_SLOT_CANDIDATES = [
+  { id: "open-chat-btn", label: "Chat" },
+  { id: "open-mail-btn", label: "Mail" },
+  { id: "open-notifs-btn", label: "Activity" },
+  { id: "open-media-btn", label: "Moments" },
+  { id: "open-tree-btn", label: "Tree" },
+  { id: "open-communities-btn", label: "Communities" },
+  { id: "open-articles-btn", label: "Articles" },
+  { id: "open-music-btn", label: "Music" },
+  { id: "greenhouse-open-btn", label: "Greenhouse" },
+  { id: "open-apps-btn", label: "Apps" },
+] as const;
+const DASHBOARD_SLOTS_DEFAULT: string[] = ["open-chat-btn", "open-mail-btn", "open-notifs-btn"];
+const dashboardSlotsKey = () => `radica_dashboard_slots_${currentIdentity?.pubkey || "anon"}`;
+
+function loadDashboardSlots(): string[] {
+  try {
+    const raw = JSON.parse(safeStorage.getItem(dashboardSlotsKey()) || "null");
+    if (Array.isArray(raw) && raw.length === 3 && raw.every((id) => DASHBOARD_SLOT_CANDIDATES.some((c) => c.id === id))) return raw;
+  } catch {}
+  return [...DASHBOARD_SLOTS_DEFAULT];
+}
+
+/** Moves the existing rail buttons (icons, badges and click handlers are untouched) so only `ids` sit in the
+ *  always-visible slots; every other candidate goes back behind More, in its original relative order. */
+function applyDashboardSlots(ids: string[]) {
+  const primarySep = rail?.querySelector<HTMLElement>(":scope > .rail-sep:not(.rail-sep-desktop)");
+  const overflowSep = document.querySelector<HTMLElement>(".rail-sep-desktop");
+  const moreGroup = document.getElementById("rail-more-group");
+  if (!rail || !primarySep || !overflowSep || !moreGroup) return;
+  for (const c of DASHBOARD_SLOT_CANDIDATES) {
+    const btn = document.getElementById(c.id);
+    if (btn) moreGroup.insertBefore(btn, overflowSep);
+  }
+  for (const id of ids) {
+    const btn = document.getElementById(id);
+    if (btn) rail.insertBefore(btn, primarySep);
+  }
+}
+
+function paintDashboardSlotSelects(ids: string[]) {
+  for (let i = 0; i < 3; i++) {
+    const sel = document.getElementById(`dashboard-slot-${i}`) as HTMLSelectElement | null;
+    if (!sel) continue;
+    sel.innerHTML = DASHBOARD_SLOT_CANDIDATES.map((c) => `<option value="${c.id}"${c.id === ids[i] ? " selected" : ""}>${c.label}</option>`).join("");
+  }
+}
+
+function setDashboardSlots(ids: string[]) {
+  safeStorage.setItem(dashboardSlotsKey(), JSON.stringify(ids));
+  applyDashboardSlots(ids);
+  paintDashboardSlotSelects(ids);
+}
+
+for (let i = 0; i < 3; i++) {
+  document.getElementById(`dashboard-slot-${i}`)?.addEventListener("change", () => {
+    const ids = loadDashboardSlots();
+    for (let j = 0; j < 3; j++) ids[j] = (document.getElementById(`dashboard-slot-${j}`) as HTMLSelectElement).value;
+    setDashboardSlots(ids);
+  });
+}
+paintDashboardSlotSelects(loadDashboardSlots());
+applyDashboardSlots(loadDashboardSlots());
+
 // Full screen on phones (an installed desktop app already has no address bar). Hidden where the gateway's frame forbids it.
 const isMobileTextEntry = (el: Element | null): el is HTMLElement =>
   !!el &&
@@ -13603,6 +13668,7 @@ async function init() {
   }
   currentIdentity = identity;
   freenet.setIdentity(currentIdentity);
+  { const slots = loadDashboardSlots(); applyDashboardSlots(slots); paintDashboardSlotSelects(slots); } // re-read now the per-identity key is known (the anon default ran first)
   conversation.sweepBurns(); // TTL messages burn on time even in chats that stay closed
   freenet.onSyncUpdate(() => conversation.sweepBurns());
   void listsFromNode.then(() => {
