@@ -15,10 +15,9 @@
   * **NEW** Apps Launcher Additions (`Moments`, `Communities`, `Atlas`, and `Hive` Author Attribution) (`ui/src/ecosystem.ts`, `ui/index.html`, `ui/tests/ecosystem.test.ts`):
     * Added **Moments** (`open-media-btn`) and **Communities** (`open-communities-btn`) to `RADICA_BUILTIN_APPS` so both built-in Instagram/Reddit-style experiences are directly launchable and pinnable from Apps.
     * Added **Atlas** (`ATLAS_SITE = 771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) and creator attribution for **Hive** (`by @holdmylatte`) in `ECOSYSTEM` / `LAUNCHER_APPS` and updated the Guide & ecosystem documentation.
-  * **NEW** Function-First Apps Launcher Labels & Anonymous Article Permalinks (`ui/src/ecosystem.ts`, `ui/src/main.ts`, `ui/src/articlesPage.ts`, `ui/src/style.css`, `ui/tests/ecosystem.test.ts`):
+  * **NEW** Function-First Apps Launcher Labels (`ui/src/ecosystem.ts`, `ui/src/main.ts`, `ui/tests/ecosystem.test.ts`):
     * Added `EcosystemApp.launcherLabel`: the Apps grid now leads with what an app does (Chat, Mail, Music, Identity, Blog, Polls, Names, Organizer, Games, Bookmarks, File Transfer, Linktree, Classroom, Git, Web App), with the actual product name shown underneath — scoped to the launcher grid only, so `name` (search, the footer list, tests) is unchanged.
-    * Added `articlesPage.openAnonymousReader` and the `#article=hash:<id>` permalink shape, reading an `ArticlePayload` straight from `media-contract` by its content hash with no signed post behind it, for articles published outside Radica (see **Folio** below). Shown in the Reader as unverified/anonymous, with no like/comment/edit/report controls.
-  * **NEW** Folio (`folio/`): a minimal, account-free Markdown article writer in the spirit of telegra.ph, living in this repo as its own Freenet site. Publishes straight to Radica's `media-contract` (no identity, no Viso persona) and hands back a `#article=hash:<id>` permalink that opens in Radica's Articles Reader.
+  * **NEW** Folio (`folio/`): a minimal, account-free Markdown article writer in the spirit of telegra.ph, living in this repo as its own Freenet site. Publishes straight to Radica's `media-contract` (no identity, no Viso persona) and hands back a `radica-article:<hash>` token — paste it into any Radica post's caption and `parseArticleCaption` (already in `ui/src/articles.ts`) renders it as a full Article card under that post's own real, signed identity. No Radica-side changes needed at all.
 
 5.7.1 / 2026-11-15
 ==================

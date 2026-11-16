@@ -22,7 +22,7 @@ input, textarea, button {
 }
 textarea { resize: vertical; line-height: 1.5; }
 .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-#permalink { flex: 1; }
+#token { flex: 1; }
 button {
   cursor: pointer;
   background: light-dark(#1a1a1a, #eae6dd);
@@ -34,9 +34,6 @@ button.ghost { background: transparent; color: inherit; border: 1px solid light-
 button:disabled { opacity: 0.6; cursor: default; }
 .error { color: #c0392b; }
 footer { margin-top: 48px; }
-
-.radica-url-row { display: flex; flex-direction: column; gap: 4px; }
-.radica-url-row input { font-size: 0.85rem; }
 
 .tabs { display: flex; gap: 4px; }
 .tab {

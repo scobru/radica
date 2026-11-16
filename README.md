@@ -311,7 +311,7 @@ npm run test:app   # Freenet installer/probe tests
   - **Hive** (`AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A`) (Decentralized Git & code collaboration on Freenet, by `@holdmylatte`)
   - **Atlas** (`771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) (Companion Freenet web app available in the Apps Launcher)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
-  - [Folio](folio/) (Anonymous, account-free Markdown article writer in the spirit of telegra.ph; publishes straight to Radica's own `media-contract`, and the resulting `#article=hash:<id>` permalink opens in Radica's Articles Reader marked "Anonymous · published outside Radica")
+  - [Folio](folio/) (Account-free Markdown article writer in the spirit of telegra.ph; publishes straight to Radica's own `media-contract` with no Viso persona, and hands back a `radica-article:<hash>` token — paste it into any Radica post and it renders as a full Article card under that post's own real identity)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
 
 ---

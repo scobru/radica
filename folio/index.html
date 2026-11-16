@@ -10,17 +10,13 @@
   <main class="wrap">
     <header>
       <h1>Folio</h1>
-      <p class="muted">Write an article and publish it straight to Freenet — no account, no Radica persona needed. Anyone with the link can read it in Radica.</p>
+      <p class="muted">Write an article and publish it straight to Freenet — no account, no Radica persona needed. Paste the token Folio gives you into any Radica post, and it renders as a full article there.</p>
     </header>
 
     <form id="form">
       <input id="title" placeholder="Title" required />
       <input id="subtitle" placeholder="Subtitle (optional)" />
       <input id="tags" placeholder="Tags (comma or space separated)" />
-      <div class="radica-url-row">
-        <label for="radica-url" class="muted small">Radica URL (where readers will open this link)</label>
-        <input id="radica-url" placeholder="http://127.0.0.1:7509/v1/contract/web/&lt;radica-key&gt;/" />
-      </div>
       <div class="tabs" role="tablist">
         <button type="button" id="tab-write" class="tab active" role="tab" aria-selected="true">Write</button>
         <button type="button" id="tab-preview" class="tab" role="tab" aria-selected="false">Preview</button>
@@ -34,10 +30,10 @@
     </form>
 
     <div id="result" hidden>
-      <p>Published. Anyone can open it in Radica with this link:</p>
+      <p>Published. Paste this into any post in Radica — it will render as a full article there, under your own name:</p>
       <div class="row">
-        <input id="permalink" readonly />
-        <button type="button" id="copy">Copy link</button>
+        <input id="token" readonly />
+        <button type="button" id="copy">Copy</button>
       </div>
       <button type="button" id="write-another" class="ghost">Write another</button>
     </div>
@@ -46,8 +42,8 @@
 
     <footer>
       <p class="muted small">
-        Anonymous by design: Folio signs nothing, so Radica shows what you publish here as unverified —
-        anyone could have written it. Want a verified byline instead? Write it from Radica's own Articles composer.
+        Folio itself signs nothing and has no identity — the token only becomes a real, signed article once
+        you paste it into a post you write and sign in Radica.
       </p>
     </footer>
   </main>

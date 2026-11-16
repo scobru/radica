@@ -9763,17 +9763,6 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
   const params = new URLSearchParams(hash);
   const articleId = params.get("article");
   const articleAuthor = params.get("author") || undefined;
-  const anonArticleHash = articleId?.startsWith("hash:") ? articleId.slice(5) : null;
-  if (anonArticleHash && /^[0-9a-f]{64}$/i.test(anonArticleHash)) {
-    try {
-      closeRailPages(articlesModal);
-      const articlesPage = await loadArticlesPage();
-      await articlesPage.openAnonymousReader(anonArticleHash.toLowerCase());
-    } catch (err) {
-      console.warn("Could not navigate to anonymous article from hash:", err);
-    }
-    return;
-  }
   if (articleId && articleAuthor) {
     try {
       const cached = await freenet.getFeed(articleAuthor).catch(() => null);
