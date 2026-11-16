@@ -9796,7 +9796,7 @@ body.has-global-audio-player {
 }
 
 .single-post-card {
-  width: min(740px, 96vw);
+  width: min(900px, 94vw); /* as wide as the feed's own reading column (.container), not a cramped dialog */
   max-height: 92vh;
   display: flex;
   flex-direction: column;
