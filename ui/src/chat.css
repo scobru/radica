@@ -762,6 +762,15 @@
     flex: 1;
     padding: 6px;
   }
+  /* on phones the sidebar is already a full-screen, single-scroll overlay (style.css): the
+     per-section max-height/overflow above is for sharing space on desktop and only fights
+     the outer scroll here, nesting touch-scroll regions and making the list feel stuttery */
+  #chat-modal #chat-private-rooms-list,
+  #chat-modal #chat-communities-list,
+  #chat-modal #chat-peers-list {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 #chat-modal .peer-origin, #chat-modal .peer-key {
