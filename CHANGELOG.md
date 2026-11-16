@@ -1,7 +1,7 @@
 5.7.2 / 2026-11-16
 ==================
 
-  * **NEW** Folio in Apps Launcher (`ui/src/ecosystem.ts`, `README.md`): added **Folio** (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`, by `@scobru`) — telegra.ph-style anonymous publishing on Freenet — to `ECOSYSTEM`.
+  * **NEW** Folio in Apps Launcher (`ui/src/ecosystem.ts`, `README.md`): listed Folio's own deployed Freenet site (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`) in `ECOSYSTEM`, alongside its existing `folio/` coverage below.
   * **NEW** Customizable Main Rail Shortcuts (`ui/src/main.ts`, `ui/src/durable.ts`, `ui/src/style.css`, `ui/index.html`):
     * Settings → Main Rail Shortcuts lets you pick which 3 rail buttons (Chat/Mail/Activity by default) always show vs. which live behind More; moves the existing buttons rather than duplicating their icons/badges/shortcuts, so nothing else about them changes. Persisted per identity under `radica_dashboard_slots_` (durable key).
   * **NEW** @Mention Autocomplete in Chat (`ui/src/messengerChat.ts`, `ui/src/messengerLogic.ts`, `ui/src/messengerChat.css`, `ui/tests/messengerChat.test.ts`):
