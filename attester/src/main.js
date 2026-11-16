@@ -20,6 +20,7 @@ import {
   retractBody, budget, shouldHold, categoryDisabled, applyHoldOutcomes, modsOf, CATEGORIES,
   foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
+import { liveReleases, trackTitles, mbUrl, mbMatch, reportOf, reportDelta } from "./freetunes.js";
 
 const env = process.env;
 const NODE_WS = env.FREENET_WS || "ws://127.0.0.1:7509/v1/contract/command";
@@ -44,6 +45,14 @@ const GITHUB_REPO = env.GITHUB_REPO ?? "scobru/radica";
 const GITHUB_TOKEN = env.GITHUB_TOKEN || "";
 const GH_POLL_MS = Number(env.GH_POLL_MS || 30 * 60_000);
 const GARDENER_COMMUNITIES = env.GARDENER_COMMUNITIES ? new Set(env.GARDENER_COMMUNITIES.split(",").map((s) => s.trim()).filter(Boolean)) : null;
+// FreeTunes check (see freetunes.js): off unless FT_CHECK is set. Ids are the contracts' instance ids (freetunes ui wasm).
+const FT_CHECK = !!env.FT_CHECK;
+const FT_DIRECTORY = env.FT_DIRECTORY || "EUaPiZR7q2yEbsi18Za8yUudza65G85HkVaQVBHQiRyr";
+const FT_REPORTS = env.FT_REPORTS || "5LW4BkZeeiGqiBkDXtecVG1FGvGLCKBaPMp6gmnXF98v";
+const FT_POLL_MS = Number(env.FT_POLL_MS || 30 * 60_000);
+const FT_DAILY_REPORTS = Number(env.FT_DAILY_REPORTS || 20);
+const FT_DAILY_LOOKUPS = Number(env.FT_DAILY_LOOKUPS || 300);
+const MB_USER_AGENT = env.MB_USER_AGENT || "radica-attester/1";
 const TIMEOUT_MS = 45_000;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
@@ -374,6 +383,71 @@ async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = f
   log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${rem.used.requests}/${MOD_LIMITS.requests} requests, ${rem.used.holds}/${MOD_LIMITS.holds} holds today`);
 }
 
+const ftFile = join(DATA, "freetunes.json");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A FreeTunes contract's raw state and full key, by instance id (the key needs its code hash to update). */
+async function getFt(api, instance) {
+  const r = await withTimeout(api.get(new GetRequest(ContractKey.fromInstanceId(instance), false, false)));
+  return { key: r.key, text: new TextDecoder().decode(Uint8Array.from(r.state)) };
+}
+
+/** Look every track of the releases FreeTunes lists up on MusicBrainz; file a "copyright" report in FreeTunes' reports
+ *  contract for each one that exists there. A track is looked at once per release version (an edit is looked at again). */
+async function ftPass(api, antSk) {
+  const antPk = bytesToHex(await ed.getPublicKeyAsync(antSk));
+  const saved = existsSync(ftFile) ? JSON.parse(await readFile(ftFile, "utf8")) : {};
+  const done = new Set(saved.done ?? []);
+  const day = new Date().toISOString().slice(0, 10);
+  const used = saved.used?.day === day ? saved.used : { day, lookups: 0, reports: 0 };
+  const save = () => writeFile(ftFile, JSON.stringify({ done: [...done], used }));
+  const releases = liveReleases(JSON.parse((await getFt(api, FT_DIRECTORY)).text));
+  let reports = null, reported = null, looked = 0, filed = 0;
+  for (const rel of releases) {
+    if (used.lookups >= FT_DAILY_LOOKUPS || used.reports >= FT_DAILY_REPORTS) break;
+    const mark = `${rel.instance}@${rel.ts}`;
+    if (done.has(mark)) continue;
+    let tracks;
+    try {
+      ({ tracks } = trackTitles((await getFt(api, rel.instance)).text));
+    } catch {
+      continue; // not reachable now: looked at again next pass
+    }
+    let complete = true;
+    for (const t of tracks) {
+      if (used.lookups >= FT_DAILY_LOOKUPS) { complete = false; break; }
+      let hit;
+      try {
+        used.lookups++, looked++;
+        const r = await fetch(mbUrl(rel.artist, t.title), { headers: { "User-Agent": MB_USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+        if (!r.ok) throw new Error(`MusicBrainz ${r.status}`);
+        hit = mbMatch(await r.json(), rel.artist, t.title);
+      } catch (e) {
+        log("[ft] lookup failed:", e.message || e);
+        complete = false;
+        break; // MusicBrainz down or limiting us: the rest waits for the next pass
+      } finally {
+        await sleep(1100); // MusicBrainz allows one request per second
+      }
+      if (!hit) continue;
+      if (used.reports >= FT_DAILY_REPORTS) { complete = false; break; }
+      reports ??= await getFt(api, FT_REPORTS);
+      reported ??= new Set(Object.keys(JSON.parse(reports.text).reports ?? {}));
+      const rkey = `${rel.instance}:${t.i}:${antPk}`;
+      if (reported.has(rkey)) continue; // one report per release, track and identity
+      reported.add(rkey);
+      const delta = await reportDelta(antSk, reportOf(rel.instance, t.i, hit, Date.now()));
+      await withTimeout(api.update(new UpdateRequest(reports.key, new UpdateData(UpdateDataType.DeltaUpdate, new DeltaUpdate(Array.from(new TextEncoder().encode(JSON.stringify(delta))))))));
+      used.reports++, filed++;
+      log("[ft] reported", rel.instance, `track ${t.i}`, `${hit.artist} - ${hit.title}`, hit.mbid);
+    }
+    if (complete) done.add(mark);
+    await save();
+  }
+  await save();
+  log(`[ft] ${releases.length} releases, ${looked} lookups, ${filed} reported, ${used.lookups}/${FT_DAILY_LOOKUPS} lookups today`);
+}
+
 const sk = await loadKey();
 const attesterPk = bytesToHex(await ed.getPublicKeyAsync(sk));
 log("attester key (add to RECEIPT_ISSUERS):", attesterPk);
@@ -381,7 +455,9 @@ const st = await loadState();
 const modSk = MOD_KEY ? await loadKey("moderator.key") : null;
 const modPk = modSk ? bytesToHex(await ed.getPublicKeyAsync(modSk)) : "";
 if (modSk) log("The Gardener (AI helper) on, model", MOD_MODEL, "- reports/mods as", modPk);
-let modNext = 0, ghNext = 0;
+const antSk = FT_CHECK ? await loadKey("ante.key") : null; // its own ante identity: FreeTunes counts one report per identity
+if (antSk) log("FreeTunes check on, reports as ante identity", bytesToHex(await ed.getPublicKeyAsync(antSk)));
+let modNext = 0, ghNext = 0, ftNext = 0;
 for (;;) {
   try {
     const api = await connect();
@@ -393,6 +469,10 @@ for (;;) {
         const doGh = Date.now() >= ghNext;
         if (doGh) ghNext = Date.now() + GH_POLL_MS;
         await modPass(api, modSk, modPk, [attesterPk], doGh).catch((e) => log("[mod] pass failed:", e.message || e)); // never in the way of receipts
+      }
+      if (antSk && Date.now() >= ftNext) {
+        ftNext = Date.now() + FT_POLL_MS;
+        await ftPass(api, antSk).catch((e) => log("[ft] pass failed:", e.message || e)); // never in the way of receipts
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }

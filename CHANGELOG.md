@@ -1,6 +1,7 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **NEW** Attester FreeTunes check (`attester/src/freetunes.js`, `attester/src/freetunes.test.js`, `attester/src/main.js`, `attester/README.md`): with `FT_CHECK=1` the bot looks up every track in the FreeTunes directory on MusicBrainz and files a `copyright` report (ante proof-of-work, own `ante.key` identity) in FreeTunes' `reports` contract for tracks that already exist. Report-only, no model.
   * **NEW** Folio in Apps Launcher (`ui/src/ecosystem.ts`, `README.md`): listed Folio's own deployed Freenet site (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`) in `ECOSYSTEM`, alongside its existing `folio/` coverage below.
   * **NEW** Customizable Main Rail Shortcuts (`ui/src/main.ts`, `ui/src/durable.ts`, `ui/src/style.css`, `ui/index.html`):
     * Settings → Main Rail Shortcuts lets you pick which 3 rail buttons (Chat/Mail/Activity by default) always show vs. which live behind More; moves the existing buttons rather than duplicating their icons/badges/shortcuts, so nothing else about them changes. Persisted per identity under `radica_dashboard_slots_` (durable key).
