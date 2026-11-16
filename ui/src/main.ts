@@ -569,7 +569,12 @@ const anteBadgeHtml = (pubkey: string): string => {
 };
 function renderMyPohBadges(): void {
   const me = currentIdentity?.pubkey ?? "";
-  const html = me ? `${pohProviderBadgesHtml(me)}${anteBadgeHtml(me)}`.trim() : "";
+  const trust = me ? getWebOfTrust().trustBadge(me) : null;
+  const trustHtml =
+    trust && trust.label !== "Rooted"
+      ? `<span class="gram-trust-badge ${trust.badgeClass}" title="${escapeHtml(trust.description)}">${trust.icon} ${escapeHtml(trust.label)}</span> `
+      : "";
+  const html = me ? `${trustHtml}${pohProviderBadgesHtml(me)}${anteBadgeHtml(me)}`.trim() : "";
   const sb = document.getElementById("sidebar-poh-badge");
   if (sb) sb.innerHTML = html;
   const pp = document.getElementById("pp-poh-badge");
