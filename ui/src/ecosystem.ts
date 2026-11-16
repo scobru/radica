@@ -20,6 +20,7 @@ export const ORTO_SITE = "9eBjDkH6ZXA6ehUyWBBjT6Xg4tQE4ALZjSsgXERds4yZ";
 export const AULA_SITE = "GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes";
 export const HIVE_SITE = "AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A";
 export const ATLAS_SITE = "771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9";
+export const FOLIO_SITE = "pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK";
 export { FREEHOLE_SITE, FREEHOLE_REPO, WORMHOLE_SITE, WORMHOLE_REPO } from "./wormhole.ts";
 export { FREETREE_SITE, FREETREE_REPO } from "./freetree.ts";
 
@@ -73,6 +74,7 @@ export const ECOSYSTEM: EcosystemApp[] = [
   { name: "Aula", launcherLabel: "Classroom", what: "decentralized classroom & coursework on Freenet (classes, assignments, grades)", key: AULA_SITE, repo: "https://github.com/scobru/aula", author: "by @scobru", category: "affiliated", group: "tools", icon: "layers" },
   { name: "Hive", launcherLabel: "Git", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", author: "by @holdmylatte", category: "affiliated", group: "tools", icon: "folder" },
   { name: "Atlas", launcherLabel: "Web App", what: "companion Freenet web app launched directly on your local node", key: ATLAS_SITE, repo: "", category: "affiliated", group: "tools", icon: "globe" },
+  { name: "Folio", launcherLabel: "Writer", what: "telegra.ph-style anonymous publishing on Freenet: write a page, get a link, no signup", key: FOLIO_SITE, repo: "", author: "by @scobru", category: "affiliated", group: "tools", icon: "edit" },
 ];
 
 export const RADICA_BUILTIN_APPS: EcosystemApp[] = [

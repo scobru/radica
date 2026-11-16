@@ -1,6 +1,9 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **NEW** Folio in Apps Launcher (`ui/src/ecosystem.ts`, `README.md`): added **Folio** (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`, by `@scobru`) — telegra.ph-style anonymous publishing on Freenet — to `ECOSYSTEM`.
+  * **NEW** Customizable Main Rail Shortcuts (`ui/src/main.ts`, `ui/src/durable.ts`, `ui/src/style.css`, `ui/index.html`):
+    * Settings → Main Rail Shortcuts lets you pick which 3 rail buttons (Chat/Mail/Activity by default) always show vs. which live behind More; moves the existing buttons rather than duplicating their icons/badges/shortcuts, so nothing else about them changes. Persisted per identity under `radica_dashboard_slots_` (durable key).
   * **NEW** @Mention Autocomplete in Chat (`ui/src/messengerChat.ts`, `ui/src/messengerLogic.ts`, `ui/src/messengerChat.css`, `ui/tests/messengerChat.test.ts`):
     * Typing `@` in the Messenger composer opens `#rm-mention-popup`, listing the current conversation's members (DM peer, private room roster, or community participants via `freenet.getCommunityParticipants`/`riverRoster`) and narrowing as you type, via the pure `detectMentionTrigger` / `filterMentionCandidates` helpers in `messengerLogic.ts`.
     * Pick with the mouse, Arrow keys + Enter/Tab, or Escape to dismiss; inserts a `@<pubkey>` mention that renders as `@Name` everywhere mentions are shown.
