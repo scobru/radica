@@ -7,6 +7,8 @@ import {
   isStageBackSwipe,
   resolveMessageSwipeStep,
   resolveThreadScrollAction,
+  detectMentionTrigger,
+  filterMentionCandidates,
   type MessageSwipePhase,
   type PreviewItem,
   type RoomMeta,
@@ -535,6 +537,8 @@ export function createMessengerChat(deps: MessengerDeps) {
             <input type="file" id="rm-file-audio" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.aac,.webm" hidden />
             <input type="file" id="rm-file-doc" hidden />
 
+            <div class="rm-mention-popup" id="rm-mention-popup" hidden></div>
+
             <div class="rm-attach-menu" id="rm-attach-menu">
               <button type="button" class="rm-attach-item" data-attach="image">${renderIcon("image", { className: "icon-sm" })}<span>Send Photo / Image</span></button>
               <button type="button" class="rm-attach-item" data-attach="audio">${renderIcon("music", { className: "icon-sm" })}<span>Send Audio File / Memo</span></button>
@@ -795,6 +799,105 @@ export function createMessengerChat(deps: MessengerDeps) {
     composerInputEl.style.height = `${Math.min(132, sh)}px`;
     composerInputEl.style.overflowY = sh > 132 ? "auto" : "hidden";
   }
+
+  // @mention popup: typing "@" opens a list of the current conversation's members, which narrows as more is typed.
+  const mentionPopupEl = rootEl.querySelector("#rm-mention-popup") as HTMLElement;
+  let mentionAt: number | null = null; // index of "@" in composerInputEl.value, or null while closed
+  let mentionActiveIdx = 0;
+
+  function mentionCandidates(): string[] {
+    const st = deps.getActiveState();
+    const me = deps.getIdentity()?.pubkey;
+    const pks = st.community
+      ? freenet.getCommunityParticipants(st.community)
+      : st.privateRoom
+        ? [...new Set((st.privateRoom.river ? freenet.riverRoster(st.privateRoom.id)?.members : undefined) ?? st.privateRoom.members)]
+        : st.peer
+          ? [st.peer]
+          : [];
+    return pks.filter((pk) => pk !== me);
+  }
+
+  function closeMentionPopup() {
+    mentionAt = null;
+    mentionPopupEl.hidden = true;
+    mentionPopupEl.innerHTML = "";
+  }
+
+  function paintMentionActive() {
+    mentionPopupEl.querySelectorAll<HTMLElement>(".rm-mention-item").forEach((el, i) => el.classList.toggle("active", i === mentionActiveIdx));
+  }
+
+  function renderMentionPopup(query: string) {
+    const matches = filterMentionCandidates(
+      mentionCandidates().map((pk) => ({ pk, name: deps.getAuthorDisplayName(pk) })),
+      query
+    );
+    if (!matches.length) {
+      closeMentionPopup();
+      return;
+    }
+    mentionActiveIdx = Math.min(mentionActiveIdx, matches.length - 1);
+    mentionPopupEl.innerHTML = matches.map((c) => `<button type="button" class="rm-mention-item" data-pk="${escapeHtml(c.pk)}">${escapeHtml(c.name)}</button>`).join("");
+    paintMentionActive();
+    mentionPopupEl.hidden = false;
+  }
+
+  function pickMention(pk: string) {
+    if (mentionAt === null) return;
+    const caret = composerInputEl.selectionStart ?? composerInputEl.value.length;
+    const insertion = `@${pk} `;
+    composerInputEl.value = composerInputEl.value.slice(0, mentionAt) + insertion + composerInputEl.value.slice(caret);
+    const newCaret = mentionAt + insertion.length;
+    closeMentionPopup();
+    composerInputEl.focus();
+    composerInputEl.setSelectionRange(newCaret, newCaret);
+    fitInput();
+  }
+
+  function updateMentionState() {
+    const caret = composerInputEl.selectionStart ?? 0;
+    const trigger = detectMentionTrigger(composerInputEl.value.slice(0, caret));
+    if (!trigger) {
+      closeMentionPopup();
+      return;
+    }
+    mentionAt = trigger.at;
+    mentionActiveIdx = 0;
+    renderMentionPopup(trigger.query);
+  }
+
+  mentionPopupEl.addEventListener("mousedown", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>(".rm-mention-item");
+    if (btn?.dataset.pk) {
+      e.preventDefault(); // keep focus (and selectionStart) on the textarea
+      pickMention(btn.dataset.pk);
+    }
+  });
+  composerInputEl.addEventListener("input", updateMentionState);
+  composerInputEl.addEventListener("blur", () => setTimeout(closeMentionPopup, 0)); // after a click on the popup registers
+  composerInputEl.addEventListener("keydown", (e) => {
+    if (mentionAt === null || mentionPopupEl.hidden) return;
+    const items = Array.from(mentionPopupEl.querySelectorAll<HTMLElement>(".rm-mention-item"));
+    if (!items.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      mentionActiveIdx = (mentionActiveIdx + 1) % items.length;
+      paintMentionActive();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      mentionActiveIdx = (mentionActiveIdx - 1 + items.length) % items.length;
+      paintMentionActive();
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      e.stopImmediatePropagation(); // this conversation's Enter-to-send listener runs later and must not fire
+      const pk = items[mentionActiveIdx]?.dataset.pk;
+      if (pk) pickMention(pk);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeMentionPopup();
+    }
+  });
 
   const roomMetaCache = new Map<string, { raw: string | null; cleared: string | null; meta: RoomMeta }>();
 
@@ -3458,6 +3561,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const sent = await deps.onSendMessage(finalPayload, composerInputEl);
     if (sent) {
       composerInputEl.value = "";
+      closeMentionPopup();
       fitInput();
       setStagedMedia(null);
     }

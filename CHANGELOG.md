@@ -1,6 +1,9 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **NEW** @Mention Autocomplete in Chat (`ui/src/messengerChat.ts`, `ui/src/messengerLogic.ts`, `ui/src/messengerChat.css`, `ui/tests/messengerChat.test.ts`):
+    * Typing `@` in the Messenger composer opens `#rm-mention-popup`, listing the current conversation's members (DM peer, private room roster, or community participants via `freenet.getCommunityParticipants`/`riverRoster`) and narrowing as you type, via the pure `detectMentionTrigger` / `filterMentionCandidates` helpers in `messengerLogic.ts`.
+    * Pick with the mouse, Arrow keys + Enter/Tab, or Escape to dismiss; inserts a `@<pubkey>` mention that renders as `@Name` everywhere mentions are shown.
   * **NEW** Viso Persona Delegation (`DelegationProofV1`) & GitHub PoH Badge UI (`ui/src/viso.ts`, `ui/src/base58.ts`, `ui/src/whoiam.ts`, `ui/src/freenet.ts`, `ui/src/durable.ts`, `ui/src/supporterPanel.ts`, `ui/src/greenhousePage.ts`, `ui/src/icons.ts`, `ui/src/main.ts`, `ui/src/style.css`, `ui/index.html`, `ui/tests/viso.test.ts`):
     * Extracted pure Base58 encoding/decoding into `ui/src/base58.ts` (re-exported from `ui/src/whoiam.ts`) so `ui/src/viso.ts` remains pure and Node-testable.
     * Added dual-signed Viso `DelegationProofV1` verification (`verifyVisoDelegation`, `verifiedDelegations`, `verifiedPohBadges`, `parseStoredPoh`, `serializeStoredPoh`) supporting `"radica"` / `"*"` scopes and inherited PoH attestation across Freenet's public `"delegations"` log (`radica_delegation_` durable prefix).
