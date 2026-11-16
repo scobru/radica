@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794786112.13552,
-    "ast_hash": "b9926f6cc2c727aa24116543bbd512b9",
+    "mtime": 1794811147.0419073,
+    "ast_hash": "fe1f59851177e77c451d9ff7f3363d90",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794810235.9700007,
-    "ast_hash": "43cc2aed915bfb51fe343d6d7b1a228c",
+    "mtime": 1794810892.3993826,
+    "ast_hash": "3f3be33e5cbddf2825a0f36170d2319c",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794810230.7107522,
-    "ast_hash": "d5fb2f2d7b63f0d9be17934c9b3062eb",
+    "mtime": 1794810894.9549527,
+    "ast_hash": "42658475f8860963f51118025224150f",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794785863.1296728,
-    "ast_hash": "e0f44b77866714908243123bce1e5ce0",
+    "mtime": 1794810887.1279533,
+    "ast_hash": "75e697a73bb804909bed3c7d63b07cc3",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794810233.363805,
-    "ast_hash": "b8645fe3579809d2dc85f4983a44415f",
+    "mtime": 1794810889.869007,
+    "ast_hash": "7141159a2a3af3e7b1007bdd1d9bc76b",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
-    "mtime": 1794810221.5512793,
-    "ast_hash": "397a02ce65bc011429c9f2339d00f906",
+    "mtime": 1794810877.270805,
+    "ast_hash": "ab6bb38a1cf266a7293e33397534938c",
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
@@ -935,8 +935,8 @@
     "semantic_hash": ""
   },
   "ui/tests/ecosystem.test.ts": {
-    "mtime": 1794810227.749086,
-    "ast_hash": "5c24394ec5dda8ca3d7940efae2ce993",
+    "mtime": 1794810882.9448988,
+    "ast_hash": "60ce4a6b05c5761c859c98218c7fcfc1",
     "semantic_hash": ""
   },
   "ui/tests/feedlight.test.ts": {

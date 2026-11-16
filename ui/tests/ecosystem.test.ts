@@ -123,6 +123,8 @@ test("ecosystem launcher: filterLauncherApps filters by tab/query, sorts pinned 
   assert.deepEqual(onlyPinned.map((a) => a.name), ["Delta Mirror"]);
 
   const builtIns = filterLauncherApps(LAUNCHER_APPS, { filter: "builtin" });
+  assert.ok(builtIns.some((a) => a.name === "Moments" && a.builtInBtn === "open-media-btn"));
+  assert.ok(builtIns.some((a) => a.name === "Communities" && a.builtInBtn === "open-communities-btn"));
   assert.ok(builtIns.some((a) => a.name === "Articles"));
   assert.ok(builtIns.some((a) => a.name === "River"));
   assert.ok(builtIns.some((a) => a.name === "Freenet Mail"));

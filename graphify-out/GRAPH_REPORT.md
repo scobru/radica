@@ -1,7 +1,7 @@
 # Graph Report - radica  (2026-11-16)
 
 ## Corpus Check
-- 284 files · ~832,759 words
+- 284 files · ~832,898 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f88b9848`
+- Built from commit: `4a6aa849`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

@@ -30,7 +30,7 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1794784155.5524306,
+    "mtime": 1794786112.13552,
     "ast_hash": "b9926f6cc2c727aa24116543bbd512b9",
     "semantic_hash": ""
   },
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794784881.4438725,
-    "ast_hash": "0dfece0f7a5036f47baf09ebe36ec493",
+    "mtime": 1794810235.9700007,
+    "ast_hash": "43cc2aed915bfb51fe343d6d7b1a228c",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794779558.093514,
-    "ast_hash": "63bdc0db5452b3d9bef045f478e97f86",
+    "mtime": 1794810230.7107522,
+    "ast_hash": "d5fb2f2d7b63f0d9be17934c9b3062eb",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1794784875.293829,
-    "ast_hash": "4b4d59c405b13574199e198a2e861078",
+    "mtime": 1794785863.1296728,
+    "ast_hash": "e0f44b77866714908243123bce1e5ce0",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1794784878.9055922,
-    "ast_hash": "0351b32f5eff3b7fedf2b9dddac370e4",
+    "mtime": 1794810233.363805,
+    "ast_hash": "b8645fe3579809d2dc85f4983a44415f",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -295,8 +295,8 @@
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
-    "mtime": 1794784868.710441,
-    "ast_hash": "bb3ba16400ac1d62220002c4c92ed522",
+    "mtime": 1794810221.5512793,
+    "ast_hash": "397a02ce65bc011429c9f2339d00f906",
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1794784219.1814766,
-    "ast_hash": "5a2f7df4dffc8d30100a177e5fe40a10",
+    "mtime": 1794785899.273422,
+    "ast_hash": "d53f4a292290395ced8aaa6d99f5ce1f",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -935,8 +935,8 @@
     "semantic_hash": ""
   },
   "ui/tests/ecosystem.test.ts": {
-    "mtime": 1794784872.1706817,
-    "ast_hash": "debee469565174bf58253eacee07ee79",
+    "mtime": 1794810227.749086,
+    "ast_hash": "5c24394ec5dda8ca3d7940efae2ce993",
     "semantic_hash": ""
   },
   "ui/tests/feedlight.test.ts": {

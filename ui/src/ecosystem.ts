@@ -74,6 +74,26 @@ export const ECOSYSTEM: EcosystemApp[] = [
 
 export const RADICA_BUILTIN_APPS: EcosystemApp[] = [
   {
+    name: "Moments",
+    what: "photo & video moments gallery + vertical Reels player (Instagram-style)",
+    repo: "https://github.com/scobru/radica",
+    author: "Radica built-in",
+    category: "integrated",
+    group: "media",
+    icon: "image",
+    builtInBtn: "open-media-btn",
+  },
+  {
+    name: "Communities",
+    what: "decentralized r/forums, threads, voting & community hubs (Reddit-style)",
+    repo: "https://github.com/scobru/radica",
+    author: "Radica built-in",
+    category: "integrated",
+    group: "communication",
+    icon: "users",
+    builtInBtn: "open-communities-btn",
+  },
+  {
     name: "Articles",
     what: "long-form Markdown articles & decentralized newsletters inside Radica",
     repo: "https://github.com/scobru/radica",
