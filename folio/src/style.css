@@ -1,0 +1,86 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-serif, Georgia, serif;
+  background: light-dark(#faf7f2, #16140f);
+  color: light-dark(#1a1a1a, #eae6dd);
+}
+.wrap { max-width: 680px; margin: 0 auto; padding: 48px 20px 80px; }
+h1 { font-size: 2rem; margin: 0 0 6px; }
+.muted { color: light-dark(#6b6558, #a79f8e); }
+.small { font-size: 0.85rem; }
+form { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
+input, textarea, button {
+  font-family: inherit;
+  font-size: 1rem;
+  border: 1px solid light-dark(#ddd6c7, #3a3528);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: light-dark(#fff, #1f1c15);
+  color: inherit;
+}
+textarea { resize: vertical; line-height: 1.5; }
+.row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+#token { flex: 1; }
+button {
+  cursor: pointer;
+  background: light-dark(#1a1a1a, #eae6dd);
+  color: light-dark(#fff, #16140f);
+  border: none;
+  font-weight: 600;
+}
+button.ghost { background: transparent; color: inherit; border: 1px solid light-dark(#ddd6c7, #3a3528); margin-top: 12px; }
+button:disabled { opacity: 0.6; cursor: default; }
+.error { color: #c0392b; }
+footer { margin-top: 48px; }
+
+.tabs { display: flex; gap: 4px; }
+.tab {
+  background: transparent;
+  color: light-dark(#6b6558, #a79f8e);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.tab.active { background: light-dark(#eee8da, #2a2619); color: inherit; }
+
+/* Preview typography, matching Radica's own Reader (article-*) classes */
+.article-body { line-height: 1.6; min-height: 200px; }
+.article-h1, .article-h2, .article-h3, .article-h4 { line-height: 1.25; margin: 1.2em 0 0.4em; }
+.article-p { margin: 0 0 1em; }
+.article-ul, .article-ol { margin: 0 0 1em; padding-left: 1.4em; }
+.article-quote { margin: 0 0 1em; padding-left: 1em; border-left: 3px solid light-dark(#ddd6c7, #3a3528); color: light-dark(#6b6558, #a79f8e); }
+.article-pre { background: light-dark(#eee8da, #2a2619); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+.article-inline-code { background: light-dark(#eee8da, #2a2619); border-radius: 3px; padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 0.9em; }
+.article-hr { border: none; border-top: 1px solid light-dark(#ddd6c7, #3a3528); margin: 2em 0; }
+.article-md-link { color: inherit; text-decoration: underline; }
+
+/* Desktop: wide, borderless, FoldPress-style page instead of a boxed form */
+@media (min-width: 900px) {
+  .wrap { max-width: 860px; padding-top: 72px; }
+  #title {
+    font-size: 2.6rem;
+    font-weight: 700;
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+  #subtitle, #tags {
+    border: none;
+    padding: 4px 0;
+    background: transparent;
+  }
+  #subtitle { font-size: 1.2rem; }
+  .tabs { border-bottom: 1px solid light-dark(#ddd6c7, #3a3528); padding-bottom: 10px; }
+  #body {
+    border: none;
+    padding: 0;
+    background: transparent;
+    font-size: 1.1rem;
+    min-height: 50vh;
+  }
+  #body:focus, #title:focus, #subtitle:focus, #tags:focus { outline: none; }
+}

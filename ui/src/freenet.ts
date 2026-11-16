@@ -5,6 +5,7 @@ import {
   verifiedPohs,
   verifyVisoDelegation,
   verifyVisoPoh,
+  visoAnteBits,
   visoGhostkeyOf,
   visoPohOf,
   visoPohRawOf,
@@ -2183,25 +2184,36 @@ export class FreenetClient {
     }
   }
 
-  /** Resolve and verify `poh:<provider>` slot bytes (hex) from `pubkey` or its verified Viso delegation target. */
+  /** Resolve and verify `poh:<provider>` slot bytes (hex) from `pubkey` or its verified Viso delegation target.
+   *  When `slot` is omitted, checks `["poh:github", "poh:google"]` in order and returns the first verified proof. */
   public async visoPohResolved(
     pubkey: string,
-    slot = "poh:github",
+    slot?: string,
   ): Promise<{ proofHex: string; badge: PohBadge; delegation?: DelegationProofV1 } | null> {
+    const slots = slot ? [slot] : ["poh:github", "poh:google"];
     try {
       const state = await this.net.visoIdentity(pubkey);
-      const raw = state ? visoPohRawOf(state, slot) : null;
-      if (raw) {
-        const badge = await verifyVisoPoh(raw, pubkey);
-        if (badge) return { proofHex: bytesToHex(raw), badge };
+      if (state) {
+        for (const s of slots) {
+          const raw = visoPohRawOf(state, s);
+          if (raw) {
+            const badge = await verifyVisoPoh(raw, pubkey);
+            if (badge) return { proofHex: bytesToHex(raw), badge };
+          }
+        }
       }
       const del = await this.visoDelegationOf(pubkey);
       if (!del) return null;
       const targetState = await this.net.visoIdentity(del.verified.toHex);
-      const targetRaw = targetState ? visoPohRawOf(targetState, slot) : null;
-      if (!targetRaw) return null;
-      const badge = await verifyVisoPoh(targetRaw, del.verified.toHex);
-      return badge ? { proofHex: bytesToHex(targetRaw), badge, delegation: del.raw } : null;
+      if (!targetState) return null;
+      for (const s of slots) {
+        const targetRaw = visoPohRawOf(targetState, s);
+        if (targetRaw) {
+          const badge = await verifyVisoPoh(targetRaw, del.verified.toHex);
+          if (badge) return { proofHex: bytesToHex(targetRaw), badge, delegation: del.raw };
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -2215,6 +2227,23 @@ export class FreenetClient {
   /** Verified PoH authors from Radica's public `"poh"` log. */
   public verifiedPohAuthors(): Promise<string[]> {
     return verifiedPohs(this.pohProofs());
+  }
+
+  /** Verified Viso `ante` commitment bits published on `pubkey`'s Viso contract (or via a verified Viso delegation). */
+  public async visoAnte(pubkey: string): Promise<number | null> {
+    try {
+      const state = await this.net.visoIdentity(pubkey);
+      if (state) {
+        const direct = await visoAnteBits(state, pubkey);
+        if (direct !== null) return direct;
+      }
+      const del = await this.visoDelegationOf(pubkey);
+      if (!del) return null;
+      const targetState = await this.net.visoIdentity(del.verified.toHex);
+      return targetState ? await visoAnteBits(targetState, del.verified.toHex) : null;
+    } catch {
+      return null;
+    }
   }
 
   public getMedia(hash: string): Promise<Uint8Array | null> {

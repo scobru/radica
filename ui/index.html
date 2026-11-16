@@ -1186,7 +1186,7 @@
           <div class="identity-field" id="poh-box" style="margin-top: 16px;">
             <label><b>🛡️ Or verify as a Human via Viso (Anonymous GitHub PoH)</b></label>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px;">
-              Verified your persona in Viso with an anonymous Blind-RSA Proof-of-Personhood (e.g. a GitHub account &ge; 1 year old)? Radica verifies the cryptographic signature locally without ever learning your GitHub handle, lifts newcomer PoW limits, grants Greenhouse voting, and shows a 🛡️ badge.
+              Verified your persona in Viso with an anonymous Blind-RSA Proof-of-Personhood (GitHub &ge; 1 year old or verified Google account)? Radica verifies the cryptographic signature locally without ever learning your external handle or email, lifts newcomer PoW limits, grants Greenhouse voting, and shows your 🛡️ + GitHub/Google badges.
             </p>
             <div id="poh-status" style="font-size: 0.85rem; margin-bottom: 8px;"></div>
             <div class="identity-actions">
@@ -1498,6 +1498,7 @@
         <details><summary>📰 Articles &amp; Newsletters</summary>
           <p>Write long-form <b>Markdown articles</b> from the <b>Articles</b> page (shortcut <code>g a</code>) with a title, subtitle, tags, cover image, live preview, and estimated reading time.</p>
           <p>Drafts are saved locally in durable node storage so they survive browser reloads. When you publish, the full article payload is stored in Freenet's media contract and linked from a signed feed post, opening in a distraction-free Reader (<code>#article=…&amp;author=…</code>). You can also <b>edit</b> or <b>delete</b> your published articles directly from the Articles list or Reader (edits upload a new payload revision and apply a signed post edit so the updated text appears across both Articles and the Feed), and dispatch summaries and permalinks as a <b>newsletter via Radica Mail</b> to your saved contacts.</p>
+          <p>You can also write in <b>Folio</b>, a companion account-free Markdown writer (<code>folio/</code> in this repo): it publishes to the same media contract and gives you a <code>radica-article:…</code> token to paste into any post here, which then renders as a full Article card — with a real author, likes, and comments, since it's your own signed post that carries it.</p>
         </details>
 
         <details><summary>🎵 Music (FreeTunes Stream) &amp; 🎬 Moments Reels</summary>

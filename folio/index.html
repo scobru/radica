@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Folio</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Folio</h1>
+      <p class="muted">Write an article and publish it straight to Freenet — no account, no Radica persona needed. Paste the token Folio gives you into any Radica post, and it renders as a full article there.</p>
+    </header>
+
+    <form id="form">
+      <input id="title" placeholder="Title" required />
+      <input id="subtitle" placeholder="Subtitle (optional)" />
+      <input id="tags" placeholder="Tags (comma or space separated)" />
+      <div class="tabs" role="tablist">
+        <button type="button" id="tab-write" class="tab active" role="tab" aria-selected="true">Write</button>
+        <button type="button" id="tab-preview" class="tab" role="tab" aria-selected="false">Preview</button>
+      </div>
+      <textarea id="body" placeholder="Write your article in Markdown…" rows="16" required></textarea>
+      <div id="preview" class="article-body" hidden></div>
+      <div class="row">
+        <span id="stats" class="muted"></span>
+        <button type="submit" id="publish">Publish</button>
+      </div>
+    </form>
+
+    <div id="result" hidden>
+      <p>Published. Paste this into any post in Radica — it will render as a full article there, under your own name:</p>
+      <div class="row">
+        <input id="token" readonly />
+        <button type="button" id="copy-token">Copy</button>
+      </div>
+      <p>Or share it anywhere on Freenet with this link — it opens straight in Folio, no Radica needed:</p>
+      <div class="row">
+        <input id="share-link" readonly />
+        <button type="button" id="copy-link">Copy</button>
+      </div>
+      <button type="button" id="write-another" class="ghost">Write another</button>
+    </div>
+
+    <p id="error" class="error" hidden></p>
+
+    <footer>
+      <p class="muted small">
+        Folio itself signs nothing and has no identity — the token only becomes a real, signed article once
+        you paste it into a post you write and sign in Radica.
+      </p>
+    </footer>
+  </main>
+
+  <main id="read-view" class="wrap" hidden>
+    <a href="#" id="read-write-link" class="muted small">← Write your own</a>
+    <article id="read-article" class="article-body"></article>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
