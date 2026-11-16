@@ -310,6 +310,7 @@ npm run test:app   # Freenet installer/probe tests
   - [Aula](https://github.com/scobru/aula) (`GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes`) (Decentralized classroom & coursework on Freenet: classes, assignments, grades)
   - **Hive** (`AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A`) (Decentralized Git & code collaboration on Freenet, by `@holdmylatte`)
   - **Atlas** (`771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) (Companion Freenet web app available in the Apps Launcher)
+  - **Folio** (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`) (telegra.ph-style anonymous publishing on Freenet: write a page, get a link, no signup)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
 
