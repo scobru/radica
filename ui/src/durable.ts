@@ -35,6 +35,7 @@ export const DURABLE_PREFIXES = [
   "radica_lang", // Reader translation language
   "radica_apps_pinned_", // Pinned Freenet apps in launcher
   "radica_apps_custom_", // Custom Freenet sites added to launcher
+  "radica_dashboard_slots_", // Which 3 rail buttons always show vs. live behind More
 ];
 
 /** The delegate refuses values over 256 KB. */

@@ -3320,6 +3320,11 @@ body {
   border-color: var(--primary);
 }
 
+.dashboard-slot-select {
+  width: auto;
+  flex: 1 1 140px;
+}
+
 .identity-field label {
   display: block;
   margin-bottom: 6px;

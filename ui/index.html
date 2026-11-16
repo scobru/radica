@@ -1272,6 +1272,22 @@
           </div>
         </div>
 
+        <!-- Section: which 3 modules sit in the rail's always-visible slots (the rest live behind More) -->
+        <div class="identity-section">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+              <span>Main Rail Shortcuts</span>
+            </span>
+          </h4>
+          <p>Choose the 3 places that always show in the rail (and the bottom bar on phones); everything else lives behind <b>More</b>.</p>
+          <div class="identity-field" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="dashboard-slot-0" class="dashboard-slot-select"></select>
+            <select id="dashboard-slot-1" class="dashboard-slot-select"></select>
+            <select id="dashboard-slot-2" class="dashboard-slot-select"></select>
+          </div>
+        </div>
+
         <!-- Section: Interface width -->
         <div class="identity-section">
           <h4>
@@ -1430,6 +1446,10 @@
           <p>Type <code>@</code> in a chat message to open a popup of that conversation's people (the other person in a DM, everyone in a private room, or a community's participants), which narrows as you keep typing their name. Pick one with the mouse, the Arrow keys + Enter/Tab, or press Escape to close it.</p>
         </details>
 
+        <details><summary>🧭 Customizing your main rail shortcuts</summary>
+          <p>Only 3 places always show in the rail (and the bottom bar on phones) — Chat, Mail and Activity by default. Everything else is one tap behind <b>More</b>. Pick your own 3 from Settings → Main Rail Shortcuts: swap any of them for Moments, Tree, Communities, Articles, Music, Greenhouse or Apps.</p>
+        </details>
+
         <details><summary>🌱 Linfa and reposts</summary>
           <p><b>Linfa</b> is the sap of the plant on every profile. Your node counts it from the posts, comments and likes it holds: nothing is stored, so nobody can write themselves a number.</p>
           <ul>
@@ -1523,7 +1543,7 @@
 
         <details><summary>🧩 Apps Launcher (Freenet Ecosystem)</summary>
           <ul>
-            <li><b>One home for Freenet apps</b>: Open <b>Apps</b> in the left rail (or press <code>g e</code>) to browse built-in Radica experiences (Moments, Communities, Articles, Chat, Mail, Music) and ecosystem dApps like River, Freenet Mail, Viso, FreeTunes, FreePolls, FreeNames, Delta, Orto, Asocial, Fisherman's Horizon, FreeHole, Freetree, Aula, Hive, and Atlas.</li>
+            <li><b>One home for Freenet apps</b>: Open <b>Apps</b> in the left rail (or press <code>g e</code>) to browse built-in Radica experiences (Moments, Communities, Articles, Chat, Mail, Music) and ecosystem dApps like River, Freenet Mail, Viso, FreeTunes, FreePolls, FreeNames, Delta, Orto, Asocial, Fisherman's Horizon, FreeHole, Freetree, Aula, Hive, Atlas, and Folio.</li>
             <li><b>Launch on your own node</b>: Apps with a Freenet site key open straight on your local node (<code>/v1/contract/web/&lt;key&gt;/#/</code>) in a dedicated tab so Freenet's gateway wraps each app in its own isolated shell, while built-in tools (Articles, Chat, Mail, Music) can also jump right into Radica's native views.</li>
             <li><b>Pin &amp; customize</b>: Star favorites to keep them at the top, copy node URLs in 1 click, or click <b>+ Add site</b> to save any Freenet contract key/URL to your personal launcher (persisted in your durable node package).</li>
           </ul>
