@@ -74,7 +74,7 @@ export const ECOSYSTEM: EcosystemApp[] = [
   { name: "Aula", launcherLabel: "Classroom", what: "decentralized classroom & coursework on Freenet (classes, assignments, grades)", key: AULA_SITE, repo: "https://github.com/scobru/aula", author: "by @scobru", category: "affiliated", group: "tools", icon: "layers" },
   { name: "Hive", launcherLabel: "Git", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", author: "by @holdmylatte", category: "affiliated", group: "tools", icon: "folder" },
   { name: "Atlas", launcherLabel: "Web App", what: "companion Freenet web app launched directly on your local node", key: ATLAS_SITE, repo: "", category: "affiliated", group: "tools", icon: "globe" },
-  { name: "Folio", launcherLabel: "Write Article", what: "account-free Markdown article writer (folio/): publishes straight to Radica's own media-contract and hands back a radica-article: token, pasted into any post to render as a full Article card under your real identity", key: FOLIO_SITE, repo: "", author: "by @scobru", category: "integrated", group: "media", icon: "fileText" },
+  { name: "Folio", launcherLabel: "Write Article", what: "account-free Markdown writer: get a radica-article: token to paste into any post", key: FOLIO_SITE, repo: "", author: "by @scobru", category: "integrated", group: "media", icon: "fileText" },
 ];
 
 export const RADICA_BUILTIN_APPS: EcosystemApp[] = [
