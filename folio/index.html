@@ -17,7 +17,12 @@
       <input id="title" placeholder="Title" required />
       <input id="subtitle" placeholder="Subtitle (optional)" />
       <input id="tags" placeholder="Tags (comma or space separated)" />
+      <div class="tabs" role="tablist">
+        <button type="button" id="tab-write" class="tab active" role="tab" aria-selected="true">Write</button>
+        <button type="button" id="tab-preview" class="tab" role="tab" aria-selected="false">Preview</button>
+      </div>
       <textarea id="body" placeholder="Write your article in Markdown…" rows="16" required></textarea>
+      <div id="preview" class="article-body" hidden></div>
       <div class="row">
         <span id="stats" class="muted"></span>
         <button type="submit" id="publish">Publish</button>

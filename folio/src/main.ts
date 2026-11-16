@@ -1,4 +1,5 @@
 import { buildPayload, countWords, estimateReadingMinutes, serializePayload } from "./article.ts";
+import { renderMarkdown } from "./markdown.ts";
 import { publishArticleBytes } from "./net.ts";
 
 // Radica resolves "#article=hash:<id>" straight from the media-contract, with no post or author behind it
@@ -22,6 +23,22 @@ function updateStats() {
 }
 bodyEl.addEventListener("input", updateStats);
 updateStats();
+
+const previewEl = el<HTMLDivElement>("preview");
+const tabWrite = el<HTMLButtonElement>("tab-write");
+const tabPreview = el<HTMLButtonElement>("tab-preview");
+function showTab(tab: "write" | "preview") {
+  const isPreview = tab === "preview";
+  if (isPreview) previewEl.innerHTML = renderMarkdown(bodyEl.value);
+  bodyEl.hidden = isPreview;
+  previewEl.hidden = !isPreview;
+  tabWrite.classList.toggle("active", !isPreview);
+  tabWrite.setAttribute("aria-selected", String(!isPreview));
+  tabPreview.classList.toggle("active", isPreview);
+  tabPreview.setAttribute("aria-selected", String(isPreview));
+}
+tabWrite.addEventListener("click", () => showTab("write"));
+tabPreview.addEventListener("click", () => showTab("preview"));
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -54,6 +71,7 @@ el<HTMLButtonElement>("copy").addEventListener("click", () => {
 el<HTMLButtonElement>("write-another").addEventListener("click", () => {
   form.reset();
   updateStats();
+  showTab("write");
   resultEl.hidden = true;
   form.hidden = false;
   titleEl.focus();
