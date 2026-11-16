@@ -1,0 +1,22 @@
+{
+  "name": "folio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "publish": "npm run freenet:publish",
+    "update": "npm run freenet:update",
+    "freenet:publish": "npm run build && fdev website publish dist --key folio",
+    "freenet:update": "npm run build && fdev website update dist --key folio"
+  },
+  "dependencies": {
+    "@freenetorg/freenet-stdlib": "latest",
+    "@noble/hashes": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}
