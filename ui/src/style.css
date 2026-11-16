@@ -1580,7 +1580,6 @@ body.chat-fullscreen .rail {
   display: flex;
   flex-direction: column;
   background: var(--card-bg);
-  transition: all 0.2s ease-in-out;
 }
 
 .chat-header {
