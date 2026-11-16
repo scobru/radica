@@ -137,6 +137,96 @@ export const CURATED_GIFS: GifItem[] = [
     category: "memes",
     tags: ["dance", "party", "vibes", "music", "groove", "happy"],
   },
+
+  // More reactions
+  {
+    id: "fire-lit",
+    title: "Fire / Lit",
+    url: "./gifs/fire-lit.gif",
+    category: "reactions",
+    tags: ["fire", "lit", "hot", "flame", "amazing", "awesome"],
+  },
+  {
+    id: "hundred-points",
+    title: "100",
+    url: "./gifs/hundred-points.gif",
+    category: "reactions",
+    tags: ["100", "perfect", "nailed it", "respect", "keep it 100"],
+  },
+  {
+    id: "party-popper",
+    title: "Party Popper",
+    url: "./gifs/party-popper.gif",
+    category: "reactions",
+    tags: ["party", "confetti", "celebrate", "congrats", "yay", "tada"],
+  },
+  {
+    id: "thinking-face",
+    title: "Thinking",
+    url: "./gifs/thinking-face.gif",
+    category: "reactions",
+    tags: ["thinking", "hmm", "considering", "suspicious", "doubt"],
+  },
+  {
+    id: "sparkles-twinkle",
+    title: "Sparkles",
+    url: "./gifs/sparkles-twinkle.gif",
+    category: "reactions",
+    tags: ["sparkles", "shiny", "magic", "cute", "nice"],
+  },
+  {
+    id: "pray-thanks",
+    title: "Pray / Thanks",
+    url: "./gifs/pray-thanks.gif",
+    category: "reactions",
+    tags: ["pray", "thanks", "please", "hope", "grateful", "amen"],
+  },
+
+  // More emotions
+  {
+    id: "crying-laughing",
+    title: "Crying Laughing",
+    url: "./gifs/crying-laughing.gif",
+    category: "emotions",
+    tags: ["crying laughing", "lmao", "lol", "dying", "hilarious", "rofl"],
+  },
+  {
+    id: "heart-eyes",
+    title: "Heart Eyes",
+    url: "./gifs/heart-eyes.gif",
+    category: "emotions",
+    tags: ["heart eyes", "love it", "adore", "beautiful", "crush", "obsessed"],
+  },
+  {
+    id: "angry-mad",
+    title: "Angry",
+    url: "./gifs/angry-mad.gif",
+    category: "emotions",
+    tags: ["angry", "mad", "furious", "rage", "annoyed", "pissed"],
+  },
+  {
+    id: "crying-sad",
+    title: "Crying / Sad",
+    url: "./gifs/crying-sad.gif",
+    category: "emotions",
+    tags: ["crying", "sad", "sobbing", "tears", "heartbroken", "upset"],
+  },
+
+  // More memes / fun
+  {
+    id: "side-eye-look",
+    title: "Side Eye",
+    url: "./gifs/side-eye-look.gif",
+    category: "memes",
+    tags: ["side eye", "suspicious", "watching", "sus", "looking", "shady"],
+  },
+  {
+    id: "skull-dead",
+    title: "Dead / Skull",
+    url: "./gifs/skull-dead.gif",
+    category: "memes",
+    tags: ["skull", "dead", "im dead", "deceased", "lol", "finished"],
+  },
 ];
 
 let activeModal: HTMLElement | null = null;
