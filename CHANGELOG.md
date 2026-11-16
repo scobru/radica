@@ -1,6 +1,7 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **FIX** Curated Boards lost on refresh (`ui/src/durable.ts`, `ui/tests/durable.test.ts`): `radica_boards_` was missing from `DURABLE_PREFIXES`, so a board created in one session never made it into the node's durable package — a plain browser refresh (the only thing `isDurable` keys survive in Freenet's sandboxed shell) wiped it, and "Add to Board" would then show "No boards yet" for a board the owner was sure they'd made. Same class of bug as the earlier `radica_mail_contacts_`/`radica_fmail_contacts_` prefix mismatch.
   * **NEW** Profile Connections tab on every screen width (`ui/src/style.css`): the mobile-only `🔗 Connections` tab (`.uview-tab-connections`, `uview-show-connections`) that swaps the Linfa/connected-apps aside in full-width is no longer gated behind `@media (max-width: 820px)` — on desktop it now toggles the same way instead of the aside being permanently docked beside the Wall.
   * **FIX** Feed cache lost on a real app restart in the Android & desktop apps (`apps/android/src/main/java/org/freenet/radica/MainActivity.java`, `apps/desktop/src/web.rs`, `ui/src/storage.ts`, `ui/tests/storage.test.ts`):
     * Radica runs in a sandboxed iframe the Freenet node's own web container serves (no `allow-same-origin`), so `window.localStorage` always throws there; `storage.ts`'s existing fallback (`window.name` + URL hash) only survives in-tab navigation, not the app being fully closed and reopened (a fresh `WebView`/`WebViewBuilder` means a fresh, empty `window.name`).

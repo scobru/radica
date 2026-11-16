@@ -16,6 +16,7 @@ export const DURABLE_PREFIXES = [
   "radica_trusted_blocklists",
   "radica_supporter_receipt_",
   "radica_saved_posts_",
+  "radica_boards_", // Curated Boards: without this, a board created in one session vanishes on the next browser refresh
   "radica_ghostkey_", // my GhostKey proof: its perks hold here even before the ghostkeys log arrives
   "radica_poh_", // my Viso Proof-of-Personhood proof: its perks hold here even before the poh log arrives
   "radica_delegation_", // my Viso persona handoff certificate (DelegationProofV1): recovers PoH/profile from an active persona
