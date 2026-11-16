@@ -16,8 +16,8 @@ import {
 
 test("ecosystem: includes all requested projects", () => {
   const names = ECOSYSTEM.map((e) => e.name);
-  assert.ok(names.includes("Chat"));
-  const river = ECOSYSTEM.find((e) => e.name === "Chat");
+  assert.ok(names.includes("River"));
+  const river = ECOSYSTEM.find((e) => e.name === "River");
   assert.equal(river?.key, "raAqMhMG7KUpXBU2SxgCQ3Vh4PYjttxdSWd9ftV7RLv");
   assert.equal(hrefOf(river!, "http://127.0.0.1:7509"), "http://127.0.0.1:7509/v1/contract/web/raAqMhMG7KUpXBU2SxgCQ3Vh4PYjttxdSWd9ftV7RLv/#/");
   assert.ok(names.includes("Viso"));
@@ -126,7 +126,7 @@ test("ecosystem launcher: filterLauncherApps filters by tab/query, sorts pinned 
   assert.ok(builtIns.some((a) => a.name === "Moments" && a.builtInBtn === "open-media-btn"));
   assert.ok(builtIns.some((a) => a.name === "Communities" && a.builtInBtn === "open-communities-btn"));
   assert.ok(builtIns.some((a) => a.name === "Articles"));
-  assert.ok(builtIns.some((a) => a.name === "Chat"));
+  assert.ok(builtIns.some((a) => a.name === "River" && a.launcherLabel === "Chat"));
   assert.ok(builtIns.some((a) => a.name === "Freenet Mail"));
   assert.ok(builtIns.some((a) => a.name === "FreeTunes"));
 

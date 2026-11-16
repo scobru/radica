@@ -479,6 +479,61 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     });
   }
 
+  /** Reader for an article published straight to the media-contract by its content hash, with no signed Radica
+   *  post behind it (e.g. from an external writer like Folio): no author, likes, comments, or edit/report/hide —
+   *  none of that exists without a post, so it is shown plainly as unverified. */
+  async function openAnonymousReader(hash: string) {
+    if (!modal || !readerView) return;
+    modal.style.display = "flex";
+    showView("reader");
+    readerView.innerHTML = `<div class="articles-reader-loading">Loading article from Freenet…</div>`;
+
+    const payload = await resolvePayload(hash);
+    if (!payload) {
+      readerView.innerHTML =
+        `<div class="article-reader-shell">` +
+          `<div class="article-reader-topbar"><button type="button" class="btn-secondary btn-sm" id="article-reader-back-btn">← All Articles</button></div>` +
+          `<p class="article-missing-note">This article (<code>${esc(hash.slice(0, 12))}…</code>) was not found on Freenet. It may still be propagating, or the link is wrong.</p>` +
+        `</div>`;
+      document.getElementById("article-reader-back-btn")?.addEventListener("click", () => { showView("list"); renderList(); });
+      return;
+    }
+
+    const coverSrc = payload.coverUri ? await deps.getMediaUrl(payload.coverUri) : undefined;
+    const bodyHtml = renderArticleMarkdown(payload.body, deps.shouldMaskBadWords?.() ?? true);
+    const permalink = `${deps.getAppBaseUrl()}#article=hash:${encodeURIComponent(hash)}`;
+
+    readerView.innerHTML =
+      `<div class="article-reader-shell">` +
+        `<div class="article-reader-topbar">` +
+          `<button type="button" class="btn-secondary btn-sm" id="article-reader-back-btn">← All Articles</button>` +
+          `<div class="article-reader-top-actions">` +
+            `<button type="button" class="btn-secondary btn-sm" id="article-reader-copy-link-btn">Copy Permalink</button>` +
+          `</div>` +
+        `</div>` +
+        (coverSrc ? `<div class="article-reader-cover"><img src="${esc(coverSrc)}" alt="${esc(payload.title)}" /></div>` : "") +
+        `<header class="article-reader-header">` +
+          `<h1 class="article-reader-title">${esc(payload.title)}</h1>` +
+          (payload.subtitle ? `<p class="article-reader-subtitle">${esc(payload.subtitle)}</p>` : "") +
+          `<div class="article-reader-byline">` +
+            `<span class="article-anon-pill" title="No signed Radica post backs this article: anyone could have published it at this address.">Anonymous · published outside Radica</span>` +
+            `<span class="article-dot">·</span>` +
+            `<span>${esc(new Date(payload.publishedAt).toLocaleDateString())}</span>` +
+            `<span class="article-dot">·</span>` +
+            `<span class="article-read-time">${payload.readingMinutes} min read</span>` +
+          `</div>` +
+          (payload.tags.length ? `<div class="article-card-tags">${payload.tags.map((t) => `<span class="article-tag-pill">#${esc(t)}</span>`).join("")}</div>` : "") +
+        `</header>` +
+        `<article class="article-reader-body">${bodyHtml}</article>` +
+      `</div>`;
+
+    document.getElementById("article-reader-back-btn")?.addEventListener("click", () => { showView("list"); renderList(); });
+    document.getElementById("article-reader-copy-link-btn")?.addEventListener("click", () => {
+      void navigator.clipboard?.writeText(permalink);
+      deps.showToast("Article permalink copied!");
+    });
+  }
+
   function updateComposeStats() {
     const body = composeBodyInput?.value || "";
     const words = countWords(body);
@@ -937,6 +992,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
       openComposer();
     },
     openReader,
+    openAnonymousReader,
     openEdit: (postId: string, author: string) => openEditById(postId, author, false),
     refresh: () => {
       if (modal && modal.style.display !== "none" && activeView === "list") renderList();
