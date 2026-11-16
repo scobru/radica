@@ -55,7 +55,7 @@ export interface EcosystemApp {
 }
 
 export const ECOSYSTEM: EcosystemApp[] = [
-  { name: "River", what: "group chat; Radica's private rooms are River rooms", key: RIVER_SITE, repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
+  { name: "Chat", what: "group chat via River; Radica's private rooms are River rooms", key: RIVER_SITE, repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
   { name: "Freenet Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core", category: "integrated", group: "communication", icon: "messageCircle", builtInBtn: "open-mail-btn" },
   { name: "Viso", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru", category: "integrated", group: "identity", icon: "shield" },
   { name: "FreeTunes", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru", category: "integrated", group: "media", icon: "music", builtInBtn: "open-music-btn" },
