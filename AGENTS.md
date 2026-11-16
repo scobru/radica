@@ -1,42 +1,20 @@
-# Radica — Agent Guidelines & Repository Rules
+# Radica — Agent Rules
 
-This document outlines mandatory instructions and rules for AI coding assistants working in the Radica repository.
+## MUST: updates tab + docs, same session
+Any new feature, integration, protocol, or significant improvement:
+1. `ui/src/updates.ts`: new entry at top of `UPDATES`, current ISO date (`YYYY-MM-DD`). User-facing: what it does, how to reach it, why it matters.
+2. `ui/index.html` (`#guide-modal`): new user-facing capability → add/update concise `<details>` section.
+3. `CHANGELOG.md`: entry under current release heading (or bump to new version block).
+4. `README.md`: new capability, companion app integration (e.g. Freenet Mail, FreeTunes, River), or crypto protocol → Key Features or Ecosystem section.
+5. `CONTEXT.md`: new domain terms, invariants, architectural decisions.
 
-## 🚨 Mandatory Rule: Features, Updates Tab & Documentation
+## MUST: content moderation, all 3 layers
+Any feature that creates, publishes, or displays user-generated content (posts, articles, boards, events, media, comments, audio/video):
+1. Local on-device (`ui/src/moderation.ts`): `analyzeImageFile(...)` on uploaded images/covers, propagate `isNsfw` / `nsfwScore`; `analyzeTextContent(...)` / `maskProfanity(...)` on text when appropriate, respecting reader's `maskBadWords`.
+2. AI helper + trusted curator / WoT filtering: drop hidden/blocked authors (`isHiddenAuthor`), curator-reported/removed posts (`freenet.reportedBy`), reported media (`freenet.reportedMediaBy`), AI helper holds (`freenet.aiHeldTargets()`) — authors still see their own posts.
+3. Manual: expose **Report** (`freenet.reportPost`) and **Hide Author** in the feature's reader/detail/card UI.
 
-Whenever a new feature, integration, protocol, or significant improvement is introduced to the codebase, **the agent MUST ALWAYS keep the updates tab and documentation synchronized in the same session**:
-
-### 1. In-App Updates Tab (`ui/src/updates.ts`)
-* **Always add an entry to `UPDATES`**: Add a new entry with the current ISO date (`YYYY-MM-DD`) at the very top of the `UPDATES` array in `ui/src/updates.ts`.
-* **Description**: Write a clear, user-facing summary of what the feature does, how users access it, and why it matters.
-
-### 2. Repository Documentation & In-App Guide
-* **`ui/index.html` (`#guide-modal`)**: When introducing a new user-facing capability, add or update a concise `<details>` section in the in-app Guide.
-* **`CHANGELOG.md`**: Add the new version / feature entry under the current release heading (or bump to a new version block).
-* **`README.md`**: When adding a new capability, companion app integration (e.g., Freenet Mail, FreeTunes, River), or cryptographic protocol, document it under the Key Features or Ecosystem sections.
-* **`CONTEXT.md`**: Record any new domain language terms, invariants, or architectural decisions.
-
----
-
-## 🛡️ Mandatory Rule: Content Moderation (Local, AI & Manual)
-
-Every feature that **creates, publishes, or displays user-generated content** (posts, articles, boards, events, media, comments, audio/video) MUST integrate all three layers of Radica moderation:
-1. **Local On-Device Model & Text Checks (`ui/src/moderation.ts`)**:
-   * Run `analyzeImageFile(...)` on uploaded images/covers and propagate `isNsfw` / `nsfwScore`.
-   * Run `analyzeTextContent(...)` / `maskProfanity(...)` on text content when appropriate, respecting the reader's `maskBadWords` setting.
-2. **AI Helper & Trusted Curator / WoT Filtering**:
-   * Filter out hidden/blocked authors (`isHiddenAuthor`), posts reported/removed by trusted curators (`freenet.reportedBy`), reported media (`freenet.reportedMediaBy`), and AI helper holds (`freenet.aiHeldTargets()`), while still allowing authors to see their own posts.
-3. **Manual Moderation Controls**:
-   * Expose **Report** (`freenet.reportPost`) and **Hide Author** actions directly in the feature's reader/detail/card UI.
-
----
-
-## 🧪 Testing & Verification Requirements
-
-1. **Unit Tests**:
-   * Any new module or utility must have corresponding unit tests in `ui/tests/<feature>.test.ts`.
-   * Run the test suite: `npm test` (or `node --experimental-strip-types --test tests/<feature>.test.ts`).
-2. **Build Verification**:
-   * Always verify that TypeScript and Vite production bundle compile with zero errors: `npm run build`.
-3. **Graphify Knowledge Graph**:
-   * After modifying code files in any session, run `graphify update .` from the repository root to keep `graphify-out/` current (AST-only, no LLM cost).
+## Testing & verification
+1. New module/utility → unit tests in `ui/tests/<feature>.test.ts`. Run `npm test` (or `node --experimental-strip-types --test tests/<feature>.test.ts`).
+2. Always: `npm run build` — TypeScript + Vite production bundle, zero errors.
+3. After modifying code files: `graphify update .` from repo root to keep `graphify-out/` current (AST-only, no LLM cost).
