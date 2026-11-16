@@ -74,3 +74,24 @@ export function buildPayload(input: { title: string; subtitle: string; body: str
 export function serializePayload(payload: ArticlePayload): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(payload));
 }
+
+/** Parse bytes fetched from media-contract back into an ArticlePayload, or null if malformed (mirrors
+ * Radica's own parseArticlePayload validation — ui/src/articles.ts). */
+export function parsePayload(bytes: Uint8Array): ArticlePayload | null {
+  try {
+    const obj = JSON.parse(new TextDecoder().decode(bytes)) as Partial<ArticlePayload>;
+    if (!obj || obj.v !== 1 || typeof obj.title !== "string" || !obj.title.trim() || typeof obj.body !== "string") return null;
+    return {
+      v: 1,
+      title: obj.title.trim(),
+      subtitle: typeof obj.subtitle === "string" ? obj.subtitle.trim() : "",
+      body: obj.body,
+      tags: Array.isArray(obj.tags) ? obj.tags.filter((t): t is string => typeof t === "string").slice(0, 6) : [],
+      readingMinutes: typeof obj.readingMinutes === "number" && obj.readingMinutes > 0 ? obj.readingMinutes : estimateReadingMinutes(obj.body),
+      publishedAt: typeof obj.publishedAt === "number" && obj.publishedAt > 0 ? obj.publishedAt : Date.now(),
+      author: typeof obj.author === "string" && /^[0-9a-f]{64}$/i.test(obj.author) ? obj.author.toLowerCase() : ANONYMOUS_AUTHOR,
+    };
+  } catch {
+    return null;
+  }
+}

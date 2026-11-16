@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ANONYMOUS_AUTHOR, buildPayload, countWords, estimateReadingMinutes, extractTags, serializePayload } from "./article.ts";
+import { ANONYMOUS_AUTHOR, buildPayload, countWords, estimateReadingMinutes, extractTags, parsePayload, serializePayload } from "./article.ts";
 
 test("countWords strips markdown punctuation and link labels, counts the rest", () => {
   assert.equal(countWords("# Hello **world**"), 2);
@@ -38,4 +38,15 @@ test("serializePayload produces parseable JSON with the same fields", () => {
   const back = JSON.parse(new TextDecoder().decode(serializePayload(p)));
   assert.equal(back.title, "T");
   assert.equal(back.author, ANONYMOUS_AUTHOR);
+});
+
+test("parsePayload round-trips what serializePayload writes", () => {
+  const p = buildPayload({ title: "T", subtitle: "S", body: "hello", tags: "a" });
+  const back = parsePayload(serializePayload(p));
+  assert.deepEqual(back, p);
+});
+
+test("parsePayload rejects malformed bytes", () => {
+  assert.equal(parsePayload(new TextEncoder().encode("not json")), null);
+  assert.equal(parsePayload(new TextEncoder().encode(JSON.stringify({ v: 1 }))), null);
 });

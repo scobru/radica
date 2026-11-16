@@ -17,6 +17,9 @@ get a token to paste into a post. No account, no [Viso](https://github.com/scobr
   an integration.
 - **Same wire format.** The published JSON is Radica's own `ArticlePayload` shape
   (`radica/ui/src/articles.ts`), so Radica renders it exactly like an article written from its own composer.
+- **Also a standalone share link.** Publishing also gives you `<folio-url>#article=hash:<hash>` — open it
+  (in Folio itself, from anyone's node) and it reads the article straight back and renders it, no Radica
+  involved at all. Good for sharing outside Radica entirely (chat, forums, another Freenet site).
 
 ## Limitations
 
