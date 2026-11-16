@@ -6083,6 +6083,54 @@ html[data-fullwidth="true"] #width-toggle-btn {
   border-color: rgba(74, 222, 128, 0.38);
 }
 
+.gram-trust-badge.badge-google-poh {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  border: 1px solid rgba(14, 165, 233, 0.34);
+}
+
+[data-theme="dark"] .gram-trust-badge.badge-google-poh {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.38);
+}
+
+.gram-trust-badge.badge-ante-bronze {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(217, 119, 6, 0.32);
+}
+[data-theme="dark"] .gram-trust-badge.badge-ante-bronze {
+  background: rgba(251, 146, 60, 0.16);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.38);
+}
+
+.gram-trust-badge.badge-ante-silver {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.32);
+}
+[data-theme="dark"] .gram-trust-badge.badge-ante-silver {
+  background: rgba(96, 165, 250, 0.16);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.gram-trust-badge.badge-ante-gold {
+  background: rgba(202, 138, 4, 0.14);
+  color: #a16207;
+  border: 1px solid rgba(202, 138, 4, 0.36);
+}
+[data-theme="dark"] .gram-trust-badge.badge-ante-gold {
+  background: rgba(250, 204, 21, 0.16);
+  color: #fde047;
+  border-color: rgba(250, 204, 21, 0.4);
+}
+
 .profile-name-row {
   display: flex;
   align-items: center;

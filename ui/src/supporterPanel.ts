@@ -251,7 +251,7 @@ export function initSupporterPanel(deps: {
     msg.textContent = "Checking your Viso Proof-of-Personhood slot…";
     try {
       const resolved = await freenet.visoPohResolved(pk);
-      if (!resolved) throw new Error("No GitHub Proof-of-Personhood found on your Viso persona (or linked delegate) yet.");
+      if (!resolved) throw new Error("No Proof-of-Personhood (GitHub or Google) found on your Viso persona or linked delegate yet.");
       safeStorage.setItem(pohKey(pk), serializeStoredPoh(resolved.proofHex, resolved.delegation));
       await freenet.setPohProof(resolved.proofHex, resolved.delegation ?? null);
       msg.style.color = "var(--primary)";

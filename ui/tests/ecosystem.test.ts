@@ -126,7 +126,7 @@ test("ecosystem launcher: filterLauncherApps filters by tab/query, sorts pinned 
   assert.ok(builtIns.some((a) => a.name === "Moments" && a.builtInBtn === "open-media-btn"));
   assert.ok(builtIns.some((a) => a.name === "Communities" && a.builtInBtn === "open-communities-btn"));
   assert.ok(builtIns.some((a) => a.name === "Articles"));
-  assert.ok(builtIns.some((a) => a.name === "River"));
+  assert.ok(builtIns.some((a) => a.name === "River" && a.launcherLabel === "Chat"));
   assert.ok(builtIns.some((a) => a.name === "Freenet Mail"));
   assert.ok(builtIns.some((a) => a.name === "FreeTunes"));
 

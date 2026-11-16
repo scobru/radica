@@ -43,7 +43,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 4. 🌐 Cryptographic Personas & Decentralized Storage
 - **Passwordless Identity**: Personas are derived client-side using Ed25519 keypairs. Public keys serve as unique addresses (`@pubkey...`).
-- **Viso Anonymous GitHub PoH & Persona Delegation (`DelegationProofV1`)**: Personas backed by Viso's RFC 9474 Blind-RSA (`poh:github`) attestation verify locally in WebCrypto, lifting newcomer PoW limits, granting 1 Greenhouse vote, and rendering a `🛡️ Verified Human` + `GitHub` badge across feed posts, profiles, and the sidebar. Legacy or destroyed Freenet personas can link a dual-signed `DelegationProofV1` in **Identity → Viso Persona Delegation** to inherit PoH verification from an active Viso persona.
+- **Viso Anonymous PoH (`poh:github`, `poh:google`), Ante Commitment Tiers & Persona Delegation (`DelegationProofV1`)**: Personas backed by Viso's RFC 9474 Blind-RSA (`poh:github` or `poh:google`) attestations verify locally in WebCrypto, lifting newcomer PoW limits, granting 1 Greenhouse vote, and rendering `🛡️ Verified Human` + `GitHub` / `Google` badges across feed posts, profiles, and the sidebar; personas with mined `ante` slots (`viso:persona-level:v1`) verify locally and display `⚡ Seeded` (`16b+`), `⚡ Forged` (`20b+`), or `⚡ Veteran` (`24b+`) commitment badges. Legacy or destroyed Freenet personas can link a dual-signed `DelegationProofV1` in **Identity → Viso Persona Delegation** to inherit PoH and `ante` verification from an active Viso persona.
 - **Cryptographically Signed State**: Every post, like, comment, and community interaction is signed by the author's private key.
 - **Join-Semilattice WASM Contract**: The Rust smart contract (`radica_contract.wasm`) guarantees idempotent delta merges, conflict resolution, and deterministic state convergence across all Freenet peers.
 
@@ -312,6 +312,7 @@ npm run test:app   # Freenet installer/probe tests
   - **Atlas** (`771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) (Companion Freenet web app available in the Apps Launcher)
   - **Folio** (`pzYToSx8kK9xZmc1a5A4nvwy1npgcMMedA4xj7cLaqK`) (telegra.ph-style anonymous publishing on Freenet: write a page, get a link, no signup)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
+  - [Folio](folio/) (Account-free Markdown article writer in the spirit of telegra.ph; publishes straight to Radica's own `media-contract` with no Viso persona, and hands back a `radica-article:<hash>` token — paste it into any Radica post and it renders as a full Article card under that post's own real identity)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
 
 ---
