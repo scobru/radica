@@ -219,6 +219,7 @@ async function makeMeAModerator(page: Page) {
 /** Moderation lives in a tab of the Blocklists page, shown to Radica's moderators only. */
 async function openModeration(page: Page) {
   await expect(async () => {
+    await page.click("#rail-more-btn"); // Blocklists lives behind More on desktop too; clicking it there re-closes the group
     await page.click("#blocklists-open-btn");
     await expect(page.locator("#tab-btn-moderation")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 30_000 });

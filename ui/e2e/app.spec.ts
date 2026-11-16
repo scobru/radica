@@ -77,6 +77,7 @@ test("a thought is planted in the feed", async ({ page }) => {
 
 test("the supporter panel answers a bad receipt", async ({ page }) => {
   await signIn(page);
+  await page.click("#rail-more-btn"); // Identity lives behind More on desktop too
   await page.click("#open-identity-btn");
   await page.fill("#redeem-receipt-input", "RADICA-RECEIPT-V1:not-a-receipt");
   await page.click("#redeem-receipt-btn");
@@ -109,6 +110,7 @@ test("my post can be edited, and Cancel leaves it as it was", async ({ page }) =
 
 test("the guide opens from the rail and Escape closes it", async ({ page }) => {
   await signIn(page);
+  await page.click("#rail-more-btn"); // Guide lives behind More on desktop too
   await page.click("#guide-open-btn");
   await expect(page.locator("#guide-modal")).toBeVisible();
   await page.getByText("🚫 Hide, block and report").click();
