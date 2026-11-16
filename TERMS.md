@@ -43,6 +43,7 @@ Greenhouse votes show what supporters, GhostKey holders, and active community me
 - **Private messages and private rooms** are end-to-end encrypted: only their participants can read them. Their existence and timing may still be visible on the network.
 - Translation, image and video checks run **on your device**; nothing you read or write is sent elsewhere for them.
 - The maintainers may run an automated helper that reads **public posts** and sends their text to a third-party AI service (OpenRouter, and the model provider it picks) to spot spam, scams, threats, illegal content and doxxing. It only adds a report, marked `[AI]`, to the public moderators' queue: it hides nothing and blocks nobody, a person decides. It never reads direct messages, private rooms or secret chats.
+- The same helper may also check the **track and artist titles** of releases listed in FreeTunes against MusicBrainz (a public music database) and add a `[AI]` copyright report to FreeTunes' moderation queue when a track already exists there. It uses no AI model, hides nothing, and a person decides.
 
 ## 7. Reporting illegal content
 

@@ -82,6 +82,24 @@ Settings (environment):
 
 The text of public posts goes to OpenRouter and to the model it picks (see TERMS.md, section 6).
 
+## FreeTunes check
+
+Optional, off by default. With `FT_CHECK=1` the same process reads the FreeTunes public directory, opens each listed release
+and looks every track up on [MusicBrainz](https://musicbrainz.org) (artist + title, exact match after ignoring case, accents
+and brackets). A track that exists there gets a `copyright` report in FreeTunes' `reports` contract, the queue its
+moderator sees at `#/admin`; the note starts with `[AI]` and names the MusicBrainz recording. It only reports: nothing is
+hidden, and an artist posting their own song that is already on MusicBrainz is for the moderator to dismiss.
+
+The bot signs its reports with its own ante identity (`/data/ante.key`, printed at start) and grinds the 18-bit proof of
+work FreeTunes asks for (about a second per report). It never uses a model: no `OPENROUTER_API_KEY` is needed.
+
+Settings (environment): `FT_CHECK` (on when set), `FT_POLL_MS` (default 30 minutes), `FT_DAILY_LOOKUPS` (default 300),
+`FT_DAILY_REPORTS` (default 20), `MB_USER_AGENT` (default `radica-attester/1`; MusicBrainz asks for a contact in it),
+`FT_DIRECTORY` and `FT_REPORTS` (the contracts' instance ids; defaults match FreeTunes' published contracts).
+
+Needs the FreeTunes reports contract to exist already (the first FreeTunes visitor creates it). Each track's artist and
+title go to MusicBrainz (see TERMS.md, section 6).
+
 ## Test
 
 ```bash
