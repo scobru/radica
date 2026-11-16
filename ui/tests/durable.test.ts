@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDurable, type DurableStore } from "../src/durable.ts";
+import { createDurable, isDurable, type DurableStore } from "../src/durable.ts";
 
 function memStore(): DurableStore & { map: Map<string, string> } {
   const map = new Map<string, string>();
@@ -86,5 +86,20 @@ test("durable: multi-group pinning persists multiple pinned groups across sign-i
   await d2.start("alice");
   await d2.ready;
   assert.deepEqual(JSON.parse(store2.getItem("radica_pinned_chats_alice")!), twoGroups);
+});
+
+test("durable: a Curated Board created in one session still shows up in the next (no longer lost on refresh)", async () => {
+  assert.ok(isDurable("radica_boards_alice"));
+  const node = memNode();
+  const store1 = memStore();
+  const d1 = createDurable(store1, node, 5);
+  await d1.start("alice");
+  store1.setItem("radica_boards_alice", JSON.stringify([{ id: "brd_1", title: "Favorites", items: [] }]));
+  await d1.flush();
+
+  // browser refresh: a fresh page, same persona
+  const store2 = memStore();
+  await createDurable(store2, node, 5).start("alice");
+  assert.deepEqual(JSON.parse(store2.getItem("radica_boards_alice")!), [{ id: "brd_1", title: "Favorites", items: [] }]);
 });
 
