@@ -2,8 +2,9 @@
 // content hash, no identity or signature required to write — anyone can PUT bytes whose own BLAKE3 hash is
 // the address. Same media.wasm Radica itself publishes with (copied in, content-addressed so it never changes).
 import { blake3 } from "@noble/hashes/blake3.js";
+import { hexToBytes } from "@noble/hashes/utils.js";
 import {
-  ContractContainer, ContractKey, ContractType, FreenetWsApi, PutRequest, WasmContractV1, type ResponseHandler,
+  ContractContainer, ContractKey, ContractType, FreenetWsApi, GetRequest, PutRequest, WasmContractV1, type ResponseHandler,
 } from "@freenetorg/freenet-stdlib";
 import { ContractCodeT } from "@freenetorg/freenet-stdlib/common";
 import { RelatedContractsT } from "@freenetorg/freenet-stdlib/client-request";
@@ -53,4 +54,16 @@ export async function publishArticleBytes(bytes: Uint8Array): Promise<string> {
     new RelatedContractsT(),
   ));
   return hexOf(params);
+}
+
+/** Fetch the bytes at media-contract `hash`, or null if the network has none (or they don't match). */
+export async function fetchArticleBytes(hash: string): Promise<Uint8Array | null> {
+  const { code, codeHash } = await mediaCode();
+  const params = hexToBytes(hash);
+  const key = new ContractKey(blake3(new Uint8Array([...codeHash, ...params])), codeHash);
+  const a = await api();
+  const r = await a.get(new GetRequest(key, true, false));
+  const bytes = r.state instanceof Uint8Array ? r.state : new Uint8Array(r.state);
+  if (!bytes.length) return null;
+  return hexOf(blake3(bytes)) === hash ? bytes : null;
 }

@@ -33,7 +33,12 @@
       <p>Published. Paste this into any post in Radica — it will render as a full article there, under your own name:</p>
       <div class="row">
         <input id="token" readonly />
-        <button type="button" id="copy">Copy</button>
+        <button type="button" id="copy-token">Copy</button>
+      </div>
+      <p>Or share it anywhere on Freenet with this link — it opens straight in Folio, no Radica needed:</p>
+      <div class="row">
+        <input id="share-link" readonly />
+        <button type="button" id="copy-link">Copy</button>
       </div>
       <button type="button" id="write-another" class="ghost">Write another</button>
     </div>
@@ -46,6 +51,11 @@
         you paste it into a post you write and sign in Radica.
       </p>
     </footer>
+  </main>
+
+  <main id="read-view" class="wrap" hidden>
+    <a href="#" id="read-write-link" class="muted small">← Write your own</a>
+    <article id="read-article" class="article-body"></article>
   </main>
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -1,8 +1,42 @@
-import { ARTICLE_PREFIX, buildPayload, countWords, estimateReadingMinutes, serializePayload } from "./article.ts";
-import { renderMarkdown } from "./markdown.ts";
-import { publishArticleBytes } from "./net.ts";
+import { ARTICLE_PREFIX, buildPayload, countWords, estimateReadingMinutes, parsePayload, serializePayload } from "./article.ts";
+import { escapeHtml, renderMarkdown } from "./markdown.ts";
+import { fetchArticleBytes, publishArticleBytes } from "./net.ts";
+
+const HASH_RE = /^#article=hash:([0-9a-f]{64})$/i;
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+async function showReadView(hash: string) {
+  const writeView = el<HTMLElement>("form").closest("main")!;
+  const readView = el<HTMLElement>("read-view");
+  const articleEl = el<HTMLElement>("read-article");
+  writeView.hidden = true;
+  readView.hidden = false;
+  articleEl.innerHTML = `<p class="muted">Loading…</p>`;
+
+  const bytes = await fetchArticleBytes(hash).catch(() => null);
+  const payload = bytes && parsePayload(bytes);
+  if (!payload) {
+    articleEl.innerHTML = `<p class="error">This article (<code>${hash.slice(0, 12)}…</code>) was not found on Freenet. It may still be propagating, or the link is wrong.</p>`;
+    return;
+  }
+  articleEl.innerHTML =
+    `<h1 class="article-h1">${escapeHtml(payload.title)}</h1>` +
+    (payload.subtitle ? `<p class="article-subtitle muted">${escapeHtml(payload.subtitle)}</p>` : "") +
+    `<p class="muted small">${new Date(payload.publishedAt).toLocaleDateString()} · ${payload.readingMinutes} min read</p>` +
+    renderMarkdown(payload.body);
+}
+
+const readHashMatch = HASH_RE.exec(location.hash);
+if (readHashMatch) {
+  void showReadView(readHashMatch[1].toLowerCase());
+  el<HTMLAnchorElement>("read-write-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    history.replaceState(null, "", location.pathname + location.search);
+    location.reload();
+  });
+}
+
 const form = el<HTMLFormElement>("form");
 const titleEl = el<HTMLInputElement>("title");
 const subtitleEl = el<HTMLInputElement>("subtitle");
@@ -12,6 +46,7 @@ const statsEl = el<HTMLSpanElement>("stats");
 const publishBtn = el<HTMLButtonElement>("publish");
 const resultEl = el<HTMLDivElement>("result");
 const tokenEl = el<HTMLInputElement>("token");
+const shareLinkEl = el<HTMLInputElement>("share-link");
 const errorEl = el<HTMLParagraphElement>("error");
 
 function updateStats() {
@@ -49,6 +84,8 @@ async function publish() {
     const payload = buildPayload({ title: titleEl.value, subtitle: subtitleEl.value, body: bodyEl.value, tags: tagsEl.value });
     const hash = await publishArticleBytes(serializePayload(payload));
     tokenEl.value = `${ARTICLE_PREFIX}${hash}`;
+    // Folio linking to itself: location already carries its own "/v1/contract/web/<key>/" path, so no guessing.
+    shareLinkEl.value = `${location.origin}${location.pathname}#article=hash:${hash}`;
     resultEl.hidden = false;
     form.hidden = true;
   } catch (err) {
@@ -60,8 +97,11 @@ async function publish() {
   }
 }
 
-el<HTMLButtonElement>("copy").addEventListener("click", () => {
+el<HTMLButtonElement>("copy-token").addEventListener("click", () => {
   void navigator.clipboard?.writeText(tokenEl.value);
+});
+el<HTMLButtonElement>("copy-link").addEventListener("click", () => {
+  void navigator.clipboard?.writeText(shareLinkEl.value);
 });
 
 el<HTMLButtonElement>("write-another").addEventListener("click", () => {
