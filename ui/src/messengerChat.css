@@ -1623,6 +1623,41 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 }
 
 /* Attachment Popover Menu */
+#chat-modal .rm-mention-popup {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 54px;
+  background: var(--rm-bg-elevated);
+  border: 1px solid var(--rm-border);
+  border-radius: 14px;
+  padding: 4px;
+  box-shadow: var(--rm-shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 30;
+}
+#chat-modal .rm-mention-popup[hidden] {
+  display: none;
+}
+#chat-modal .rm-mention-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--rm-text-main);
+  font-family: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+#chat-modal .rm-mention-item.active,
+#chat-modal .rm-mention-item:hover {
+  background: var(--rm-bg-hover);
+}
+
 #chat-modal .rm-attach-menu {
   position: absolute;
   left: 0;

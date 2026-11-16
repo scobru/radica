@@ -204,3 +204,16 @@ export function resolveThreadScrollAction(opts: {
   return opts.wasNearBottom ? "bottom" : "preserve";
 }
 
+/** An unterminated "@name" right before the caret, if any: "@" at the string's start or after whitespace, with no
+ *  space typed yet after it. Returns the "@"'s index (to replace from) and the partial name typed so far. */
+export function detectMentionTrigger(textBeforeCaret: string): { at: number; query: string } | null {
+  const m = /(?:^|\s)@([a-zA-Z0-9_]{0,24})$/.exec(textBeforeCaret);
+  return m ? { at: textBeforeCaret.length - m[1].length - 1, query: m[1] } : null;
+}
+
+/** The mention candidates whose display name contains `query` (case-insensitive), nearest-typed-first order kept, capped. */
+export function filterMentionCandidates<T extends { name: string }>(candidates: T[], query: string, limit = 8): T[] {
+  const q = query.toLowerCase();
+  return candidates.filter((c) => c.name.toLowerCase().includes(q)).slice(0, limit);
+}
+

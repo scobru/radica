@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   canPostInRoom,
   computeSafetyBlocks,
+  detectMentionTrigger,
+  filterMentionCandidates,
   isStageBackSwipe,
   resolveMessageSwipeStep,
   resolveThreadScrollAction,
@@ -11,6 +13,25 @@ import {
   shouldUpdateCachedPreview,
   STAGE_SWIPE_IGNORED_SELECTOR,
 } from "../src/messengerLogic.ts";
+
+test("detectMentionTrigger: finds an unterminated @name right before the caret", () => {
+  assert.deepEqual(detectMentionTrigger("hi @ali"), { at: 3, query: "ali" });
+  assert.deepEqual(detectMentionTrigger("@"), { at: 0, query: "" });
+  assert.deepEqual(detectMentionTrigger("say hi @"), { at: 7, query: "" });
+});
+
+test("detectMentionTrigger: no match once a space ends the mention, mid-word, or with no @ at all", () => {
+  assert.equal(detectMentionTrigger("hi @ali "), null);
+  assert.equal(detectMentionTrigger("email@domain"), null); // "@" must start the token, not follow a non-space char
+  assert.equal(detectMentionTrigger("just text"), null);
+});
+
+test("filterMentionCandidates: case-insensitive substring match, capped", () => {
+  const candidates = [{ name: "Alice" }, { name: "Bob" }, { name: "alicia" }];
+  assert.deepEqual(filterMentionCandidates(candidates, "ali"), [{ name: "Alice" }, { name: "alicia" }]);
+  assert.deepEqual(filterMentionCandidates(candidates, ""), candidates);
+  assert.deepEqual(filterMentionCandidates(candidates, "ali", 1), [{ name: "Alice" }]);
+});
 
 test("shouldHydratePreview: never hydrates the currently open room (prevents River optimistic microtask spinlock)", () => {
   assert.equal(
