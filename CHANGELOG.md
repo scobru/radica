@@ -9,8 +9,9 @@
     * Added dual-signed Viso `DelegationProofV1` verification (`verifyVisoDelegation`, `verifiedDelegations`, `verifiedPohBadges`, `parseStoredPoh`, `serializeStoredPoh`) supporting `"radica"` / `"*"` scopes and inherited PoH attestation across Freenet's public `"delegations"` log (`radica_delegation_` durable prefix).
     * Added Identity → Viso Persona Delegation controls (`#delegation-box`, `#delegation-proof-input`, `#delegation-link-btn`, `#delegation-remove-btn`) and delegated PoH resolution (`visoPohResolved`, `visoDelegationOf`) in `freenet.ts` and `supporterPanel.ts`.
     * Added a prominent GitHub PoH badge (`.badge-github-poh` with GitHub mark SVG) across feed posts, user profile modals (`#uview-name`), profile page (`#pp-poh-badge`), and sidebar (`#sidebar-poh-badge`).
-  * **NEW** Atlas in Apps Launcher (`ui/src/ecosystem.ts`, `ui/index.html`, `ui/tests/ecosystem.test.ts`):
-    * Added **Atlas** (`ATLAS_SITE = 771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) to `ECOSYSTEM` / `LAUNCHER_APPS` and updated the Guide & ecosystem documentation.
+  * **NEW** Apps Launcher Additions (`Moments`, `Communities`, `Atlas`, and `Hive` Author Attribution) (`ui/src/ecosystem.ts`, `ui/index.html`, `ui/tests/ecosystem.test.ts`):
+    * Added **Moments** (`open-media-btn`) and **Communities** (`open-communities-btn`) to `RADICA_BUILTIN_APPS` so both built-in Instagram/Reddit-style experiences are directly launchable and pinnable from Apps.
+    * Added **Atlas** (`ATLAS_SITE = 771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) and creator attribution for **Hive** (`by @holdmylatte`) in `ECOSYSTEM` / `LAUNCHER_APPS` and updated the Guide & ecosystem documentation.
 
 5.7.1 / 2026-11-15
 ==================

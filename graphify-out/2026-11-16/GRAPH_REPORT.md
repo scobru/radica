@@ -1,11 +1,11 @@
 # Graph Report - radica  (2026-11-16)
 
 ## Corpus Check
-- 284 files · ~832,577 words
+- 284 files · ~832,759 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3457 nodes · 9421 edges · 128 communities (113 shown, 15 thin omitted)
+- 3457 nodes · 9421 edges · 129 communities (114 shown, 15 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 167 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
@@ -130,6 +130,7 @@
 - [[_COMMUNITY_rootsfx.ts|rootsfx.ts]]
 - [[_COMMUNITY_anchorElementInViewport|anchorElementInViewport]]
 - [[_COMMUNITY_syncMobileViewport|syncMobileViewport]]
+- [[_COMMUNITY_ghostkey.ts|ghostkey.ts]]
 - [[_COMMUNITY_milestones.ts|milestones.ts]]
 
 ## God Nodes (most connected - your core abstractions)
@@ -158,11 +159,11 @@
 
 ## Import Cycles
 - 3-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
-- 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
+- 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (128 total, 15 thin omitted)
+## Communities (129 total, 15 thin omitted)
 
 ### Community 0 - "main.ts"
 Cohesion: 0.11
@@ -273,12 +274,12 @@ Cohesion: 0.06
 Nodes (69): a_command_that_hangs_is_killed_at_the_deadline(), a_leftover_user_unit_beside_a_system_unit_gets_a_way_out(), a_process_left_holding_stderr_does_not_hold_up_run(), a_registered_service_is_just_started(), a_registered_service_that_fails_is_reported_never_registered_again(), a_stopped_system_service_is_left_to_the_administrator(), a_suggested_command_survives_any_path(), Answer (+61 more)
 
 ### Community 30 - "freenet.ts"
-Cohesion: 0.11
-Nodes (43): proof(), RFC-9474, decodeProof(), asBytes(), asNumber(), asString(), cborDecode(), cborEncode() (+35 more)
+Cohesion: 0.12
+Nodes (41): proof(), RFC-9474, decodeProof(), asBytes(), asNumber(), asString(), cborDecode(), cborEncode() (+33 more)
 
 ### Community 31 - "updates.ts"
-Cohesion: 0.11
-Nodes (49): checked, checkGhostkey(), ghostkey(), REFUSALS, requestGhostkeyProof(), verifiedGhostkeys(), amVouched(), ghostkeyKey() (+41 more)
+Cohesion: 0.13
+Nodes (43): amVouched(), ghostkeyKey(), pohKey(), refreshSupporters(), clearStoredReceipt(), dec, enc, foldSupporters() (+35 more)
 
 ### Community 32 - "CHANGELOG.md"
 Cohesion: 0.27
@@ -289,8 +290,8 @@ Cohesion: 0.00
 Nodes (493): accentSelect, activeFilterBanner, activeFilterPrefix, activeFilterTag, addModForm, addModPubkeyInput, alerted, allCommunities (+485 more)
 
 ### Community 35 - "secretChat.ts"
-Cohesion: 0.09
-Nodes (15): ArticlesPageDeps, BuildPostCardOptions, ModerationSets, reconcile(), reconcileItems(), MessengerActiveState, MessengerDeps, UnifiedConversation (+7 more)
+Cohesion: 0.10
+Nodes (14): ArticlesPageDeps, BuildPostCardOptions, ModerationSets, reconcile(), reconcileItems(), MessengerDeps, UnifiedConversation, postIdWithPow() (+6 more)
 
 ### Community 36 - "nodeOrigin"
 Cohesion: 0.09
@@ -393,8 +394,8 @@ Cohesion: 0.17
 Nodes (11): dependencies, @freenetorg/freenet-stdlib, @noble/ed25519, @noble/hashes, viem, name, private, scripts (+3 more)
 
 ### Community 67 - "createMessengerChat"
-Cohesion: 0.14
-Nodes (5): RiverNet, RiverRooms, roomOwnerSk(), vkOf(), device()
+Cohesion: 0.13
+Nodes (6): RiverNet, RiverRooms, roomOwnerSk(), vkOf(), room(), device()
 
 ### Community 68 - "verify.js"
 Cohesion: 0.24
@@ -501,8 +502,8 @@ Cohesion: 0.11
 Nodes (50): fillAsocial(), fillDelta(), fillFh(), fillFreenames(), fillFreepolls(), freepollsCard(), freepollsLink(), fillFreetunes() (+42 more)
 
 ### Community 107 - "ChatMessage"
-Cohesion: 0.17
-Nodes (3): readEncPubs(), ChatMessage, room()
+Cohesion: 0.18
+Nodes (3): readEncPubs(), MessengerActiveState, ChatMessage
 
 ### Community 108 - "TASK-001: Responsive 13.3" Laptop Layout for Wall & Profile Modal"
 Cohesion: 0.33
@@ -563,6 +564,10 @@ Nodes (3): anchorElementInViewport(), AnchorScrollOptions, cancelAnchoredScroll(
 ### Community 126 - "syncMobileViewport"
 Cohesion: 0.07
 Nodes (28): createDurable(), durable, DURABLE_PREFIXES, DurableNode, DurableStore, isDurable(), packageKey(), openSettingsModal() (+20 more)
+
+### Community 127 - "ghostkey.ts"
+Cohesion: 0.40
+Nodes (8): checked, checkGhostkey(), ghostkey(), REFUSALS, requestGhostkeyProof(), verifiedGhostkeys(), loadJsonWasm(), wasm()
 
 ### Community 131 - "milestones.ts"
 Cohesion: 0.15

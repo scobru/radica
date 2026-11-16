@@ -64,6 +64,7 @@ test("ecosystem: includes all requested projects", () => {
   assert.ok(names.includes("Hive"));
   const hive = ECOSYSTEM.find((e) => e.name === "Hive");
   assert.equal(hive?.key, "AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A");
+  assert.equal(hive?.author, "by @holdmylatte");
   assert.equal(hrefOf(hive!, "http://127.0.0.1:7509"), "http://127.0.0.1:7509/v1/contract/web/AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A/#/");
 
   assert.ok(names.includes("Atlas"));
@@ -88,6 +89,7 @@ test("ecosystem: links use nodeOrigin for known contracts and repos for others",
   assert.ok(card.includes("by @scobru"));
   assert.ok(card.includes("Freenet core"));
   assert.ok(card.includes("by porky11"));
+  assert.ok(card.includes("by @holdmylatte"));
   assert.ok(card.includes("Affiliated App"));
   assert.ok(card.includes("GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes"));
   assert.ok(card.includes("AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A"));
@@ -121,6 +123,8 @@ test("ecosystem launcher: filterLauncherApps filters by tab/query, sorts pinned 
   assert.deepEqual(onlyPinned.map((a) => a.name), ["Delta Mirror"]);
 
   const builtIns = filterLauncherApps(LAUNCHER_APPS, { filter: "builtin" });
+  assert.ok(builtIns.some((a) => a.name === "Moments" && a.builtInBtn === "open-media-btn"));
+  assert.ok(builtIns.some((a) => a.name === "Communities" && a.builtInBtn === "open-communities-btn"));
   assert.ok(builtIns.some((a) => a.name === "Articles"));
   assert.ok(builtIns.some((a) => a.name === "River"));
   assert.ok(builtIns.some((a) => a.name === "Freenet Mail"));
