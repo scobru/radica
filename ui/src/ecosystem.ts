@@ -68,7 +68,7 @@ export const ECOSYSTEM: EcosystemApp[] = [
   { name: "FreeHole", what: "sovereign P2P & Freenet file transfer; send & receive files via mnemonic codes", key: FREEHOLE_SITE, repo: FREEHOLE_REPO, author: "by @scobru", category: "integrated", group: "tools", icon: "share2" },
   { name: "Freetree", what: "decentralized linktree; transforms Delta link pages into profile hubs", key: FREETREE_SITE, repo: FREETREE_REPO, author: "by @scobru", category: "integrated", group: "identity", icon: "link" },
   { name: "Aula", what: "decentralized classroom & coursework on Freenet (classes, assignments, grades)", key: AULA_SITE, repo: "https://github.com/scobru/aula", author: "by @scobru", category: "affiliated", group: "tools", icon: "layers" },
-  { name: "Hive", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", category: "affiliated", group: "tools", icon: "folder" },
+  { name: "Hive", what: "decentralized Git & code collaboration on Freenet", key: HIVE_SITE, repo: "", author: "by @holdmylatte", category: "affiliated", group: "tools", icon: "folder" },
   { name: "Atlas", what: "companion Freenet web app launched directly on your local node", key: ATLAS_SITE, repo: "", category: "affiliated", group: "tools", icon: "globe" },
 ];
 

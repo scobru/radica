@@ -308,7 +308,7 @@ npm run test:app   # Freenet installer/probe tests
   - [FreeHole](https://github.com/scobru/freehole) (Decentralized file transfer via Freenet chunk contracts with Reed-Solomon redundancy)
   - [Freetree](https://github.com/scobru/freetree) (Decentralized Linktree for Freenet & Delta)
   - [Aula](https://github.com/scobru/aula) (`GbG8dmva2QsVJMqCnv9iTXwwdbVjKMfZcTRCF94oTUes`) (Decentralized classroom & coursework on Freenet: classes, assignments, grades)
-  - **Hive** (`AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A`) (Decentralized Git & code collaboration on Freenet)
+  - **Hive** (`AqiX61ZEVgTVWudkbTqDv8w57vsQ24ZhjytEGVwzas7A`) (Decentralized Git & code collaboration on Freenet, by `@holdmylatte`)
   - **Atlas** (`771DvtPMwt2PumPyrFvsz7fpvU1gogcmb5qtS1yYEEH9`) (Companion Freenet web app available in the Apps Launcher)
   - [freenet-blob](https://github.com/scobru/freenet-blob) (Fault-tolerant blob storage with Reed-Solomon FEC & auto-healing)
 - **On-Device AI Engine**: [Desert Ant Labs](https://desertant.com)
