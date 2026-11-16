@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Folio</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Folio</h1>
+      <p class="muted">Write an article and publish it straight to Freenet — no account, no Radica persona needed. Anyone with the link can read it in Radica.</p>
+    </header>
+
+    <form id="form">
+      <input id="title" placeholder="Title" required />
+      <input id="subtitle" placeholder="Subtitle (optional)" />
+      <input id="tags" placeholder="Tags (comma or space separated)" />
+      <textarea id="body" placeholder="Write your article in Markdown…" rows="16" required></textarea>
+      <div class="row">
+        <span id="stats" class="muted"></span>
+        <button type="submit" id="publish">Publish</button>
+      </div>
+    </form>
+
+    <div id="result" hidden>
+      <p>Published. Anyone can open it in Radica with this link:</p>
+      <div class="row">
+        <input id="permalink" readonly />
+        <button type="button" id="copy">Copy link</button>
+      </div>
+      <button type="button" id="write-another" class="ghost">Write another</button>
+    </div>
+
+    <p id="error" class="error" hidden></p>
+
+    <footer>
+      <p class="muted small">
+        Anonymous by design: Folio signs nothing, so Radica shows what you publish here as unverified —
+        anyone could have written it. Want a verified byline instead? Write it from Radica's own Articles composer.
+      </p>
+    </footer>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
