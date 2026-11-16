@@ -6273,12 +6273,14 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   }).sort((a, b) => b.updatedAt - a.updatedAt);
 
   const momentPosts = authorPosts.filter((p) => !repostRef(captionOf(p)) && Boolean(p.media_uri));
+  const articlePosts = authorPosts.filter((p) => Boolean(parseArticleCaption(captionOf(p))));
   const byTab = {
     posts: authorPosts.filter((p) => !repostRef(captionOf(p))),
     reposts: authorPosts.filter((p) => repostRef(captionOf(p))),
     moments: momentPosts,
     videos: videoPosts,
     boards: authorBoards,
+    articles: articlePosts,
   };
   drawUviewPosts = (tab) => {
     userProfileModal.querySelector(".uview-layout")?.classList.toggle("uview-show-connections", tab === "connections");
@@ -6298,7 +6300,9 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
               ? "🖼️ Moments"
               : t === "videos"
                 ? "📺 Videos"
-                : "📌 Boards";
+                : t === "boards"
+                  ? "📌 Boards"
+                  : "📰 Articles";
       b.textContent = `${label} (${byTab[t].length})`;
     });
     if (tab === "connections") return;
@@ -6340,6 +6344,17 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
           }
         });
       });
+      return;
+    }
+
+    if (tab === "articles") {
+      if (articlePosts.length === 0) {
+        uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">No articles published yet.</div>`;
+        return;
+      }
+      uviewPostsGallery.innerHTML = `<div class="uview-boards-list">${articlePosts
+        .map((p) => renderArticleFeedCardHtml(p, parseArticleCaption(captionOf(p))!))
+        .join("")}</div>`;
       return;
     }
 
@@ -6489,6 +6504,8 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
           </div>
           <div class="uview-post-body">
             ${(() => {
+              const aRef = own ? parseArticleCaption(own) : null;
+              if (aRef) return renderArticleFeedCardHtml(p, aRef);
               const bRef = own ? parseBoardPostCaption(own) : null;
               if (bRef) return renderBoardSummaryCardHtml(bRef, shouldMask, false);
               return own ? `<div class="uview-post-text">${renderCaption(own, getAuthorDisplayName)}</div>` : "";
@@ -6573,11 +6590,12 @@ const openProfilePost = (e: Event) => {
 };
 uviewPostsGallery.addEventListener("click", openProfilePost);
 /** Draw one tab of the open profile (set by openUserProfile, which knows whose posts they are). */
-let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards" | "connections") => void = () => {};
+let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards" | "articles" | "connections") => void = () => {};
 const uviewTabs = document.getElementById("uview-tabs") as HTMLElement;
 uviewTabs.addEventListener("click", (e) => {
   const tab = (e.target as Element).closest<HTMLElement>("button")?.dataset.tab;
-  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards" || tab === "connections") drawUviewPosts(tab);
+  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards" || tab === "articles" || tab === "connections")
+    drawUviewPosts(tab);
 });
 
 const boardPickerModal = document.getElementById("board-picker-modal") as HTMLElement | null;
