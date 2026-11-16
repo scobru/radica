@@ -1502,6 +1502,16 @@ body.page-open .corner-btn {
   display: none;
 }
 
+/* the rail and the chat/mail page are both sized to fit the viewport with only a little slack (calc(100dvh - ...)),
+   which doesn't leave room for .container's own margin too: drop it here so the page itself never scrolls
+   (mobile already zeroes margin-top below; this covers desktop and margin-bottom as well) */
+body.chat-open .container,
+body.chat-fullscreen .container,
+body.mail-open .container {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 body.chat-fullscreen .rail {
   display: none !important;
 }
@@ -1580,7 +1590,6 @@ body.chat-fullscreen .rail {
   display: flex;
   flex-direction: column;
   background: var(--card-bg);
-  transition: all 0.2s ease-in-out;
 }
 
 .chat-header {
