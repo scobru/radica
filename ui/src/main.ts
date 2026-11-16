@@ -9770,7 +9770,8 @@ async function checkUrlPostHash(fromHash = window.location.hash) {
 window.addEventListener("hashchange", () => void checkUrlPostHash());
 
 /** Show a post in the feed: its author's posts (mine by default), no filter, the page that holds it, scrolled to and flashed. */
-async function showMyPost(postId: string, author = currentIdentity?.pubkey) {
+async function showMyPost(postId: string, author = currentIdentity?.pubkey, fresh = false) {
+  if (fresh && author) await freenet.refresh(author, true, true); // notifications can outrace the local feed cache (#309, #310)
   markSeen((n) => n.linkPostId === postId);
   showProfilePage(false);
   chatModal.style.display = "none";
@@ -9845,12 +9846,12 @@ async function openNotification(n: NotificationItem) {
         announceIfHandled();
       });
     } else if (n.linkPostId) {
-      await showMyPost(n.linkPostId, n.linkPostOwner);
+      await showMyPost(n.linkPostId, n.linkPostOwner, true);
       const repName = getAuthorDisplayName(n.from);
       showToast(`Report from @${repName}: ${n.text}`, "info");
     }
   } else if (n.linkPostId) {
-    await showMyPost(n.linkPostId, n.linkPostOwner);
+    await showMyPost(n.linkPostId, n.linkPostOwner, true);
   } else if (n.type === "follow") {
     await openUserProfile(n.from);
   } else if (n.type === "chat" || n.linkRoomId) {
