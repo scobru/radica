@@ -46,6 +46,31 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
   return { closed: false, opener: null, focus() {}, close() {} };
 };"#;
 
+/// Radica runs in a sandboxed iframe the node's shell serves (no `allow-same-origin`): `window.localStorage` throws
+/// there, and `storage.ts`'s fallback (`window.name` + URL hash) is lost whenever this window is closed and
+/// reopened. `window.__radicaNative` gives it a real, file-backed alternative that survives that; `initial` is
+/// read from disk once at startup and seeded here since the init script runs before the page's own JS does.
+fn native_storage_script(initial_blob: &str) -> String {
+    format!(
+        r#"(function() {{
+  var initial = {};
+  window.__radicaNative = {{
+    getAll: function() {{ return initial; }},
+    setAll: function(json) {{
+      initial = json;
+      try {{ window.ipc.postMessage("storage:" + json); }} catch (e) {{}}
+    }}
+  }};
+}})();"#,
+        serde_json::to_string(initial_blob).unwrap_or_else(|_| "\"\"".to_string())
+    )
+}
+
+/// Where the native storage bridge keeps its blob, next to the webview's own profile directory.
+fn storage_path() -> Option<std::path::PathBuf> {
+    directories::ProjectDirs::from("", "Freenet", "Radica").map(|d| d.data_local_dir().join("storage.json"))
+}
+
 /// Only web pages, and the one app-handler link Radica itself renders (Spore Radio's hand-off to the Spore desktop
 /// app), go to the system: anything else the page asks for (`file:`, an arbitrary app-handler URL) is refused.
 fn open_external(url: &str) {
@@ -201,15 +226,27 @@ pub fn run() -> wry::Result<()> {
             .map(|d| d.data_local_dir().join("webview")),
     );
     let retry = event_loop.create_proxy();
+    let storage_path = storage_path();
+    let initial_storage_blob = storage_path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_html(LOADING)
         .with_initialization_script_for_main_only(OPEN_IN_BROWSER, false)
+        .with_initialization_script_for_main_only(&native_storage_script(&initial_storage_blob), false)
         .with_ipc_handler(move |req| match req.body().strip_prefix("open:") {
             Some(url) => open_external(url),
             None if req.body() == "retry" => {
                 let _ = retry.send_event(Ui::Retry);
             }
-            None => {}
+            None => {
+                if let Some(json) = req.body().strip_prefix("storage:") {
+                    if let Some(p) = &storage_path {
+                        if let Some(parent) = p.parent() {
+                            let _ = std::fs::create_dir_all(parent);
+                        }
+                        let _ = std::fs::write(p, json.as_bytes());
+                    }
+                }
+            }
         })
         // `target="_blank"` links: the system browser too.
         .with_new_window_req_handler(|url, _| {

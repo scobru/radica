@@ -234,10 +234,11 @@ test("layout: user profile modal puts the feed-style Wall first and includes Sha
   }
 
   assert.match(styleCss, /\.uview-layout\s*\{[^}]*grid-template-columns:/);
-  assert.match(styleCss, /\.uview-aside-col\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(styleCss, /@media\s*\(\s*max-width:\s*1200px\s*\)[^{]*\{[\s\S]*\.uview-modal-card/);
-  assert.match(styleCss, /@media\s*\(\s*max-height:\s*800px\s*\)[^{]*\{[\s\S]*\.uview-aside-col\s*\{[^}]*position:\s*static/);
-  assert.match(styleCss, /@media\s*\(\s*max-width:\s*820px\s*\)[^{]*\{[\s\S]*\.uview-aside-col\s*\{[^}]*overflow-y:\s*visible/);
+  // the 🔗 Connections tab swaps the aside in full-width the same way on every screen width, not only mobile
+  assert.match(styleCss, /\.uview-tab-connections\s*\{[^}]*display:\s*inline-flex/);
+  assert.match(styleCss, /\.uview-layout:not\(\.uview-show-connections\)\s*\.uview-aside-col\s*\{[^}]*display:\s*none/);
+  assert.match(styleCss, /\.uview-layout\.uview-show-connections\s*#uview-posts-gallery\s*\{[^}]*display:\s*none/);
   assert.match(mainTs, /copyUserWallLink/);
   assert.match(mainTs, /openAuthorWallInFeed/);
 });

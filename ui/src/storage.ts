@@ -8,13 +8,22 @@
 //
 // SafeStorage provides a transparent, non-throwing storage interface that:
 // 1. Attempts `window.localStorage` (when running outside the sandbox, e.g. Vite dev or Electron).
-// 2. Uses `window.name` to survive in-frame navigations in sandboxed contexts.
-// 3. Syncs essential auth/profile keys into the URL hash fragment (#auth_state=...). The hash is pushed to the
+// 2. In the Android and desktop apps (see apps/android, apps/desktop), uses `window.__radicaNative` — a
+//    file-backed bridge those native wrappers inject into every frame, sandboxed iframes included — so the
+//    full store survives the app being fully closed and reopened, unlike the two fallbacks below.
+// 3. Uses `window.name` to survive in-frame navigations in sandboxed contexts.
+// 4. Syncs essential auth/profile keys into the URL hash fragment (#auth_state=...). The hash is pushed to the
 //    PARENT shell page through `{__freenet_shell__: true, type: "hash", hash}`: a browser refresh reloads the shell,
 //    which forwards its own hash to the iframe. (history.replaceState inside the iframe alone is NOT enough.)
-// 4. Maintains an in-memory Map fallback that never throws under any condition.
+// 5. Maintains an in-memory Map fallback that never throws under any condition.
 
 const utf8Enc = new TextEncoder();
+
+/** The native storage bridge apps/android and apps/desktop inject (see their `NativeStorage`/`native_storage_script`),
+ *  reachable from this sandboxed iframe too. `getAll`/`setAll` carry the whole store as one JSON blob. */
+function nativeBridge(): { getAll?: () => string | null; setAll?: (json: string) => void } | undefined {
+  return (globalThis as unknown as { __radicaNative?: { getAll?: () => string | null; setAll?: (json: string) => void } }).__radicaNative;
+}
 
 // Helper to encode a state object to a compact, URL-safe base64 string
 function encodeBase64State(obj: Record<string, string>): string {
@@ -98,6 +107,7 @@ class SafeStorage {
   constructor() {
     this.hydrateFromWindowName();
     this.hydrateFromHash();
+    this.hydrateFromNativeBridge(); // last: its blob is never size-truncated, so it wins over the two above
     // a write waits up to SYNC_DELAY_MS to be persisted: do it now when the page goes away or hides
     globalThis.addEventListener?.("pagehide", () => this.flush());
     globalThis.document?.addEventListener("visibilitychange", () => document.hidden && this.flush());
@@ -152,6 +162,21 @@ class SafeStorage {
       }
     } catch {
       // Ignore if window.name is invalid JSON
+    }
+  }
+
+  private hydrateFromNativeBridge(): void {
+    try {
+      const raw = nativeBridge()?.getAll?.();
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === "string") this.mem.set(k, v);
+        }
+      }
+    } catch {
+      // native bridge absent or returned garbage: the window.name/hash fallbacks already hydrated what they can
     }
   }
 
@@ -351,12 +376,32 @@ class SafeStorage {
     return { authObj, hash: build(authObj) };
   }
 
+  /** The whole store, synced to window.__radicaNative, unbudgeted (same multi-MB-noise keys skipped as the
+   *  window.name sync below). Doesn't depend on `window` existing, unlike the rest of `syncPersistence`, so it
+   *  can be (and is, by tests) called directly. */
+  public syncNativeBridge(): void {
+    try {
+      const bridge = nativeBridge();
+      if (!bridge?.setAll) return;
+      const allObj: Record<string, string> = {};
+      for (const [k, v] of this.mem.entries()) {
+        if (k.startsWith("freenet_log_") || k.startsWith("river_state_")) continue;
+        allObj[k] = v;
+      }
+      bridge.setAll(JSON.stringify(allObj));
+    } catch (err) {
+      console.warn("[SafeStorage] Could not sync state to the native bridge:", err);
+    }
+  }
+
   private syncPersistence(): void {
     try {
       if (typeof window === "undefined") return;
 
       // Only sandboxed contexts without localStorage need window.name + URL hash persistence.
       if (!this.isLocalStorageAvailable()) {
+        this.syncNativeBridge();
+
         // 1. Sync essential & moderate keys to window.name (skip multi-MB network caches so serialization stays <1ms)
         try {
           const allObj: Record<string, string> = {};

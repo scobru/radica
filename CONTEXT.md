@@ -16,6 +16,7 @@ Terms the code and its reviews use. Keep them exact.
 ## Device storage
 
 - **Page storage** — `safeStorage`: the page's own key/value store. In Freenet's sandboxed shell it lives in memory, plus the URL hash, and a browser refresh keeps only the hash.
+- **Native storage bridge** — `window.__radicaNative`, injected by the Android and desktop apps only (never present in a plain browser tab), reachable from this sandboxed iframe. A file on disk, so unlike `window.name` or the hash it survives the app being fully closed and reopened; `safeStorage` prefers it when present. See `apps/android/.../MainActivity.java`'s `NativeStorage` and `apps/desktop/src/web.rs`'s `native_storage_script`.
 - **Durable key** — a page-storage key that must outlive a browser refresh. Declared once by prefix in `durable.ts` (`DURABLE_PREFIXES`); every write is copied to the node's delegate in one package per persona (`durable:<persona>`), and at sign-in the package fills in what the page lost.
 - **Identity keys** — the local seed, the Viso session and the read keys. Needed before we know who is signing in, so they are kept on the node by their own code, outside the durable package.
 

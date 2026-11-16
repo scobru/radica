@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -82,6 +83,7 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(true);
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
+        web.addJavascriptInterface(new NativeStorage(), "__radicaNative");
         setContentView(fitted(web));
         if (saved != null && web.restoreState(saved) != null) {
             opened = true;
@@ -213,6 +215,23 @@ public class MainActivity extends Activity {
     private static boolean isNodePage(Uri uri) {
         return "http".equals(uri.getScheme()) && ("127.0.0.1".equals(uri.getHost()) || "localhost".equals(uri.getHost()))
                 && uri.getPort() == 7509;
+    }
+
+    /** Radica runs in a sandboxed iframe the node's shell serves (no `allow-same-origin`): `window.localStorage`
+     *  throws there, and storage.ts's fallback (`window.name` + URL hash) is lost whenever this app is closed and
+     *  reopened (a new Activity means a new WebView, so a fresh, empty `window.name`). addJavascriptInterface
+     *  objects are reachable from every frame of the WebView, sandboxed iframes included, so this gives
+     *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that. */
+    private class NativeStorage {
+        @JavascriptInterface
+        public String getAll() {
+            return getSharedPreferences("radica_storage", MODE_PRIVATE).getString("blob", null);
+        }
+
+        @JavascriptInterface
+        public void setAll(String json) {
+            getSharedPreferences("radica_storage", MODE_PRIVATE).edit().putString("blob", json).apply();
+        }
     }
 
     private class Client extends WebViewClient {
