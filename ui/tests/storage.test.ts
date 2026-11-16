@@ -179,6 +179,49 @@ test("safeStorage: a big room list never pushes the identity out of the hash", (
   safeStorage.removeItem("radica_ed25519_seed");
 });
 
+test("safeStorage: syncs the whole store to window.__radicaNative, unbudgeted", () => {
+  const origLocalStorage = (globalThis as any).localStorage;
+  const origBridge = (globalThis as any).__radicaNative;
+  let blob: string | null = null;
+  try {
+    Object.defineProperty(globalThis, "localStorage", {
+      get() {
+        throw new DOMException("sandboxed", "SecurityError");
+      },
+      configurable: true,
+    });
+    (globalThis as any).__radicaNative = {
+      getAll: () => blob,
+      setAll: (json: string) => {
+        blob = json;
+      },
+    };
+
+    const bigFeed = JSON.stringify({ posts: { a: "x".repeat(20000) } }); // far past the hash's 7500-char budget
+    safeStorage.setItem("freenet_feed_native_test", bigFeed);
+    safeStorage.syncNativeBridge();
+
+    assert.ok(blob, "setAll must have been called");
+    const synced = JSON.parse(blob!);
+    assert.equal(synced["freenet_feed_native_test"], bigFeed, "the bridge gets the full value, not a trimmed one");
+
+    // a log/room cache is still left out, same as the window.name sync
+    safeStorage.setItem("freenet_log_test", "noise");
+    safeStorage.syncNativeBridge();
+    assert.ok(!("freenet_log_test" in JSON.parse(blob!)));
+
+    safeStorage.removeItem("freenet_feed_native_test");
+    safeStorage.removeItem("freenet_log_test");
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", {
+      value: origLocalStorage,
+      configurable: true,
+      writable: true,
+    });
+    (globalThis as any).__radicaNative = origBridge;
+  }
+});
+
 test("safeStorage: preserves pinned and verified chats across hash reload", () => {
   const me = "11".repeat(32);
   const pinnedKey = `radica_pinned_chats_${me}`;
