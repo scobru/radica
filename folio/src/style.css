@@ -35,6 +35,9 @@ button:disabled { opacity: 0.6; cursor: default; }
 .error { color: #c0392b; }
 footer { margin-top: 48px; }
 
+.radica-url-row { display: flex; flex-direction: column; gap: 4px; }
+.radica-url-row input { font-size: 0.85rem; }
+
 .tabs { display: flex; gap: 4px; }
 .tab {
   background: transparent;

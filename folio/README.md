@@ -44,8 +44,11 @@ fdev website publish dist --key folio
 fdev website update dist --key folio
 ```
 
-Set `VITE_RADICA_URL` (default: wherever Folio itself is served from) to the Radica deployment permalinks should point at,
-before building.
+On Freenet each app is its own contract at its own `/v1/contract/web/<key>/` path, so Folio's own location
+never tells it where Radica lives — the reader types Radica's URL into the "Radica URL" field once, and it's
+remembered in that browser (`localStorage`) for every later publish. Set `VITE_RADICA_URL` at build time only
+to pre-fill that field for everyone (e.g. for a single hard-coded Radica deployment); it is just a default,
+never a guess.
 
 ## License
 
