@@ -44,7 +44,7 @@ fdev website publish dist --key folio
 fdev website update dist --key folio
 ```
 
-Set `VITE_RADICA_URL` (default `https://radica.network/`) to the Radica deployment permalinks should point at,
+Set `VITE_RADICA_URL` (default: wherever Folio itself is served from) to the Radica deployment permalinks should point at,
 before building.
 
 ## License

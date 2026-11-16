@@ -3,7 +3,7 @@ import { publishArticleBytes } from "./net.ts";
 
 // Radica resolves "#article=hash:<id>" straight from the media-contract, with no post or author behind it
 // (scobru/radica ui/src/articlesPage.ts openAnonymousReader, ui/src/main.ts checkUrlPostHash).
-const RADICA_BASE_URL = import.meta.env.VITE_RADICA_URL ?? "https://radica.network/";
+const RADICA_BASE_URL = import.meta.env.VITE_RADICA_URL ?? `${location.origin}/`;
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const form = el<HTMLFormElement>("form");
