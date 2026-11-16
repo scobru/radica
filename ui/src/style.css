@@ -8720,17 +8720,6 @@ kbd {
   background: var(--bg);
 }
 
-.article-anon-pill {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  border: 1px dashed var(--border);
-  background: var(--bg);
-}
-
 .article-delete-post-btn:hover,
 #article-reader-delete-btn:hover {
   color: var(--danger, #ef4444);

@@ -1,6 +1,10 @@
 // Pure article logic (no DOM), unit-testable in Node. Mirrors the wire shape Radica itself writes
 // (ui/src/articles.ts ArticlePayload), so an article published here opens in Radica's Reader unchanged.
 
+/** Radica's own token (ui/src/articles.ts ARTICLE_PREFIX): pasted into any post caption, Radica's
+ *  parseArticleCaption finds it regardless of where it was written and renders a full Article card. */
+export const ARTICLE_PREFIX = "radica-article:";
+
 export interface ArticlePayload {
   v: 1;
   title: string;
