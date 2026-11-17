@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ed25519 as curveEd25519 } from "@noble/curves/ed25519.js";
 import * as ed from "@noble/ed25519";
-import { drDecrypt, drEncrypt, drSessions, PREFIX_V2, type DrStore } from "../src/secretRatchet.ts";
+import { drDecrypt, drEncrypt, drLevel, drSessions, PREFIX_V2, type DrStore } from "../src/secretRatchet.ts";
 
 function memStore(): DrStore & { map: Map<string, string> } {
   const map = new Map<string, string>();
@@ -117,4 +117,15 @@ test("secretRatchet: a malformed ML-KEM field is refused before anything is touc
   const bad = `${PREFIX_V2}${btoa(JSON.stringify({ ...h, e: "00" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}:${iv}:${body}`;
   await assert.rejects(open(b, a, bad));
   assert.equal(drSessions(b.store, b.pk, a.pk).length, 0);
+});
+
+test("secretRatchet: drLevel — none, then Double Ratchet, then post-quantum from the first reply", async () => {
+  const [a, b] = [party(), party()];
+  assert.equal(drLevel(a.store, a.pk, b.pk), null);
+  const a1 = await send(a, b, "a1");
+  assert.equal(drLevel(a.store, a.pk, b.pk), "dr");
+  await open(b, a, a1);
+  assert.equal(drLevel(b.store, b.pk, a.pk), "pq", "the replier mixes ML-KEM into its first chain");
+  await open(a, b, await send(b, a, "b1"));
+  assert.equal(drLevel(a.store, a.pk, b.pk), "pq");
 });
