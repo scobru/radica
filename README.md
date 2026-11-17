@@ -109,6 +109,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **No new contract key**: a repost is an ordinary post whose signed caption carries the shared post's permalink, so the feed contract is untouched and older clients show it as a link.
 - **Moderation holds**: a reposted post by someone you hide or block, or a reported post, stays hidden.
 - **Reposts tab** on every profile, beside Posts.
+- **Comments tab** on every profile: the comments a persona wrote, newest first, each with the post it answers. Counted from the feeds this node holds (comments live in the feed of the post they answer), with the same hidden/blocked/reported/AI-held filtering as the feed.
 
 ### 13. ⚙️ Dedicated Settings, Decluttered Rail & Wall-First Profiles
 - **Clean Separation of Concerns**: Interface preferences (themes, full-width layout, translation languages, offensive words mask, notification audio alerts) and a quick-navigation **Account, Safety & Guide** hub live in Settings (`g ,`), keeping the primary left rail compact (`Feed`, `Chat`, `Mail`, `Activity`, `Moments`, `Tree`, `Communities`, `Greenhouse`, `Apps`, `Settings`) while tucking utility/illustrative pages (`Identity`, `Blocklists`, `Updates`, `Guide`) cleanly under `More`.
