@@ -47,6 +47,7 @@ import {
 import { freenet } from "./freenet.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
+import { drLevel } from "./secretRatchet.ts";
 import { burnAtOf, checksHtml, deliveryOf, nextTtl, tickBurnCountdowns, triggerRowBurnAnimation, type ConversationState } from "./conversationState.ts";
 import type { ChatMessage, Community, PrivateRoom, UserIdentity } from "./types.ts";
 import { renderIcon, type IconName } from "./icons.ts";
@@ -669,6 +670,19 @@ export function createMessengerChat(deps: MessengerDeps) {
   const headerTitleEl = rootEl.querySelector("#rm-header-title") as HTMLElement;
   const headerTrustBadgeEl = rootEl.querySelector("#rm-header-trust-badge") as HTMLElement;
   const headerSubtitleEl = rootEl.querySelector("#rm-header-subtitle") as HTMLElement;
+  /** A Secret Chat's subtitle: how its session is protected right now, and its timer. */
+  const setSecretSubtitle = (peer: string | null | undefined, ttlLabel: string) => {
+    const me = deps.getIdentity()?.pubkey;
+    const level = me && peer ? drLevel(safeStorage, me, peer) : null;
+    const [label, tip] =
+      level === "pq"
+        ? ["Post-quantum", "Double Ratchet with ML-KEM-768 + X25519: safe unless both are broken"]
+        : level === "dr"
+          ? ["Double Ratchet", "Forward secrecy with X25519; post-quantum starts with the first reply"]
+          : ["PFS Ephemeral", "No message yet: the next one starts a Double Ratchet session"];
+    headerSubtitleEl.textContent = `${label} · Disappearing: ${ttlLabel}`;
+    headerSubtitleEl.title = tip;
+  };
   const inviteTopBtn = rootEl.querySelector("#rm-btn-invite-top") as HTMLButtonElement;
   const safetyTopBtn = rootEl.querySelector("#rm-btn-safety-verify") as HTMLButtonElement;
   const drawerToggleBtn = rootEl.querySelector("#rm-btn-drawer-toggle") as HTMLButtonElement;
@@ -1477,7 +1491,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.style.display = "inline-flex";
           headerTrustBadgeEl.className = "rm-trust-pill secret";
           headerTrustBadgeEl.innerHTML = `${renderIcon("lock", { size: 11 })} <span>Secret Chat · Device Only</span>`;
-          headerSubtitleEl.textContent = `PFS Ephemeral · Disappearing: ${ttlLabel}`;
+          setSecretSubtitle(st.peer, ttlLabel);
           composerInputEl.placeholder = `Secret message to ${name} (ephemeral)…`;
           if (ttlBtn) {
             ttlBtn.style.display = "inline-flex";
@@ -3908,7 +3922,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     freenet.setSecretChatTTL(openId, nextPreset.seconds);
     const ttlBtnEl = rootEl.querySelector("#rm-btn-ttl-selector");
     if (ttlBtnEl) ttlBtnEl.innerHTML = `${renderIcon("clock", { size: 12 })} <span>${escapeHtml(nextPreset.label)}</span>`;
-    headerSubtitleEl.textContent = `PFS Ephemeral · Disappearing: ${nextPreset.label}`;
+    setSecretSubtitle(deps.getActiveState().peer, nextPreset.label);
     const bannerTtl = rootEl.querySelector("#rm-secret-banner-ttl");
     if (bannerTtl) bannerTtl.textContent = nextPreset.label;
     deps.showToast(`Disappearing messages set to ${nextPreset.label}`, "info");
