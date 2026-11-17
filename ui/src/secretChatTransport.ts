@@ -171,9 +171,12 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
   const plain = await serial(`${me}|${peer}`, async () => {
     const plain = readPlain(t, me);
     let plainChanged = false;
-    const liveIds = new Set(live.map((m) => m.id));
+    // forgotten when its own timer is up, never for missing from the room: after a reload the room comes back from
+    // the network later, and a key that opened a message once cannot open it again.
+    // shortcut: a message the peer deleted keeps its plain text here until PLAIN_MAX_BYTES evicts it; drop it in the
+    // chat_delete handler if that matters.
     for (const [id, p] of Object.entries(plain))
-      if (p.r === roomId && !liveIds.has(id)) {
+      if (p.r === roomId && p.ttl > 0 && p.sentAt + p.ttl * 1000 <= now) {
         delete plain[id];
         plainChanged = true;
       }
