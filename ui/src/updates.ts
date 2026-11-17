@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-17", text: "Moderation fixes: clicking a user's name in Blocklists & Moderation no longer reloads Radica as if you were opening it for the first time, and Remove / Dismiss no longer hang silently when the network is slow (they now wait at most a few seconds for fresh reports, then act)." },
   { date: "2026-11-17", text: "Live poll results: FreePolls polls in posts, comments and chat now update their counts and bars on their own every few seconds while the page is open, so you no longer need to refresh to see new votes. Your half-made choice is never touched." },
   { date: "2026-11-16", text: "More comment reaction GIFs: the GIF picker in comments (📎 → GIF) now has 29 choices instead of 17 — 12 new ones (🔥 Fire, 💯, 🎉 Party Popper, 🤔 Thinking, ✨ Sparkles, 🙏, 😂 Crying Laughing, 😍 Heart Eyes, 😡 Angry, 😭 Crying, 👀 Side Eye, 💀 Dead) under Reactions, Emotions and Memes, same search and tabs as before." },
   { date: "2026-11-16", text: "Articles tab on profiles: a profile now has a \"📰 Articles\" tab next to Posts/Reposts/Moments/Videos/Boards, listing everything that person published through the Articles composer as proper preview cards. Previously an article only showed as a wall of raw text buried in Posts." },

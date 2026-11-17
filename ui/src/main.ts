@@ -1901,6 +1901,7 @@ document.getElementById("blocklists-close-btn")!.addEventListener("click", () =>
 blocklistsModal.addEventListener("click", async (e) => {
   const btn = (e.target as HTMLElement).closest("[data-act]") as HTMLElement | null;
   if (!btn) return;
+  e.preventDefault(); // the profile links are href="#": following one reloads the app
   const { act, author = "", postId = "", media = "", target = "" } = btn.dataset;
   if (act === "profile") {
     const pk = author || btn.dataset.pk;
@@ -2038,9 +2039,13 @@ const paintModButton = () => {
 };
 
 async function refreshAllGlobalModLogs(): Promise<void> {
-  await Promise.all([
-    freenet.refreshLog("reports", true).catch(() => {}),
-    ...freenet.globalModerators().map((m) => freenet.refreshLog(`blocklist/${m}`, true).catch(() => {})),
+  // bounded: a loaded node must not leave Remove/Dismiss hanging with no feedback (the local logs are used as they are)
+  await Promise.race([
+    Promise.all([
+      freenet.refreshLog("reports", true).catch(() => {}),
+      ...freenet.globalModerators().map((m) => freenet.refreshLog(`blocklist/${m}`, true).catch(() => {})),
+    ]),
+    new Promise((r) => setTimeout(r, 4000)),
   ]);
 }
 
