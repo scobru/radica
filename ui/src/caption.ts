@@ -296,9 +296,7 @@ export function extractCommentMedia(text: string): { cleanText: string; media: {
 /** A comment: escaped, with mentions, Markdown, and embedded image/GIF support. */
 export function renderComment(text: string, nameOf: NameOf = keyName): string {
   const { cleanText, media } = extractCommentMedia(text);
-  const textHtml = cleanText
-    ? cleanText.split(MENTION_RE).map((part, i) => (i % 2 ? mention(part, nameOf) : escMd(part))).join("")
-    : "";
+  const textHtml = cleanText ? withTags(nameOf)(cleanText) : "";
 
   const mediaHtml = media
     .map((item) => {
