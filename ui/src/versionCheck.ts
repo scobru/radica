@@ -1,5 +1,5 @@
 // New release check: every build writes version.json (its build id and the Updates list) next to index.html. The open
-// page fetches it now and then; a different build id means a newer Radica was published, and the page must reload.
+// page fetches it now and then; a different build id means a newer Radica was published, and the page offers a reload.
 
 import { UPDATES } from "./updates.ts";
 import { escapeHtml } from "./html.ts";
@@ -9,6 +9,7 @@ declare const __RADICA_BUILD__: string;
 
 const CHECK_EVERY_MS = 5 * 60_000;
 const MAX_NOTES = 5;
+let dismissedBuild = ""; // "Later" on this build: do not ask again until the page reloads or a newer one ships
 
 /** An Updates entry in a few words: its first sentence, cut at 100 characters. */
 export function shortNote(text: string): string {
@@ -25,7 +26,7 @@ export function newNotes(remote: { text: string }[], local: { text: string }[] =
     .map((u) => shortNote(u.text));
 }
 
-function showReloadModal(notes: string[]): void {
+function showReloadModal(build: string, notes: string[]): void {
   if (document.getElementById("version-modal")) return;
   const el = document.createElement("div");
   el.id = "version-modal";
@@ -37,10 +38,19 @@ function showReloadModal(notes: string[]): void {
   el.innerHTML = `<div class="modal-card" style="max-width: 440px;">
     <h3 id="version-modal-title" style="margin: 0 0 12px;">🌱 New version of Radica</h3>
     ${notes.length ? `<ul style="margin: 0 0 16px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem;">${notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>` : ""}
-    <p style="margin: 0 0 16px; font-size: 0.85rem; opacity: 0.8;">Reload to keep using Radica: this version may no longer work with the network.</p>
-    <button type="button" class="btn-primary" id="version-modal-reload">Reload now</button>
+    <p style="margin: 0 0 16px; font-size: 0.85rem; opacity: 0.8;">Reload when you are ready. Until then some features may not work with the network.</p>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button type="button" class="btn-secondary" id="version-modal-later">Later</button>
+      <button type="button" class="btn-primary" id="version-modal-reload">Reload now</button>
+    </div>
   </div>`;
   document.body.append(el);
+  const later = () => {
+    dismissedBuild = build;
+    el.remove();
+  };
+  el.querySelector("#version-modal-later")!.addEventListener("click", later);
+  el.addEventListener("keydown", (e) => e.key === "Escape" && later());
   const btn = el.querySelector<HTMLButtonElement>("#version-modal-reload")!;
   btn.addEventListener("click", () => {
     btn.disabled = true;
@@ -55,8 +65,8 @@ async function check(): Promise<void> {
     const res = await fetch(`./version.json?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return;
     const remote = await res.json();
-    if (typeof remote?.build === "string" && remote.build !== __RADICA_BUILD__)
-      showReloadModal(newNotes(Array.isArray(remote.updates) ? remote.updates : []));
+    if (typeof remote?.build === "string" && remote.build !== __RADICA_BUILD__ && remote.build !== dismissedBuild)
+      showReloadModal(remote.build, newNotes(Array.isArray(remote.updates) ? remote.updates : []));
   } catch {} // offline or no version.json (dev server): try again later
 }
 
