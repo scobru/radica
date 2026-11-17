@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-17", text: "FreeTunes releases on the Living Tree: the Music bough now also carries the newest releases published on FreeTunes, even if nobody shared them in a post yet. Tap one in the tree and press Play in Music to listen. Also, the Messages page no longer sits glued to the top edge of the window." },
   { date: "2026-11-17", text: "Text size and clickable hashtags in comments: Settings → Text Size makes the whole interface bigger or smaller (90%, normal, 115%, 130%), handy when comments feel too small to read or edit. And a #tag inside a comment is now a link, like in posts: tap it to see every post with that tag." },
   { date: "2026-11-17", text: "Fixed Secret Chat messages turning into \"unable to decrypt\" after reloading or updating Radica: the copy of each message kept on your device was thrown away if the chat had not come back from the network yet. Messages already lost this way cannot be recovered (their one-time keys are gone), but new ones now survive reloads." },
   { date: "2026-11-17", text: "Make music? The Music page now has a \"＋ Release your music\" button that opens FreeTunes, where you publish your own releases. They then show up in Radica's Music stream for everyone." },
