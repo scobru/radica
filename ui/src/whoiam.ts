@@ -203,7 +203,15 @@ export async function startSignIn(visoUrl: string): Promise<string> {
     );
   }
   const appKeyHex = await getAppKeyPubkey();
-  const nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
+  let nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
+  let key = "";
+  if (!safeStorage.getItem("radica_viso_nokey")) {
+    const { newEpk } = await import("./visoSeal.ts");
+    const epk = newEpk(); // Viso seals the key to this one-time public key; the private half waits here for the reply
+    safeStorage.setItem("radica_viso_epriv", epk.priv);
+    nonce = epk.pub; // Viso requires the epk as the nonce: the persona's signature over the challenge then covers it
+    key = `&key=v1&epk=${epk.pub}`;
+  }
   const challenge = `wd1.${appKeyHex}.${nonce}`;
 
   safeStorage.setItem("radica_signin_pending", challenge);
@@ -211,13 +219,6 @@ export async function startSignIn(visoUrl: string): Promise<string> {
 
   // key=v1: Viso hands back the app key it derives from the persona and this app, the same on every device, so
   // direct messages to me read everywhere (a Viso that does not hand it over is asked the old way next time)
-  let key = "";
-  if (!safeStorage.getItem("radica_viso_nokey")) {
-    const { newEpk } = await import("./visoSeal.ts");
-    const epk = newEpk(); // Viso seals the key to this one-time public key; the private half waits here for the reply
-    safeStorage.setItem("radica_viso_epriv", epk.priv);
-    key = `&key=v1&epk=${epk.pub}`;
-  }
   return `${u.origin}${u.pathname}?connect=v1&challenge=${challenge}&return=${encodeURIComponent(linkBase())}&base=${encodeURIComponent(canonicalBase())}${key}`;
 }
 
@@ -231,7 +232,7 @@ export async function finishSignIn(q: URLSearchParams): Promise<{ persona: strin
   safeStorage.removeItem("radica_signin_pending");
   safeStorage.removeItem("spruce_signin_pending");
 
-  const sharedKey = await takeHandedKey(); // first: a replayed callback must not leave it lying around either
+  const sharedKey = await takeHandedKey(q.get("challenge") ?? ""); // first: a replayed callback must not leave it lying around either
   const persona = q.get("pk") ?? "";
   const cert: Cert = {
     base: canonicalBase(),
