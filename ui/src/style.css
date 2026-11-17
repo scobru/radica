@@ -10089,3 +10089,11 @@ body.has-global-audio-player {
 .gh-comment { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 4px 0; overflow-wrap: anywhere; }
 .gh-comment-form { display: flex; gap: 6px; margin-top: 6px; }
 .gh-comment-form input { flex: 1; min-width: 0; }
+
+/* profile wallets: one chip per address, tap to copy */
+.wallet-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 16px; }
+.wallet-chips:empty { display: none; }
+.wallet-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--card-bg); color: var(--text-main); font-size: 0.78rem; cursor: pointer; }
+.wallet-chip:hover { border-color: var(--primary); }
+.wallet-chip code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; font-size: 0.74rem; color: var(--text-muted); }
+.wallet-chip a { color: var(--primary); text-decoration: none; }

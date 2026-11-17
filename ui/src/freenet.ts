@@ -57,6 +57,7 @@ import {
 } from "./crypto.ts";
 import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
+import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
 import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 import { overlayFeed } from "./feedmerge.ts";
@@ -1181,6 +1182,20 @@ export class FreenetClient {
       void site.then((s) => s || this.sites.delete(prefix));
     }
     return site;
+  }
+
+  public setWallets(wallets: Wallets): Promise<void> {
+    return this.logAppend(`wallets/${this.me}`, { type: "wallets", ...wallets });
+  }
+
+  /** The wallet addresses pubkey published, each checked by format (anyone can write to a log: only theirs count). */
+  public walletsOf(pubkey: string): Wallets {
+    const mine = this.logEntries(`wallets/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    try {
+      return mine ? cleanWallets(JSON.parse(mine.body)) : {};
+    } catch {
+      return {};
+    }
   }
 
   public setOrtoBlog(url: string | null): Promise<void> {
