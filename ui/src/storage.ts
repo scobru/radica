@@ -510,22 +510,30 @@ class SafeStorage {
   }
 }
 
-/** Viso's `#sk=<hex>` (sign-in with key=v1), taken out of the address before anything rewrites or forwards the hash:
- *  it is a secret, and the hash is pushed to the shell page (its URL, its history). */
-let handedKey: string | null = null;
+/** Viso's `#esk=<viso_epk>.<ciphertext>` (sign-in with key=v1): the app key sealed to the one-time key we sent (see
+ *  visoSeal.ts), taken out of the address before anything rewrites or forwards the hash (the hash is pushed to the
+ *  shell page: its URL, its history). Sealed, so harmless if it leaks; the private half never leaves this page. */
+let handedEsk: string | null = null;
 try {
-  const m = typeof window !== "undefined" ? /(^#|&)sk=([0-9a-f]{64})/.exec(window.location.hash) : null;
+  const m = typeof window !== "undefined" ? /(^#|&)esk=([0-9a-f.]+)/i.exec(window.location.hash) : null;
   if (m) {
-    handedKey = m[2];
+    handedEsk = m[2];
     const rest = window.location.hash.replace(m[0], m[1]).replace(/^#&/, "#").replace(/&$/, "");
     window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + (rest === "#" ? "" : rest));
   }
 } catch {}
-/** The key Viso handed over, once. */
-export function takeHandedKey(): string | null {
-  const k = handedKey;
-  handedKey = null;
-  return k;
+/** The app key Viso handed over (decrypted), once; null if there was none or it could not be opened. */
+export async function takeHandedKey(): Promise<string | null> {
+  const esk = handedEsk;
+  handedEsk = null;
+  const priv = safeStorage.getItem("radica_viso_epriv");
+  safeStorage.removeItem("radica_viso_epriv"); // single use
+  if (!esk || !priv) return null;
+  try {
+    return await (await import("./visoSeal.ts")).openEsk(esk, priv);
+  } catch {
+    return null;
+  }
 }
 
 export const safeStorage = new SafeStorage();
