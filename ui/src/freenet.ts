@@ -735,6 +735,14 @@ export class FreenetClient {
     return this.net.getByInstance(instance, fetchCode);
   }
 
+  /** Code of Freenet Mail's AFT token-allocation-record contract (frozen v1 generation), loaded on first use. A sender's
+   *  record must exist on the network before an inbox accepts a token from it (see mailClient.ts). */
+  public tokenRecordCode(): Promise<Uint8Array> {
+    return import("./wasm/freenet_token_allocation_record.wasm?url")
+      .then(({ default: url }) => fetch(url))
+      .then(async (r) => new Uint8Array(await r.arrayBuffer()));
+  }
+
   /** Another app's contract, written by its own rules (FreePolls polls created and answered here). */
   public putAppContract(key: ContractKey, code: Uint8Array, params: Uint8Array, state: Uint8Array): Promise<void> {
     return this.net.putRaw(key, code, params, state);
