@@ -1451,6 +1451,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
   function renderHeader() {
     const st = deps.getActiveState();
+    headerSubtitleEl.title = ""; // only some conversations set one: never keep the previous one's
     const verified = verifiedSet();
     const me = deps.getIdentity()?.pubkey || "";
     const openId = deps.openRoomId();
@@ -1503,6 +1504,9 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.className = "rm-trust-pill";
           headerTrustBadgeEl.innerHTML = isVerified ? `${renderIcon("shield", { size: 11 })} <span>E2EE · Verified</span>` : `${renderIcon("lock", { size: 11 })} <span>E2EE Private</span>`;
           headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · @${shortenKey(personaName(pk))} · ${isRiver ? "River E2EE Bridge" : "X25519 + AES-256-GCM"}`;
+          headerSubtitleEl.title = isRiver
+            ? "End-to-end encrypted through a River room"
+            : "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
           composerInputEl.placeholder = `Encrypted message to ${name}…`;
           if (ttlBtn) ttlBtn.style.display = "none";
         }
