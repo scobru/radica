@@ -3,7 +3,8 @@
 # when either stops unexpectedly, the container stops and CapRover restarts it.
 run_freenet() {
   while true; do
-    freenet
+    # the node's per-callsite rate-limit notices are ~10 lines/30 s of noise; process substitution keeps freenet's own exit code in $?
+    freenet > >(grep --line-buffered -v 'RATE LIMIT per-callsite') 2>&1
     code=$?
     if [ "$code" -eq 42 ]; then
       echo "freenet update detected (exit 42), running freenet update..."
