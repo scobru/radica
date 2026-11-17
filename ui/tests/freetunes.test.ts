@@ -110,6 +110,15 @@ test("freetunes: directory contract parsing, artist filtering, and profile input
   );
   assert.match(authorCardHtml, /ScobruAuthor/);
 
+  // artistName that is just the persona's base58 key (several artist names) must not hide the nickname
+  const keyCard = freetunesProfileCard(
+    { artistHex: pk, artistName: CH, releases: entries },
+    undefined,
+    "ScobruNick"
+  );
+  assert.match(keyCard, /ScobruNick/);
+  assert.doesNotMatch(keyCard, new RegExp(`link-card-title">${CH}`));
+
   // Profile card rendering with 0 listed releases still renders artist card & link
   const emptyCardHtml = freetunesProfileCard({
     artistHex: pk,

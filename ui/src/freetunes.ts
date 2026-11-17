@@ -521,9 +521,12 @@ export function freetunesProfileCard(
   const href = freetunesArtistHref(artistKey, origin);
   const count = data.releases.length;
   const sub = count > 0 ? `${count} release${count === 1 ? "" : "s"} on FreeTunes` : "Artist on FreeTunes";
+  // With several distinct artist names `artistName` falls back to the persona's base58 key: not a name, so the
+  // persona's nickname must win over it.
+  const isKey = (n: string) => /^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(n);
   const displayTitle =
     data.creatorName ||
-    (data.artistName && data.artistName !== "FreeTunes Artist" ? data.artistName : "") ||
+    (data.artistName && data.artistName !== "FreeTunes Artist" && !isKey(data.artistName) ? data.artistName : "") ||
     authorDisplayName ||
     data.artistName ||
     "FreeTunes Artist";
