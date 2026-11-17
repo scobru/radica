@@ -164,7 +164,7 @@ import { solvePoW, COMMENT_POW_BITS, POST_POW_BITS, POST_POW_SINCE, postHasPow, 
 import { METRIC_LABELS, countsOf, nextUp, reached, type Counts } from "./milestones.ts";
 import { growRoots } from "./rootsfx.ts";
 import type { TreePeerInput } from "./treeGraph.ts";
-import { fillFreetunes, freetunesCard, freetunesProfileCard, fillFreetunesProfile, localFreetunesArtist, localFreetunesReleases } from "./freetunes.ts";
+import { fillFreetunes, freetunesCard, freetunesProfileCard, fillFreetunesProfile, localFreetunesArtist, localFreetunesReleases, releaseTreePosts, FT_TREE_PREFIX, type FtReleaseItem } from "./freetunes.ts";
 import { createPoll, fillFreepolls, freepollsCard, freepollsLink, type PollNet } from "./freepolls.ts";
 import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris, MEDIA_PREFIX } from "./media.ts";
 import { playVideo, prepareVideo, publishVideo, videoPosterUrl, videoRef } from "./video.ts";
@@ -7014,6 +7014,8 @@ function closeRailPages(except?: HTMLElement) {
 // ---- Living Tree (Albero di Radica): Interactive Botanical Network Graph ----
 const treeModal = document.getElementById("tree-modal") as HTMLElement;
 let treeExplorePosts: Post[] | null = null;
+/** FreeTunes directory releases, hung on the tree's Music bough (not post authors: they get no root). */
+let treeReleases: FtReleaseItem[] = [];
 
 function collectTreePosts(): Post[] {
   const byKey = new Map<string, Post>();
@@ -7090,7 +7092,10 @@ function loadTreePage() {
   if (!treePageModP) {
     treePageModP = import("./treePage.ts").then((m) => {
       m.initTreePage({
-        getPosts: collectTreePosts,
+        getPosts: () => {
+          const posts = collectTreePosts();
+          return [...posts, ...releaseTreePosts(treeReleases.filter((r) => !isHiddenAuthor(r.owner)), posts)];
+        },
         getCommunities: () => {
           const hidden = hiddenCommunityIds();
           return allCommunities.filter((c) => !hidden.has(c.id));
@@ -7100,6 +7105,7 @@ function loadTreePage() {
         getMyName: () => (currentIdentity ? getAuthorDisplayName(currentIdentity.pubkey) : "You"),
         getDisplayName: getAuthorDisplayName,
         refreshNetwork: async () => {
+          treeReleases = await freenet.freetunesDirectory();
           if (!currentIdentity) return;
           treeExplorePosts = await freenet.getExploreTimeline(currentIdentity, {
             prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
@@ -7107,6 +7113,7 @@ function loadTreePage() {
           });
         },
         onOpenPost: (postId, author) => {
+          if (postId.startsWith(FT_TREE_PREFIX)) return openMusicBtn?.click(); // a FreeTunes release: play it in Music
           closeRailPages();
           void showMyPost(postId, author);
         },

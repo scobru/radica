@@ -8,6 +8,7 @@ import {
   type TreePeerInput,
 } from "../src/treeGraph.ts";
 import type { Community, Post } from "../src/types.ts";
+import { releaseTreePosts } from "../src/freetunes.ts";
 
 const ME = "aa".repeat(32);
 const ALICE = "bb".repeat(32);
@@ -331,4 +332,28 @@ test("treeGraph: a post sharing a FreeTunes release hangs on the Music bough", (
   const bough = model.boughs.find((b) => b.id === "bough:music");
   assert.equal(bough?.label, "Music");
   assert.deepEqual(model.posts.filter((p) => p.boughId === bough!.id).map((p) => p.id), ["ft1"]);
+});
+
+test("treeGraph: FreeTunes releases nobody posted hang on the Music bough, as releases, without a root", () => {
+  const id = "5jQAw8QEzaWvC1ZZKnjQwgv7dtCZ9X8vHjTheCRBBygN";
+  const other = "7kRBx9RFzbXwD2aaLokRxhw8euDZ9Y9wJkUifDSCCzhP";
+  const artist = "ee".repeat(32);
+  const releases = [
+    { id, params: "ab".repeat(48), owner: artist, title: "Agravame", artist: "Zima Blue", ts: 1_700_000_000 },
+    { id: other, params: "cd".repeat(48), owner: artist, title: "Already shared", artist: "Zima Blue", ts: 1_700_000_100 },
+  ];
+  const shared = makePost({ id: "s1", author: ALICE, caption: `#/r/${other}.${"cd".repeat(48)}` });
+  const extra = releaseTreePosts(releases, [shared]);
+  assert.deepEqual(extra.map((p) => p.id), [`ft:${id}`], "a release a post already shares is not added twice");
+  assert.equal(extra[0].timestamp, 1_700_000_000_000, "directory seconds become ms");
+
+  const model = buildTreeGraph({ posts: [shared, ...extra], communities: [], peers: PEERS, myPubkey: ME, myName: "You", now: NOW });
+  const bough = model.boughs.find((b) => b.id === "bough:music");
+  assert.deepEqual(model.posts.filter((p) => p.boughId === bough!.id).map((p) => p.id).sort(), [`ft:${id}`, "s1"]);
+  assert.ok(!model.roots.some((r) => r.pubkey === artist), "the artist is no Radica persona: no root");
+
+  const insp = renderTreeInspectorHtml(model, { type: "post", postId: `ft:${id}`, author: artist }, [shared, ...extra], [], (pk) => pk.slice(0, 6));
+  assert.match(insp, /FreeTunes Release/);
+  assert.match(insp, /Agravame — Zima Blue/);
+  assert.doesNotMatch(insp, /data-tree-open-profile/);
 });

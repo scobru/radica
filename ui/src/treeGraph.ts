@@ -7,7 +7,7 @@ import { plantSvg } from "./plant.ts";
 import { freepollsLink } from "./freepolls.ts";
 import { repostCountsOf } from "./repost.ts";
 import { parseArticleCaption } from "./articles.ts";
-import { freetunesArtistLink, freetunesLink } from "./freetunes.ts";
+import { freetunesArtistLink, freetunesLink, FT_TREE_PREFIX } from "./freetunes.ts";
 import { likers, type Community, type Post, type PostCategory } from "./types.ts";
 
 export type TreeViewMode = "full" | "canopy" | "roots";
@@ -1124,16 +1124,19 @@ export function renderTreeInspectorHtml(
       );
     });
 
+    const isRelease = selection.postId.startsWith(FT_TREE_PREFIX); // a FreeTunes release, not a Radica post
     return (
       `<div class="tree-insp-card">` +
-      `<div class="tree-insp-head"><div><div class="tree-insp-kicker">Post Branch</div><h4 class="tree-insp-title">${escapeHtml(authorName)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
+      `<div class="tree-insp-head"><div><div class="tree-insp-kicker">${isRelease ? "FreeTunes Release" : "Post Branch"}</div><h4 class="tree-insp-title">${escapeHtml(isRelease ? (caption ?? "").split("\n")[0] : authorName)}</h4></div><button type="button" class="btn-secondary btn-xs" data-tree-clear-selection="true" title="Back to overview">✕</button></div>` +
       (comm ? `<div class="tree-insp-pill">r/${escapeHtml(comm.slug)}</div>` : `<div class="tree-insp-pill">${escapeHtml(branch?.isPoll ? "poll" : post?.category ?? "thought")}</div>`) +
       `<div class="tree-insp-body">${escapeHtml(cut(caption || "(Media post)", 280))}</div>` +
       `<div class="tree-insp-metrics"><span class="btn-icon-text">${renderIcon("heart", { className: "icon-xs" })} ${likes}</span><span class="btn-icon-text">${renderIcon("messageSquare", { className: "icon-xs" })} ${comments.length}</span><span class="btn-icon-text">${renderIcon("repeat", { className: "icon-xs" })} ${branch?.repostsCount ?? 0}</span></div>` +
       `<div class="tree-insp-actions">` +
-      `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(selection.postId)}" data-tree-author="${escapeHtml(selection.author)}">Open Post →</button>` +
-      `<button type="button" class="btn-secondary btn-sm" data-tree-open-profile="${escapeHtml(selection.author)}">View Author</button>` +
-      `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.author)}">Trace Author Sap</button>` +
+      `<button type="button" class="btn-primary btn-sm" data-tree-open-post="${escapeHtml(selection.postId)}" data-tree-author="${escapeHtml(selection.author)}">${isRelease ? "Play in Music →" : "Open Post →"}</button>` +
+      (isRelease
+        ? ""
+        : `<button type="button" class="btn-secondary btn-sm" data-tree-open-profile="${escapeHtml(selection.author)}">View Author</button>` +
+          `<button type="button" class="btn-secondary btn-sm" data-tree-focus-author="${escapeHtml(selection.author)}">Trace Author Sap</button>`) +
       `</div>` +
       (commentItems.length
         ? `<div class="tree-insp-subhead">Leaves on this branch (${comments.length})</div><div class="tree-insp-leaf-list">${commentItems.join("")}</div>`

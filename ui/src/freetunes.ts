@@ -4,6 +4,7 @@ import { keyOf } from "./riverPointer.ts";
 import { hexToBytes, bytesToHex } from "./crypto.ts";
 import { fromBase58 } from "./whoiam.ts";
 import { defaultNodeOrigin } from "./orto.ts";
+import type { Post } from "./types.ts";
 
 export const FREETUNES_SITE = "HiAQ4ucHkDKw6ShMa9ipX73h9XxdyGD5cN2DSW78Mqev";
 export const FREETUNES_KEY = FREETUNES_SITE;
@@ -176,6 +177,29 @@ export function freetunesReleaseHref(
 export function freetunesLink(caption: string): { release: string; track: number } | null {
   const m = LINK_RE.exec(caption);
   return m ? { release: m[1], track: Number(m[3] ?? 0) } : null;
+}
+
+/** Id prefix of the tree leaves made from FreeTunes releases (not Radica posts). */
+export const FT_TREE_PREFIX = "ft:";
+
+/** The newest FreeTunes releases as unsigned stand-in posts for the Living Tree's Music bough; a release a Radica
+ *  post already shares is left out, since that post is on the bough already. */
+export function releaseTreePosts(releases: FtReleaseItem[], posts: Pick<Post, "caption">[], max = 6): Post[] {
+  const shared = new Set(posts.map((p) => freetunesLink(p.caption)?.release));
+  return releases
+    .filter((r) => r.id && r.params && !shared.has(r.id))
+    .sort((a, z) => z.ts - a.ts)
+    .slice(0, max)
+    .map((r) => ({
+      id: `${FT_TREE_PREFIX}${r.id}`,
+      author: r.owner,
+      category: "thought",
+      caption: `🎵 ${r.title} — ${r.artist}\n\n#/r/${r.id}.${r.params}`,
+      timestamp: r.ts > 1e12 ? r.ts : r.ts * 1000,
+      sig: "",
+      likes: {},
+      comments: {},
+    }));
 }
 
 /** Detailed FreeTunes release reference from a caption, including hex parameters for direct FreeTunes deep-linking. */
