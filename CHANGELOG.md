@@ -1,6 +1,8 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **NEW** Secret Chat protection level in the header (`ui/src/secretRatchet.ts`, `ui/src/messengerChat.ts`, `ui/tests/secretRatchet.test.ts`): the subtitle under the contact's name reads **Post-quantum** once ML-KEM is mixed into the session (from the first reply), **Double Ratchet** before that, or **PFS Ephemeral** when no v2 session exists yet; hover for what it means. `drLevel()` reads it from the session messages go out on.
+
   * **NEW** Music bough on the Living Tree (`ui/src/treeGraph.ts`, `ui/tests/treeGraph.test.ts`): a post that shares a FreeTunes release or artist (`freetunesLink` / `freetunesArtistLink`) hangs on its own "Music" bough, the way articles hang on "Articles", instead of on Thoughts/Moments.
   * **FIX** Multi-photo posts in Moments (`ui/src/main.ts`, `ui/src/style.css`): the Moments grid shows a post's first photo, and clicking it opened just that one photo — the others could only be seen from the post itself. The lightbox now opens a multi-photo post as a carousel (prev/next buttons, swipe, ←/→ keys, a 1/N counter), at the photo clicked; it closes on Escape or a click outside the photos.
 
