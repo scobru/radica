@@ -45,6 +45,8 @@ export function createMusicPage(deps: MusicPageDeps) {
   const searchInput = document.getElementById("music-search-input") as HTMLInputElement | null;
   const tabsEl = document.getElementById("music-filter-tabs") as HTMLElement | null;
   const listEl = document.getElementById("music-releases-list") as HTMLElement | null;
+  const releaseLink = document.getElementById("music-release-link") as HTMLAnchorElement | null;
+  if (releaseLink) releaseLink.href = freetunesReleaseHref(""); // no params: FreeTunes' home, where artists publish
 
   // Global Persistent Mini-Player elements
   const playerBar = document.getElementById("global-audio-player") as HTMLElement | null;
