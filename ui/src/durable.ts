@@ -10,6 +10,7 @@ export const DURABLE_PREFIXES = [
   "radica_secret_active_ttl_", // Secret Chat timers
   "radica_secret_peers_",
   "radica_secret_removed_", // when I removed a Secret Chat from the list: old inbox entries must not bring it back
+  "radica_secret_plain_", // Secret Chat v2 plain texts: a Double Ratchet key opens a message once
   "radica_pinned_chats_",
   "radica_verified_chats_",
   "radica_hidden_users",

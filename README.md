@@ -56,6 +56,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ### 6. 💬 P2P Direct Chat & Interactive Feeds
 - **Private & Community Chat**: Deterministic room address derivation for 1-on-1 private messaging and community chatrooms.
+- **Secret Chat with the Double Ratchet**: one-to-one Secret Chats (`secret:v2:`) use the Signal Double Ratchet over X25519 (X3DH-style start, a DH ratchet on every turn, HMAC chain keys, AES-GCM bound to both identity keys and the header), so a message key opens its message once and a stolen identity key does not open what was already read. Plain text stays on the device and burns with disappearing-message timers.
 - **End-to-End Encrypted Private Rooms & Broadcast Channels**: By default, encrypted groups and broadcast channels run natively on Radica's log contracts using symmetric room keys (`AES-256-GCM`) distributed via `X25519 ECIES`, with zero-knowledge invite fragment links (`#join_room=...&key=...&lr_key=...`) for linked discussion rooms and optional opt-in interoperability with external [Freenet River](https://github.com/freenet/river) rooms.
 - **Interactive `#Hashtags` & Live Search**: Automatic hashtag tokenization, live keyword filtering, and category sorting (Thoughts, Moments, Events).
 - **Dual Runtime**: Runs as a progressive Web App via Vite or as an Electron desktop application.
@@ -139,6 +140,7 @@ radica/
 ├── ui/                          # Client-Side Application (Vite + TypeScript)
 │   ├── src/
 │   │   ├── crypto.ts            # Ed25519 signatures, X25519 ECDH + AES-256-GCM E2EE
+│   │   ├── secretRatchet.ts     # Secret Chat v2: Double Ratchet sessions (Olm-style, per base key)
 │   │   ├── avatar.ts            # Deterministic SVG identicons & client-side Canvas compression
 │   │   ├── storage.ts           # SafeStorage parent shell hash sync & persistence engine
 │   │   ├── whoiam.ts            # Viso / Whoiam decentralized SSO identity bridge

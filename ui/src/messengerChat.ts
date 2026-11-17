@@ -1120,7 +1120,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       } else if (meta.count > 0) {
         previewMine = meta.lastSender === me;
         previewOptimistic = meta.optimistic;
-        const isPlain = meta.rawText && !meta.rawText.startsWith("secret:v1:") && !meta.rawText.startsWith("e2e:");
+        const isPlain = meta.rawText && !meta.rawText.startsWith("secret:v") && !meta.rawText.startsWith("e2e:");
         previewText = isPlain ? formatPreviewLine(meta.rawText, meta.lastSender, me, "dm") : "Secret message…";
       }
 

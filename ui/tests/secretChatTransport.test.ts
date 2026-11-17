@@ -64,7 +64,7 @@ test("secretChatTransport: Alice sends, Bob reads it, and Alice still reads her 
 
   const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "ciao Bob", 0);
   assert.equal(sent.text, "ciao Bob");
-  assert.ok(JSON.parse(ta.store.getItem(`freenet_chat_${sent.room_id}`)!)[0].text.startsWith("secret:v1:"), "stored sealed");
+  assert.ok(JSON.parse(ta.store.getItem(`freenet_chat_${sent.room_id}`)!)[0].text.startsWith("secret:v2:"), "stored sealed");
 
   assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["ciao Bob"]);
   assert.deepEqual((await readSecretChat(ta, alice, bob.pubkey)).map((m) => m.text), ["ciao Bob"]);
@@ -128,7 +128,7 @@ test("secretChatTransport: a timed message sent with the placeholder's id replac
   await sendSecretChatMessage(ta, alice, bob.pubkey, "ciao", 3600, undefined, id);
   const stored = JSON.parse(ta.store.getItem(roomKey)!);
   assert.equal(stored.filter((m: { id: string }) => m.id === id).length, 1);
-  assert.ok(stored.find((m: { id: string }) => m.id === id).text.startsWith("secret:v1:"), "the placeholder's plain text is gone");
+  assert.ok(stored.find((m: { id: string }) => m.id === id).text.startsWith("secret:v2:"), "the placeholder's plain text is gone");
   assert.deepEqual((await readSecretChat(ta, alice, bob.pubkey)).map((m) => m.text), ["first", "ciao"]);
 });
 
@@ -147,7 +147,7 @@ test("secretChatTransport: an edit reaches the peer sealed, and nothing readable
   assert.deepEqual((await readSecretChat(ta, alice, bob.pubkey)).map((m) => m.text), ["ciao Bob, anzi arrivederci"], "so do I");
   assert.ok((await readSecretChat(ta, alice, bob.pubkey))[0].edited_at, "marked as edited");
   const edit = wire.find((e: any) => e.type === "chat_edit") as any;
-  assert.ok(edit.text.startsWith("secret:v1:"), "sealed");
+  assert.ok(edit.text.startsWith("secret:v2:"), "sealed");
   assert.ok(!JSON.stringify(wire).includes("arrivederci"), "the new text never leaves in the clear");
 });
 
@@ -159,4 +159,36 @@ test("secretChatTransport: only my own message can be edited", async () => {
   network.set(bob.pubkey, tb);
   const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "ciao Bob", 0);
   await assert.rejects(() => editSecretMessage(tb, bob, alice.pubkey, sent.id, "forged"), /own message/);
+});
+
+test("secretChatTransport: a v2 message opens once, then reads from the kept plain text, and a burn forgets it", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "once", 0);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["once"]);
+  // the message key is used up: a second read comes from the plain text Bob kept
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["once"]);
+  assert.match(tb.store.getItem(`radica_secret_plain_${bob.pubkey}`) ?? "", /once/);
+
+  burnSecretMessage(tb, sent.room_id, sent.id, bob.pubkey, alice.pubkey);
+  assert.doesNotMatch(tb.store.getItem(`radica_secret_plain_${bob.pubkey}`) ?? "", /once/);
+});
+
+test("secretChatTransport: overlapping reads across a ratchet turn keep the session in step", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  await sendSecretChatMessage(ta, alice, bob.pubkey, "a1", 0);
+  await Promise.all([readSecretChat(tb, bob, alice.pubkey), readSecretChat(tb, bob, alice.pubkey)]);
+  await sendSecretChatMessage(tb, bob, alice.pubkey, "b1", 0);
+  await Promise.all([readSecretChat(ta, alice, bob.pubkey), readSecretChat(ta, alice, bob.pubkey)]);
+  await sendSecretChatMessage(ta, alice, bob.pubkey, "a2", 0);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["a1", "b1", "a2"]);
 });
