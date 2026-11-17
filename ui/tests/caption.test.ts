@@ -296,3 +296,10 @@ test("caption: River and room invite links format into channel and room pills", 
   assert.match(html3, /class="post-link channel-invite-pill"/);
   assert.match(html3, />Click here to join<\/a>/);
 });
+
+test("renderComment: #tags are clickable filters, as in posts", () => {
+  assert.equal(
+    renderComment("nice #freenet <b>"),
+    `nice <span class="hashtag clickable-hashtag" data-tag="freenet" title="Filter by #freenet">#freenet</span> &#60;b&#62;`
+  );
+});
