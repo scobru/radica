@@ -170,6 +170,7 @@ import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris, MEDIA_PREFIX } 
 import { playVideo, prepareVideo, publishVideo, videoPosterUrl, videoRef } from "./video.ts";
 import { LANGS, READER_LANG_KEY, availableLangs, readerLang, translatableFrom, translateText } from "./translate.ts";
 import { openGifPicker } from "./gifPicker.ts";
+import { cleanWallets, normalizeWallet, WALLET_KINDS, walletUri, type Wallets } from "./wallets.ts";
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
 import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
@@ -482,6 +483,13 @@ const modalNameInput = document.getElementById("modal-name-input") as HTMLInputE
 const modalBioInput = document.getElementById("modal-bio-input") as HTMLTextAreaElement;
 const modalDeltaInput = document.getElementById("modal-delta-input") as HTMLInputElement;
 const modalOrtoInput = document.getElementById("modal-orto-input") as HTMLInputElement;
+const modalWallets = document.getElementById("modal-wallets") as HTMLElement | null;
+if (modalWallets)
+  modalWallets.innerHTML = WALLET_KINDS.map(
+    (w) => `<input type="text" class="composer-input" data-wallet="${w.kind}" aria-label="${escapeHtml(w.label)}" placeholder="${escapeHtml(`${w.icon} ${w.label}: ${w.placeholder}`)}" style="min-height: auto; font-size: 0.8rem; font-family: monospace;" />`
+  ).join("");
+const walletInputs = (): HTMLInputElement[] => (modalWallets ? Array.from(modalWallets.querySelectorAll<HTMLInputElement>("input[data-wallet]")) : []);
+const fillWalletInputs = (w: Wallets) => walletInputs().forEach((i) => (i.value = w[i.dataset.wallet as keyof Wallets] ?? ""));
 const modalAsocialInput = document.getElementById("modal-asocial-input") as HTMLInputElement;
 const modalFreetunesInput = document.getElementById("modal-freetunes-input") as HTMLInputElement;
 const modalFhInput = document.getElementById("modal-fh-input") as HTMLInputElement;
@@ -5591,6 +5599,10 @@ editProfileBtn.addEventListener("click", () => {
   const me = currentIdentity?.pubkey;
   modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
   if (me) void freenet.refreshLog(`delta/${me}`).then(() => (modalDeltaInput.value ||= freenet.deltaSiteOf(me) ?? ""));
+  if (me) {
+    fillWalletInputs(freenet.walletsOf(me));
+    void freenet.refreshLog(`wallets/${me}`).then(() => walletInputs().every((i) => !i.value) && fillWalletInputs(freenet.walletsOf(me)));
+  }
   if (modalOrtoInput) {
     modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
     if (me) void freenet.refreshLog(`orto/${me}`).then(() => (modalOrtoInput.value ||= freenet.ortoBlogOf(me) ?? ""));
@@ -5735,6 +5747,10 @@ modalSaveBtn.addEventListener("click", async () => {
   const deltaRaw = modalDeltaInput.value.trim();
   const delta = deltaRaw ? deltaPrefixOf(deltaRaw) : null;
   if (deltaRaw && !delta) return alert("That is not a Delta site address: paste the address of your site in Delta.");
+  const walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
+  const badWallet = walletFields.find((f) => f.raw && !normalizeWallet(f.kind, f.raw));
+  if (badWallet) return alert(`That is not a valid ${WALLET_KINDS.find((w) => w.kind === badWallet.kind)!.label} address.`);
+  const wallets = cleanWallets(Object.fromEntries(walletFields.map((f) => [f.kind, f.raw])));
 
   modalSaveBtn.disabled = true;
   modalSaveBtn.textContent = "Signing & Saving...";
@@ -5742,6 +5758,7 @@ modalSaveBtn.addEventListener("click", async () => {
   try {
     const updated = await freenet.updateProfile(currentIdentity, name, bio, avatar);
     if (delta !== freenet.deltaSiteOf(currentIdentity.pubkey)) await freenet.setDeltaSite(delta);
+    if (JSON.stringify(wallets) !== JSON.stringify(freenet.walletsOf(currentIdentity.pubkey))) await freenet.setWallets(wallets);
     const ortoRaw = modalOrtoInput?.value.trim() || "";
     if (ortoRaw !== (freenet.ortoBlogOf(currentIdentity.pubkey) || "")) await freenet.setOrtoBlog(ortoRaw || null);
     const asocialRaw = modalAsocialInput?.value.trim() || "";
@@ -5849,6 +5866,34 @@ async function renderNames(pubkey: string) {
 /** The Delta blog a persona named (set in Edit Profile): a card with its name and all its pages, opening in Delta. */
 
 /** The Orto blog of a persona (from their Orto vault on Freenet or custom URL): a card with its posts. */
+/** A persona's wallets under their bio: one chip each, a tap copies the address, ↗ opens the wallet app. */
+async function renderWallets(pubkey: string) {
+  const el = document.getElementById("uview-wallets");
+  if (!el) return;
+  const draw = () => {
+    if (uviewKey.textContent !== pubkey) return;
+    const w = freenet.walletsOf(pubkey);
+    el.innerHTML = WALLET_KINDS.filter((k) => w[k.kind])
+      .map((k) => {
+        const addr = escapeHtml(w[k.kind]!);
+        return `<span class="wallet-chip" role="button" tabindex="0" data-copy="${addr}" title="${escapeHtml(k.label)}: ${addr} (tap to copy)">${k.icon} ${escapeHtml(k.label)} <code>${addr}</code><a href="${escapeHtml(walletUri(k.kind, w[k.kind]!))}" title="Open in a wallet app" rel="noopener">↗</a></span>`;
+      })
+      .join("");
+  };
+  el.innerHTML = "";
+  draw();
+  await freenet.refreshLog(`wallets/${pubkey}`);
+  draw();
+}
+document.getElementById("uview-wallets")?.addEventListener("click", (e) => {
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".wallet-chip");
+  if (!chip || (e.target as HTMLElement).closest("a")) return;
+  void navigator.clipboard.writeText(chip.dataset.copy ?? "").then(
+    () => showToast("Address copied", "info"),
+    () => showToast("Could not copy the address", "error")
+  );
+});
+
 async function renderOrtoBlog(pubkey: string) {
   if (!uviewOrtoBlog) return;
   const stillHere = () => uviewKey.textContent === pubkey;
@@ -6141,6 +6186,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   const appLoaders = Promise.allSettled([
     renderBlog(pubkey),
     renderOrtoBlog(pubkey),
+    renderWallets(pubkey),
     renderAsocial(pubkey),
     renderFreetunes(pubkey),
     renderFh(pubkey),
