@@ -130,7 +130,8 @@ import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
 import { CHAT_REACTIONS } from "./logfold";
-import { analyzeImageFile, analyzeTextContent, personalDataIn, type ImageModerationResult } from "./moderation";
+import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
+import { commentsBy, type CommentEntry } from "./commentHistory.ts";
 import { renderIcon, type IconName } from "./icons";
 import { safeStorage } from "./storage";
 import { FEED_BUDGET, FEED_SHOW, FEED_TARGET, feedBytes, formatBytes, oldestToFree } from "./feedsize";
@@ -6106,7 +6107,7 @@ async function openAuthorWallInFeed(pubkey: string) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" | "moments" | "videos" | "boards" = "posts") {
+async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" | "moments" | "videos" | "boards" | "comments" = "posts") {
   markSeen((n) => n.type === "follow" && n.from === pubkey);
   const isSelf = pubkey === currentIdentity?.pubkey;
   const uviewNameHtml = (displayName: string) => {
@@ -6311,14 +6312,37 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     videos: videoPosts,
     boards: authorBoards,
     articles: articlePosts,
+    comments: [] as CommentEntry[], // filled by loadComments(): they live in other people's feeds, so they come later
   };
+  let shownTab: Parameters<typeof drawUviewPosts>[0] = initialTab;
+  let commentsLoaded = false;
+  let commentsLoading: Promise<void> | null = null;
+  const loadComments = () =>
+    (commentsLoading ??= (async () => {
+      const me = currentIdentity;
+      const seen = me ? await freenet.getExploreTimeline(me).catch(() => [] as Post[]) : [];
+      const own = (c: string) => c === mePk;
+      const wot = getWebOfTrust();
+      byTab.comments = commentsBy([...seen, ...timelinePosts, ...Object.values(feed.posts)], pubkey, {
+        // what the feed hides stays hidden here: a profile is no way around a blocklist, a report or an AI hold
+        hidePost: (p) => !own(p.author) && (hiddenSet.has(p.author) || reportedSet.has(`${p.author}:${p.id}`)),
+        hideComment: (c) => !own(c.author) && (hiddenSet.has(c.author) || reportedSet.has(`${c.author}:${c.id}`) || (isWotModerationEnabled() && unprovenComment(c, wot))),
+      });
+      commentsLoaded = true;
+      if (uviewKey.textContent === pubkey) drawUviewPosts(shownTab);
+    })());
   drawUviewPosts = (tab) => {
+    shownTab = tab;
     userProfileModal.querySelector(".uview-layout")?.classList.toggle("uview-show-connections", tab === "connections");
     uviewTabs.querySelectorAll<HTMLElement>("button").forEach((b) => {
       const t = b.dataset.tab as keyof typeof byTab | "connections";
       b.setAttribute("aria-selected", String(t === tab));
       if (t === "connections") {
         b.textContent = "🔗 Connections";
+        return;
+      }
+      if (t === "comments") {
+        b.textContent = commentsLoaded ? `💬 Comments (${byTab.comments.length})` : "💬 Comments";
         return;
       }
       const label =
@@ -6337,6 +6361,35 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     });
     if (tab === "connections") return;
     const shouldMask = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
+
+    if (tab === "comments") {
+      if (!commentsLoaded) {
+        uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">Loading…</div>`;
+        void loadComments();
+        return;
+      }
+      if (byTab.comments.length === 0) {
+        uviewPostsGallery.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted);">No comments seen on this device yet. Comments live in the feed of the post they answer, so only the ones this device holds are listed.</div>`;
+        return;
+      }
+      uviewPostsGallery.innerHTML = byTab.comments
+        .map(({ post, comment }) => {
+          const art = parseArticleCaption(freenet.postEdit(post.author, post.id)?.caption ?? post.caption);
+          const about = art ? `📰 ${art.title}` : (freenet.postEdit(post.author, post.id)?.caption ?? post.caption).slice(0, 90);
+          const text = shouldMask ? maskProfanity(comment.text) : comment.text;
+          return `<div class="uview-post" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" role="button" tabindex="0" title="Open this post">
+            <div class="uview-post-head">
+              <div><span class="uview-post-author">On ${escapeHtml(getAuthorDisplayName(post.author))}'s post</span> <span class="uview-post-time">· ${formatTimeAgo(comment.timestamp)}</span></div>
+            </div>
+            <div class="uview-post-body">
+              <div class="uview-post-text">${renderCaption(text, getAuthorDisplayName)}</div>
+              <div class="uview-post-meta"><span>${escapeHtml(about)}</span><span class="uview-post-open">Open post →</span></div>
+            </div>
+          </div>`;
+        })
+        .join("");
+      return;
+    }
 
     if (tab === "videos") {
       if (videoPosts.length === 0) {
@@ -6554,6 +6607,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     fillReposts(uviewPostsGallery);
   };
   drawUviewPosts(initialTab);
+  void loadComments(); // the tab shows its count once this node has looked
 
   userProfileModal.style.display = "flex";
 }
@@ -6620,11 +6674,11 @@ const openProfilePost = (e: Event) => {
 };
 uviewPostsGallery.addEventListener("click", openProfilePost);
 /** Draw one tab of the open profile (set by openUserProfile, which knows whose posts they are). */
-let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards" | "articles" | "connections") => void = () => {};
+let drawUviewPosts: (tab: "posts" | "reposts" | "moments" | "videos" | "boards" | "articles" | "comments" | "connections") => void = () => {};
 const uviewTabs = document.getElementById("uview-tabs") as HTMLElement;
 uviewTabs.addEventListener("click", (e) => {
   const tab = (e.target as Element).closest<HTMLElement>("button")?.dataset.tab;
-  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards" || tab === "articles" || tab === "connections")
+  if (tab === "posts" || tab === "reposts" || tab === "moments" || tab === "videos" || tab === "boards" || tab === "articles" || tab === "comments" || tab === "connections")
     drawUviewPosts(tab);
 });
 
