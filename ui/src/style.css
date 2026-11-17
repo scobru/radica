@@ -3457,6 +3457,8 @@ body {
   }
 }
 .lightbox img { max-width: 96vw; max-height: 90vh; object-fit: contain; }
+.lightbox .carousel { width: min(96vw, 1100px); }
+.lightbox .carousel-track img { flex: 0 0 100%; width: 100%; max-height: 82vh; scroll-snap-align: center; }
 
 /* Full-screen video playback in the lightbox (Moments grid, media modal) */
 .video-lightbox video.lightbox-video {

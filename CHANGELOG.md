@@ -1,6 +1,9 @@
 5.7.2 / 2026-11-16
 ==================
 
+  * **NEW** Music bough on the Living Tree (`ui/src/treeGraph.ts`, `ui/tests/treeGraph.test.ts`): a post that shares a FreeTunes release or artist (`freetunesLink` / `freetunesArtistLink`) hangs on its own "Music" bough, the way articles hang on "Articles", instead of on Thoughts/Moments.
+  * **FIX** Multi-photo posts in Moments (`ui/src/main.ts`, `ui/src/style.css`): the Moments grid shows a post's first photo, and clicking it opened just that one photo — the others could only be seen from the post itself. The lightbox now opens a multi-photo post as a carousel (prev/next buttons, swipe, ←/→ keys, a 1/N counter), at the photo clicked; it closes on Escape or a click outside the photos.
+
   * **SECURITY** Secret Chat moves to the Double Ratchet (`ui/src/secretRatchet.ts`, `ui/src/secretChatTransport.ts`, `ui/src/durable.ts`, `ui/tests/secretRatchet.test.ts`, `ui/tests/secretChatTransport.test.ts`):
     * v1 (`secret:v1:`) had no forward secrecy in practice: every message key was re-derived on each read from the identity key, the sender's ephemeral key (sent in clear in each message) and the peer's public key, and the session (ephemeral private key included) was saved to the node. Whoever got the identity key could open every Secret Chat message ever harvested from the public inbox logs.
     * v2 (`secret:v2:<header>:<iv>:<ciphertext>`) is the Signal Double Ratchet: X3DH-style start without prekeys (`DH(IK_a, IK_b) ‖ DH(base, IK_b)`), a DH ratchet step on every turn, HMAC chain keys, skipped keys for reordered messages (500 per message, 1000 kept), AES-GCM with both static keys and the header as associated data. A message key is deleted once used and a session changes only when a message opens.

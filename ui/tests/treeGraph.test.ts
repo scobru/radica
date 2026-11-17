@@ -320,3 +320,15 @@ test("treeGraph: an article hangs on the Articles bough, not on the bough of its
   const onBough = model.posts.filter((p) => p.boughId === bough!.id).map((p) => p.id);
   assert.deepEqual(onBough, ["art1"]);
 });
+
+test("treeGraph: a post sharing a FreeTunes release hangs on the Music bough", () => {
+  const song = makePost({
+    id: "ft1",
+    author: ALICE,
+    caption: `new track http://127.0.0.1:7509/v1/contract/web/HiAQ4ucHkDKw6ShMa9ipX73h9XxdyGD5cN2DSW78Mqev/#/r/5jQAw8QEzaWvC1ZZKnjQwgv7dtCZ9X8vHjTheCRBBygN.${"ab".repeat(48)}`,
+  });
+  const model = buildTreeGraph({ posts: [song, makePost({ id: "t1", author: BOB })], communities: [], peers: PEERS, myPubkey: ME, myName: "You", now: NOW });
+  const bough = model.boughs.find((b) => b.id === "bough:music");
+  assert.equal(bough?.label, "Music");
+  assert.deepEqual(model.posts.filter((p) => p.boughId === bough!.id).map((p) => p.id), ["ft1"]);
+});
