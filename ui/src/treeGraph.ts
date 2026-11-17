@@ -7,6 +7,7 @@ import { plantSvg } from "./plant.ts";
 import { freepollsLink } from "./freepolls.ts";
 import { repostCountsOf } from "./repost.ts";
 import { parseArticleCaption } from "./articles.ts";
+import { freetunesArtistLink, freetunesLink } from "./freetunes.ts";
 import { likers, type Community, type Post, type PostCategory } from "./types.ts";
 
 export type TreeViewMode = "full" | "canopy" | "roots";
@@ -177,6 +178,7 @@ const CATEGORY_BOUGHS: Record<PostCategory, { id: string; slug: string; label: s
   event: { id: "bough:event", slug: "events", label: "Events" },
 };
 const ARTICLE_BOUGH = { id: "bough:article", slug: "articles", label: "Articles" };
+const MUSIC_BOUGH = { id: "bough:music", slug: "music", label: "Music" };
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const round1 = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : 0);
@@ -433,8 +435,14 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
     });
   }
 
-  // one rule for counting a post in a bough and for placing it on it: an article sits on the Articles bough
-  const categoryBoughOf = (p: Post) => (parseArticleCaption(p.caption) ? ARTICLE_BOUGH : (CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought));
+  // one rule for counting a post in a bough and for placing it on it: an article sits on the Articles bough, a shared
+  // FreeTunes release or artist on the Music bough
+  const categoryBoughOf = (p: Post) =>
+    parseArticleCaption(p.caption)
+      ? ARTICLE_BOUGH
+      : freetunesLink(p.caption) || freetunesArtistLink(p.caption)
+        ? MUSIC_BOUGH
+        : (CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought);
   for (const p of rankedPosts) {
     if (p.community_id && boughBuckets.has(p.community_id)) {
       boughBuckets.get(p.community_id)!.posts.push(p);

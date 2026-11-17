@@ -1841,15 +1841,36 @@ document.addEventListener("click", (e) => {
   const caption = post?.caption || "";
   const box = document.createElement("div");
   box.className = "lightbox";
-  box.innerHTML = `<img src="${safeUrl(img.src)}" alt="Post media" /><div class="lightbox-caption">${escapeHtml(caption)}</div>`;
+  // a post with several photos opens as a carousel here too (Moments shows only its first one), at the photo clicked
+  const uris = post?.media_uri && !videoRef(post.media_uri) ? mediaUris(post.media_uri) : [];
+  const media = uris.length > 1 && post?.media_uri ? postImagesHtml(post.media_uri) : `<img src="${safeUrl(img.src)}" alt="Post media" />`;
+  box.innerHTML = `${media}<div class="lightbox-caption">${escapeHtml(caption)}</div>`;
+  const track = box.querySelector<HTMLElement>(".carousel-track");
+  const count = box.querySelector(".carousel-count");
+  const step = (dir: number) => track?.scrollBy({ left: dir * track.clientWidth, behavior: "smooth" });
+  track?.addEventListener("scroll", () => {
+    if (count) count.textContent = `${Math.round(track.scrollLeft / track.clientWidth) + 1}/${track.children.length}`;
+  });
   const close = () => {
     box.remove();
     document.removeEventListener("keydown", onKey);
   };
-  const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && close();
-  box.addEventListener("click", close);
+  const onKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") close();
+    else if (track && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) step(ev.key === "ArrowLeft" ? -1 : 1);
+  };
+  box.addEventListener("click", (ev) => {
+    const nav = (ev.target as HTMLElement).closest<HTMLElement>(".carousel-nav");
+    if (nav) step(nav.classList.contains("prev") ? -1 : 1);
+    else if (!(ev.target as HTMLElement).closest(".carousel-track")) close(); // swiping or tapping a photo keeps it open
+  });
   document.addEventListener("keydown", onKey);
   document.body.appendChild(box);
+  if (track) {
+    showMedia(box);
+    const at = uris.findIndex((u) => (mediaRef(u) ?? safeUrl(u)) === (img.dataset.media || img.src));
+    if (at > 0) requestAnimationFrame(() => (track.scrollLeft = at * track.clientWidth));
+  }
 });
 const blocklistsModal = document.getElementById("blocklists-modal") as HTMLElement;
 function renderBlocklists() {
