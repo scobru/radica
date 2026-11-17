@@ -13560,6 +13560,14 @@ initGreenhouse({
   whoAmI: () => currentIdentity?.pubkey ?? null,
   displayName: getAuthorDisplayName,
   showToast: (msg, type) => showToast(msg, type),
+  isHidden: isHiddenAuthor,
+  isReported: (target) => [...moderationCurators(), currentIdentity?.pubkey ?? ""].some((c) => freenet.reportedBy(c).has(target)) || freenet.aiHeldTargets().has(target),
+  hideAuthor: (pk) => {
+    setUserHidden(pk, true);
+    showToast("Author hidden on this device.", "info");
+    scheduleRenderTimeline();
+  },
+  report: (author, id, reason) => freenet.reportPost(author, id, reason, null, true),
   linfaForAuthors: async (authors) => {
     if (!currentIdentity) return { weights: new Map() };
     const [seen, feeds] = await Promise.all([

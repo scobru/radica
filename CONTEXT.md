@@ -58,6 +58,7 @@ Terms the code and its reviews use. Keep them exact.
 ## Greenhouse
 
 - **Greenhouse** (`ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `#greenhouse-modal`) — community idea and bug report voting board where supporters (Sprout, Root, Oak) and active Linfa members (Sapling+) plant seeds and cast weighted votes.
+- **Greenhouse comment** (`{type:"comment", seed, text}` in the `greenhouse` log, `Seed.comments`) — a reply under a proposal. Same weight gate as voting; reported as `<author>:<entry id>` so the normal moderation queue handles it; the author always sees their own, others' are dropped when the author is hidden/blocked or the target is reported or AI-held (`hideComment` argument of `foldGreenhouse`).
 - **Greenhouse Permalink** (`#greenhouse&seed=<author:id>` / `#seed=<author:id>`) — shareable deep link to a specific proposal or voting, parsed by `parseGreenhouseHash`, formatted inline in captions as `↪ Greenhouse proposal`, and scrolled/flashed upon opening.
 
 - **Greenhouse Linfa weight** (`linfaGreenhouseWeight` in `linfa.ts`) — Sybil-resistant governance weight for non-supporters in Greenhouse (`greenhouse.ts`). Ignores Tier-0 strangers, enforces `MIN_TRUSTED_RECEIVED = 2` from the reader's web of trust, caps unilateral `given` (`3×`) and `posting` (`2×`) relative to trusted feedback received, and maps effective Linfa to weight `1` (Sapling/Young tree `12+`), `2` (Tree `120+`), or `3` (Elder tree `300+`). Effective vote/proposal weight is `Math.max(tierWeight, linfaWeight)`.

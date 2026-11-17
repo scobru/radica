@@ -141,3 +141,22 @@ test("formatSeedsForAi outputs readable Markdown for AI agents and filters open 
   assert.match(openMd, /#greenhouse&seed=alice%3A/);
 });
 
+
+test("comments: only members comment, newest last, hidden and reported ones drop out but my own stay", () => {
+  const seed = entry("alice", t0, { type: "seed", kind: "feature", title: "Dark mode", days: 7 });
+  const id = `alice:${seed.id}`;
+  const bad = entry("carol", t0 + 3, { type: "comment", seed: id, text: "spam" });
+  const mine = entry("bob", t0 + 4, { type: "comment", seed: id, text: "reported but mine" });
+  const entries = [
+    seed,
+    entry("bob", t0 + 1, { type: "comment", seed: id, text: "  nice  " }),
+    entry("mallory", t0 + 2, { type: "comment", seed: id, text: "not a member" }),
+    bad,
+    mine,
+    entry("bob", t0 + 5, { type: "comment", seed: id, text: "   " }), // empty
+    entry("bob", t0 - 1, { type: "comment", seed: id, text: "before the seed" }),
+  ];
+  const hide = (_a: string, target: string) => target === `carol:${bad.id}` || target === `bob:${mine.id}`;
+  const out = foldGreenhouse(entries, tierOf, "bob", "boss", () => 0, [], hide)[0];
+  assert.deepEqual(out.comments.map((c) => c.text), ["nice", "reported but mine"]);
+});
