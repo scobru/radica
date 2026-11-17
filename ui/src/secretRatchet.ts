@@ -3,12 +3,18 @@
 // where the base key is the starter's first ratchet key. Two people who write first at the same time each start a
 // session; both decrypt, and replies go out on the session last used. The storage is passed in so a test can give each
 // side its own.
+//
+// Hybrid post-quantum: each side sends its ML-KEM-768 key in the header until the peer uses it, and from then on every
+// new sending chain also mixes a fresh ML-KEM shared secret into the root key (its ciphertext rides in the chain's
+// headers). A message is then safe unless both X25519 and ML-KEM fall; the first chain of a session, before any reply,
+// is X25519 only.
 
 import * as ed from "@noble/ed25519";
 import { ed25519 as curveEd25519, x25519 } from "@noble/curves/ed25519.js";
 import { hkdf } from "@noble/hashes/hkdf.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { ml_kem768 } from "@noble/post-quantum/ml-kem.js";
 import { toMontgomeryPriv, toMontgomeryPub } from "./secretChat.ts";
 
 export const PREFIX_V2 = "secret:v2:";
@@ -42,6 +48,12 @@ export interface DrSession {
   /** `${ratchet pub}:${n}` -> message key, for messages that have not arrived yet. */
   skipped: Record<string, string>;
   used: number;
+  /** The peer's ML-KEM-768 key, once they sent it. */
+  peerKem?: string | null;
+  /** The ML-KEM ciphertext of my current sending chain, sent in its headers. */
+  kct?: string | null;
+  /** The peer used my ML-KEM key: no need to send it any more. */
+  ackd?: boolean;
 }
 
 interface Header {
@@ -49,6 +61,10 @@ interface Header {
   d: string;
   pn: number;
   n: number;
+  /** My ML-KEM-768 encapsulation key, until the peer uses it. */
+  e?: string;
+  /** The ML-KEM ciphertext mixed into this chain. */
+  k?: string;
 }
 
 const enc = new TextEncoder();
@@ -56,9 +72,31 @@ const dec = new TextDecoder();
 const hex = ed.etc.bytesToHex;
 const unhex = ed.etc.hexToBytes;
 
-function kdfRk(rk: Uint8Array, dhOut: Uint8Array): [Uint8Array, Uint8Array] {
-  const out = hkdf(sha256, dhOut, rk, enc.encode("radica_dr_root"), 64);
+function kdfRk(rk: Uint8Array, dhOut: Uint8Array, kemSecret?: Uint8Array): [Uint8Array, Uint8Array] {
+  const out = hkdf(sha256, kemSecret ? ed.etc.concatBytes(dhOut, kemSecret) : dhOut, rk, enc.encode("radica_dr_root"), 64);
   return [out.slice(0, 32), out.slice(32)];
+}
+
+// Its own ML-KEM key pair, derived from the identity key apart from Freenet Mail's, so the two protocols share nothing.
+const kemCache = new WeakMap<Uint8Array, { publicKey: Uint8Array; secretKey: Uint8Array }>();
+function kemKeys(mySecretKey: Uint8Array) {
+  let k = kemCache.get(mySecretKey);
+  if (!k) {
+    k = ml_kem768.keygen(hkdf(sha256, mySecretKey, new Uint8Array(32), enc.encode("radica_secret_chat_ml_kem_768_v1"), 64));
+    kemCache.set(mySecretKey, k);
+  }
+  return k;
+}
+
+/** A new sending chain from `dhOut`, mixed with a fresh ML-KEM secret for the peer when their key is known. */
+function sendingChain(s: DrSession, rk: Uint8Array, dhOut: Uint8Array): [Uint8Array, Uint8Array] {
+  if (!s.peerKem) {
+    s.kct = null;
+    return kdfRk(rk, dhOut);
+  }
+  const { cipherText, sharedSecret } = ml_kem768.encapsulate(unhex(s.peerKem));
+  s.kct = hex(cipherText);
+  return kdfRk(rk, dhOut, sharedSecret);
 }
 
 function kdfCk(ck: Uint8Array): [Uint8Array, Uint8Array] {
@@ -131,6 +169,8 @@ export async function drEncrypt(store: DrStore, mySecretKey: Uint8Array, me: str
   }
   const [ck, mk] = kdfCk(unhex(s.cks!));
   const header: Header = { b: s.base, d: s.dhsPub, pn: s.pn, n: s.ns };
+  if (!s.ackd) header.e = hex(kemKeys(mySecretKey).publicKey);
+  if (s.kct) header.k = s.kct;
   s.cks = hex(ck);
   s.ns += 1;
   s.used = Date.now();
@@ -168,6 +208,8 @@ export async function drDecrypt(store: DrStore, mySecretKey: Uint8Array, me: str
   const h: Header = JSON.parse(unb64(headerB64));
   if (![h.b, h.d].every((k) => typeof k === "string" && /^[0-9a-f]{64}$/.test(k)) || !Number.isInteger(h.n) || !Number.isInteger(h.pn) || h.n < 0 || h.pn < 0)
     throw new Error("Invalid secret message header");
+  if ((h.e !== undefined && !/^[0-9a-f]{2368}$/.test(h.e)) || (h.k !== undefined && !/^[0-9a-f]{2176}$/.test(h.k)))
+    throw new Error("Invalid secret message key");
 
   const found = drSessions(store, me, peer).find((x) => x.base === h.b);
   let s: DrSession;
@@ -180,9 +222,11 @@ export async function drDecrypt(store: DrStore, mySecretKey: Uint8Array, me: str
     const sk = sharedSecret(x25519.getSharedSecret(myIk, toMontgomeryPub(peerEncPub)), x25519.getSharedSecret(myIk, unhex(h.b)));
     const [rk, ckr] = kdfRk(sk, x25519.getSharedSecret(myIk, unhex(h.b)));
     const mine = newPair();
-    const [rk2, cks] = kdfRk(rk, x25519.getSharedSecret(mine.priv, unhex(h.b)));
-    s = { base: h.b, peerEnc: peerEncPub, rk: hex(rk2), dhsPriv: hex(mine.priv), dhsPub: hex(mine.pub), dhr: h.b, cks: hex(cks), ckr: hex(ckr), ns: 0, nr: 0, pn: 0, skipped: {}, used: 0 };
+    s = { base: h.b, peerEnc: peerEncPub, rk: "", dhsPriv: hex(mine.priv), dhsPub: hex(mine.pub), dhr: h.b, cks: null, ckr: hex(ckr), ns: 0, nr: 0, pn: 0, skipped: {}, used: 0, peerKem: h.e ?? null };
+    const [rk2, cks] = sendingChain(s, rk, x25519.getSharedSecret(mine.priv, unhex(h.b)));
+    Object.assign(s, { rk: hex(rk2), cks: hex(cks) });
   }
+  if (h.e) s.peerKem = h.e;
 
   let mk: Uint8Array;
   const skippedKey = `${h.d}:${h.n}`;
@@ -196,9 +240,11 @@ export async function drDecrypt(store: DrStore, mySecretKey: Uint8Array, me: str
       s.ns = 0;
       s.nr = 0;
       s.dhr = h.d;
-      const [rk, ckr] = kdfRk(unhex(s.rk), x25519.getSharedSecret(unhex(s.dhsPriv), unhex(h.d)));
+      const kemSecret = h.k ? ml_kem768.decapsulate(unhex(h.k), kemKeys(mySecretKey).secretKey) : undefined;
+      const [rk, ckr] = kdfRk(unhex(s.rk), x25519.getSharedSecret(unhex(s.dhsPriv), unhex(h.d)), kemSecret);
+      if (h.k) s.ackd = true;
       const mine = newPair();
-      const [rk2, cks] = kdfRk(rk, x25519.getSharedSecret(mine.priv, unhex(h.d)));
+      const [rk2, cks] = sendingChain(s, rk, x25519.getSharedSecret(mine.priv, unhex(h.d)));
       Object.assign(s, { rk: hex(rk2), ckr: hex(ckr), cks: hex(cks), dhsPriv: hex(mine.priv), dhsPub: hex(mine.pub) });
     }
     if (h.n < s.nr) throw new Error("Secret Chat message already opened");
