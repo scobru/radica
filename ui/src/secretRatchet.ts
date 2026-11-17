@@ -137,6 +137,13 @@ export function drSessions(store: DrStore, me: string, peer: string): DrSession[
   return loadAll(store)[pairKey(me, peer)] ?? [];
 }
 
+/** How the session messages to `peer` go out on is protected: "pq" once ML-KEM is mixed in either way, "dr" before
+ *  that (the first chain, before any reply), null when there is no v2 session yet. */
+export function drLevel(store: DrStore, me: string, peer: string): "pq" | "dr" | null {
+  const s = drSessions(store, me, peer)[0];
+  return !s ? null : s.kct || s.ackd ? "pq" : "dr";
+}
+
 /** Forget every v2 session with `peer` (a reset: the next message starts a new one). */
 export function clearDrSessions(store: DrStore, me: string, peer: string): void {
   const all = loadAll(store);

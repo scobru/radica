@@ -80,6 +80,7 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 - **Opt-in supporters wall**: supporters can appear on the public Community supporters list, grouped by tier; every client verifies each receipt before showing it.
 
 ### 10. ✉️ Radica Mail & Freenet Mail Interoperability (Post-Quantum)
+- **Block a mail sender**: `Block sender` in the read view hides a sender's mail by their inbox address (not their alias) and stops storing it; undo in Contacts → Blocked senders. Local to the persona, never published.
 - **Built-in Mail Client**: A dedicated Mail navigation rail view (`g m`) with a clean header, full split-pane Inbox, Sent, and Drafts management, real-time search filtering, unread badges, and responsive viewports.
 - **Activity & System Notifications**: Hooked directly into the central Activity & Notifications stream. Incoming and unread emails trigger pop audio alerts, show unread badges on the navigation rail and activity bell, update window titles, and provide interactive notification actions (Open, Mark Read, Delete) with bidirectional synchronization.
 - **In-App Compose & Live Network Delivery**: Read end-to-end encrypted emails, compose messages to any Freenet Mail address, reply to threads with automatic `Re:` subject handling and quoted body formatting. Outgoing mail to native Freenet Mail recipients is dispatched live onto the Freenet network via `freenet.updateAppContract` with ML-KEM-768 encapsulation, HKDF-SHA256, XChaCha20-Poly1305, ML-DSA-65 signatures, and `UpdateInbox::AddMessages` deltas.

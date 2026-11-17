@@ -22,6 +22,10 @@ import {
   resolveMailAlias,
   syncFreenetMailInbox,
   resolveFreemailSenderAddress,
+  mailSenderKey,
+  blockedMailSenders,
+  blockMailSender,
+  unblockMailSender,
   type MailMessage,
 } from "../src/mailClient.ts";
 import { deriveMailIdentity, encryptFreenetMailV1 } from "../src/freenetMail.ts";
@@ -165,6 +169,48 @@ test("syncFreenetMailInbox: a message deleted locally does not come back on the 
   const second = await syncFreenetMailInbox(pubkey, bob, freenet);
   assert.equal(second.newCount, 0);
   assert.equal(loadMailStore(pubkey).messages.some((m) => m.id === inboxId), false);
+});
+
+test("mailSenderKey: the inbox id after the @, or nothing for a local address", () => {
+  const id = deriveMailIdentity("alice", new Uint8Array(32).fill(11)).inboxAddress;
+  assert.equal(mailSenderKey(`alice@${id}`), id);
+  assert.equal(mailSenderKey(`other-alias@${id}`), id); // the alias is free text; the inbox names the sender
+  assert.equal(mailSenderKey(`Alice <alice@${id}>`), id);
+  assert.equal(mailSenderKey(id), id);
+  assert.equal(mailSenderKey("welcome@freenet"), "");
+  assert.equal(mailSenderKey("radica@official"), "");
+  assert.equal(mailSenderKey(""), "");
+});
+
+test("blocking a sender removes their inbox mail, stops later mail, and unblocking brings it back", async () => {
+  const pubkey = "test_user_pubkey_block";
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  const bob = deriveMailIdentity("bob", new Uint8Array(32).fill(22));
+  const { deltaJson } = encryptFreenetMailV1(bob.kemEk, alice.dsaSk, alice.dsaVk, bob.inboxAddress, "Hi", "hello", alice.alias);
+  const wireMsg = JSON.parse(deltaJson).AddMessages.messages[0];
+  const freenet = { getByInstance: async () => new TextEncoder().encode(JSON.stringify({ messages: [wireMsg] })) };
+
+  assert.equal((await syncFreenetMailInbox(pubkey, bob, freenet)).newCount, 1);
+  const from = loadMailStore(pubkey).messages.find((m) => m.folder === "inbox" && m.fromAddress.startsWith("alice@"))!.fromAddress; // not the welcome mail
+
+  assert.equal(blockMailSender(pubkey, from), 1); // the one inbox message is removed
+  assert.equal(loadMailStore(pubkey).messages.some((m) => m.folder === "inbox" && m.fromAddress === from), false);
+  assert.equal(loadMailStore(pubkey).messages.some((m) => m.fromAddress === "welcome@official"), true); // others stay
+  assert.deepEqual(blockedMailSenders(pubkey), [mailSenderKey(from)]);
+  assert.equal(blockMailSender(pubkey, from), 0); // blocking twice is harmless and lists the sender once
+  assert.equal(blockedMailSenders(pubkey).length, 1);
+
+  // the contract still holds the message, but a blocked sender is not stored again
+  assert.equal((await syncFreenetMailInbox(pubkey, bob, freenet)).newCount, 0);
+
+  unblockMailSender(pubkey, mailSenderKey(from));
+  assert.deepEqual(blockedMailSenders(pubkey), []);
+  assert.equal((await syncFreenetMailInbox(pubkey, bob, freenet)).newCount, 1); // back on the next sync
+});
+
+test("blockMailSender: a local address (no inbox id) cannot be blocked", () => {
+  assert.equal(blockMailSender("test_user_pubkey_block2", "welcome@freenet"), null);
+  assert.deepEqual(blockedMailSenders("test_user_pubkey_block2"), []);
 });
 
 test("filterMailMessages: searches and sorts messages", () => {
