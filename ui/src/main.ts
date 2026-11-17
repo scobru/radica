@@ -12319,6 +12319,23 @@ if (maskToggle) {
       .then((v) => v === "0" && applyMaskBadWords(false), () => {});
 }
 
+// ---- Text size (Settings): the whole interface scaled, for readers who find it small ----
+
+const TEXT_SIZE_KEY = "radica_text_size";
+const TEXT_SIZES = ["90", "100", "115", "130"];
+const textSizeSelect = document.getElementById("text-size-select") as HTMLSelectElement | null;
+function applyTextSize(v: string | null) {
+  const pct = v && TEXT_SIZES.includes(v) ? v : "100";
+  // zoom, not font-size: most of style.css is in px, so only zoom scales text, buttons and spacing together
+  document.documentElement.style.zoom = pct === "100" ? "" : `${pct}%`;
+  if (textSizeSelect) textSizeSelect.value = pct;
+}
+applyTextSize(safeStorage.getItem(TEXT_SIZE_KEY));
+textSizeSelect?.addEventListener("change", () => {
+  safeStorage.setItem(TEXT_SIZE_KEY, textSizeSelect.value);
+  applyTextSize(textSizeSelect.value);
+});
+
 // ---- Interface Width (Standard vs Full Width) ----
 
 const FULLWIDTH_KEY = "radica_fullwidth";

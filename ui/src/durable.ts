@@ -35,6 +35,7 @@ export const DURABLE_PREFIXES = [
   "radica_theme", // UI theme (light / dark)
   "radica_accent", // UI accent colour
   "radica_fullwidth", // UI layout width (standard / full)
+  "radica_text_size", // UI zoom (90 / 100 / 115 / 130 %)
   "radica_lang", // Reader translation language
   "radica_apps_pinned_", // Pinned Freenet apps in launcher
   "radica_apps_custom_", // Custom Freenet sites added to launcher
