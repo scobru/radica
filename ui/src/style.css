@@ -10080,3 +10080,10 @@ body.has-global-audio-player {
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+
+/* Greenhouse proposal comments */
+.gh-comments { margin-top: 8px; font-size: 0.85rem; }
+.gh-comments > summary { cursor: pointer; color: var(--text-muted); }
+.gh-comment { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 4px 0; overflow-wrap: anywhere; }
+.gh-comment-form { display: flex; gap: 6px; margin-top: 6px; }
+.gh-comment-form input { flex: 1; min-width: 0; }

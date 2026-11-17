@@ -5,7 +5,8 @@ import { safeStorage } from "./storage";
 import { escapeHtml } from "./html.ts";
 import { renderChatText } from "./caption.ts";
 import { verifyReceipt, supporterStorageKey, type SupporterTier } from "./supporter.ts";
-import { foldGreenhouse, formatSeedsForAi, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
+import { analyzeTextContent } from "./moderation.ts";
+import { foldGreenhouse, MAX_COMMENT, type SeedComment, formatSeedsForAi, greenhouseTokens, greenhousePermalink, SEED_DAYS, SEED_STATUSES, TIER_WEIGHT, type Seed } from "./greenhouse.ts";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "./types.ts";
 import { verifiedGhostkeys } from "./ghostkey.ts";
 import { verifiedPohs, parseStoredPoh } from "./viso.ts";
@@ -22,6 +23,10 @@ let displayName: (pubkey: string) => string = (pk) => pk.slice(0, 8);
 let linfaForAuthors: (authors: string[]) => Promise<GreenhouseLinfaInfo> = async () => ({ weights: new Map() });
 let showToastNotice: ((msg: string, type?: "info" | "warning" | "error") => void) | undefined;
 let myLinfaWeight = 0;
+let isHidden: (author: string) => boolean = () => false;
+let isReported: (target: string) => boolean = () => false;
+let hideAuthor: ((author: string) => void) | undefined;
+let reportComment: ((author: string, id: string, reason: string) => Promise<void>) | undefined;
 let targetSeedToFocus: string | null = null;
 const verified = new Map<string, SupporterTier | null>(); // `${author}|${token}` -> tier, or null when it does not verify
 
@@ -69,7 +74,14 @@ const left = (ms: number) => {
   return h > 48 ? `${Math.ceil(h / 24)} days left` : `${h} h left`;
 };
 
-function seedHtml(s: Seed, canVote: boolean, isMaintainer: boolean): string {
+function commentHtml(c: SeedComment, seedId: string, me: string): string {
+  const others = c.author !== me;
+  return `<div class="gh-comment"><span class="author-clickable" data-author="${escapeHtml(c.author)}"><b>${escapeHtml(displayName(c.author))}</b></span> ${renderChatText(c.text, displayName)}
+    ${others ? `<button type="button" class="btn-secondary btn-xs" data-gh-report="${escapeHtml(c.id)}" data-gh-author="${escapeHtml(c.author)}">Report</button><button type="button" class="btn-secondary btn-xs" data-gh-hide="${escapeHtml(c.author)}">Hide author</button>` : ""}
+  </div>`;
+}
+
+function seedHtml(s: Seed, canVote: boolean, isMaintainer: boolean, me = ""): string {
   const open = s.closes > Date.now();
   const outcome = open ? left(s.closes - Date.now()) : s.up > s.down ? "🌱 Sprouted" : "🥀 Withered";
   const vote = (v: 1 | -1, label: string, title: string) =>
@@ -94,6 +106,11 @@ function seedHtml(s: Seed, canVote: boolean, isMaintainer: boolean): string {
         🤖 Copy for AI
       </button>
     </div>
+    <details class="gh-comments" data-gh-comments="${escapeHtml(s.id)}">
+      <summary>💬 ${s.comments.length} ${s.comments.length === 1 ? "comment" : "comments"}</summary>
+      ${s.comments.map((c) => commentHtml(c, s.id, me)).join("")}
+      ${canVote ? `<form class="gh-comment-form" data-gh-seed="${escapeHtml(s.id)}"><input name="text" maxlength="${MAX_COMMENT}" placeholder="Write a comment…" autocomplete="off" required /><button type="submit" class="btn-primary btn-xs">Send</button></form>` : ""}
+    </details>
   </div>`;
 }
 
@@ -120,12 +137,28 @@ export async function renderGreenhouse(): Promise<void> {
       gate.innerHTML = `Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network)${progress}, or verify via <b>Identity → Support Radica</b> (Supporter badge, Freenet GhostKey, or Viso Human Proof).`;
     }
   }
-  const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0, AI_REPORTERS);
+  const seeds = foldGreenhouse(entries, tierOf, me, RADICA_MAINTAINER, (a) => linfaInfo.weights.get(a) ?? 0, AI_REPORTERS, (author, target) => isHidden(author) || isReported(target));
   lastRenderedSeeds = seeds;
-  list.innerHTML = seeds.length ? seeds.map((s) => seedHtml(s, canVote, me === RADICA_MAINTAINER)).join("") : `<p style="color: var(--text-muted); font-size: 0.85rem;">Nothing planted yet.</p>`;
+  // a redraw must not close an open thread or eat a half-written comment
+  const kept = new Map<string, { open: boolean; draft: string }>();
+  list.querySelectorAll<HTMLElement>("details.gh-comments").forEach((d) =>
+    kept.set(d.dataset.ghComments!, { open: (d as HTMLDetailsElement).open, draft: d.querySelector<HTMLInputElement>("input[name=text]")?.value ?? "" })
+  );
+  list.innerHTML = seeds.length ? seeds.map((s) => seedHtml(s, canVote, me === RADICA_MAINTAINER, me)).join("") : `<p style="color: var(--text-muted); font-size: 0.85rem;">Nothing planted yet.</p>`;
+  restoreThreads(list, kept);
 }
 
 let lastRenderedSeeds: Seed[] = [];
+
+function restoreThreads(list: HTMLElement, kept: Map<string, { open: boolean; draft: string }>): void {
+  list.querySelectorAll<HTMLDetailsElement>("details.gh-comments").forEach((d) => {
+    const k = kept.get(d.dataset.ghComments!);
+    if (!k) return;
+    d.open = k.open;
+    const input = d.querySelector<HTMLInputElement>("input[name=text]");
+    if (input) input.value = k.draft;
+  });
+}
 
 async function append(body: object): Promise<void> {
   const token = myToken();
@@ -193,6 +226,10 @@ export function focusGreenhouseSeed(seedId: string): boolean {
 export function initGreenhouse(deps: {
   whoAmI: () => string | null;
   displayName: (pubkey: string) => string;
+  isHidden?: (author: string) => boolean; // hidden or blocked authors, by me or by the moderation I follow
+  isReported?: (target: string) => boolean; // `${author}:${comment id}` reported by a curator or held by the AI helper
+  hideAuthor?: (author: string) => void;
+  report?: (author: string, id: string, reason: string) => Promise<void>;
   linfaForAuthors?: (authors: string[]) => Promise<GreenhouseLinfaInfo>;
   showToast?: (msg: string, type?: "info" | "warning" | "error") => void;
 }): void {
@@ -200,6 +237,10 @@ export function initGreenhouse(deps: {
   displayName = deps.displayName;
   if (deps.linfaForAuthors) linfaForAuthors = deps.linfaForAuthors;
   showToastNotice = deps.showToast;
+  if (deps.isHidden) isHidden = deps.isHidden;
+  if (deps.isReported) isReported = deps.isReported;
+  hideAuthor = deps.hideAuthor;
+  reportComment = deps.report;
   const days = document.getElementById("greenhouse-days") as HTMLSelectElement | null;
   if (days) days.innerHTML = SEED_DAYS.map((d) => `<option value="${d}"${d === 14 ? " selected" : ""}>${d} days</option>`).join("");
   const weights = document.getElementById("greenhouse-weights");
@@ -225,7 +266,39 @@ export function initGreenhouse(deps: {
   });
 
   const list = document.getElementById("greenhouse-list");
+  list?.addEventListener("submit", async (e) => {
+    const f = (e.target as HTMLElement).closest<HTMLFormElement>(".gh-comment-form");
+    if (!f) return;
+    e.preventDefault();
+    const text = String(new FormData(f).get("text") ?? "").trim();
+    if (!text) return;
+    // on-device check: personal data or abusive wording is worth a second look before it goes to everyone
+    const check = analyzeTextContent(text);
+    if ((check.containsPII || check.isToxic) && !confirm(`${check.warnings.join("\n") || "This comment may contain personal data or abusive language."}\n\nPost it anyway?`)) return;
+    const btn = f.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (btn) btn.disabled = true;
+    try {
+      await append({ type: "comment", seed: f.dataset.ghSeed, text });
+      f.reset();
+    } catch (err) {
+      alert(`Could not comment: ${(err as Error).message || err}`);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
   list?.addEventListener("click", (e) => {
+    const repBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-report]");
+    if (repBtn) {
+      const reason = prompt(`Report this comment by ${displayName(repBtn.dataset.ghAuthor!)}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; Radica's moderators are notified.`);
+      if (reason !== null) void reportComment?.(repBtn.dataset.ghAuthor!, repBtn.dataset.ghReport!, reason.trim()).then(renderGreenhouse, (err) => alert(`Could not report it: ${err.message || err}`));
+      return;
+    }
+    const hideBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-hide]");
+    if (hideBtn) {
+      hideAuthor?.(hideBtn.dataset.ghHide!);
+      void renderGreenhouse();
+      return;
+    }
     const voteBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-vote]");
     if (voteBtn) {
       const v = Number(voteBtn.dataset.ghVote);

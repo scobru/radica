@@ -12,6 +12,15 @@ export const TIER_WEIGHT: Record<SupporterTier, number> = { sprout: 1, root: 2, 
 export const SEED_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
 
+export interface SeedComment {
+  id: string; // the log entry id: with the author it names the comment (`${author}:${id}`) for reports
+  author: string;
+  text: string;
+  ts: number;
+}
+export const MAX_COMMENT = 500;
+const MAX_COMMENTS_PER_SEED = 100;
+
 export interface Seed {
   id: string; // `${author}:${entry id}`
   author: string;
@@ -25,6 +34,7 @@ export interface Seed {
   voters: number;
   mine: -1 | 0 | 1;
   status?: SeedStatus;
+  comments: SeedComment[]; // oldest first
 }
 
 const parse = (e: LogEntry): any => {
@@ -56,7 +66,9 @@ export function foldGreenhouse(
   me: string,
   maintainer: string,
   linfaWeightOf: (author: string) => number = () => 0,
-  statusIssuers: readonly string[] = []
+  statusIssuers: readonly string[] = [],
+  // a comment of someone hidden, or one reported/held (`target` = `${author}:${entry id}`): dropped, except my own
+  hideComment: (author: string, target: string) => boolean = () => false
 ): Seed[] {
   const weightOf = (author: string): number => {
     const tier = tierOf(author);
@@ -74,7 +86,7 @@ export function foldGreenhouse(
     if (!title) continue;
     const days = SEED_DAYS.includes(b.days) ? b.days : 14;
     const id = `${e.author}:${e.id}`;
-    seeds.set(id, { id, author: e.author, kind: b.kind, title, text: typeof b.text === "string" ? b.text.slice(0, 2000) : "", ts: e.ts, closes: e.ts + days * DAY_MS, up: 0, down: 0, voters: 0, mine: 0 });
+    seeds.set(id, { id, author: e.author, kind: b.kind, title, text: typeof b.text === "string" ? b.text.slice(0, 2000) : "", ts: e.ts, closes: e.ts + days * DAY_MS, up: 0, down: 0, voters: 0, mine: 0, comments: [] });
   }
   // each voter's newest vote before the seed closes
   // shortcut: a vote's time is the voter's own clock, so a back-dated vote after closing still counts; fine for a poll that only orients
@@ -83,6 +95,10 @@ export function foldGreenhouse(
     const b = parse(e);
     const seed = typeof b?.seed === "string" ? seeds.get(b.seed) : undefined;
     if (!seed) continue;
+    if (b.type === "comment" && weightOf(e.author) > 0 && e.ts >= seed.ts && seed.comments.length < MAX_COMMENTS_PER_SEED) {
+      const text = typeof b.text === "string" ? b.text.trim().slice(0, MAX_COMMENT) : "";
+      if (text && (e.author === me || !hideComment(e.author, `${e.author}:${e.id}`))) seed.comments.push({ id: e.id, author: e.author, text, ts: e.ts });
+    }
     if (b.type === "status" && canSetStatus.has(e.author) && (b.status === null || b.status in SEED_STATUSES)) seed.status = b.status ?? undefined;
     if (b.type === "vote" && weightOf(e.author) > 0 && e.ts >= seed.ts && e.ts <= seed.closes && [-1, 0, 1].includes(b.v))
       votes.set(`${e.author}|${seed.id}`, { seed, author: e.author, v: seed.kind === "bug" ? Math.max(0, b.v) : b.v });

@@ -433,11 +433,13 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
     });
   }
 
+  // one rule for counting a post in a bough and for placing it on it: an article sits on the Articles bough
+  const categoryBoughOf = (p: Post) => (parseArticleCaption(p.caption) ? ARTICLE_BOUGH : (CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought));
   for (const p of rankedPosts) {
     if (p.community_id && boughBuckets.has(p.community_id)) {
       boughBuckets.get(p.community_id)!.posts.push(p);
     } else {
-      const cat = parseArticleCaption(p.caption) ? ARTICLE_BOUGH : (CATEGORY_BOUGHS[p.category] ?? CATEGORY_BOUGHS.thought);
+      const cat = categoryBoughOf(p);
       if (!boughBuckets.has(cat.id)) {
         boughBuckets.set(cat.id, {
           slug: cat.slug,
@@ -521,8 +523,8 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
     const targetId =
       p.community_id && selectedBoughIds.has(p.community_id)
         ? p.community_id
-        : selectedBoughIds.has(CATEGORY_BOUGHS[p.category]?.id)
-          ? CATEGORY_BOUGHS[p.category].id
+        : selectedBoughIds.has(categoryBoughOf(p).id)
+          ? categoryBoughOf(p).id
           : fallbackBoughId;
     const arr = postsByBough.get(targetId) ?? [];
     arr.push(p);

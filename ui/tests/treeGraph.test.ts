@@ -311,3 +311,12 @@ test("treeGraph: renderTreeInspectorHtml renders overview and node details safel
   assert.ok(!rootInsp.includes("<script>"));
   assert.match(rootInsp, /linfa-plant/);
 });
+
+test("treeGraph: an article hangs on the Articles bough, not on the bough of its category", () => {
+  const article = makePost({ id: "art1", author: ALICE, caption: `📰 Spore beta\nradica-article:${"ab".repeat(32)}` });
+  const model = buildTreeGraph({ posts: [article, makePost({ id: "t1", author: BOB })], communities: [], peers: PEERS, myPubkey: ME, myName: "You", now: NOW });
+  const bough = model.boughs.find((b) => b.id === "bough:article");
+  assert.equal(bough?.postCount, 1);
+  const onBough = model.posts.filter((p) => p.boughId === bough!.id).map((p) => p.id);
+  assert.deepEqual(onBough, ["art1"]);
+});
