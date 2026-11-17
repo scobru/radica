@@ -782,6 +782,10 @@
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
                     <span id="mail-toggle-read-label">Mark Unread</span>
                   </button>
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-block-btn" title="Hide this sender's mail; undo in Contacts → Blocked senders">
+                    <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+                    <span>Block sender</span>
+                  </button>
                   <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-delete-btn" style="color: var(--danger);">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     <span>Delete</span>
@@ -1505,6 +1509,10 @@
         <details><summary>🎵 Music (FreeTunes Stream) &amp; 🎬 Moments Reels</summary>
           <p>Open <b>Music</b> from the left rail (shortcut <code>g y</code>) to browse and stream releases published on <b>FreeTunes</b> in a SoundCloud-style feed with tracklists, queue controls, <b>+ Follow</b> artist filtering, and a persistent bottom mini-player that keeps playing as you navigate Radica.</p>
           <p>Inside <b>Moments</b> (shortcut <code>g v</code>), switch to the <b>🎬 Reels</b> filter for a vertical short-video player with keyboard navigation (<code>↑</code>/<code>↓</code>) and mobile fullscreen swipe, likes, comments, and moderation controls.</p>
+        </details>
+
+        <details><summary>✉️ Block a Mail sender</summary>
+          <p>In <b>Mail</b>, open a message and press <b>Block sender</b>: their mail is hidden and no longer stored on this device, with no badge or notification. It blocks the sender by their inbox address, so a new alias does not get around it. To undo it go to <b>Contacts → Blocked senders → Unblock</b>; their mail comes back on the next refresh. Only you see this list.</p>
         </details>
 
         <details><summary>📌 Curated Boards &amp; Profile Tabs (🖼️ Moments / 📺 Videos / 📰 Articles)</summary>

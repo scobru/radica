@@ -27,6 +27,7 @@ export const DURABLE_PREFIXES = [
   "radica_fmail_deleted_", // Radica Mail: ids deleted locally, so a sync does not bring them back from the inbox contract
   "radica_fmail_contacts_", // Radica Mail address book contacts (CONTACTS_STORAGE_PREFIX)
   "radica_fmail_aft_assignments_", // Radica Mail AFT token assignments
+  "radica_mail_blocked_", // Radica Mail: inbox ids of blocked senders, so a sync does not bring their mail back
   "radica_mail_alias_", // Radica Mail custom handle
   "radica_mail_contacts_", // Legacy alias kept for compatibility
   "radica_mail_welcomed_", // Flag to prevent duplicate welcome mail on fresh loads
