@@ -87,6 +87,10 @@ import {
   getRecipientSuggestions,
   resolveMailAlias,
   syncFreenetMailInbox,
+  mailSenderKey,
+  blockedMailSenders,
+  blockMailSender,
+  unblockMailSender,
   type MailContact,
   type MailMessage,
   type MailFolder,
@@ -12993,12 +12997,42 @@ function renderMailContacts() {
 
   updateMailBadges();
 
+  // senders blocked in Radica Mail, with the way back: their mail returns on the next sync
+  const blockedIds = blockedMailSenders(currentIdentity.pubkey);
+  const blockedHtml = blockedIds.length
+    ? `<div class="mail-blocked-section" style="padding: 12px 16px; border-top: 1px solid var(--border);">
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;">🚫 Blocked senders (${blockedIds.length})</div>
+        ${blockedIds
+          .map(
+            (id) => `<div class="mail-contact-card">
+          <div class="mail-contact-left"><div class="mail-contact-info"><span class="mail-contact-addr" title="${escapeHtml(id)}">${escapeHtml(id)}</span></div></div>
+          <div class="mail-contact-actions"><button type="button" class="btn-secondary btn-sm mail-unblock-btn" data-id="${escapeHtml(id)}">Unblock</button></div>
+        </div>`,
+          )
+          .join("")}
+      </div>`
+    : "";
+  const bindUnblock = () =>
+    mailContactsList.querySelectorAll<HTMLButtonElement>(".mail-unblock-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!currentIdentity) return;
+        unblockMailSender(currentIdentity.pubkey, btn.dataset.id || "");
+        const fmail = getOrDeriveFmailIdentity();
+        if (fmail) await syncFreenetMailInbox(currentIdentity.pubkey, fmail, freenet).catch(() => {}); // their mail is still in the inbox contract
+        updateMailBadges();
+        void updateNotificationsBadge();
+        showToast("Sender unblocked.", "info");
+        renderMailContacts();
+      });
+    });
+
   if (filtered.length === 0) {
     mailContactsList.innerHTML = `
       <div style="padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
         ${query ? "No contacts match your search." : "No saved contacts yet. Click ➕ Add Contact to import a Freenet Mail address or token."}
       </div>
-    `;
+    ${blockedHtml}`;
+    bindUnblock();
     return;
   }
 
@@ -13022,7 +13056,8 @@ function renderMailContacts() {
         </div>
       `;
     })
-    .join("");
+    .join("") + blockedHtml;
+  bindUnblock();
 
   mailContactsList.querySelectorAll<HTMLButtonElement>(".mail-contact-send-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -13177,6 +13212,31 @@ if (mailToggleReadBtn) {
     updateMailBadges();
     void updateNotificationsBadge();
     renderMailList();
+  });
+}
+
+const mailBlockBtn = document.getElementById("mail-block-btn") as HTMLButtonElement | null;
+if (mailBlockBtn) {
+  mailBlockBtn.addEventListener("click", () => {
+    if (!currentIdentity || !activeMailId) return;
+    const fmail = getOrDeriveFmailIdentity();
+    const msgs = loadMailStore(currentIdentity.pubkey, fmail).messages;
+    const msg = msgs.find((m) => m.id === activeMailId);
+    const key = msg ? mailSenderKey(msg.fromAddress) : "";
+    if (!msg || !key) return void showToast("This sender cannot be blocked: no Freenet Mail address.", "warning");
+    if (key === fmail?.inboxAddress) return void showToast("That is your own address.", "warning");
+    if (!confirm(`Block ${msg.fromAddress}? Their mail is hidden and no longer stored on this device. You can undo it in Contacts → Blocked senders.`)) return;
+    for (const m of msgs) {
+      if (m.folder === "inbox" && mailSenderKey(m.fromAddress) === key) freenet.dismissNotification(currentIdentity, `notif_mail_${m.id}`);
+    }
+    const removed = blockMailSender(currentIdentity.pubkey, msg.fromAddress);
+    activeMailId = null;
+    renderMailList();
+    void updateNotificationsBadge();
+    if (mailReadView) mailReadView.style.display = "none";
+    if (mailEmptyView) mailEmptyView.style.display = "flex";
+    mailBodyContainer?.classList.remove("in-detail");
+    showToast(`Sender blocked${removed ? ` (${removed} message${removed === 1 ? "" : "s"} hidden)` : ""}.`, "info");
   });
 }
 

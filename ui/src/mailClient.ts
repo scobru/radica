@@ -84,6 +84,54 @@ function rememberDeletedMailId(pubkey: string, id: string): void {
   safeStorage.flush();
 }
 
+const BLOCKED_KEY = (pubkey: string) => `radica_mail_blocked_${pubkey || "anon"}`;
+const INBOX_ID_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/**
+ * The identity a mail address names: the inbox contract id after the "@". An alias is free text the sender picks,
+ * the inbox id is derived from their key, so blocking by it blocks the sender, not one spelling. "" when the
+ * address has no inbox id (a local one such as welcome@freenet), which can never be blocked.
+ */
+export function mailSenderKey(address: string): string {
+  const id = (address || "").split("@").pop()!.replace(/[>\s]/g, "");
+  return INBOX_ID_RE.test(id) ? id : "";
+}
+
+/** Inbox ids of the senders this persona blocked in Radica Mail (local to this persona; never published). */
+export function blockedMailSenders(pubkey: string): string[] {
+  try {
+    const list = JSON.parse(safeStorage.getItem(BLOCKED_KEY(pubkey)) || "[]");
+    return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string" && INBOX_ID_RE.test(k)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Block a sender: their mail is no longer stored, and what is in the inbox now is removed from it. The inbox contract
+ * still holds it, so unblocking brings it back on the next sync. Returns how many inbox messages were removed, or
+ * null if the address names no inbox (nothing to block).
+ */
+export function blockMailSender(pubkey: string, address: string): number | null {
+  const key = mailSenderKey(address);
+  if (!key) return null;
+  const blocked = blockedMailSenders(pubkey);
+  if (!blocked.includes(key)) {
+    safeStorage.setItem(BLOCKED_KEY(pubkey), JSON.stringify([...blocked, key].slice(-500)));
+    safeStorage.flush();
+  }
+  const store = loadMailStore(pubkey);
+  const kept = store.messages.filter((m) => !(m.folder === "inbox" && mailSenderKey(m.fromAddress) === key));
+  const removed = store.messages.length - kept.length;
+  if (removed > 0) saveMailStore(pubkey, { ...store, messages: kept });
+  return removed;
+}
+
+export function unblockMailSender(pubkey: string, inboxId: string): void {
+  safeStorage.setItem(BLOCKED_KEY(pubkey), JSON.stringify(blockedMailSenders(pubkey).filter((k) => k !== inboxId)));
+  safeStorage.flush();
+}
+
 /**
  * Validate a Freenet Mail address or contact token format.
  * Accepts:
@@ -756,6 +804,7 @@ export async function syncFreenetMailInbox(
 
     const store = loadMailStore(pubkey, identity);
     const deletedIds = deletedMailIds(pubkey);
+    const blocked = new Set(blockedMailSenders(pubkey));
     let newCount = 0;
     let updatedExisting = false;
 
@@ -773,6 +822,7 @@ export async function syncFreenetMailInbox(
       if (deletedIds.has(msgId)) continue; // deleted locally: the contract still holds it, don't bring it back
 
       const { fromAddress, fromDisplay } = resolveFreemailSenderAddress(dec.from, msg.sender_vk);
+      if (blocked.has(mailSenderKey(fromAddress))) continue; // a blocked sender: not stored, so no badge, no notification
 
       // Check if already in store (and repair bare sender addresses synced before sender_vk derivation)
       const existing = store.messages.find(
