@@ -21,6 +21,7 @@ import {
   getRecipientSuggestions,
   resolveMailAlias,
   syncFreenetMailInbox,
+  ensureTokenRecordPublished,
   resolveFreemailSenderAddress,
   mailSenderKey,
   blockedMailSenders,
@@ -211,6 +212,29 @@ test("blocking a sender removes their inbox mail, stops later mail, and unblocki
 test("blockMailSender: a local address (no inbox id) cannot be blocked", () => {
   assert.equal(blockMailSender("test_user_pubkey_block2", "welcome@freenet"), null);
   assert.deepEqual(blockedMailSenders("test_user_pubkey_block2"), []);
+});
+
+test("ensureTokenRecordPublished: publishes a missing record, updates an existing one, never throws", async () => {
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  const json = JSON.stringify({ tokens_by_tier: {} });
+  const calls: string[] = [];
+  const mk = (held: boolean, fail = false) => ({
+    appContract: async () => (held ? new Uint8Array([1]) : null),
+    putAppContract: async (_k: unknown, code: Uint8Array, params: Uint8Array, state: Uint8Array) => {
+      if (fail) throw new Error("node busy");
+      calls.push(`put:${code.length}:${params.length > 0}:${new TextDecoder().decode(state)}`);
+    },
+    updateAppContract: async (_k: unknown, state: Uint8Array) => void calls.push(`update:${new TextDecoder().decode(state)}`),
+    tokenRecordCode: async () => new Uint8Array(7),
+  });
+
+  assert.equal(await ensureTokenRecordPublished(mk(false), alice.dsaVk, json), null);
+  assert.deepEqual(calls, [`put:7:true:${json}`]); // not on the network yet: published with its code, params and the token
+  calls.length = 0;
+  assert.equal(await ensureTokenRecordPublished(mk(true), alice.dsaVk, json), null);
+  assert.deepEqual(calls, [`update:${json}`]); // already there: the new token is merged in
+  assert.match((await ensureTokenRecordPublished(mk(false, true), alice.dsaVk, json))!, /node busy/); // a refusal is a note, not an exception
+  assert.equal(await ensureTokenRecordPublished({}, alice.dsaVk, json), null); // no client: nothing to do
 });
 
 test("filterMailMessages: searches and sorts messages", () => {

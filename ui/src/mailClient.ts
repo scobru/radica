@@ -8,7 +8,9 @@ import {
   encryptFreenetMailV1,
   decryptFreenetMailV1,
   deriveInboxContractAddress,
+  deriveTokenRecordContractAddress,
   INBOX_V1_CODE_HASH,
+  TOKEN_RECORD_V1_CODE_HASH,
   type AftTier,
   type AftTokenAssignment,
   type FreenetMailIdentity,
@@ -597,6 +599,39 @@ export function getUnreadMailCount(messages: MailMessage[]): number {
 }
 
 /**
+ * Make sure the sender's AFT token-allocation-record contract exists on the network, with the token this message
+ * spends in it. The inbox contract checks that token against the record, and the node that takes the update fetches
+ * that record from the network (`MissingContracts` otherwise: the "missing contracts" error when mailing another
+ * node). Freenet Mail's own UI publishes it at identity creation; Radica only derived its address, so a Radica
+ * sender's record never existed anywhere and mail left the sending node only by luck. Best effort: a refused
+ * publish is returned as a note, never thrown, so the send is still attempted.
+ * `freenet` is the Freenet client (`appContract`, `putAppContract`, `updateAppContract`, `tokenRecordCode`); without
+ * those (tests, offline) there is nothing to publish to and this does nothing.
+ */
+export async function ensureTokenRecordPublished(
+  freenet: any,
+  senderDsaVk: Uint8Array,
+  tokenAllocationRecordJson: string
+): Promise<string | null> {
+  if (!freenet?.appContract || !freenet.putAppContract || !freenet.updateAppContract || !freenet.tokenRecordCode) return null;
+  try {
+    const rec = deriveTokenRecordContractAddress(senderDsaVk);
+    const key = new ContractKey(rec.instanceBytes, fromBase58(TOKEN_RECORD_V1_CODE_HASH));
+    const state = new TextEncoder().encode(tokenAllocationRecordJson);
+    const held = await freenet.appContract(rec.address);
+    if (held) {
+      await freenet.updateAppContract(key, state); // the contract merges a whole record sent as an update
+    } else {
+      await freenet.putAppContract(key, await freenet.tokenRecordCode(), rec.paramsBytes, state);
+    }
+    return null;
+  } catch (err: any) {
+    console.warn("[MailClient] token record publish:", err);
+    return `Could not publish the sender's token record (${err?.message || err}); the recipient's node may report missing contracts.`;
+  }
+}
+
+/**
  * Send an email message, store it, and optionally dispatch real post-quantum E2EE delivery
  * to the recipient's Freenet Mail inbox contract on the Freenet network.
  */
@@ -738,6 +773,7 @@ export async function sendMailMessage(
           }
 
           const key = new ContractKey(fromBase58(targetContractId), fromBase58(INBOX_V1_CODE_HASH));
+          const recordNote = await ensureTokenRecordPublished(freenet, identity.dsaVk, encrypted.tokenAllocationRecordJson);
           if (updateRelatedFn) {
             await updateRelatedFn.call(
               freenet,
@@ -750,7 +786,7 @@ export async function sendMailMessage(
             await updateContractFn!.call(freenet, key, new TextEncoder().encode(encrypted.deltaJson));
           }
           networkDelivered = true;
-          networkDetails = "Delivered to recipient's Freenet Mail inbox contract on the network.";
+          networkDetails = "Delivered to recipient's Freenet Mail inbox contract on the network." + (recordNote ? ` ${recordNote}` : "");
         } else {
           networkDetails = "Recipient inbox contract found, but has no valid post-quantum encapsulation key.";
         }
