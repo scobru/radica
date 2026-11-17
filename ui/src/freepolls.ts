@@ -172,9 +172,42 @@ async function vote(card: HTMLElement, poll: FpPoll, net: PollNet, step: (msg: s
   await net.update(key, enc(JSON.stringify({ schema: null, responses: { [me.pk]: { ts, answers_json, sig, ...(ante && { ante }) } } })));
 }
 
+// shortcut: polling every LIVE_MS instead of a contract subscription, upgrade when the node client exposes one
+const LIVE_MS = 8000;
+let liveNet: PollNet | undefined;
+let liveTimer: ReturnType<typeof setInterval> | undefined;
+
+/** Update counts and bars of the ready cards in place (inputs and half-made choices stay untouched). */
+async function refreshLive(): Promise<void> {
+  if (!liveNet || document.hidden) return;
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('.fp-card[data-state="ready"]')).slice(0, 20);
+  const ids = [...new Set(cards.map((c) => c.dataset.poll!))];
+  for (const id of ids) {
+    const poll = await liveNet.get(id).then((s) => (s ? parsePoll(s) : null)).catch(() => null);
+    if (!poll) continue;
+    polls.set(id, Promise.resolve(poll));
+    for (const card of cards.filter((c) => c.dataset.poll === id && c.isConnected)) {
+      const qEls = card.querySelectorAll<HTMLElement>(".fp-q");
+      if (qEls.length !== poll.questions.length) continue;
+      const head = card.querySelector(".fp-head small");
+      if (head) head.textContent = head.textContent!.replace(/^\d+ responses?/, `${poll.responses} ${poll.responses === 1 ? "response" : "responses"}`);
+      poll.questions.forEach((q, qi) => {
+        const max = Math.max(1, q.kind === "avail" ? Math.max(...q.counts) : q.answered);
+        qEls[qi].querySelectorAll<HTMLElement>("li").forEach((li, i) => {
+          if (q.counts[i] === undefined) return;
+          li.querySelector("b")!.textContent = String(q.counts[i]);
+          (li.querySelector(".fp-bar") as HTMLElement).style.width = `${Math.round((q.counts[i] / max) * 100)}%`;
+        });
+      });
+    }
+  }
+}
+
 /** Fill the FreePolls placeholders under `root` that are not filled yet: title, questions, results and, where it can
  *  be done here, the ballot. */
 export function fillFreepolls(root: ParentNode, net: PollNet): void {
+  liveNet = net;
+  liveTimer ??= setInterval(() => void refreshLive(), LIVE_MS);
   root.querySelectorAll<HTMLElement>(".fp-card:not([data-state])").forEach((card) => {
     card.dataset.state = "loading";
     const id = card.dataset.poll!;
