@@ -1439,7 +1439,7 @@
 
         <details><summary>👀 Who sees what</summary>
           <p><b>Public:</b> your profile, posts, comments, likes, who you follow, and communities. Anyone on Freenet can read them.</p>
-          <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses per-message forward-secrecy keys, stays strictly on this device (never synced across devices), and supports disappearing message timers.</p>
+          <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses the Double Ratchet (as in Signal): every message key is used once and then deleted, and every reply moves to a new key, so a key stolen later cannot open what was already read. It stays on this device (never synced across devices) and supports disappearing message timers.</p>
           <p><b>River contacts</b> (marked "River") are people using River, Freenet's chat app. You can message them, but River's direct messages carry text only: no reactions, reply quotes or edits.</p>
         </details>
 

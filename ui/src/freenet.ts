@@ -405,7 +405,7 @@ export class FreenetClient {
           this.addChatPeer(msg.sender, msg.recipient);
           this.addChatPeer(msg.recipient, msg.sender);
         }
-        const isSecret = !!(msg.is_secret || msg.text?.startsWith("secret:v1:") || (msg.room_id && this.isSecretRoomId(msg.room_id)));
+        const isSecret = !!(msg.is_secret || msg.text?.startsWith("secret:v") || (msg.room_id && this.isSecretRoomId(msg.room_id)));
         const notifText = isSecret
           ? "sent you a secret chat message"
           : msg.text.startsWith("e2e:")
