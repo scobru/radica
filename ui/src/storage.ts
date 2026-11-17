@@ -523,14 +523,14 @@ try {
   }
 } catch {}
 /** The app key Viso handed over (decrypted), once; null if there was none or it could not be opened. */
-export async function takeHandedKey(): Promise<string | null> {
+export async function takeHandedKey(challenge: string): Promise<string | null> {
   const esk = handedEsk;
   handedEsk = null;
   const priv = safeStorage.getItem("radica_viso_epriv");
   safeStorage.removeItem("radica_viso_epriv"); // single use
   if (!esk || !priv) return null;
   try {
-    return await (await import("./visoSeal.ts")).openEsk(esk, priv);
+    return await (await import("./visoSeal.ts")).openEsk(esk, priv, challenge);
   } catch {
     return null;
   }
