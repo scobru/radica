@@ -192,3 +192,46 @@ test("secretChatTransport: overlapping reads across a ratchet turn keep the sess
   await sendSecretChatMessage(ta, alice, bob.pubkey, "a2", 0);
   assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["a1", "b1", "a2"]);
 });
+
+test("secretChatTransport: a read before the room is back from the network keeps the plain texts (reload)", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "dopo il reload", 0);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["dopo il reload"]);
+
+  // reload: the room's message list is page storage and comes back from the network later; the plain texts are durable
+  const roomKey = `freenet_chat_${sent.room_id}`;
+  const [inA, inB] = [ta.store.getItem(roomKey)!, tb.store.getItem(roomKey)!];
+  ta.store.setItem(roomKey, "[]");
+  tb.store.setItem(roomKey, "[]");
+  await readSecretChat(ta, alice, bob.pubkey);
+  await readSecretChat(tb, bob, alice.pubkey);
+  ta.store.setItem(roomKey, inA);
+  tb.store.setItem(roomKey, inB);
+
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["dopo il reload"]);
+  assert.deepEqual((await readSecretChat(ta, alice, bob.pubkey)).map((m) => m.text), ["dopo il reload"]);
+});
+
+test("secretChatTransport: a timed message's plain text is forgotten once its time is up", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  await sendSecretChatMessage(ta, alice, bob.pubkey, "brucia", 1);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["brucia"]);
+  const realNow = Date.now;
+  Date.now = () => realNow() + 2000;
+  try {
+    await readSecretChat(tb, bob, alice.pubkey);
+  } finally {
+    Date.now = realNow;
+  }
+  assert.doesNotMatch(tb.store.getItem(`radica_secret_plain_${bob.pubkey}`) ?? "", /brucia/);
+});
