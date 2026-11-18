@@ -119,7 +119,7 @@
   width: 100%;
   flex: 1 1 100%;
   min-width: 0;
-  height: calc(100dvh - 56px);
+  height: calc(calc(100dvh / var(--ui-zoom, 1)) - 56px);
   min-height: 460px;
   border-radius: 14px;
   border: 1px solid var(--rm-border);
@@ -272,11 +272,11 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   left: 0 !important;
   right: 0 !important;
   bottom: auto !important;
-  width: 100vw !important;
-  width: 100dvw !important;
-  height: 100vh !important;
-  height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
-  max-height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
+  width: calc(100vw / var(--ui-zoom, 1)) !important;
+  width: calc(100dvw / var(--ui-zoom, 1)) !important;
+  height: calc(100vh / var(--ui-zoom, 1)) !important;
+  height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
   z-index: 500 !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -299,7 +299,7 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
 /* Full width layout support */
 html[data-fullwidth="true"] #chat-modal .rm-messages-track,
 html[data-fullwidth="true"] #chat-modal .rm-composer-track {
-  max-width: clamp(820px, 75vw, 1100px);
+  max-width: clamp(820px, calc(75vw / var(--ui-zoom, 1)), 1100px);
 }
 
 html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
@@ -1773,8 +1773,11 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   text-overflow: ellipsis;
 }
 
-#chat-modal .rm-textarea:focus {
+/* the pill shows focus (:focus-within): the global focus ring would draw a box inside it */
+#chat-modal .rm-textarea:focus,
+#chat-modal .rm-textarea:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 
 #chat-modal .rm-emoji-btn {
@@ -2108,7 +2111,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   display: flex;
   flex-direction: column;
   gap: 13px;
-  max-height: 88dvh;
+  max-height: calc(88dvh / var(--ui-zoom, 1));
   overflow-y: auto;
 }
 
@@ -2293,7 +2296,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   #chat-modal .rm-drawer.open {
     position: absolute;
     inset: 0 0 0 auto;
-    width: min(320px, 92vw);
+    width: min(320px, calc(92vw / var(--ui-zoom, 1)));
     box-shadow: var(--rm-shadow-lg);
   }
 
@@ -2345,11 +2348,11 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
     left: 0 !important;
     right: 0 !important;
     bottom: auto !important;
-    width: 100vw !important;
-    width: 100dvw !important;
-    height: 100vh !important;
-    height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
-    max-height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
+    width: calc(100vw / var(--ui-zoom, 1)) !important;
+    width: calc(100dvw / var(--ui-zoom, 1)) !important;
+    height: calc(100vh / var(--ui-zoom, 1)) !important;
+    height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+    max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
     z-index: 500 !important;
     margin: 0 !important;
     padding: 0 !important;
