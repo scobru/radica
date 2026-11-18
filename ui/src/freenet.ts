@@ -166,8 +166,28 @@ export class FreenetClient {
   private isConnected = false;
   public connectError = "";
   private net = new FreenetNetwork((id, change) =>
-    void (id.startsWith("feed:") ? this.feedChanged(id.slice(5), change ?? {}) : id.startsWith("river:") ? this.rivers().then((r) => (r.changed(id.slice(6)), this.notifyListeners())) : this.logChanged(id.slice(4), change ?? {}))
+    void (id.startsWith("mail:") ? this.mailChanged(id.slice(5), change) : id.startsWith("feed:") ? this.feedChanged(id.slice(5), change ?? {}) : id.startsWith("river:") ? this.rivers().then((r) => (r.changed(id.slice(6)), this.notifyListeners())) : this.logChanged(id.slice(4), change ?? {}))
   );
+  private mailWatch = new Map<string, () => void>();
+
+  /** Subscribe to a Freenet Mail inbox (this persona's own): `onChange` runs when the node says it changed, so new mail
+   *  is synced at once instead of on the next Refresh. Once per inbox; kept across reconnections. */
+  public watchMailInbox(instance: string, onChange: () => void): void {
+    if (this.mailWatch.has(instance)) return;
+    this.mailWatch.set(instance, onChange);
+    this.subscribeMail(instance);
+  }
+
+  private subscribeMail(instance: string): void {
+    void this.net.watchByInstance(instance, `mail:${instance}`).catch(() => {});
+  }
+
+  /** A watched inbox changed, or (no `change`) the socket came back: subscribe again, then sync. */
+  private async mailChanged(instance: string, change?: unknown): Promise<void> {
+    if (!change) this.subscribeMail(instance);
+    this.mailWatch.get(instance)?.();
+  }
+
   private riverP?: Promise<RiverRooms>;
   /** Private rooms on River's contract, loaded on first use (river.wasm and River's pointer). */
   private rivers(): Promise<RiverRooms> {
