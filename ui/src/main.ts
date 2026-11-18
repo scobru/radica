@@ -13075,6 +13075,15 @@ function openMailModal() {
   }
   mailModal.style.display = "flex";
   renderMailList();
+  // fetch new mail, and publish this persona's inbox if the network has none (others cannot add or mail it before)
+  const fmail = getOrDeriveFmailIdentity();
+  if (fmail)
+    void syncFreenetMailInbox(currentIdentity.pubkey, fmail, freenet).then((r) => {
+      if (r.newCount > 0) {
+        renderMailList();
+        updateMailBadges();
+      }
+    }, () => {});
   if (mailReadView) mailReadView.style.display = "none";
   if (mailComposeView) mailComposeView.style.display = "none";
   if (mailEmptyView) mailEmptyView.style.display = "flex";
@@ -13106,6 +13115,8 @@ if (mailRefreshBtn) {
           showToast(`✓ Received ${syncRes.newCount} new email(s) from network!`, "info");
           updateMailBadges();
           void updateNotificationsBadge();
+        } else if (syncRes.error) {
+          showToast(syncRes.error, "warning");
         } else {
           showToast("✓ Mailbox refreshed", "info");
         }

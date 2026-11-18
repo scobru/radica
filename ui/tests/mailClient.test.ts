@@ -30,7 +30,10 @@ import {
   unblockMailSender,
   type MailMessage,
 } from "../src/mailClient.ts";
-import { deriveMailIdentity, encryptFreenetMailV1, initialInboxState, deriveInboxContract } from "../src/freenetMail.ts";
+import { deriveMailIdentity, encryptFreenetMailV1, initialInboxState, deriveInboxContract, unversionedWasm, INBOX_V1_CODE_HASH, TOKEN_RECORD_V1_CODE_HASH } from "../src/freenetMail.ts";
+import { readFileSync } from "node:fs";
+import { blake3 } from "@noble/hashes/blake3.js";
+import { toBase58 } from "../src/whoiam.ts";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import type { FreenetMailIdentity } from "../src/freenetMail.ts";
 
@@ -527,4 +530,28 @@ test("syncFreenetMailInbox: no inbox on the network yet, so it PUTs the signed e
   const refused = { ...freenet, putAppContract: async () => { throw new Error("node busy"); } };
   assert.match((await syncFreenetMailInbox("pk-alice", alice, refused)).error!, /node busy/);
   assert.equal(await ensureInboxPublished({}, alice), null); // no client: nothing to do
+});
+
+test("unversionedWasm: the PUT sends the code whose hash is the one every inbox address is derived from", () => {
+  // Freenet Mail ships these files versioned (version, code hash, code): sent whole, they hash to another contract
+  for (const [file, hash] of [["freenet_email_inbox", INBOX_V1_CODE_HASH], ["freenet_token_allocation_record", TOKEN_RECORD_V1_CODE_HASH]]) {
+    const bytes = new Uint8Array(readFileSync(new URL(`../src/wasm/${file}.wasm`, import.meta.url)));
+    assert.notEqual(toBase58(blake3(bytes)), hash);
+    assert.equal(toBase58(blake3(unversionedWasm(bytes))), hash, file);
+  }
+  const raw = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]);
+  assert.equal(unversionedWasm(raw), raw); // plain WASM is left alone
+});
+
+test("syncFreenetMailInbox: a GET that fails (timeout) still publishes the inbox and reports the error", async () => {
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  let puts = 0;
+  const freenet = {
+    appContract: async () => { throw new Error("timed out"); },
+    inboxCode: async () => new Uint8Array([0, 0x61, 0x73, 0x6d]),
+    putAppContract: async () => void puts++,
+  };
+  const r = await syncFreenetMailInbox("pk-alice", alice, freenet);
+  assert.equal(puts, 1);
+  assert.match(r.error!, /timed out/);
 });

@@ -290,6 +290,16 @@ export function deriveInboxContract(dsaVk: Uint8Array): { address: string; insta
   return deriveContractInstanceFromJsonParams(INBOX_V1_CODE_HASH, { pub_key: Array.from(dsaVk) });
 }
 
+/**
+ * The WASM inside a contract file Freenet Mail ships versioned (`to_bytes_versioned`: a u64 API version, the 32-byte
+ * code hash, then the code). The node hashes the code a PUT gives it, so a PUT must send the WASM alone: the whole
+ * file hashes to another code hash, and so to another contract than the address everyone derives.
+ */
+export function unversionedWasm(file: Uint8Array): Uint8Array {
+  const wasmAt = (o: number) => file[o] === 0 && file[o + 1] === 0x61 && file[o + 2] === 0x73 && file[o + 3] === 0x6d;
+  return !wasmAt(0) && wasmAt(40) ? file.subarray(40) : file;
+}
+
 /** Freenet Mail inbox v1 `STATE_UPDATE` salt, first in every owner-signed payload. */
 const INBOX_STATE_UPDATE = Uint8Array.of(168, 7, 13, 64, 168, 123, 142, 215);
 const DEFAULT_INBOX_MAX_AGE_SECS = 365 * 24 * 3600;
