@@ -11,6 +11,7 @@ import {
   deriveInboxContractAddress,
   deriveTokenRecordContractAddress,
   initialInboxState,
+  unversionedWasm,
   INBOX_V1_CODE_HASH,
   TOKEN_RECORD_V1_CODE_HASH,
   type AftTier,
@@ -624,7 +625,7 @@ export async function ensureTokenRecordPublished(
     if (held) {
       await freenet.updateAppContract(key, state); // the contract merges a whole record sent as an update
     } else {
-      await freenet.putAppContract(key, await freenet.tokenRecordCode(), rec.paramsBytes, state);
+      await freenet.putAppContract(key, unversionedWasm(await freenet.tokenRecordCode()), rec.paramsBytes, state);
     }
     return null;
   } catch (err: any) {
@@ -644,7 +645,7 @@ export async function ensureInboxPublished(freenet: any, identity: FreenetMailId
   try {
     const inbox = deriveInboxContract(identity.dsaVk);
     const key = new ContractKey(inbox.instanceBytes, fromBase58(INBOX_V1_CODE_HASH));
-    await freenet.putAppContract(key, await freenet.inboxCode(), inbox.paramsBytes, initialInboxState(identity));
+    await freenet.putAppContract(key, unversionedWasm(await freenet.inboxCode()), inbox.paramsBytes, initialInboxState(identity));
     return null;
   } catch (err: any) {
     console.warn("[MailClient] inbox publish:", err);
@@ -849,7 +850,15 @@ export async function syncFreenetMailInbox(
   }
 
   try {
-    const rawState = await getContractFn.call(freenet, identity.inboxAddress);
+    let rawState: Uint8Array | null;
+    try {
+      rawState = await getContractFn.call(freenet, identity.inboxAddress);
+    } catch (err: any) {
+      // a GET for a contract nobody holds can time out instead of answering "not found": publish anyway, since a
+      // PUT of an inbox that does exist only merges into it (same owner, no messages)
+      const note = await ensureInboxPublished(freenet, identity);
+      return { newCount: 0, error: note ?? `Could not read your inbox (${err?.message || err}).` };
+    }
     if (!rawState) {
       // no inbox on the network yet: publish it, so this address can be imported and mailed
       const note = await ensureInboxPublished(freenet, identity);
