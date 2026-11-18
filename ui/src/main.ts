@@ -7759,12 +7759,13 @@ function syncMobileViewport() {
   }
   const h = Math.max(180, Math.round(kbH > 0 ? Math.min(rawH, window.innerHeight - kbH) : rawH));
   const t = Math.max(0, Math.round(vv.offsetTop));
+  const zoom = Number(getComputedStyle(document.documentElement).getPropertyValue("--ui-zoom")) || 1; // Text Size zooms px too
   if (h !== lastVvh) {
-    document.documentElement.style.setProperty("--rm-vvh", `${h}px`);
+    document.documentElement.style.setProperty("--rm-vvh", `${h / zoom}px`);
     lastVvh = h;
   }
   if (t !== lastVvt) {
-    document.documentElement.style.setProperty("--rm-vvt", `${t}px`);
+    document.documentElement.style.setProperty("--rm-vvt", `${t / zoom}px`);
     lastVvt = t;
   }
   if (isOpen(chatModal) && window.scrollY !== 0) window.scrollTo(0, 0);
@@ -12335,6 +12336,8 @@ function applyTextSize(v: string | null) {
   const pct = v && TEXT_SIZES.includes(v) ? v : "100";
   // zoom, not font-size: most of style.css is in px, so only zoom scales text, buttons and spacing together
   document.documentElement.style.zoom = pct === "100" ? "" : `${pct}%`;
+  // zoom scales vh/vw and px lengths too: CSS divides viewport units by this, so full-height pages still fit the screen
+  document.documentElement.style.setProperty("--ui-zoom", String(Number(pct) / 100));
   if (textSizeSelect) textSizeSelect.value = pct;
 }
 applyTextSize(safeStorage.getItem(TEXT_SIZE_KEY));

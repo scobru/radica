@@ -12,7 +12,7 @@
 
 .mail-modal-card {
   width: 100%;
-  height: calc(100dvh - 60px);
+  height: calc(calc(100dvh / var(--ui-zoom, 1)) - 60px);
   min-height: 480px;
   border-radius: 12px;
   border: 1px solid var(--mail-border);
@@ -685,11 +685,11 @@
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: 100vw !important;
-    width: 100dvw !important;
-    height: 100vh !important;
-    height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
-    max-height: min(var(--rm-vvh, 100dvh), 100dvh) !important;
+    width: calc(100vw / var(--ui-zoom, 1)) !important;
+    width: calc(100dvw / var(--ui-zoom, 1)) !important;
+    height: calc(100vh / var(--ui-zoom, 1)) !important;
+    height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+    max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
     z-index: 500 !important;
     margin: 0 !important;
     padding: 0 !important;
