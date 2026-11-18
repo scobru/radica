@@ -303,8 +303,6 @@ const modalCopyCardBtn = document.getElementById("modal-copy-card-btn") as HTMLB
 const modalFmailKeyShort = document.getElementById("modal-fmail-key-short") as HTMLElement | null;
 const modalFmailFpFull = document.getElementById("modal-fmail-fp-full") as HTMLElement | null;
 const modalCopyFpBtn = document.getElementById("modal-copy-fp-btn") as HTMLButtonElement | null;
-const modalFmailV2Input = document.getElementById("modal-fmail-v2-input") as HTMLInputElement | null;
-const modalCopyV2Btn = document.getElementById("modal-copy-v2-btn") as HTMLButtonElement | null;
 const modalFmailCopyRecoveryBtn = document.getElementById("modal-fmail-copy-recovery-btn") as HTMLButtonElement | null;
 const modalFmailBackupBtn = document.getElementById("modal-fmail-backup-btn") as HTMLButtonElement | null;
 const modalFmailDoneBtn = document.getElementById("modal-fmail-done-btn") as HTMLButtonElement | null;
@@ -13608,9 +13606,6 @@ function openMailTokensModal() {
   if (modalFmailFpFull) {
     modalFmailFpFull.textContent = fmail.fingerprintFull;
   }
-  if (modalFmailV2Input) {
-    modalFmailV2Input.value = `${fmail.alias}@${fmail.address}`;
-  }
 
   mailTokensModal.style.display = "flex";
 }
@@ -13678,20 +13673,6 @@ if (modalCopyFpBtn) {
       showToast("✓ Copied verification words!", "info");
     } catch {
       prompt("Copy verification words:", fmail.fingerprintFull);
-    }
-  });
-}
-
-if (modalCopyV2Btn) {
-  modalCopyV2Btn.addEventListener("click", async () => {
-    const fmail = getOrDeriveFmailIdentity();
-    if (!fmail) return;
-    const full = `${fmail.alias}@${fmail.address}`;
-    try {
-      await navigator.clipboard.writeText(full);
-      showToast(`✓ Copied mail address: ${full}`, "info");
-    } catch {
-      prompt("Copy mail address:", full);
     }
   });
 }

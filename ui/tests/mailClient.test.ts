@@ -92,7 +92,7 @@ test("sendMailMessage: stores in sent folder and handles self-send to inbox", as
   const res1 = await sendMailMessage(
     pubkey,
     mockIdentity,
-    "bob@222222222222222222222222222222222222",
+    "bob@22222222222222222222222222222222222222222222",
     "Hello Bob",
     "Meeting at noon"
   );
@@ -323,7 +323,7 @@ test("resolveMailAlias: cleans profile name, rejects raw base58, allows custom h
 
 test("contacts & address book: saves, loads, deletes, and resolves contacts", async () => {
   const pk = "user_contacts_test";
-  const aliceAddr = "alice@333333333333333333333333333333333333";
+  const aliceAddr = "alice@33333333333333333333333333333333333333333333";
 
   // Initially empty
   assert.equal(loadMailContacts(pk).length, 0);
@@ -356,11 +356,11 @@ test("contacts & address book: saves, loads, deletes, and resolves contacts", as
   const knownPeers = {
     bob_pk: {
       display_name: "Bob",
-      fmail_address: "bob@222222222222222222222222222222222222",
+      fmail_address: "bob@22222222222222222222222222222222222222222222",
     },
   };
   const res4 = resolveRecipientAddress("Bob", list, knownPeers);
-  assert.equal(res4?.address, "bob@222222222222222222222222222222222222");
+  assert.equal(res4?.address, "bob@22222222222222222222222222222222222222222222");
 
   // Autocomplete suggestions
   const suggestions = getRecipientSuggestions("al", mockIdentity, list, knownPeers);
@@ -461,7 +461,7 @@ test("sendMailMessage to native contract: passes sender inboxAddress so native F
 test("contacts: adding and removing contacts from address book", () => {
   const pk = "test_user_contacts_crud";
   const contact1 = { name: "Alice PostQuantum", address: "alice@111111111111111111111111111111111111" };
-  const contact2 = { name: "Bob Freemail", address: "bob@222222222222222222222222222222222222" };
+  const contact2 = { name: "Bob Freemail", address: "bob@22222222222222222222222222222222222222222222" };
   const contact3 = { name: "Carol Token", address: "AceZGzqQkPb5aH4qh6GkUzwh9BSCNcftEiWwd5e3YtGs" };
 
   // Initial is empty
@@ -554,4 +554,14 @@ test("syncFreenetMailInbox: a GET that fails (timeout) still publishes the inbox
   const r = await syncFreenetMailInbox("pk-alice", alice, freenet);
   assert.equal(puts, 1);
   assert.match(r.error!, /timed out/);
+});
+
+test("sendMailMessage: a 36-char Freenet Mail v2 address is refused with a clear note, not filed as sent", async () => {
+  const pubkey = "test_user_v2_refused";
+  const res = await sendMailMessage(pubkey, mockIdentity, "bob@" + "2".repeat(36), "Hi", "Body");
+  assert.equal(res.success, false);
+  assert.match(res.error!, /v2 address/);
+  assert.equal(loadMailStore(pubkey, mockIdentity).messages.filter((m) => m.folder === "sent").length, 0);
+  // my own v2 address still reaches my inbox (self-send stays local)
+  assert.equal((await sendMailMessage(pubkey, mockIdentity, `alice@${mockIdentity.address}`, "Me", "Note")).success, true);
 });

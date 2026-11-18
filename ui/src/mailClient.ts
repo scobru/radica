@@ -13,6 +13,7 @@ import {
   initialInboxState,
   unversionedWasm,
   INBOX_V1_CODE_HASH,
+  ADDRESS_CHARS,
   TOKEN_RECORD_V1_CODE_HASH,
   type AftTier,
   type AftTokenAssignment,
@@ -681,6 +682,16 @@ export async function sendMailMessage(
     return {
       success: false,
       error: `Could not resolve recipient "${cleanTo}". Please enter a valid Freenet Mail address or contact token.`,
+    };
+  }
+
+  // a 36-char address is Freenet Mail's newer (inbox v2) format: Radica delivers only to v1 inboxes (44 chars), so
+  // such a mail would never leave this device. Say so instead of filing it in Sent.
+  const target = cleanTo.includes("@") ? cleanTo.split("@")[1] : cleanTo;
+  if (target.length === ADDRESS_CHARS && target !== identity.address) {
+    return {
+      success: false,
+      error: "That is a 36-character Freenet Mail v2 address, which Radica Mail cannot deliver to yet. Use their Inbox Address instead (alias@ followed by 44 characters, shown in their Mail header and contact card).",
     };
   }
 
