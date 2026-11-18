@@ -11,8 +11,9 @@ export const FREETREE_SITE = "4SC5QCzLzKWH9BSFFybivTynfBRkPw3PtXwegjXbPm8x";
 export const FREETREE_REPO = "https://github.com/scobru/freetree";
 export const FREETREE_PATH = `/v1/contract/web/${FREETREE_SITE}/`;
 
-/** Freetree hash: a portable tree (`data=<url-encoded base64 JSON>`) or a plain handle. */
-const HASH_REF = "data=[A-Za-z0-9%._~-]+|[a-zA-Z0-9_-]+";
+/** Freetree hash: a tree kept on Freenet (`u=<persona key, 64 hex>`, the short link Freetree's Export gives once the
+ *  tree is saved), a portable tree (`data=<url-encoded base64 JSON>`) or a plain handle. */
+const HASH_REF = "u=[0-9a-f]{64}|data=[A-Za-z0-9%._~-]+|[a-zA-Z0-9_-]+";
 const MAX_DATA_REF = 16384;
 
 /** URL pointing to the Freetree web contract on Freenet. */
@@ -30,15 +31,29 @@ export interface FreetreeRef {
   rawUrl?: string;
 }
 
+/** `u=<key>` keys are hex: one spelling, so the same persona is one ref. */
+const canon = (ref: string): string => (/^u=/i.test(ref) ? ref.toLowerCase() : ref);
+const isUserRef = (ref: string): boolean => /^u=[0-9a-f]{64}$/.test(ref);
+/** Refs whose hash is already URL-safe: not encoded again in a link. */
+const isRawRef = (ref: string): boolean => /^(data|u)=/.test(ref);
+
+let nameOf: (personaHex: string) => string = () => "";
+/** How to name a persona key: Radica's display name for it (set once by main.ts). */
+export function setFreetreeNames(fn: (personaHex: string) => string): void {
+  nameOf = fn;
+}
+
 /** Parse a user's Freetree input (e.g. from Edit Profile): handle, hash, or link. */
 export function parseFreetreeInput(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const urlMatch = FREETREE_URL_RE.exec(trimmed);
-  if (urlMatch && urlMatch[1]) return urlMatch[1];
+  if (urlMatch && urlMatch[1]) return canon(urlMatch[1]);
   const prefMatch = PREFIXED_FREETREE_RE.exec(trimmed);
-  if (prefMatch && prefMatch[1]) return prefMatch[1];
+  if (prefMatch && prefMatch[1]) return canon(prefMatch[1]);
   const cleaned = trimmed.replace(/^#\/?/, "").replace(/^[a-zA-Z0-9_-]+:\/\//, "");
+  if (/^[0-9a-f]{64}$/i.test(cleaned)) return canon(`u=${cleaned}`); // a persona key on its own
+  if (/^u=[0-9a-f]{64}$/i.test(cleaned)) return canon(cleaned);
   if (/^[a-zA-Z0-9_-]{1,64}$/.test(cleaned)) return cleaned;
   if (cleaned.length <= MAX_DATA_REF && /^data=[A-Za-z0-9%._~-]+$/.test(cleaned)) return cleaned;
   return null;
@@ -58,8 +73,9 @@ export function freetreeDataName(prefix: string): string | null {
   }
 }
 
-/** Label for a ref: the tree's name for `data=…`, else the handle. */
+/** Label for a ref: the persona's name for `u=…`, the tree's name for `data=…`, else the handle. */
 function refLabel(prefix: string): string {
+  if (isUserRef(prefix)) return nameOf(prefix.slice(2)) || `@${prefix.slice(2, 10)}…`;
   if (!prefix.startsWith("data=")) return prefix;
   return freetreeDataName(prefix) ?? "Linktree";
 }
@@ -70,14 +86,14 @@ export function freetreeLink(caption: string): FreetreeRef | null {
 
   const pref = PREFIXED_FREETREE_RE.exec(caption);
   if (pref) {
-    return { prefix: pref[1] };
+    return { prefix: canon(pref[1]) };
   }
 
   const urlMatch = FREETREE_URL_RE.exec(caption);
   if (urlMatch) {
     return {
       isSite: true,
-      prefix: urlMatch[1] || undefined,
+      prefix: urlMatch[1] ? canon(urlMatch[1]) : undefined,
       rawUrl: urlMatch[0],
     };
   }
@@ -88,8 +104,8 @@ export function freetreeLink(caption: string): FreetreeRef | null {
 /** Get the link to open a Freetree hub on Freenet web gateway. */
 export function freetreeHref(origin = defaultNodeOrigin(), prefix?: string): string {
   if (prefix) {
-    // `data=…` is already URL-encoded by Freetree: encoding again would break it.
-    const hash = prefix.startsWith("data=") ? prefix : encodeURIComponent(prefix);
+    // `data=…` is already URL-encoded by Freetree, `u=…` is plain hex: encoding again would break them.
+    const hash = isRawRef(prefix) ? prefix : encodeURIComponent(prefix);
     return `${origin}/v1/contract/web/${FREETREE_SITE}/#${hash}`;
   }
   return `${origin}/v1/contract/web/${FREETREE_SITE}/#/`;
@@ -102,15 +118,15 @@ export function freetreeCard(caption: string, origin = defaultNodeOrigin()): str
 
   const href = freetreeHref(origin, ref.prefix);
   const displayTitle = ref.prefix
-    ? ref.prefix.startsWith("data=") ? `${refLabel(ref.prefix)} on Freetree` : `@${ref.prefix} on Freetree`
+    ? isRawRef(ref.prefix) ? `${refLabel(ref.prefix)} on Freetree` : `@${ref.prefix} on Freetree`
     : "Freetree — Decentralized Linktree";
 
   return (
-    `<div class="freetree-card blog-post-card"` + (ref.prefix && !ref.prefix.startsWith("data=") ? ` data-freetree-prefix="${esc(ref.prefix)}"` : "") + `>` +
+    `<div class="freetree-card blog-post-card"` + (ref.prefix && !isRawRef(ref.prefix) ? ` data-freetree-prefix="${esc(ref.prefix)}"` : "") + `>` +
     `<div class="blog-embed-card">` +
     `<div class="blog-embed-head">` +
     `<span class="blog-badge freetree-badge">&#x1F332; Freetree Hub</span>` +
-    `<span class="blog-embed-sitename">${ref.prefix ? (ref.prefix.startsWith("data=") ? esc(refLabel(ref.prefix)) : `@${esc(ref.prefix)}`) : "Freenet"}</span>` +
+    `<span class="blog-embed-sitename">${ref.prefix ? (isRawRef(ref.prefix) ? esc(refLabel(ref.prefix)) : `@${esc(ref.prefix)}`) : "Freenet"}</span>` +
     `</div>` +
     `<a class="blog-embed-title" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(displayTitle)}</a>` +
     `<p class="blog-embed-excerpt">Your links in Markdown, as a fast, elegant Linktree profile on Freenet.</p>` +

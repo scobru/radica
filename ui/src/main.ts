@@ -53,7 +53,7 @@ import { ortoCard, fillOrto, ortoPostHref, ORTO_SITE } from "./orto.ts";
 import { asocialCard, fillAsocial, asocialPersonOf, asocialProfileCard } from "./asocial.ts";
 import { fhCard, fillFh, fhProfileCard } from "./fh.ts";
 import { wormholeCard, fillWormhole } from "./wormhole.ts";
-import { freetreeCard, freetreeProfileCard, parseFreetreeInput } from "./freetree.ts";
+import { freetreeCard, freetreeProfileCard, parseFreetreeInput, setFreetreeNames } from "./freetree.ts";
 import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
 import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
@@ -2399,6 +2399,8 @@ function getAuthorDisplayName(pubkey: string): string {
   if (AI_REPORTERS.includes(pubkey)) return GARDENER_NAME;
   return `@${shortenKey(personaName(pubkey))}`;
 }
+
+setFreetreeNames(getAuthorDisplayName); // a Freetree link made of a persona key shows that persona's name
 
 function getAuthorAvatarUrl(pubkey: string): string {
   if (currentIdentity && pubkey === currentIdentity.pubkey && currentProfile?.avatar_url) {
