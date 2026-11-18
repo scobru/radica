@@ -11430,6 +11430,15 @@ function loadArticlesPage() {
           for (const p of Object.values(freenet.peerCache || {})) add(p);
           return [...byKey.values()];
         },
+        getPostById: async (author, postId) => {
+          // someone else's feed is often not cached yet: getFeed answers empty at once, so wait for the network copy
+          let feed = await freenet.getFeed(author).catch(() => null);
+          if (!feed?.posts?.[postId]) {
+            await freenet.refresh(author, true, true).catch(() => {});
+            feed = await freenet.getFeed(author).catch(() => null);
+          }
+          return feed?.posts?.[postId] ?? null;
+        },
         getFollowing: () => new Set(followingKeys),
         getAuthorName: (pk) => getAuthorDisplayName(pk),
         getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),

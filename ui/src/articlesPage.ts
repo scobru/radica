@@ -1,6 +1,7 @@
 // Dedicated Long-Form Articles & Decentralized Newsletters rail page (#articles-modal) — TASK-004.
 import { escapeHtml as esc } from "./html.ts";
 import {
+  articleMissingNote,
   buildNewsletterEmail,
   cacheArticlePayload,
   countWords,
@@ -14,6 +15,7 @@ import {
   parseArticlePayload,
   renderArticleMarkdown,
   resolveArticleCoverUri,
+  resolveArticlePost,
   saveArticleDraft,
   serializeArticlePayload,
   type ArticleDraft,
@@ -28,6 +30,8 @@ import type { FreenetMailIdentity } from "./freenetMail.ts";
 export interface ArticlesPageDeps {
   getIdentity: () => UserIdentity | null;
   getAllPosts: () => Post[];
+  /** One post straight from its author's feed (a permalink opens before the timeline is built). */
+  getPostById?: (author: string, postId: string) => Promise<Post | null>;
   getFollowing: () => Set<string>;
   getAuthorName: (pubkey: string) => string;
   getAuthorAvatar: (pubkey: string) => string;
@@ -337,8 +341,9 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     if (!modal || !readerView) return;
     modal.style.display = "flex";
     showView("reader");
+    readerView.innerHTML = `<div class="articles-reader-loading">Loading article from Freenet…</div>`;
 
-    const post = deps.getAllPosts().find((p) => p.id === target.postId && p.author === target.author);
+    const post = (await resolveArticlePost(deps.getAllPosts(), target.author, target.postId, deps.getPostById)) ?? undefined;
     const { caption: effectiveCaption, editedAt: captionEditedAt } = post ? effectiveCaptionOf(post) : { caption: "", editedAt: undefined };
     const ref = post ? parseArticleCaption(effectiveCaption) : null;
     const hash = target.hash || ref?.hash || "";
@@ -347,10 +352,8 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     const authorName = deps.getAuthorName(target.author);
     const avatar = deps.getAuthorAvatar(target.author);
 
-    readerView.innerHTML = `<div class="articles-reader-loading">Loading article from Freenet…</div>`;
-
     const payload = hash ? await resolvePayload(hash) : null;
-    const title = payload?.title || ref?.title || "Untitled Article";
+    const title = payload?.title || ref?.title || (post ? "Untitled Article" : "Article not found");
     const subtitle = payload?.subtitle || ref?.subtitle || "";
     const readingMinutes = payload?.readingMinutes || ref?.readingMinutes || 1;
     const tags = payload?.tags?.length ? payload.tags : ref?.tags || [];
@@ -360,7 +363,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     const coverSrc = coverUri ? await deps.getMediaUrl(coverUri) : undefined;
     const bodyHtml = payload
       ? renderArticleMarkdown(payload.body, deps.shouldMaskBadWords?.() ?? true)
-      : `<p class="article-missing-note">Full article body is still propagating on Freenet (<code>${esc(hash.slice(0, 12))}…</code>). Try refreshing in a moment.</p>`;
+      : articleMissingNote(hash);
 
     const likeCount = post ? Object.values(post.likes || {}).filter((l) => l.liked).length : 0;
     const likedByMe = Boolean(post && me && post.likes?.[me]?.liked);

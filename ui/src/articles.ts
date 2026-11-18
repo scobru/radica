@@ -3,6 +3,7 @@
 import { escapeHtml as esc } from "./html.ts";
 import { maskProfanity } from "./moderation.ts";
 import { safeStorage } from "./storage.ts";
+import type { Post } from "./types.ts";
 
 export const ARTICLE_PREFIX = "radica-article:";
 export const ARTICLE_DRAFTS_PREFIX = "radica_article_drafts_";
@@ -429,4 +430,26 @@ export function renderArticleFeedCardHtml(
       `</div>` +
     `</div>`
   );
+}
+
+/** The post a permalink names. The loaded posts come first; a permalink opened in a fresh session finds none of them yet
+ *  (the timeline is not built), so the author's own feed is asked next. */
+export async function resolveArticlePost(
+  loaded: Post[],
+  author: string,
+  postId: string,
+  fromFeed?: (author: string, postId: string) => Promise<Post | null>
+): Promise<Post | null> {
+  const hit = loaded.find((p) => p.id === postId && p.author === author);
+  if (hit) return hit;
+  if (!fromFeed) return null;
+  return (await fromFeed(author, postId).catch(() => null)) ?? null;
+}
+
+/** What the reader says when the article body is missing: with no post at all the article itself was not found; with a
+ *  post but no body (a hash), the body is still on its way. */
+export function articleMissingNote(hash: string): string {
+  return hash
+    ? `<p class="article-missing-note">Full article body is still propagating on Freenet (<code>${esc(hash.slice(0, 12))}…</code>). Try refreshing in a moment.</p>`
+    : `<p class="article-missing-note">This article could not be found yet: its author's posts have not reached your node. Try again in a moment.</p>`;
 }
