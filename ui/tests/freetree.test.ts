@@ -6,6 +6,7 @@ import {
   parseFreetreeInput,
   freetreeLink,
   freetreeDataName,
+  setFreetreeNames,
   freetreeHref,
   freetreeCard,
   freetreeProfileCard,
@@ -87,4 +88,34 @@ test("freetree: a malicious data= name is escaped", () => {
   const hash = exportHash({ n: '<img src=x onerror=alert(1)>' });
   const card = freetreeCard(`freetree:${hash}`, "http://n");
   assert.ok(!card.includes("<img"));
+});
+
+// Freetree's Export, once a tree is saved on Freenet, is just the persona's key: `#u=<64 hex>`.
+const KEY = "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b";
+
+test("freetree: a short #u=<key> link is one ref, not the handle \"u\"", () => {
+  const url = `http://127.0.0.1:7509/v1/contract/web/${FREETREE_SITE}/#u=${KEY}`;
+  assert.equal(parseFreetreeInput(url), `u=${KEY}`);
+  assert.equal(parseFreetreeInput(`u=${KEY}`), `u=${KEY}`);
+  assert.equal(parseFreetreeInput(KEY), `u=${KEY}`); // a persona key on its own
+  assert.equal(parseFreetreeInput(url.replace(KEY, KEY.toUpperCase())), `u=${KEY}`); // one spelling per persona
+  assert.equal(freetreeLink(`my links ${url} !`)?.prefix, `u=${KEY}`);
+  assert.equal(freetreeLink(`freetree:u=${KEY}`)?.prefix, `u=${KEY}`);
+  assert.equal(parseFreetreeInput("scobru"), "scobru"); // handles unchanged
+  assert.equal(parseFreetreeInput(`u=${KEY.slice(0, 63)}`), null); // not a whole key
+});
+
+test("freetree: a #u= card names the persona, links to the key unchanged, and is not the \"u\" handle", () => {
+  setFreetreeNames((hex) => (hex === KEY ? "Scobru" : ""));
+  const url = `http://127.0.0.1:7509/v1/contract/web/${FREETREE_SITE}/#u=${KEY}`;
+  assert.ok(freetreeHref("http://n", `u=${KEY}`).endsWith(`/#u=${KEY}`)); // not re-encoded
+  const card = freetreeCard(url, "http://127.0.0.1:7509");
+  assert.ok(card.includes("Scobru on Freetree"));
+  assert.ok(card.includes(`#u=${KEY}`));
+  assert.ok(!card.includes("@u on") && !card.includes('data-freetree-prefix'));
+  const profile = freetreeProfileCard("Scobru", `u=${KEY}`, "http://127.0.0.1:7509");
+  assert.ok(profile.includes(">Scobru<") && profile.includes(`#u=${KEY}`));
+  // a persona Radica does not know: the start of its key, never the raw "u"
+  setFreetreeNames(() => "");
+  assert.ok(freetreeCard(url).includes(`@${KEY.slice(0, 8)}…`));
 });
