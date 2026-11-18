@@ -12743,10 +12743,25 @@ function getOrDeriveFmailIdentity(): FreenetMailIdentity | null {
   return null;
 }
 
+/** New mail arrives by subscription to the persona's own inbox (Freenet Mail delivers by updating it), not on Refresh. */
+function watchOwnInbox(fmail: FreenetMailIdentity): void {
+  const me = currentIdentity!.pubkey;
+  freenet.watchMailInbox(fmail.inboxAddress, () => {
+    if (currentIdentity?.pubkey !== me) return; // signed out or switched persona since
+    void syncFreenetMailInbox(me, fmail, freenet).then((r) => {
+      if (r.newCount <= 0) return;
+      updateMailBadges();
+      void updateNotificationsBadge();
+      if (mailModal.style.display !== "none") renderMailList();
+    }, () => {});
+  });
+}
+
 let prevMailUnread = -1;
 function updateMailBadges() {
   if (!currentIdentity) return;
   const fmail = getOrDeriveFmailIdentity();
+  if (fmail) watchOwnInbox(fmail);
   const store = loadMailStore(currentIdentity.pubkey, fmail);
   const unreadCount = getUnreadMailCount(store.messages);
   const sentCount = store.messages.filter((m) => m.folder === "sent").length;

@@ -59,7 +59,8 @@ const withTimeout = <T>(p: Promise<T>): Promise<T> =>
 
 /** A contract on the network: the feed of a persona (`feed:<pubkey>`), a named log (`log:<name>`), or a River room
  *  (`river:<owner key>`, raw CBOR state, see riverRooms.ts). */
-export type ContractId = `feed:${string}` | `log:${string}` | `river:${string}` | `media:${string}`;
+/** `mail:<inbox instance>`: a Freenet Mail inbox, watched by instance id (its key is not derived from a name). */
+export type ContractId = `feed:${string}` | `log:${string}` | `river:${string}` | `media:${string}` | `mail:${string}`;
 
 const codes = new Map<string, Promise<{ code: Uint8Array; hash: Uint8Array }>>();
 function contractCode(url: string) {
@@ -112,6 +113,7 @@ export function contractKey(id: ContractId): Promise<ContractKey> {
 const isInteractiveContract = (id: ContractId): boolean =>
   id.startsWith("media:") ||
   id.startsWith("river:") ||
+  id.startsWith("mail:") ||
   id.startsWith("log:inbox/") ||
   id.startsWith("log:room/") ||
   id.startsWith("log:community-chat/");
@@ -292,6 +294,11 @@ export class FreenetNetwork {
    *  `fetchCode` before updating a contract this node has never held (see `getRaw`). */
   getByInstance(instance: string, fetchCode = false): Promise<Uint8Array | null> {
     return this.getRaw(ContractKey.fromInstanceId(instance), undefined, true, fetchCode);
+  }
+
+  /** Subscribe to a contract known only by its instance id: its changes come back through `onChange(watch)`. */
+  watchByInstance(instance: string, watch: ContractId): Promise<Uint8Array | null> {
+    return this.getRaw(ContractKey.fromInstanceId(instance), watch, false);
   }
 
   /** Publish a contract of another app with its first state (River rooms: the code is River's room contract). */
