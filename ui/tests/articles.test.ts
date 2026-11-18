@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  articleMissingNote,
   buildNewsletterEmail,
   cacheArticlePayload,
   countWords,
@@ -16,6 +17,7 @@ import {
   renderArticleFeedCardHtml,
   renderArticleMarkdown,
   resolveArticleCoverUri,
+  resolveArticlePost,
   saveArticleDraft,
   serializeArticlePayload,
   type ArticlePayload,
@@ -175,4 +177,29 @@ test("articles: buildNewsletterEmail and renderArticleFeedCardHtml", () => {
   assert.match(cardHtml, /Issue #1/);
   assert.match(cardHtml, /3 min read/);
   assert.match(cardHtml, /#news/);
+});
+
+// A permalink opened in a fresh session finds no loaded posts: the reader must ask the author's feed instead of
+// showing "Untitled Article" with an empty hash.
+test("articles: a permalink resolves its post from the author's feed when none is loaded", async () => {
+  const post = { id: "p1", author: "a".repeat(64), caption: "x" } as never;
+  const calls: string[] = [];
+  const feed = async (author: string, id: string) => (calls.push(`${author}:${id}`), id === "p1" ? post : null);
+
+  assert.equal(await resolveArticlePost([post], "a".repeat(64), "p1", feed), post); // loaded: the feed is not asked
+  assert.equal(calls.length, 0);
+  assert.equal(await resolveArticlePost([], "a".repeat(64), "p1", feed), post); // fresh session: asked
+  assert.equal(calls.length, 1);
+  assert.equal(await resolveArticlePost([], "a".repeat(64), "nope", feed), null); // not there at all
+  assert.equal(await resolveArticlePost([], "a".repeat(64), "p1"), null); // no lookup available
+  assert.equal(await resolveArticlePost([], "b".repeat(64), "p1", async () => { throw new Error("offline"); }), null); // a failing lookup is "not found"
+  // a post by someone else with the same id is not this article
+  assert.equal(await resolveArticlePost([{ id: "p1", author: "c".repeat(64) } as never], "a".repeat(64), "p1"), null);
+});
+
+test("articles: the missing-body note tells not-found from still-propagating", () => {
+  assert.match(articleMissingNote(""), /could not be found/);
+  assert.doesNotMatch(articleMissingNote(""), /propagating|<code>/);
+  assert.match(articleMissingNote("abcdef0123456789"), /still propagating.*<code>abcdef012345…<\/code>/);
+  assert.doesNotMatch(articleMissingNote('"><img src=x>'), /<img/); // the hash is escaped
 });
