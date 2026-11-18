@@ -7087,10 +7087,23 @@ function collectTreePeers(posts: Post[]): TreePeerInput[] {
     });
 }
 
+// Slim top bar while a lazy page chunk downloads (shown only after 150ms, so cached loads stay invisible).
+let pagesLoading = 0;
+function withPageLoading<T>(p: Promise<T>): Promise<T> {
+  const t = setTimeout(() => document.body.classList.add("page-loading"), 150);
+  pagesLoading++;
+  const done = () => {
+    clearTimeout(t);
+    if (--pagesLoading === 0) document.body.classList.remove("page-loading");
+  };
+  p.then(done, done);
+  return p;
+}
+
 let treePageModP: Promise<typeof import("./treePage.ts")> | null = null;
 function loadTreePage() {
   if (!treePageModP) {
-    treePageModP = import("./treePage.ts").then((m) => {
+    treePageModP = withPageLoading(import("./treePage.ts")).then((m) => {
       m.initTreePage({
         getPosts: () => {
           const posts = collectTreePosts();
@@ -11403,7 +11416,7 @@ openCommunitiesBtn?.addEventListener("click", () => {
 let articlesPageP: Promise<ReturnType<typeof import("./articlesPage.ts").createArticlesPage>> | null = null;
 function loadArticlesPage() {
   if (!articlesPageP) {
-    articlesPageP = import("./articlesPage.ts").then(({ createArticlesPage }) =>
+    articlesPageP = withPageLoading(import("./articlesPage.ts")).then(({ createArticlesPage }) =>
       createArticlesPage({
         getIdentity: () => currentIdentity,
         getAllPosts: () => {
@@ -11541,7 +11554,7 @@ openArticlesBtn?.addEventListener("click", () => {
 let musicPageP: Promise<ReturnType<typeof import("./musicPage.ts").createMusicPage>> | null = null;
 function loadMusicPage() {
   if (!musicPageP) {
-    musicPageP = import("./musicPage.ts").then(({ createMusicPage }) =>
+    musicPageP = withPageLoading(import("./musicPage.ts")).then(({ createMusicPage }) =>
       createMusicPage({
         loadDirectory: () => freenet.freetunesDirectory(),
         getRawContract: (id) => freenet.appContract(id),
