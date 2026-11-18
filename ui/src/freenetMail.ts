@@ -282,9 +282,44 @@ function deriveContractInstanceFromJsonParams(
  *   contract_id = blake3(code_key || params)
  */
 export function deriveInboxContractAddress(dsaVk: Uint8Array): string {
-  return deriveContractInstanceFromJsonParams(INBOX_V1_CODE_HASH, {
-    pub_key: Array.from(dsaVk),
-  }).address;
+  return deriveInboxContract(dsaVk).address;
+}
+
+/** The inbox contract's instance id, address and JSON `InboxParams` bytes, for a PUT. */
+export function deriveInboxContract(dsaVk: Uint8Array): { address: string; instanceBytes: Uint8Array; paramsBytes: Uint8Array } {
+  return deriveContractInstanceFromJsonParams(INBOX_V1_CODE_HASH, { pub_key: Array.from(dsaVk) });
+}
+
+/** Freenet Mail inbox v1 `STATE_UPDATE` salt, first in every owner-signed payload. */
+const INBOX_STATE_UPDATE = Uint8Array.of(168, 7, 13, 64, 168, 123, 142, 215);
+const DEFAULT_INBOX_MAX_AGE_SECS = 365 * 24 * 3600;
+
+/**
+ * The signed, empty initial state of `identity`'s v1 inbox: what Freenet Mail PUTs when it creates an identity
+ * (`initial_inbox_state`). The contract checks `inbox_signature`, ML-DSA-65 by the owner over `sign_payload`:
+ * `STATE_UPDATE || owner_ek_bytes || serde_json(settings) || last_update as big-endian i64 microseconds`.
+ * `settings` is written in the struct's field order, empty `verified_senders` and `private` left out, as serde does.
+ */
+export function initialInboxState(identity: Pick<FreenetMailIdentity, "dsaSk" | "kemEk">, now = new Date()): Uint8Array {
+  const settings = { minimum_tier: "Min10", max_age_secs: DEFAULT_INBOX_MAX_AGE_SECS, allow_verified_skip_token: false };
+  const settingsBytes = new TextEncoder().encode(JSON.stringify(settings));
+  const ts = new Uint8Array(8);
+  new DataView(ts.buffer).setBigInt64(0, BigInt(now.getTime()) * 1000n);
+  const payload = new Uint8Array(INBOX_STATE_UPDATE.length + identity.kemEk.length + settingsBytes.length + 8);
+  payload.set(INBOX_STATE_UPDATE, 0);
+  payload.set(identity.kemEk, INBOX_STATE_UPDATE.length);
+  payload.set(settingsBytes, INBOX_STATE_UPDATE.length + identity.kemEk.length);
+  payload.set(ts, payload.length - 8);
+  const signature = ml_dsa65.sign(payload, identity.dsaSk);
+  return new TextEncoder().encode(
+    JSON.stringify({
+      messages: [],
+      last_update: now.toISOString(),
+      settings,
+      owner_ek_bytes: Array.from(identity.kemEk),
+      inbox_signature: Array.from(signature),
+    })
+  );
 }
 
 /**

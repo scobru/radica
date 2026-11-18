@@ -7,8 +7,10 @@ import {
   sanitizeMailAlias,
   encryptFreenetMailV1,
   decryptFreenetMailV1,
+  deriveInboxContract,
   deriveInboxContractAddress,
   deriveTokenRecordContractAddress,
+  initialInboxState,
   INBOX_V1_CODE_HASH,
   TOKEN_RECORD_V1_CODE_HASH,
   type AftTier,
@@ -632,6 +634,25 @@ export async function ensureTokenRecordPublished(
 }
 
 /**
+ * Make sure this identity's own inbox contract exists on the network. Freenet Mail PUTs it when it creates an
+ * identity; Radica only derived its address, so nobody could import a Radica address as a contact (the GET finds no
+ * contract) or deliver to it. Called when a sync finds no inbox: PUTs the signed empty inbox. Best effort, like the
+ * token record: a refused PUT is returned as a note, never thrown.
+ */
+export async function ensureInboxPublished(freenet: any, identity: FreenetMailIdentity): Promise<string | null> {
+  if (!freenet?.putAppContract || !freenet.inboxCode) return null;
+  try {
+    const inbox = deriveInboxContract(identity.dsaVk);
+    const key = new ContractKey(inbox.instanceBytes, fromBase58(INBOX_V1_CODE_HASH));
+    await freenet.putAppContract(key, await freenet.inboxCode(), inbox.paramsBytes, initialInboxState(identity));
+    return null;
+  } catch (err: any) {
+    console.warn("[MailClient] inbox publish:", err);
+    return `Could not publish your inbox (${err?.message || err}); others cannot add or mail this address yet.`;
+  }
+}
+
+/**
  * Send an email message, store it, and optionally dispatch real post-quantum E2EE delivery
  * to the recipient's Freenet Mail inbox contract on the Freenet network.
  */
@@ -830,7 +851,9 @@ export async function syncFreenetMailInbox(
   try {
     const rawState = await getContractFn.call(freenet, identity.inboxAddress);
     if (!rawState) {
-      return { newCount: 0 };
+      // no inbox on the network yet: publish it, so this address can be imported and mailed
+      const note = await ensureInboxPublished(freenet, identity);
+      return note ? { newCount: 0, error: note } : { newCount: 0 };
     }
 
     const parsedInbox = JSON.parse(new TextDecoder().decode(rawState));
