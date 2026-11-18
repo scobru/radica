@@ -57,8 +57,8 @@ test("layout: mobile comment form lets input shrink so Send button never clips o
 
 test("layout: mobile & fullscreen chat tracks visualViewport so keyboard never covers input while keeping HTML5 fullscreen intact", () => {
   const chatCss = read("../src/messengerChat.css");
-  assert.match(chatCss, /#chat-modal\.fullscreen\s*\{[^}]*min\(var\(--rm-vvh,\s*100dvh\),\s*100dvh\)/);
-  assert.match(chatCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?#chat-modal\s*\{[^}]*min\(var\(--rm-vvh,\s*100dvh\),\s*100dvh\)/);
+  assert.match(chatCss, /#chat-modal\.fullscreen\s*\{[^}]*min\(var\(--rm-vvh,\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\),\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\)/);
+  assert.match(chatCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?#chat-modal\s*\{[^}]*min\(var\(--rm-vvh,\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\),\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\)/);
   const mainTs = read("../src/main.ts");
   assert.match(mainTs, /syncMobileViewport/);
   assert.doesNotMatch(mainTs, /exitFullscreen\(\)[\s\S]*?exitingFullscreenForInput/);
@@ -85,7 +85,7 @@ test("layout: full width mode expands container and preserves messenger chat res
 test("layout: mobile mail is full screen and hides bottom rail like chat", () => {
   const mailCss = read("../src/mail.css");
   assert.match(mailCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?#mail-modal\s*\{[^}]*position:\s*fixed/);
-  assert.match(mailCss, /#mail-modal\s*\{[^}]*min\(var\(--rm-vvh,\s*100dvh\),\s*100dvh\)/);
+  assert.match(mailCss, /#mail-modal\s*\{[^}]*min\(var\(--rm-vvh,\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\),\s*calc\(100dvh \/ var\(--ui-zoom, 1\)\)\)/);
   const styleCss = read("../src/style.css");
   assert.match(styleCss, /body\.mail-open\s+\.rail\s*\{[^}]*display:\s*none\s*!important/);
   const mainTs = read("../src/main.ts");
@@ -193,7 +193,7 @@ test("layout: desktop rail caps max-height across all tabs, prevents button flex
   // Desktop rail cap & scrolling apply universally (not gated to body.chat-open / body.mail-open)
   assert.match(
     styleCss,
-    /@media\s*\(min-width:\s*769px\)\s*\{[\s\S]*?\.rail\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*36px\);[^}]*overflow-y:\s*auto;/
+    /@media\s*\(min-width:\s*769px\)\s*\{[\s\S]*?\.rail\s*\{[^}]*max-height:\s*calc\(calc\(100dvh \/ var\(--ui-zoom, 1\)\)\s*-\s*36px\);[^}]*overflow-y:\s*auto;/
   );
   assert.doesNotMatch(styleCss, /body\.chat-open\s+\.rail\s*\{[^}]*max-height/);
   assert.match(styleCss, /\.rail-btn\s*\{[^}]*flex-shrink:\s*0;/);
