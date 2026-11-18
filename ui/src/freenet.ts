@@ -744,6 +744,13 @@ export class FreenetClient {
       .then(async (r) => new Uint8Array(await r.arrayBuffer()));
   }
 
+  /** Freenet Mail's frozen v1 inbox contract code (`INBOX_V1_CODE_HASH`): this persona's own inbox is PUT with it. */
+  public inboxCode(): Promise<Uint8Array> {
+    return import("./wasm/freenet_email_inbox.wasm?url")
+      .then(({ default: url }) => fetch(url))
+      .then(async (r) => new Uint8Array(await r.arrayBuffer()));
+  }
+
   /** Another app's contract, written by its own rules (FreePolls polls created and answered here). */
   public putAppContract(key: ContractKey, code: Uint8Array, params: Uint8Array, state: Uint8Array): Promise<void> {
     return this.net.putRaw(key, code, params, state);

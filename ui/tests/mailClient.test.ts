@@ -22,6 +22,7 @@ import {
   resolveMailAlias,
   syncFreenetMailInbox,
   ensureTokenRecordPublished,
+  ensureInboxPublished,
   resolveFreemailSenderAddress,
   mailSenderKey,
   blockedMailSenders,
@@ -29,7 +30,8 @@ import {
   unblockMailSender,
   type MailMessage,
 } from "../src/mailClient.ts";
-import { deriveMailIdentity, encryptFreenetMailV1 } from "../src/freenetMail.ts";
+import { deriveMailIdentity, encryptFreenetMailV1, initialInboxState, deriveInboxContract } from "../src/freenetMail.ts";
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import type { FreenetMailIdentity } from "../src/freenetMail.ts";
 
 const mockIdentity: FreenetMailIdentity = {
@@ -491,4 +493,38 @@ test("contacts: adding and removing contacts from address book", () => {
   deleteMailContact(pk, contact3.address);
   current = loadMailContacts(pk);
   assert.equal(current.length, 0);
+});
+
+test("initialInboxState: the owner signs STATE_UPDATE || ek || settings JSON || µs time, as the v1 inbox checks", () => {
+  // the bytes were also run through freenet/mail's contracts/inbox `validate_state` (Valid; a tampered copy refused)
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  const now = new Date("2026-11-18T12:00:00.123Z");
+  const state = JSON.parse(new TextDecoder().decode(initialInboxState(alice, now)));
+  assert.deepEqual(state.messages, []);
+  assert.equal(state.last_update, "2026-11-18T12:00:00.123Z");
+  assert.equal(JSON.stringify(state.settings), '{"minimum_tier":"Min10","max_age_secs":31536000,"allow_verified_skip_token":false}');
+  assert.deepEqual(state.owner_ek_bytes, Array.from(alice.kemEk));
+  const settings = new TextEncoder().encode(JSON.stringify(state.settings));
+  const ts = new Uint8Array(8);
+  new DataView(ts.buffer).setBigInt64(0, 1_795_003_200_123_000n);
+  const payload = new Uint8Array([168, 7, 13, 64, 168, 123, 142, 215, ...alice.kemEk, ...settings, ...ts]);
+  assert.ok(ml_dsa65.verify(Uint8Array.from(state.inbox_signature), payload, alice.dsaVk));
+});
+
+test("syncFreenetMailInbox: no inbox on the network yet, so it PUTs the signed empty inbox", async () => {
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(11));
+  const puts: { params: Uint8Array; state: Uint8Array }[] = [];
+  const freenet = {
+    appContract: async () => null,
+    inboxCode: async () => new Uint8Array([0, 97, 115, 109]),
+    putAppContract: async (_k: unknown, _code: Uint8Array, params: Uint8Array, state: Uint8Array) => void puts.push({ params, state }),
+  };
+  assert.deepEqual(await syncFreenetMailInbox("pk-alice", alice, freenet), { newCount: 0 });
+  assert.equal(puts.length, 1);
+  assert.deepEqual(puts[0].params, deriveInboxContract(alice.dsaVk).paramsBytes);
+  assert.equal(JSON.parse(new TextDecoder().decode(puts[0].state)).messages.length, 0);
+
+  const refused = { ...freenet, putAppContract: async () => { throw new Error("node busy"); } };
+  assert.match((await syncFreenetMailInbox("pk-alice", alice, refused)).error!, /node busy/);
+  assert.equal(await ensureInboxPublished({}, alice), null); // no client: nothing to do
 });
