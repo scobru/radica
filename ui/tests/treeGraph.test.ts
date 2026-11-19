@@ -357,3 +357,11 @@ test("treeGraph: FreeTunes releases nobody posted hang on the Music bough, as re
   assert.match(insp, /Agravame — Zima Blue/);
   assert.doesNotMatch(insp, /data-tree-open-profile/);
 });
+
+test("treeGraph: an old article stays on the tree even when 48+ newer posts fill it", () => {
+  const article = makePost({ id: "art-old", author: ALICE, timestamp: NOW - 30 * 86_400_000, caption: `📰 Old essay\nradica-article:${"cd".repeat(32)}` });
+  const busy = Array.from({ length: 60 }, (_, i) => makePost({ id: `n${i}`, author: BOB, timestamp: NOW - i * 60_000 }));
+  const model = buildTreeGraph({ posts: [article, ...busy], communities: [], peers: PEERS, myPubkey: ME, myName: "You", now: NOW });
+  assert.ok(model.posts.some((p) => p.id === "art-old"));
+  assert.equal(model.posts.length, 48);
+});

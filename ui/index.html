@@ -774,26 +774,26 @@
             <!-- Read View -->
             <div id="mail-read-view" class="mail-view-pane" style="display: none;">
               <div class="mail-read-toolbar">
-                <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="mail-read-actions" style="display: flex; gap: 8px; align-items: center;">
                   <button type="button" class="btn-secondary btn-sm mail-mobile-back-btn" id="mail-mobile-back-btn">← List</button>
                   <button type="button" class="btn-primary btn-sm btn-icon-text" id="mail-reply-btn">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                     <span>Reply</span>
                   </button>
-                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-toggle-read-btn">
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-toggle-read-btn" title="Mark read / unread" aria-label="Mark read / unread">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
                     <span id="mail-toggle-read-label">Mark Unread</span>
                   </button>
-                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-block-btn" title="Hide this sender's mail; undo in Contacts → Blocked senders">
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-block-btn" aria-label="Block sender" title="Hide this sender's mail; undo in Contacts → Blocked senders">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
                     <span>Block sender</span>
                   </button>
-                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-delete-btn" style="color: var(--danger);">
+                  <button type="button" class="btn-secondary btn-sm btn-icon-text" id="mail-delete-btn" title="Delete" aria-label="Delete" style="color: var(--danger);">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     <span>Delete</span>
                   </button>
                 </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                <div class="mail-read-verified" style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
                   <span>🔒 ML-KEM-768 Verified</span>
                 </div>
               </div>
