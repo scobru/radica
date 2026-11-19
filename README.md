@@ -254,14 +254,27 @@ npm run freenet:publish   # build + publish as a new website (first time)
 npm run freenet:update    # build + publish a new version at the same address
 ```
 
-The image filter (its wasm, runtime and model) and the stock GIFs are ~75 MB that almost never change, so they live in a second web container, `radica-assets`, and a Radica update uploads only the app (~1.5 MB instead of ~30 MB). Once:
+The image filter (its wasm, runtime and model), the translation engine and the stock GIFs are ~75 MB that almost never change, so they live in three extra web containers and a Radica update uploads only the app (~8 MB):
+
+| Container | Holds | Size |
+|-----------|-------|------|
+| `radica-assets` | stock GIFs, translation engine | ~11 MiB |
+| `radica-filter` | the filter's wasm (gzipped, see below) and model | ~28 MiB |
+| `radica-litert` | the LiteRT runtime | ~18 MiB |
+
+**Node limit:** Freenet 0.2.161+ refuses a web container that unpacks to more than 48 MiB, holds a file over 32 MiB, or has more than 4096 entries (`failed unpacking contract`). The filter's wasm is 44 MiB, so the build publishes it gzipped (`moderation/filter/ModeratorWeb.gz.bin`, 18 MiB) and the app unpacks it in the browser (`src/filterWasm.ts`). `scripts/split-freenet-dist.mjs` fails when a container (the app's included) would not unpack, with some room under the limits (`LIMITS` in `ui/scripts/heavy.mjs`). River's and GhostKey's wasm (~3 MB) ship with the app: Chat must not depend on an optional container.
+
+Once, for each container (the first already exists as `radica-assets`):
 
 ```bash
-fdev website init radica-assets
-npm run freenet:assets:publish   # prints the radica-assets contract key
+fdev website init radica-filter
+fdev website init radica-litert
+npm run freenet:assets:update    # the existing radica-assets key: now only GIFs and translation engine
+npm run freenet:filter:publish   # prints the radica-filter contract key
+npm run freenet:litert:publish   # prints the radica-litert contract key
 ```
 
-Put that key in `ui/freenet-assets.json` (`"key"`), commit it, then publish Radica as usual. `freenet:update` refuses to publish when the heavy files changed (e.g. after upgrading the moderator package): run `npm run freenet:assets:update` first. With no key the app ships every file itself, as before.
+Put the keys in `ui/freenet-assets.json` (`"key"` for radica-assets, `"filterKey"`, `"litertKey"`), commit it, then publish Radica as usual. `freenet:update` refuses to publish when a container's files changed (e.g. after upgrading the moderator package) and names the `npm run freenet:<name>:update` to run first, and when a key is missing. Publish the containers from the same machine that builds the app (the fingerprint covers the gzipped file).
 
 **Post translation** runs on the reader's device with [Bergamot](https://browser.mt/) (Mozilla's Firefox Translations engine): its engine is in `radica-assets`, and each language's models (to and from English, ~44 MB) are a web container of their own, `radica-lang-<code>`, published once. Languages: `it es de fr pt` (English is the pivot).
 

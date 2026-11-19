@@ -78,6 +78,8 @@ contract/target/
 ui/dist/
 ui/dist-app/
 ui/dist-assets/
+ui/dist-filter/
+ui/dist-litert/
 ui/translation-models/
 
 # Test state artifacts for fdev verify-merge

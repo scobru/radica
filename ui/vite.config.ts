@@ -2,13 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { UPDATES } from "./src/updates.ts";
-import { HEAVY_WASM } from "./scripts/heavy.mjs";
+import zlib from "node:zlib";
 
 /** This build's id: the page knows it, and version.json tells an open page when a newer build is published. */
 const BUILD = String(Date.now());
-/** Key of the radica-assets web container holding the heavy files (see scripts/split-freenet-dist.mjs); "" = none. */
+/** Keys of the radica-assets / -filter / -litert web containers holding the heavy files (see scripts/split-freenet-dist.mjs); "" = none. */
 const FREENET_ASSETS = JSON.parse(fs.readFileSync(path.resolve("freenet-assets.json"), "utf8"));
-const ASSETS_KEY: string = FREENET_ASSETS.key ?? "";
+const ASSET_KEYS: Record<string, string> = { assets: FREENET_ASSETS.key ?? "", filter: FREENET_ASSETS.filterKey ?? "", litert: FREENET_ASSETS.litertKey ?? "" };
 /** Keys of the radica-lang-<code> web containers holding translation models (see scripts/fetch-translation-models.mjs). */
 const LANG_KEYS: Record<string, string> = FREENET_ASSETS.langs ?? {};
 
@@ -59,6 +59,25 @@ function desertAntWasmPlugin(): Plugin {
     },
     buildStart() {
       syncWasm();
+    },
+  };
+}
+
+// The filter's wasm is 44 MiB, over the 32 MiB a Freenet node allows for one file of a web container: the build publishes it
+// gzipped (moderation/filter/) and the package's own fetch of it is swapped for the app's loader (src/filterWasm.ts).
+function moderatorWasmPlugin(): Plugin {
+  const dist = path.resolve("node_modules/@desert-ant-labs/moderator/dist");
+  const ownFetch = 'fetch(new URL("ModeratorWeb.wasm", import.meta.url))';
+  return {
+    name: "moderator-wasm-plugin",
+    apply: "build",
+    transform(code, id) {
+      if (!id.split("?")[0].endsWith("/@desert-ant-labs/moderator/dist/index.js")) return null;
+      if (!code.includes(ownFetch)) throw new Error("moderator package changed: update moderatorWasmPlugin");
+      return code.replace(ownFetch, "globalThis.__radicaFilterWasm()");
+    },
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "moderation/filter/ModeratorWeb.gz.bin", source: zlib.gzipSync(fs.readFileSync(path.join(dist, "ModeratorWeb.wasm")), { level: 9 }) });
     },
   };
 }
@@ -230,13 +249,6 @@ export default defineConfig({
   server: {
     port: 5173,
   },
-  define: { __RADICA_BUILD__: JSON.stringify(BUILD), __RADICA_ASSETS_KEY__: JSON.stringify(ASSETS_KEY), __RADICA_LANG_KEYS__: JSON.stringify(LANG_KEYS) },
-  // the heavy wasm files (the filter's, fetched by the package itself, River's, GhostKey's) resolve through heavyAssets.ts
-  experimental: {
-    renderBuiltUrl(filename, { hostType }) {
-      if (!ASSETS_KEY || hostType !== "js" || !HEAVY_WASM.test(filename)) return;
-      return { runtime: `new URL(globalThis.__radicaHeavyUrl(${JSON.stringify(filename)}), document.baseURI).href` };
-    },
-  },
-  plugins: [desertAntWasmPlugin(), litertWasmPlugin(), bergamotPlugin(), peerSyncPlugin(), versionFilePlugin()],
+  define: { __RADICA_BUILD__: JSON.stringify(BUILD), __RADICA_ASSET_KEYS__: JSON.stringify(ASSET_KEYS), __RADICA_LANG_KEYS__: JSON.stringify(LANG_KEYS) },
+  plugins: [desertAntWasmPlugin(), moderatorWasmPlugin(), litertWasmPlugin(), bergamotPlugin(), peerSyncPlugin(), versionFilePlugin()],
 });
