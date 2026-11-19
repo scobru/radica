@@ -1,5 +1,6 @@
 import type { Moderator, Moderation } from "@desert-ant-labs/moderator";
 import { heavyUrl } from "./heavyAssets.ts";
+import { filterWasmResponse } from "./filterWasm.ts";
 
 // The package instantiates its 46 MB wasm core at import time (top-level await): a static import would download and
 // compile it on every page load, so it is imported only when an image is first scanned.
@@ -21,6 +22,8 @@ export async function getModerator(): Promise<Moderator | null> {
       // Self-hosted first (the Freenet gateway's CSP blocks jsDelivr and Hugging Face); the model file
       // ui/public/moderation/model/moderator.tflite is optional, without it the default download is used.
       const here = (p: string) => new URL(heavyUrl(p), document.baseURI).href;
+      // the build swaps the package's own wasm fetch for this (vite.config.ts, moderatorWasmPlugin)
+      (globalThis as { __radicaFilterWasm?: () => Promise<Response> }).__radicaFilterWasm = () => filterWasmResponse(here("moderation/filter/ModeratorWeb.gz.bin"));
       const { Moderator } = await import("@desert-ant-labs/moderator");
       moderatorInstance = await Moderator.load({
         litertWasmDir: here("moderation/litert/"),
