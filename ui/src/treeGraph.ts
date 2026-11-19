@@ -160,6 +160,8 @@ export interface BuildTreeGraphInput {
 const DAY_MS = 86_400_000;
 const MAX_BOUGHS = 8;
 const MAX_POSTS = 48;
+// articles are rare and long-lived: they get their own slots so 48 newer posts do not push them off the tree
+const MAX_ARTICLES = 12;
 const MAX_LEAVES_PER_POST = 10;
 const MAX_ROOTS = 64;
 
@@ -411,15 +413,20 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
   );
 
   // Select top posts (up to MAX_POSTS) sorted by recency & engagement
-  const rankedPosts = [...scopedPosts]
-    .sort((a, b) => {
-      const aScore = b.timestamp - a.timestamp;
-      if (Math.abs(aScore) > DAY_MS * 2) return aScore;
-      const aEng = likers(a).length + Object.keys(a.comments ?? {}).length;
-      const bEng = likers(b).length + Object.keys(b.comments ?? {}).length;
-      return bEng - aEng || b.timestamp - a.timestamp;
-    })
-    .slice(0, MAX_POSTS);
+  const sortedPosts = [...scopedPosts].sort((a, b) => {
+    const aScore = b.timestamp - a.timestamp;
+    if (Math.abs(aScore) > DAY_MS * 2) return aScore;
+    const aEng = likers(a).length + Object.keys(a.comments ?? {}).length;
+    const bEng = likers(b).length + Object.keys(b.comments ?? {}).length;
+    return bEng - aEng || b.timestamp - a.timestamp;
+  });
+  const keptArticles = sortedPosts.filter((p) => parseArticleCaption(p.caption)).slice(0, MAX_ARTICLES);
+  const kept = new Set(keptArticles);
+  for (const p of sortedPosts) {
+    if (kept.size >= MAX_POSTS) break;
+    kept.add(p);
+  }
+  const rankedPosts = sortedPosts.filter((p) => kept.has(p));
 
   // Determine boughs (communities + fallback categories for non-community posts)
   const commById = new Map(activeCommunities.map((c) => [c.id, c]));
