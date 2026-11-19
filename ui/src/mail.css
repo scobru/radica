@@ -790,6 +790,20 @@
     display: none;
   }
 
+  /* reader toolbar: secondary actions icon-only so Delete stays on screen */
+  .mail-read-toolbar {
+    padding: 8px 12px;
+  }
+
+  .mail-read-actions {
+    gap: 6px !important;
+  }
+
+  .mail-read-actions .btn-icon-text:not(#mail-reply-btn) span,
+  .mail-read-verified {
+    display: none;
+  }
+
   .mail-body:not(.in-detail) .mail-main-view {
     display: none;
   }
