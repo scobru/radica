@@ -12,8 +12,8 @@ test("heavy files load from the radica-assets container on the gateway only", ()
   assert.equal(heavyUrlFor("./gifs/shrug.gif", "ASSETS", "http://localhost:5173/"), "./gifs/shrug.gif"); // dev, Electron
 });
 
-test("River's and GhostKey's wasm go to radica-assets, the app's own contracts stay with the app", async () => {
+test("River's and GhostKey's wasm ship with the app: only the filter's wasm is heavy (node limit of 32 MiB per file, 48 MiB per container)", async () => {
   const { isHeavy } = await import("../scripts/heavy.mjs");
-  for (const f of ["assets/river-BIoq41ea.wasm", "assets/river_room_contract-Dov_x.wasm", "assets/ghostkey-D-1.wasm", "assets/ModeratorWeb-x.wasm"]) assert.equal(isHeavy(f), true, f);
-  for (const f of ["assets/ghostkey-8d3x.js", "assets/contract-C.wasm", "assets/log--X.wasm", "assets/identity-T.wasm"]) assert.equal(isHeavy(f), false, f);
+  assert.equal(isHeavy("assets/ModeratorWeb-x.wasm"), true);
+  for (const f of ["assets/river-BIoq41ea.wasm", "assets/river_room_contract-Dov_x.wasm", "assets/ghostkey-D-1.wasm", "assets/ghostkey-8d3x.js", "assets/contract-C.wasm", "assets/log--X.wasm", "assets/identity-T.wasm"]) assert.equal(isHeavy(f), false, f);
 });

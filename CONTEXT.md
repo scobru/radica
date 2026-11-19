@@ -115,3 +115,4 @@ Terms the code and its reviews use. Keep them exact.
 ## Profile extras
 
 - **Profile wallets** — a persona's wallet addresses (Lightning address, Monero, Bitcoin, EVM), the latest entry they signed in their `wallets/<pubkey>` log, outside the feed's signed `ProfileInfo` (like the Orto and Delta links), so adding them changed no contract. Every address is format-checked on read (`wallets.ts`) before it is shown or put in a `lightning:`/`monero:`/`bitcoin:`/`ethereum:` link.
+- Web container limits (2026-11, Freenet 0.2.161): a node refuses a web container over 48 MiB unpacked, a file over 32 MiB, or 4096 entries (`failed unpacking contract`). Anything the app needs to work at all (River's and GhostKey's wasm) ships in the app container; `radica-assets` holds only optional heavy files (image filter, GIFs, translation engine) and is over the limits today.

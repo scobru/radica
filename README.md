@@ -261,6 +261,8 @@ fdev website init radica-assets
 npm run freenet:assets:publish   # prints the radica-assets contract key
 ```
 
+**Node limit:** Freenet 0.2.161+ refuses a web container that unpacks to more than 48 MiB, or holds a file over 32 MiB, or has more than 4096 entries (`failed unpacking contract`). `radica-assets` is above both today (83 MiB; the filter's wasm is 44 MiB), so only what the app can live without belongs there; River's and GhostKey's wasm ship with the app.
+
 Put that key in `ui/freenet-assets.json` (`"key"`), commit it, then publish Radica as usual. `freenet:update` refuses to publish when the heavy files changed (e.g. after upgrading the moderator package): run `npm run freenet:assets:update` first. With no key the app ships every file itself, as before.
 
 **Post translation** runs on the reader's device with [Bergamot](https://browser.mt/) (Mozilla's Firefox Translations engine): its engine is in `radica-assets`, and each language's models (to and from English, ~44 MB) are a web container of their own, `radica-lang-<code>`, published once. Languages: `it es de fr pt` (English is the pivot).
