@@ -61,10 +61,11 @@ Proposal (PoW approved by the maintainer, 2026-11-20):
   - about 10,000 signed records at most, about 2 s measured: a 2.5× margin for slower nodes and fuel metering;
   - `MAX_STATE_BYTES = 38 MiB`: a merge that would exceed it is refused, never evicted.
   - **Why counts and not bytes:** eviction keeps the top N of a strict total order, so `merge` stays independent of order (`cap(cap(A ∪ B) ∪ C) = cap(A ∪ B ∪ C)`). A byte budget breaks that, because records of different sizes displace each other unevenly. Hence only a hard refusal on bytes.
-- **Deterministic eviction.** Keep order: v3 before legacy, then more PoW bits, then older `ts`, then signature, post id and key.
+- **Deterministic eviction.** Keep order: v3 before legacy, then **newer** `ts`, then signature, post id and key. Records by others dated more than `MAX_SKEW_MS` (10 min) past the node's clock (`freenet_stdlib::time::now`, as Viso's identity contract uses) are left out until their time comes.
+  - *Revised:* "older first" can be won once by backdating (free), and "more PoW first" can be won once by over-grinding. With "newer first" and no record dated ahead, holding the cap means continuous spam with PoW, and real new records displace the spam as soon as it stops. PoW stays required, but no longer ranks.
 - **Legacy records rank last.** *Correction:* anyone can still sign a legacy-format record with their own key, for free, so legacy records cannot be privileged. Under the caps, every carried record is kept. In a spam wave, v3 records with PoW push them out first. Free legacy spam can push out real legacy comments (ordered by a self-declared `ts`). That loss is bounded by the caps and is visible as spam, which the UI moderation hides. If it turns out to matter: when an owner re-signs a post in v3, the post would list the legacy comments to keep. Not done now.
 - **Optional speed-up:** Ed25519 batch verification (`ed25519-dalek` `batch` feature) is about 2× faster on large states. It needs its own benchmark, and a fallback to single verification to find which record is bad.
-- Logs written by the system (inbox, `blocklist/*`, `reports`) keep the same caps. The readers' fold already drops what it does not trust.
+- **Logs (decided 2026-11-20):** 10,000 entries and 38 MiB per log. A log named `<name>/<key>` belongs to that key: its entries need no PoW and are never evicted. Past the cap, owned logs and chats (`room/`, `dm/`, `community-chat/`) drop others' entries (legacy, then oldest). Every other shared log (communities, receipts, proofs, greenhouse…) **refuses** the merge instead: a flood can block it, never erase it, because erasing an old `community_create` or receipt would be a takeover.
 
 ### 3. Hex and delta fixes
 - `check`/`verify_by`: refuse an `author`, `liker` or key that is not `^[0-9a-f]{64}$` on v3 records. Legacy records keep the v1 rule, so none is lost.
@@ -107,4 +108,4 @@ This is a one-way security migration: no return to v1. The aim is that **no v1 d
 4. ~~Count ceiling~~: `MAX_RECORDS = 10_000` per state, from the benchmark above. Before release, measure today's largest real feeds and logs (attester node): a legacy state over 10,000 records cannot be both carried and kept under 5 s, and would need splitting (for example, moving older log entries to an archive log).
 
 ## Status
-🟡 **IN PROGRESS** (2026-11-20): feed contract v3 shipped with the UI (v3 signing, PoW, `contract.wasm` swap, legacy lookup retry). Attester sweep for feeds done (`attester/src/sweep.js`). Next: `log-contract` v2 (and the sweep for public logs).
+🟢 **DONE in code** (2026-11-20): feed contract v3 + log contract v2 with UI and attester signing, attester sweep of feeds and logs. Before publishing: measure the largest real feeds and logs (a legacy one past the caps stays behind), and check PoW time on a slow phone.

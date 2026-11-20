@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
 import { encodeProofToken } from "../../donate-app/src/lib.js";
-import { judgeClaim, issueReceipt, signEntry, logEntryMessage, SCOPE_FIELD, bytesToHex } from "./core.js";
+import { judgeClaim, issueReceipt, signEntry, logEntryMessage, logEntryMessage2, SCOPE_FIELD, bytesToHex } from "./core.js";
 
 const CFG = { chainId: 84532, contract: "0xAbC", groups: { sprout: 7n, root: 8n, oak: 9n } };
 const donor = "ab".repeat(32);
@@ -49,7 +49,8 @@ test("receipts verify in Radica, log entries verify with the log contract's mess
   assert.equal(r.tier, "oak");
 
   const e = await signEntry(sk, "supporter-receipts", "/app/", { a: 1 }, 1000);
-  const msg = new TextEncoder().encode(logEntryMessage("supporter-receipts", "/app/", e.author, e.id, e.ts, e.body));
+  const msg = new TextEncoder().encode(logEntryMessage2("supporter-receipts", "/app/", e.author, e.id, e.ts, e.body, e.nonce));
+  assert.equal(e.v, 2);
   assert.equal(await ed.verifyAsync(e.sig, msg, e.author), true);
 });
 
@@ -57,4 +58,12 @@ test("log entry message matches Radica's formatLogEntryMessage", async () => {
   const { formatLogEntryMessage } = await import("../../ui/src/crypto.ts");
   // outside a browser Radica's appPath() is "", so compare with app ""
   assert.equal(logEntryMessage("supporter-claims", "", "aa", "id1", 5, "{}"), formatLogEntryMessage("supporter-claims", "aa", "id1", 5, "{}"));
+});
+
+test("v2 log entry message matches Radica's logMsg2 and log-contract entry_msg2", async () => {
+  const { logMsg2 } = await import("../../ui/src/crypto.ts");
+  assert.equal(logEntryMessage2("supporter-claims", "", "aa", "id1", 5, "{}", 7), logMsg2("supporter-claims", "aa", "id1", 5, "{}", 7));
+  // log-contract v2_vector_matches_the_ui, with params "7a"
+  const m = logEntryMessage2("x", "", "ab".repeat(32), "x:1", 5, "{}", 7);
+  assert.match(m, /^radica\/log\/v2\|\d+:[0-9a-f]+64:(ab){32}3:x:11:564:[0-9a-f]{64}1:7$/);
 });

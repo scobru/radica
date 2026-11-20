@@ -1,6 +1,7 @@
 // The attester's decisions and signatures, with no network: Freenet and the chain are passed in, so tests run offline.
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
+import { blake3 } from "@noble/hashes/blake3.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { stringToHex } from "viem";
 import { decodeProofToken, pubkeyOf, SCOPE } from "../../donate-app/src/lib.js";
@@ -19,12 +20,31 @@ export function logEntryMessage(log, app, author, id, ts, body) {
   return `radica/log/v1:${params}:${author}:${id}:${ts}:${body}`;
 }
 
+/** v2 log entry message: must match log-contract entry_msg2 and ui/src/crypto.ts logMsg2. */
+export function logEntryMessage2(log, app, author, id, ts, body, nonce) {
+  const params = bytesToHex(enc.encode(`radica/${log}|${app}`));
+  const fields = [params, author, id, ts, bytesToHex(blake3(enc.encode(body))), nonce].map(String);
+  return "radica/log/v2|" + fields.map((f) => `${enc.encode(f).length}:${f}`).join("");
+}
+
+const POW_BITS = 12; // log-contract POW_BITS: leading zero bits of BLAKE3(message), from everyone but a log's owner
+function powBits(msg) {
+  let n = 0;
+  for (const b of blake3(enc.encode(msg))) {
+    n += Math.clz32(b) - 24;
+    if (b) break;
+  }
+  return n;
+}
+
 export async function signEntry(sk, log, app, bodyObj, now = Date.now()) {
   const author = bytesToHex(await ed.getPublicKeyAsync(sk));
   const id = now.toString(36) + bytesToHex(crypto.getRandomValues(new Uint8Array(3)));
   const body = JSON.stringify(bodyObj);
-  const sig = bytesToHex(await ed.signAsync(enc.encode(logEntryMessage(log, app, author, id, now, body)), sk));
-  return { author, id, ts: now, body, sig };
+  let nonce = 0;
+  if (log.split("/").pop() !== author) while (powBits(logEntryMessage2(log, app, author, id, now, body, nonce)) < POW_BITS) nonce++;
+  const sig = bytesToHex(await ed.signAsync(enc.encode(logEntryMessage2(log, app, author, id, now, body, nonce)), sk));
+  return { author, id, ts: now, body, sig, v: 2, nonce };
 }
 
 /** Supporter receipt token: must match ui/src/supporter.ts issueReceipt (no tx hash, day-rounded time). */

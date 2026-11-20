@@ -105,6 +105,13 @@ export function formatLogEntryMessage(log: string, author: string, id: string, t
   return `radica/log/v1:${params}:${author}:${id}:${ts}:${body}`;
 }
 
+/** v2 log entry message (entries with `v: 2`): must match log-contract/src/lib.rs entry_msg2. The body goes in by its
+ *  BLAKE3 hash, so grinding the nonce stays cheap whatever its size. */
+export function logMsg2(log: string, author: string, id: string, ts: number, body: string, nonce: number): string {
+  const params = ed.etc.bytesToHex(enc.encode(`radica/${log}|${appPath()}`));
+  return lp("radica/log/v2", [params, author, id, ts, ed.etc.bytesToHex(blake3(enc.encode(body))), nonce]);
+}
+
 // Feed contract messages: must match contract/src/lib.rs exactly.
 export function formatPostSignatureMessage(p: {
   id: string;
