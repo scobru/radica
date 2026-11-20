@@ -48,7 +48,7 @@ import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { drLevel } from "./secretRatchet.ts";
 import { burnAtOf, checksHtml, deliveryOf, nextTtl, tickBurnCountdowns, triggerRowBurnAnimation, type ConversationState } from "./conversationState.ts";
-import type { ChatMessage, Community, PrivateRoom, UserIdentity } from "./types.ts";
+import { AI_REPORTERS, RADICA_MAINTAINER, type ChatMessage, type Community, type PrivateRoom, type UserIdentity } from "./types.ts";
 import { renderIcon, type IconName } from "./icons.ts";
 import { LANGS, readerLang, translatableFrom, translateText } from "./translate.ts";
 import { draftTranslateHtml } from "./composeTranslate.ts";
@@ -143,6 +143,9 @@ const LONG_DATE_FMT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: 
 const LONG_DATE_YEAR_FMT = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric" });
 
 const SENDER_COLORS = ["#2d7a47", "#9a5b13", "#2b6cb0", "#805ad5", "#b83280", "#c05621"];
+const GARDENER_PK = AI_REPORTERS[0]?.toLowerCase() ?? "";
+const isRoomGardenerActive = (r: PrivateRoom | null | undefined): boolean =>
+  !!r && !r.river && !r.is_channel && !!GARDENER_PK && r.members.some((m) => m.toLowerCase() === GARDENER_PK);
 function senderColor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
@@ -1490,9 +1493,13 @@ export function createMessengerChat(deps: MessengerDeps) {
         ? ` · <button type="button" class="rm-header-link-pill" data-jump-room="${escapeHtml(linkedRoom.id)}" title="${isChannel ? "Open discussion room" : "Open broadcast channel"}">${isChannel ? renderIcon("messageCircle", { size: 11 }) + " Comments" : renderIcon("megaphone", { size: 11 }) + " Channel"}: ${escapeHtml(linkedName || "")}</button>`
         : "";
 
+      const gardenerTagHtml = isRoomGardenerActive(r)
+        ? ` · <span title="Moderated by 🌱 The Gardener (owner's AI helper)">🌱 AI Mod</span>`
+        : "";
+
       headerSubtitleEl.innerHTML = isChannel
         ? `${memberCount} subscribers · Broadcast Channel${linkedBtnHtml}`
-        : `${memberCount} members · ${r.river ? "River WASM Contract · E2EE" : "AES-256-GCM + X25519"}${linkedBtnHtml}`;
+        : `${memberCount} members · ${r.river ? "River WASM Contract · E2EE" : "AES-256-GCM + X25519"}${gardenerTagHtml}${linkedBtnHtml}`;
 
       if (isChannel && !isOwnerOrMod) {
         composerOuterEl.style.display = "none";
@@ -1610,7 +1617,11 @@ export function createMessengerChat(deps: MessengerDeps) {
           </div>
         </div>`
       : `<div class="rm-e2ee-banner">
-            <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("lock", { size: 13, className: "icon-xs" })} <span>Messages in this conversation are end-to-end encrypted on your Freenet node.</span></span>
+            <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("lock", { size: 13, className: "icon-xs" })} <span>${
+              isRoomGardenerActive(st.privateRoom)
+                ? "End-to-end encrypted group · 🌱 Moderated by The Gardener (owner's AI helper scans messages for spam/abuse)."
+                : "Messages in this conversation are end-to-end encrypted on your Freenet node."
+            }</span></span>
             <button type="button" id="rm-inline-verify-btn">Verify safety number</button>
           </div>`;
 
@@ -1850,7 +1861,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const canDelete = st.isSecret
         ? true
         : st.privateRoom
-          ? !st.privateRoom.river || isMine
+          ? (!st.privateRoom.river ? (isMine || isOwnerOrMod) : isMine)
           : true;
 
       const isPinned = pinnedMsgId === m.id;
@@ -2212,6 +2223,9 @@ export function createMessengerChat(deps: MessengerDeps) {
       const isVer = verified.has(`priv:${room.id}`);
 
       const isChannel = !!room.is_channel;
+      const isRadicaOwner = me.toLowerCase() === RADICA_MAINTAINER.toLowerCase();
+      const gardenerInMembers = !!GARDENER_PK && members.some((m) => m.toLowerCase() === GARDENER_PK);
+      const hasGardener = gardenerInMembers && roomMods.some((m) => m.toLowerCase() === GARDENER_PK);
       drawerHeaderLabelEl.textContent = isChannel ? "Broadcast Channel Info" : "E2EE Group Info";
       const memberRows = members
         .map((mPk) => {
@@ -2309,6 +2323,11 @@ export function createMessengerChat(deps: MessengerDeps) {
             <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span></button>
             <button type="button" class="rm-tile-btn" data-copy-room-link="1">${renderIcon("link", { size: 18 })}<span>Link</span></button>
             ${
+              isRadicaOwner && isRoomCreator && !room.river && !isChannel && GARDENER_PK
+                ? `<button type="button" class="rm-tile-btn" data-room-gardener="${hasGardener ? "0" : "1"}"><span>${hasGardener ? "🗑️" : "🌱"}</span><span>${hasGardener ? "Remove Gardener" : "Add Gardener"}</span></button>`
+                : ""
+            }
+            ${
               isOwnerOrMod && room.avatar_url
                 ? `<button type="button" class="rm-tile-btn" data-remove-room-avatar="1">${renderIcon("trash2", { size: 18 })}<span>Remove Image</span></button>`
                 : ""
@@ -2325,6 +2344,11 @@ export function createMessengerChat(deps: MessengerDeps) {
               <strong>${room.river ? "River E2EE Room Key" : "AES-256 Symmetric Key"}</strong>
               <span style="color:var(--rm-online);font-weight:700;font-size:0.72rem;display:inline-flex;align-items:center;gap:3px;">${isVer ? renderIcon("check", { size: 11, className: "icon-xs" }) + " Verified" : "Encrypted"}</span>
             </div>
+            ${
+              !room.river && !isChannel && gardenerInMembers
+                ? `<p style="margin:6px 0 4px;font-size:0.76rem;color:var(--rm-text-secondary);line-height:1.4;">🌱 <b>The Gardener</b> (owner's AI helper) is a moderator in this group and decrypts messages to filter spam/abuse.</p>`
+                : ""
+            }
             <div class="rm-safety-code">${escapeHtml(safetyPreview)}</div>
             <button type="button" class="rm-link-btn" style="align-self:flex-start;" id="rm-drawer-verify-btn">Verify room fingerprint</button>
           </div>
@@ -3255,6 +3279,38 @@ export function createMessengerChat(deps: MessengerDeps) {
         deps.showToast(`${name} removed from room.`, "info");
       } catch (err: any) {
         alert(`Could not kick member: ${err.message || err}`);
+      }
+      return;
+    }
+
+    const gardenerRoomBtn = t.closest<HTMLElement>("[data-room-gardener]");
+    if (
+      gardenerRoomBtn &&
+      st.privateRoom &&
+      GARDENER_PK &&
+      identity.pubkey.toLowerCase() === RADICA_MAINTAINER.toLowerCase() &&
+      st.privateRoom.creator === identity.pubkey &&
+      !st.privateRoom.river &&
+      !st.privateRoom.is_channel
+    ) {
+      const add = gardenerRoomBtn.dataset.roomGardener === "1";
+      if (!add && !confirm("Remove 🌱 The Gardener from this group and rotate the encryption key?")) return;
+      try {
+        let updated: PrivateRoom;
+        if (add) {
+          const room = st.privateRoom;
+          if (!room.members.some((m) => m.toLowerCase() === GARDENER_PK)) {
+            await freenet.inviteMemberToPrivateRoom(identity, room.id, GARDENER_PK);
+          }
+          updated = await freenet.setPrivateRoomModerator(identity, room.id, GARDENER_PK, true);
+          deps.showToast("🌱 The Gardener added as AI moderator for this group.", "info");
+        } else {
+          updated = await freenet.kickMemberFromPrivateRoom(identity, st.privateRoom.id, GARDENER_PK);
+          deps.showToast("🌱 The Gardener removed and room key rotated.", "info");
+        }
+        await deps.onSelectPrivateRoom(updated);
+      } catch (err: any) {
+        alert(`Could not update Gardener: ${err.message || err}`);
       }
       return;
     }

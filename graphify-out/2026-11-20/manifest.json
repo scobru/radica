@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795188985.9713292,
-    "ast_hash": "4b27a886a9ad8a8d466c5d172ff0b697",
+    "mtime": 1795207482.2017257,
+    "ast_hash": "f76ade5fdd0947f41c347b95ed13d01a",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795188821.1355984,
-    "ast_hash": "630741c612d76c5b11ee06ad675a33d3",
+    "mtime": 1795208505.589102,
+    "ast_hash": "42cd960dc53d4900423c7463ecd9223f",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795189112.723648,
-    "ast_hash": "b248ab81ce445e0f43c5c1594f07f049",
+    "mtime": 1795207370.6757343,
+    "ast_hash": "cd8c2f3ec919243516cb6f6a18d0e0da",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795122147.780368,
-    "ast_hash": "96fdc8a693e1c7e318d494662fcd68ef",
+    "mtime": 1795207373.78404,
+    "ast_hash": "81f2db1d2630c524fe6787f89a87ac84",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795190873.0400674,
-    "ast_hash": "d23e6d8fe6735153d10a7c6f7367e5d0",
+    "mtime": 1795207464.9718912,
+    "ast_hash": "a6109cdf52a207223ebe188b63a0e280",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "ui/src/network.ts": {
-    "mtime": 1795188933.1112225,
-    "ast_hash": "c8fa3d6e55afb06406650decb9a95fac",
+    "mtime": 1795207253.0731072,
+    "ast_hash": "0db0bcde51ff3f2416f3a0036e3ab8c8",
     "semantic_hash": ""
   },
   "ui/src/refresh.ts": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795189107.9632921,
-    "ast_hash": "ec7782b2421ce4e059fd59151c91f586",
+    "mtime": 1795207365.679932,
+    "ast_hash": "1d78c927259e1ca9467b91e7a9d7b6fe",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1794935756.3171291,
-    "ast_hash": "68aa6de53f3dcad6715f07ef11ee7468",
+    "mtime": 1795208027.9190338,
+    "ast_hash": "365cd1174bfbaa9358798296a0df127e",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795189116.1487312,
-    "ast_hash": "8e27f61c0ffc7020f3c97b3b8f509f59",
+    "mtime": 1795207446.9736583,
+    "ast_hash": "dc6efaf791a1ef2afb89a5e8193377e0",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "attester/src/main.js": {
-    "mtime": 1795190970.377132,
-    "ast_hash": "520f3c9379c284cee84794ff7073ab77",
+    "mtime": 1795207545.77415,
+    "ast_hash": "476f66958286569e3898ccfc32f46e72",
     "semantic_hash": ""
   },
   "attester/start.sh": {
@@ -840,8 +840,8 @@
     "semantic_hash": ""
   },
   "ui/src/viso.ts": {
-    "mtime": 1795176913.3020704,
-    "ast_hash": "9436ef561fcce6fcb4b8bde184078728",
+    "mtime": 1795194013.5724208,
+    "ast_hash": "8bab7da462499510413d6e16329056cb",
     "semantic_hash": ""
   },
   ".github/workflows/donate-pages.yml": {
@@ -855,8 +855,8 @@
     "semantic_hash": ""
   },
   "attester/docker-compose.yml": {
-    "mtime": 1794338603.5869982,
-    "ast_hash": "0955035c956383d46a4427b17bf153a0",
+    "mtime": 1795193357.1771057,
+    "ast_hash": "eb3f7d1b2489b224b7d8e6b9d335f81d",
     "semantic_hash": ""
   },
   "donate-app/README.md": {
@@ -1005,8 +1005,8 @@
     "semantic_hash": ""
   },
   "ui/tests/messengerChat.test.ts": {
-    "mtime": 1794822665.6834707,
-    "ast_hash": "0b32da8e6f27ee2ac78307cce6941e8a",
+    "mtime": 1795207264.3664896,
+    "ast_hash": "0a6c677f1a12aae3c501d96e4a58cc64",
     "semantic_hash": ""
   },
   "ui/tests/milestones.test.ts": {
@@ -1355,13 +1355,13 @@
     "semantic_hash": ""
   },
   "attester/src/moderator.js": {
-    "mtime": 1795177012.910554,
-    "ast_hash": "08939ea37bbc10b6178490b1c57c2e91",
+    "mtime": 1795207257.5247724,
+    "ast_hash": "236a2c7f6dca54594e856507e33b30ae",
     "semantic_hash": ""
   },
   "attester/src/moderator.test.js": {
-    "mtime": 1795177051.282485,
-    "ast_hash": "22c4c5d76646bc600c61fc12ffc28782",
+    "mtime": 1795207354.9546196,
+    "ast_hash": "de6f23226b80fccc8af8f36d23dd1d7e",
     "semantic_hash": ""
   },
   "ui/src/freenetMail.ts": {

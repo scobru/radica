@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795207482.2017257,
-    "ast_hash": "f76ade5fdd0947f41c347b95ed13d01a",
+    "mtime": 1795212861.836059,
+    "ast_hash": "2ddf40edfd69a5f1c73f74348ffe1cd3",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795208505.589102,
-    "ast_hash": "42cd960dc53d4900423c7463ecd9223f",
+    "mtime": 1795212873.4718838,
+    "ast_hash": "506b639275fe5db741f9741dcc6ab260",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795207370.6757343,
-    "ast_hash": "cd8c2f3ec919243516cb6f6a18d0e0da",
+    "mtime": 1795213102.032461,
+    "ast_hash": "cf6ea7dc10fe50f92b9e528f241f2d7c",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795207373.78404,
-    "ast_hash": "81f2db1d2630c524fe6787f89a87ac84",
+    "mtime": 1795213110.9847288,
+    "ast_hash": "8f708aa4e71420d568ff4498a746a102",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795207464.9718912,
-    "ast_hash": "a6109cdf52a207223ebe188b63a0e280",
+    "mtime": 1795213092.1584353,
+    "ast_hash": "1f20a9716a917eaa89f19d6ad0649344",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795207365.679932,
-    "ast_hash": "1d78c927259e1ca9467b91e7a9d7b6fe",
+    "mtime": 1795213082.6638865,
+    "ast_hash": "1ceb7e17b1492083d7a15e4905aed596",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795208027.9190338,
-    "ast_hash": "365cd1174bfbaa9358798296a0df127e",
+    "mtime": 1795212952.944852,
+    "ast_hash": "2fb30f9c8c095b7e92dfa6cbffca9719",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795207446.9736583,
-    "ast_hash": "dc6efaf791a1ef2afb89a5e8193377e0",
+    "mtime": 1795213120.4177172,
+    "ast_hash": "f013cd00add23542948e8c16abae365e",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "attester/src/main.js": {
-    "mtime": 1795207545.77415,
-    "ast_hash": "476f66958286569e3898ccfc32f46e72",
+    "mtime": 1795213048.3714542,
+    "ast_hash": "3688d0142b420bf8a7b0f687e3998032",
     "semantic_hash": ""
   },
   "attester/start.sh": {
@@ -1355,13 +1355,13 @@
     "semantic_hash": ""
   },
   "attester/src/moderator.js": {
-    "mtime": 1795207257.5247724,
-    "ast_hash": "236a2c7f6dca54594e856507e33b30ae",
+    "mtime": 1795212852.0936935,
+    "ast_hash": "55817b55b53b223bf2d577ed7610f691",
     "semantic_hash": ""
   },
   "attester/src/moderator.test.js": {
-    "mtime": 1795207354.9546196,
-    "ast_hash": "de6f23226b80fccc8af8f36d23dd1d7e",
+    "mtime": 1795213071.4508038,
+    "ast_hash": "c9ff383809e399ab746b8b534e7ca33e",
     "semantic_hash": ""
   },
   "ui/src/freenetMail.ts": {
@@ -1817,6 +1817,21 @@
   "tasks/010-contract-v2-migration.md": {
     "mtime": 1795188644.945248,
     "ast_hash": "548333d834b9e4bfcab01be80d560bbf",
+    "semantic_hash": ""
+  },
+  "attester/src/roomCrypto.js": {
+    "mtime": 1795212820.6913874,
+    "ast_hash": "72a62ea18c4fe4edbe98fe5c96e558cf",
+    "semantic_hash": ""
+  },
+  "attester/src/roomCrypto.test.js": {
+    "mtime": 1795212831.2226617,
+    "ast_hash": "990e50e3629a6ec65285446d123c08bf",
+    "semantic_hash": ""
+  },
+  "ui/tests/roomCryptoInterop.test.ts": {
+    "mtime": 1795212840.3679116,
+    "ast_hash": "c0a1fe2badb365aaf226e4290bcceb51",
     "semantic_hash": ""
   }
 }

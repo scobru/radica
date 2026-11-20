@@ -8365,9 +8365,15 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   const decryptedName = await freenet.getPrivateRoomDecryptedName(currentIdentity, room);
   const isChannel = !!room.is_channel;
   const memberCount = () => (room.river ? freenet.riverRoster(room.id)?.members.length : undefined) ?? room.members.length;
-  const badgeHtml = isChannel
+  const gardenerActive =
+    !room.river &&
+    !isChannel &&
+    !!AI_REPORTERS[0] &&
+    room.members.some((m) => m.toLowerCase() === AI_REPORTERS[0].toLowerCase());
+  const badgeHtml = (isChannel
     ? `<span class="chat-security-badge e2ee btn-icon-text" title="Broadcast Channel (Read-Only for Subscribers)"><span>📢</span> <span>Broadcast Channel</span></span>`
-    : `<span class="chat-security-badge e2ee btn-icon-text" title="On-device AES-256-GCM + X25519 ECIES">${renderIcon("lock", { className: "icon-xs" })} <span>E2EE Group</span></span>`;
+    : `<span class="chat-security-badge e2ee btn-icon-text" title="On-device AES-256-GCM + X25519 ECIES">${renderIcon("lock", { className: "icon-xs" })} <span>E2EE Group</span></span>`) +
+    (gardenerActive ? ` <span class="chat-security-badge" title="Moderated by 🌱 The Gardener (owner's AI helper)">🌱 AI Mod</span>` : "");
   let linkedBtnHtml = "";
   if (room.linked_room_id) {
     linkedBtnHtml = ` <button type="button" class="btn-secondary btn-sm" id="chat-linked-comments-btn" style="padding: 2px 8px; font-size: 0.72rem; margin-left: 6px; cursor: pointer;">${isChannel ? "💬 Comments Room" : "📢 Main Channel"}</button>`;

@@ -4,7 +4,9 @@ import {
   recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody, retractBody, budget,
   shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, applyHoldOutcomes, modsOf, HOLD_CATEGORIES,
   openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
+  ownerInvitedRoomIds, foldRoomState, roomJoinProofs, freshRoomMessages, decideRoomAction,
 } from "./moderator.js";
+import { encryptWithSymmetricKey, decryptWithSymmetricKey } from "./roomCrypto.js";
 
 const NOW = 1_800_000_000_000;
 const A = "ab".repeat(32), B = "cd".repeat(32);
@@ -190,4 +192,60 @@ test("openGreenhouseSeeds + parseGithubMatches: honors maintainer/bot statuses a
   assert.equal(holdOutcome([{ author: B, ts: 10, body: JSON.stringify({ type: "dismiss", target: `${A}:1` }) }], `${A}:1`, new Set([A])), null);
   assert.deepEqual(parseGithubMatches(JSON.stringify([{ id: `${A}:s1`, sha: "9999999", confidence: "high", reason: "fake" }]), new Set([`${A}:s1`]), ["abc1234"]), []);
   assert.deepEqual(openGreenhouseSeeds([{ author: A, id: "bad\n`id`", ts: 5, body: JSON.stringify({ type: "seed", title: "x" }) }], B, []), []);
+});
+
+test("ownerInvitedRoomIds accepts only owner-signed native non-channel room invites", () => {
+  const owner = A, stranger = B;
+  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
+  const inbox = [
+    le(owner, 1, { type: "room_invite", room: { id: "privroom_ok1", creator: owner, members: [owner] } }),
+    le(stranger, 2, { type: "room_invite", room: { id: "privroom_stranger", creator: stranger, members: [stranger] } }),
+    le(stranger, 3, { type: "room_invite", room: { id: "privroom_spoofed", creator: owner, members: [owner] } }), // author != owner
+    le(owner, 4, { type: "room_invite", room: { id: "privroom_chan", creator: owner, is_channel: true, members: [owner] } }),
+    le(owner, 5, { type: "room_invite", room: { id: "privroom_river", creator: owner, river: { owner }, members: [owner] } }),
+    le(owner, 6, { type: "room_invite", room: { id: "privroom_ok2", creator: owner, members: [owner] } }),
+  ];
+  assert.deepEqual(ownerInvitedRoomIds(inbox, owner), ["privroom_ok2", "privroom_ok1"]);
+});
+
+test("foldRoomState + roomJoinProofs + freshRoomMessages + decideRoomAction: owner-only room moderation", async () => {
+  const owner = A, user = B, bot = "ee".repeat(32);
+  const roomKey = new Uint8Array(32).fill(9);
+  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
+  const roomEntries = [
+    le(owner, 1, {
+      type: "private_room",
+      room: { id: "privroom_1", creator: owner, members: [owner, bot, user], moderators: [bot], encrypted_keys: { [bot]: "e2e:x:y" } },
+    }),
+    le(user, 2, { type: "room_join", roomId: "privroom_1", key_proof: "11".repeat(32) }),
+    le(owner, NOW - 500, {
+      type: "chat",
+      message: { id: "m1", room_id: "privroom_1", sender: owner, text: await encryptWithSymmetricKey(roomKey, "owner msg"), timestamp: NOW - 500 },
+    }, "m1"),
+    le(user, NOW - 400, {
+      type: "chat",
+      message: { id: "m2", room_id: "privroom_1", sender: user, text: await encryptWithSymmetricKey(roomKey, "deleted msg"), timestamp: NOW - 400 },
+    }, "m2"),
+    le(bot, NOW - 350, { type: "chat_delete", roomId: "privroom_1", messageId: "m2" }, "d1"),
+    le(user, NOW - 300, {
+      type: "chat",
+      message: { id: "m3", room_id: "privroom_1", sender: user, text: await encryptWithSymmetricKey(roomKey, "free crypto scam link!"), timestamp: NOW - 300 },
+    }, "m3"),
+  ];
+
+  const room = foldRoomState(roomEntries, "privroom_1");
+  assert.ok(room && room.creator === owner && room.moderators.includes(bot));
+  const proofs = roomJoinProofs(roomEntries, "privroom_1");
+  assert.ok(proofs.creatorListed.has(owner) && proofs.joinProofs.get(user) === "11".repeat(32));
+
+  const prot = new Set([owner, bot]);
+  const msgs = await freshRoomMessages(roomEntries, room, roomKey, new Set(), prot, decryptWithSymmetricKey, NOW);
+  assert.deepEqual(msgs.map((m) => ({ id: m.msgId, text: m.text })), [{ id: "m3", text: "free crypto scam link!" }]);
+
+  assert.equal(decideRoomAction({}, "privroom_1", owner, "illegal", prot).action, "skip");
+  assert.equal(decideRoomAction({}, "privroom_1", user, "illegal", prot).action, "kick");
+  const first = decideRoomAction({}, "privroom_1", user, "spam", prot);
+  assert.equal(first.action, "warn");
+  const second = decideRoomAction(first.nextStrikes, "privroom_1", user, "spam", prot);
+  assert.equal(second.action, "kick");
 });

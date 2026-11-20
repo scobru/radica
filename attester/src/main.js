@@ -19,7 +19,12 @@ import {
   REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody,
   retractBody, budget, shouldHold, categoryDisabled, applyHoldOutcomes, modsOf, CATEGORIES,
   openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
+  ownerInvitedRoomIds, foldRoomState, roomJoinProofs, freshRoomMessages, decideRoomAction,
 } from "./moderator.js";
+import {
+  decryptRoomKey, encryptRoomKeyForPeer, encryptWithSymmetricKey, decryptWithSymmetricKey,
+  computeRoomJoinProof, verifyProfileEncPub,
+} from "./roomCrypto.js";
 import { liveReleases, trackTitles, mbUrl, mbMatch, reportOf, reportDelta } from "./freetunes.js";
 import { legacyHashes, sweep } from "./sweep.js";
 
@@ -271,7 +276,7 @@ async function pass(api, sk, st) {
 const modFile = join(DATA, "moderated.json");
 const loadMod = async () => {
   const base = existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : {};
-  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, mirroredSeeds: [], lastGhSha: "", ...base };
+  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenRoomMsgs: [], roomStrikes: {}, mirroredSeeds: [], lastGhSha: "", ...base };
 };
 const saveMod = (state) => writeJsonAtomic(modFile, state);
 
@@ -290,6 +295,146 @@ const askModel = (posts) => askRaw(buildMessages(posts));
 async function globalProtectedSet(api, extraKeys = []) {
   const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
   return new Set([MOD_MAINTAINER.toLowerCase(), ...modsOf(maintainerLog, MOD_DEFAULT_MODS, MOD_MAINTAINER), ...extraKeys.filter(Boolean).map((k) => k.toLowerCase())]);
+}
+
+async function resolveEncPub(api, pubkey, fallbackEncPub) {
+  const low = String(pubkey ?? "").toLowerCase();
+  const fb = typeof fallbackEncPub === "string" && /^[0-9a-f]{64}$/i.test(fallbackEncPub) ? fallbackEncPub.toLowerCase() : null;
+  try {
+    const raw = await getFeed(api, low);
+    const profile = raw ? JSON.parse(raw)?.profile : null;
+    const verified = await verifyProfileEncPub(low, profile, APP);
+    if (verified !== low) return verified;
+    return !profile?.enc_pub && fb ? fb : verified;
+  } catch {
+    return fb ?? low;
+  }
+}
+
+async function signPrivateRoomMessage(modSk, roomId, plaintext, roomKey) {
+  const sender = bytesToHex(await ed.getPublicKeyAsync(modSk)).toLowerCase();
+  const id = `msg_${Date.now()}_${bytesToHex(crypto.getRandomValues(new Uint8Array(3)))}`;
+  const timestamp = Date.now();
+  const sigMsg = `${id}:${roomId}:${sender}:privateroom:${plaintext}:${timestamp}`;
+  const sig = bytesToHex(await ed.signAsync(new TextEncoder().encode(sigMsg), modSk));
+  const text = await encryptWithSymmetricKey(roomKey, plaintext);
+  return { id, room_id: roomId, private_room_id: roomId, sender, text, timestamp, sig };
+}
+
+/** Moderate native E2EE private groups where the Radica owner explicitly invited & promoted The Gardener. */
+async function roomModPass(api, modSk, modPk, mod, globalProtected, b) {
+  const botLow = modPk.toLowerCase();
+  const ownerLow = MOD_MAINTAINER.toLowerCase();
+  const inbox = await getEntries(api, `inbox/${modPk}`);
+  const roomIds = ownerInvitedRoomIds(inbox, ownerLow);
+  if (!roomIds.length) return;
+  const seenRoomMsgs = new Set(mod.seenRoomMsgs ?? []);
+  let strikes = { ...(mod.roomStrikes ?? {}) };
+  let dirty = false;
+
+  for (const roomId of roomIds) {
+    if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
+    const roomEntries = await getEntries(api, `room/${roomId}`);
+    if (!roomEntries) continue;
+    const room = foldRoomState(roomEntries, roomId);
+    if (!room || room.creator !== ownerLow || room.river || room.is_channel || !room.members.includes(botLow) || !room.moderators.includes(botLow)) {
+      continue;
+    }
+    let roomKey = await decryptRoomKey(modSk, botLow, room);
+    if (!roomKey) continue;
+    const roomProtected = new Set([...globalProtected, room.creator, ...room.moderators, botLow]);
+    const msgs = await freshRoomMessages(roomEntries, room, roomKey, seenRoomMsgs, roomProtected, decryptWithSymmetricKey);
+    const actedThisPass = new Set();
+
+    for (let i = 0; i < msgs.length && b.requestsLeft > 0 && b.reportsLeft > 0; i += BATCH) {
+      const batch = msgs.slice(i, i + BATCH);
+      b.used.requests++; b.requestsLeft--;
+      let verdicts = null;
+      try { verdicts = parseVerdicts(await askModel(batch), batch.length); } catch (e) { log("[gardener:room] model unreachable:", e.message || e); }
+      if (verdicts) {
+        for (const v of verdicts) {
+          if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
+          const msg = batch[v.i];
+          if (actedThisPass.has(msg.sender)) continue;
+          // Require lone second-opinion check before acting (prompt-injection defense)
+          b.used.requests++; b.requestsLeft--;
+          let second = null;
+          try { second = parseVerdicts(await askModel([msg]), 1); } catch (e) { log("[gardener:room] second opinion unreachable:", e.message || e); }
+          if (!confirmsHold(second, v.category)) continue;
+
+          const decision = decideRoomAction(strikes, room.id, msg.sender, v.category, roomProtected);
+          strikes = decision.nextStrikes;
+          actedThisPass.add(msg.sender);
+          const short = msg.sender.slice(0, 8);
+
+          if (decision.action === "warn") {
+            b.used.reports++; b.reportsLeft--;
+            const warnTxt = `⚠️ @${short}: The Gardener flagged ${v.category} (${v.reason}). Please keep this group clean — next violation leads to removal.`;
+            const chatMsg = await signPrivateRoomMessage(modSk, room.id, warnTxt, roomKey);
+            await append(api, `room/${room.id}`, await signEntry(modSk, `room/${room.id}`, APP, { type: "chat", message: chatMsg }));
+            log("[gardener:room] warned", short, "in", room.id, v.category);
+          } else if (decision.action === "kick") {
+            b.used.reports++; b.reportsLeft--;
+            await append(api, `room/${room.id}`, await signEntry(modSk, `room/${room.id}`, APP, { type: "chat_delete", roomId: room.id, messageId: msg.msgId }));
+
+            const entryList = Object.values(roomEntries);
+            const { creatorListed, joinProofs } = roomJoinProofs(entryList, room.id);
+            const legacyProvenJoiners = new Set();
+            for (const le of entryList) {
+              const s = String(le?.author ?? "").toLowerCase();
+              if (creatorListed.has(s) || legacyProvenJoiners.has(s)) continue;
+              try {
+                const parsed = JSON.parse(le.body);
+                if (parsed?.type === "chat" && typeof parsed?.message?.text === "string" && parsed.message.text.startsWith("sym:")) {
+                  if ((await decryptWithSymmetricKey(roomKey, parsed.message.text)) !== null) legacyProvenJoiners.add(s);
+                }
+              } catch {}
+            }
+            const remainingMembers = room.members.filter((m) => {
+              if (m === msg.sender) return false;
+              if (m === room.creator || m === botLow || creatorListed.has(m)) return true;
+              return joinProofs.get(m) === computeRoomJoinProof(roomKey, room.id, m) || legacyProvenJoiners.has(m);
+            });
+
+            const newRoomKey = crypto.getRandomValues(new Uint8Array(32));
+            const currentName = (room.name_encrypted ? await decryptWithSymmetricKey(roomKey, room.name_encrypted) : null) || "Private Room";
+            const nextNameEnc = await encryptWithSymmetricKey(newRoomKey, currentName);
+            const updatedKeys = {};
+            for (const m of remainingMembers) {
+              const ep = await resolveEncPub(api, m, m === room.creator ? room.creator_enc_pub : undefined);
+              updatedKeys[m] = await encryptRoomKeyForPeer(modSk, ep, newRoomKey);
+            }
+
+            await append(api, `room/${room.id}`, await signEntry(modSk, `room/${room.id}`, APP, {
+              type: "room_kick",
+              roomId: room.id,
+              target: msg.sender,
+              name_encrypted: nextNameEnc,
+              encrypted_keys: updatedKeys,
+              keys_enc_pub: botLow,
+            }));
+
+            roomKey = newRoomKey;
+            room.members = remainingMembers;
+            room.moderators = room.moderators.filter((m) => m !== msg.sender && remainingMembers.includes(m));
+            room.name_encrypted = nextNameEnc;
+            room.encrypted_keys = updatedKeys;
+            room.keys_enc_pub = botLow;
+
+            const kickMsg = await signPrivateRoomMessage(modSk, room.id, `🌱 The Gardener removed @${short} (${v.category}).`, newRoomKey);
+            await append(api, `room/${room.id}`, await signEntry(modSk, `room/${room.id}`, APP, { type: "chat", message: kickMsg }));
+            log("[gardener:room] kicked", short, "from", room.id, v.category);
+          }
+        }
+      }
+      for (const m of batch) seenRoomMsgs.add(m.key);
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    mod.seenRoomMsgs = [...seenRoomMsgs].slice(-2000);
+    mod.roomStrikes = strikes;
+  }
 }
 
 async function ghFetch(path, init = {}) {
@@ -440,6 +585,7 @@ async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = f
     await saveMod({ ...mod, judged: [...judged], used, heldTargets, categoryStats });
   }
   const rem = { used, requestsLeft, reportsLeft, holdsLeft };
+  await roomModPass(api, modSk, modPk, mod, protectedSet, rem).catch((e) => log("[gardener:room] failed:", e.message || e));
   if (runGithubSync) await greenhousePass(api, modSk, modPk, mod, rem).catch((e) => log("[gardener:gh] failed:", e.message || e));
   await saveMod({ ...mod, judged: [...judged], used: rem.used, heldTargets, categoryStats });
   log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${rem.used.requests}/${MOD_LIMITS.requests} requests, ${rem.used.holds}/${MOD_LIMITS.holds} holds today`);

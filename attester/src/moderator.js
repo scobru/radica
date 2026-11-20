@@ -290,3 +290,155 @@ export function budget(used, limits, now = Date.now()) {
     holdsLeft: Math.max(0, (limits.holds ?? 0) - (u.holds ?? 0)),
   };
 }
+
+const HEX64_RE = /^[0-9a-f]{64}$/i;
+const normHex = (s) => (typeof s === "string" ? s.toLowerCase() : "");
+
+/** Native non-channel private rooms that `ownerPk` (signed author + creator) explicitly invited this bot to. */
+export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
+  const owner = normHex(ownerPk);
+  if (!HEX64_RE.test(owner)) return [];
+  const invited = [];
+  const seen = new Set();
+  const parsed = sortedParsed(inboxEntries);
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const { e, b } = parsed[i];
+    if (normHex(e?.author) !== owner) continue;
+    if (b?.type !== "room_invite" || !b.room || typeof b.room.id !== "string") continue;
+    if (!b.room.id.startsWith("privroom_") || b.room.river || b.room.is_channel) continue;
+    if (normHex(b.room.creator) !== owner) continue;
+    if (!seen.has(b.room.id)) {
+      seen.add(b.room.id);
+      invited.push(b.room.id);
+    }
+  }
+  return invited;
+}
+
+/** Fold `room/<id>` entries into the authoritative native PrivateRoom roster + encrypted_keys (mirrors ui/src/logfold.ts foldRoom). */
+export function foldRoomState(entries, roomId) {
+  let room = null;
+  const kicked = new Set();
+  const joined = {};
+  for (const { e, b } of sortedParsed(entries)) {
+    const a = normHex(e?.author);
+    if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
+      room = structuredClone(b.room);
+      room.creator = a;
+      if (typeof room.creator_enc_pub === "string") room.creator_enc_pub = room.creator_enc_pub.toLowerCase();
+      if (typeof room.keys_enc_pub === "string") room.keys_enc_pub = room.keys_enc_pub.toLowerCase();
+      room.members = (room.members ?? []).map((m) => normHex(m)).filter(Boolean);
+      room.moderators = (room.moderators ?? []).map((m) => normHex(m)).filter((m) => m !== room.creator && room.members.includes(m));
+      const ek = {};
+      for (const [k, v] of Object.entries(room.encrypted_keys ?? {})) ek[normHex(k)] = v;
+      room.encrypted_keys = ek;
+      for (const m of room.members) kicked.delete(m);
+      for (const [m, k] of Object.entries(joined)) {
+        if (room.members.includes(m)) continue;
+        room.members.push(m);
+        if (k) room.encrypted_keys[m] = k;
+      }
+    } else if (b?.type === "room_join" && b.roomId === roomId && room && !room.members.includes(a) && !kicked.has(a)) {
+      room.members.push(a);
+      joined[a] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
+      if (typeof b.encrypted_key === "string") room.encrypted_keys[a] = b.encrypted_key;
+    } else if (b?.type === "room_leave" && b.roomId === roomId && room && a !== room.creator && room.members.includes(a)) {
+      room.members = room.members.filter((m) => m !== a);
+      delete joined[a];
+      room.moderators = (room.moderators ?? []).filter((m) => m !== a);
+      delete room.encrypted_keys[a];
+    } else if (b?.type === "room_kick" && b.roomId === roomId && room && typeof b.target === "string") {
+      const t = normHex(b.target);
+      const byCreator = a === room.creator;
+      const mods = room.moderators ?? [];
+      if (!(byCreator || mods.includes(a)) || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t))) continue;
+      room.members = room.members.filter((m) => m !== t);
+      room.moderators = mods.filter((m) => m !== t);
+      kicked.add(t);
+      delete joined[t];
+      const keys = {};
+      if (b.encrypted_keys && typeof b.encrypted_keys === "object") {
+        for (const [m, v] of Object.entries(b.encrypted_keys)) {
+          const ml = normHex(m);
+          if (room.members.includes(ml)) keys[ml] = v;
+        }
+      }
+      room.encrypted_keys = keys;
+      if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
+      room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? normHex(b.keys_enc_pub) : undefined;
+    }
+  }
+  return room;
+}
+
+/** Creator-listed members and HMAC `key_proof` values from `room/<id>` entries (mirrors ui/src/logfold.ts roomJoinProofs). */
+export function roomJoinProofs(entries, roomId) {
+  const creatorListed = new Set();
+  const joinProofs = new Map();
+  let creator = "";
+  for (const { e, b } of sortedParsed(entries)) {
+    const a = normHex(e?.author);
+    if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
+      creator = a;
+      creatorListed.add(a);
+      for (const m of b.room.members ?? []) {
+        const ml = normHex(m);
+        if (ml) creatorListed.add(ml);
+      }
+    } else if (b?.type === "room_join" && b.roomId === roomId && creator) {
+      if (HEX64_RE.test(String(b.key_proof ?? ""))) joinProofs.set(a, String(b.key_proof).toLowerCase());
+    } else if (b?.type === "room_leave" && b.roomId === roomId) {
+      creatorListed.delete(a);
+      joinProofs.delete(a);
+    } else if (b?.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
+      const t = normHex(b.target);
+      creatorListed.delete(t);
+      joinProofs.delete(t);
+    }
+  }
+  return { creatorListed, joinProofs };
+}
+
+/** Recent decrypted native-room messages not yet judged, not deleted, and not sent by protected owners/mods. */
+export async function freshRoomMessages(entries, room, roomKey, seenIds, protectedSet, decryptSymFn, now = Date.now()) {
+  if (!room || !roomKey) return [];
+  const parsed = sortedParsed(entries);
+  const mods = new Set([normHex(room.creator), ...(room.moderators ?? []).map(normHex)]);
+  const deletedByMsg = new Map();
+  for (const { e, b } of parsed) {
+    if (b?.type === "chat_delete" && b.roomId === room.id && typeof b.messageId === "string") {
+      let set = deletedByMsg.get(b.messageId);
+      if (!set) deletedByMsg.set(b.messageId, (set = new Set()));
+      set.add(normHex(e?.author));
+    }
+  }
+  const out = [];
+  for (const { e, b } of parsed) {
+    const m = b?.message;
+    const sender = normHex(m?.sender);
+    if (b?.type !== "chat" || !m || sender !== normHex(e?.author) || m.room_id !== room.id || typeof m.id !== "string") continue;
+    const deleters = deletedByMsg.get(m.id);
+    if (deleters && ([...deleters].some((d) => d === sender || mods.has(d)))) continue;
+    const ts = Number(m.timestamp || e.ts || 0);
+    if (now - ts > DAY) continue;
+    if (protectedSet.has(sender) || !room.members.includes(sender)) continue;
+    const key = `${room.id}:${m.id}`;
+    if (seenIds.has(key) || typeof m.text !== "string") continue;
+    const plain = m.text.startsWith("sym:") ? await decryptSymFn(roomKey, m.text) : m.text;
+    if (typeof plain !== "string" || plain.trim().length <= 2) continue;
+    out.push({ key, msgId: m.id, sender, text: plain.slice(0, 1000), ts });
+  }
+  return out;
+}
+
+/** Decide warn vs immediate/escalated kick for a flagged native private room sender. */
+export function decideRoomAction(strikes, roomId, sender, category, protectedSet) {
+  const s = normHex(sender);
+  if (!s || protectedSet.has(s)) return { action: "skip", nextStrikes: strikes ?? {} };
+  const cur = strikes ?? {};
+  const k = `${roomId}:${s}`;
+  const prev = Number(cur[k] ?? 0);
+  const nextStrikes = { ...cur, [k]: prev + 1 };
+  if (HOLD_CATEGORIES.includes(category)) return { action: "kick", nextStrikes };
+  return { action: prev === 0 ? "warn" : "kick", nextStrikes };
+}

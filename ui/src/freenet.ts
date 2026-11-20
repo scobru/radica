@@ -1953,7 +1953,8 @@ export class FreenetClient {
         localStorage.setItem("freenet_private_rooms", JSON.stringify([...list.filter((r) => r.id !== id), mergedRoom]));
         this.saveRoomsToNode();
       }
-      this.writeChat(id, foldChat(entries, id, (a, m) => a === m.sender, (sender) => this.isBlocked(sender)), entries);
+      const isRoomMod = (pk: string) => !!room && (pk === room.creator || (room.moderators ?? []).includes(pk));
+      this.writeChat(id, foldChat(entries, id, (a, m) => a === m.sender || isRoomMod(a), (sender) => this.isBlocked(sender)), entries);
     } else if (name.startsWith("reactions/")) {
       const author = name.slice("reactions/".length);
       this.reactionFolds.delete(author);
