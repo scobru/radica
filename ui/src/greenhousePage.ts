@@ -164,7 +164,8 @@ async function append(body: object): Promise<void> {
   const token = myToken();
   if (!token && !myGhostkey() && !myPoh() && whoAmI() !== RADICA_MAINTAINER && myLinfaWeight <= 0) return;
   await freenet.greenhouseAppend(token ? { ...body, receipt: token } : body); // a GhostKey's proof is on the ghostkeys log, and Linfa is checked from signed posts
-  await renderGreenhouse();
+  // not awaited: the redraw reads every author's feed (slow), and callers must empty their box before it keeps drafts
+  void renderGreenhouse().catch((err) => console.warn("Greenhouse redraw failed:", err));
 }
 
 async function copyTextWithFeedback(text: string, btn: HTMLButtonElement | null, toastMsg: string, shareMeta?: { title: string; text: string; url: string }): Promise<void> {
@@ -277,10 +278,13 @@ export function initGreenhouse(deps: {
     if ((check.containsPII || check.isToxic) && !confirm(`${check.warnings.join("\n") || "This comment may contain personal data or abusive language."}\n\nPost it anyway?`)) return;
     const btn = f.querySelector<HTMLButtonElement>("button[type=submit]");
     if (btn) btn.disabled = true;
+    // emptied before sending: the redraw after it keeps whatever an open box still holds as a draft
+    f.reset();
     try {
       await append({ type: "comment", seed: f.dataset.ghSeed, text });
-      f.reset();
     } catch (err) {
+      const box = f.querySelector<HTMLInputElement>("input[name=text]");
+      if (box && !box.value) box.value = text;
       alert(`Could not comment: ${(err as Error).message || err}`);
     } finally {
       if (btn) btn.disabled = false;
