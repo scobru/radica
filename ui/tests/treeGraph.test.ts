@@ -365,3 +365,27 @@ test("treeGraph: an old article stays on the tree even when 48+ newer posts fill
   assert.ok(model.posts.some((p) => p.id === "art-old"));
   assert.equal(model.posts.length, 48);
 });
+
+test("treeGraph: posts on a crowded bough keep a minimum distance and their leaves follow the branch", () => {
+  const many = Array.from({ length: 40 }, (_, i) =>
+    makePost({
+      id: `t${i}`,
+      author: ALICE,
+      timestamp: NOW - i * HOUR,
+      comments: { [`${BOB}:c${i}`]: { id: `c${i}`, post_id: `t${i}`, author: BOB, text: "nice", timestamp: NOW - i * HOUR + 1, sig: "s" } },
+    })
+  );
+  const model = buildTreeGraph({ posts: many, communities: [], peers: PEERS, myPubkey: ME, myName: "You", now: NOW });
+  assert.ok(model.posts.length >= 30);
+  for (let i = 0; i < model.posts.length; i++)
+    for (let j = i + 1; j < model.posts.length; j++) {
+      const a = model.posts[i], b = model.posts[j];
+      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.radius + b.radius, `${a.id} overlaps ${b.id}`);
+    }
+  // a single leaf sits at t = 0.62 on the quadratic branch from start through ctrl to end
+  for (const p of model.posts) {
+    const t = 0.62, u = 1 - t;
+    const bx = u * u * p.startX + 2 * u * t * p.ctrlX + t * t * p.x;
+    assert.ok(Math.abs(p.leaves[0].branchX - bx) < 0.5, `leaf of ${p.id} left its branch`);
+  }
+});
