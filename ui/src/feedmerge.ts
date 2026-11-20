@@ -10,6 +10,7 @@ export function overlayFeed(f: FeedState, d: FeedState): FeedState {
     f.following_updated_at = d.following_updated_at;
     f.following_sig = d.following_sig;
     f.following_cert = d.following_cert;
+    f.following_v = d.following_v;
   }
   for (const [id, del] of Object.entries(d.deleted ?? {})) {
     delete f.posts[id];

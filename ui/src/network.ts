@@ -127,6 +127,7 @@ export class FreenetNetwork {
   private dog?: ReturnType<typeof setInterval>;
   private ids = new Map<string, ContractId>(); // encoded contract key -> id
   private known = new Set<ContractId>(); // contracts that exist on the network
+  private probing = new Set<ContractId>(); // legacy lookups under way
 
   /** When each contract was last fetched (and so subscribed to) on this connection; cleared when the socket drops. */
   private live = new Map<ContractId, number>();
@@ -341,20 +342,23 @@ export class FreenetNetwork {
     await withTimeout(api.update(new UpdateRequest(key, new UpdateData(UpdateDataType.RelatedStateAndDeltaUpdate, upd))));
   }
 
-  /** What a contract holds under the newest earlier generation that has it, without carrying it anywhere. */
+  /** What a contract holds under the newest earlier generation that has it, without carrying it anywhere. Throws when a
+   *  lookup failed (timeout, socket) and nothing was found, so a miss is never mistaken for "not there". */
   async legacy<T>(id: ContractId): Promise<T | null> {
     const kind = id.startsWith("feed:") ? "feed" : "log";
     const api = await this.connect();
     const { params } = partsOf(id);
+    let failed: unknown;
     for (const hex of LEGACY[kind]) {
       const hash = hexToBytes(hex);
       const buf = new Uint8Array(hash.length + params.length);
       buf.set(hash, 0);
       buf.set(params, hash.length);
       const key = new ContractKey(blake3(buf), hash);
-      const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)))).catch(() => null);
+      const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)))).catch((e) => ((failed = e), null));
       if (r?.state.length) return JSON.parse(dec.decode(toU8(r.state))) as T;
     }
+    if (failed) throw failed;
     return null;
   }
 
@@ -362,21 +366,30 @@ export class FreenetNetwork {
   private async fromLegacy<T>(id: ContractId): Promise<T | null> {
     const kind = id.startsWith("feed:") ? "feed" : "log";
     const mark = `${PROBED}:${CURRENT[kind]}`; // a new generation probes everything again
-    // shortcut: a legacy lookup that times out is not retried, retry per session if near-misses strand data
     const done: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
-    if (done.includes(id)) return null;
-    safeStorage.setItem(mark, JSON.stringify([...done, id])); // before probing: push below calls get again
-    let state: T | null = await this.legacy<T>(id);
-    if (state === null) return null;
-    // a log moves without what no longer counts (superseded state, an inbox's conversations): it stays small
-    const log = state as { entries?: Record<string, LogEntry> };
-    if (kind === "log" && log.entries) state = { ...log, entries: compactLog(id.slice("log:".length), log.entries) } as T;
+    if (done.includes(id) || this.probing.has(id)) return null;
+    this.probing.add(id); // push below calls get again
     try {
-      await this.push(id, state); // the current contract checks every record: a state it no longer accepts stays behind
-      return state;
-    } catch (e) {
-      console.warn("[Freenet] Could not carry", id, "forward from an earlier contract", e);
-      return null;
+      let state: T | null;
+      try {
+        state = await this.legacy<T>(id);
+      } catch {
+        return null; // a lookup failed: not marked done, so the next read probes again and nothing is left behind
+      }
+      safeStorage.setItem(mark, JSON.stringify([...JSON.parse(safeStorage.getItem(mark) || "[]"), id]));
+      if (state === null) return null;
+      // a log moves without what no longer counts (superseded state, an inbox's conversations): it stays small
+      const log = state as { entries?: Record<string, LogEntry> };
+      if (kind === "log" && log.entries) state = { ...log, entries: compactLog(id.slice("log:".length), log.entries) } as T;
+      try {
+        await this.push(id, state); // the current contract checks every record: a state it no longer accepts stays behind
+        return state;
+      } catch (e) {
+        console.warn("[Freenet] Could not carry", id, "forward from an earlier contract", e);
+        return null;
+      }
+    } finally {
+      this.probing.delete(id);
     }
   }
 

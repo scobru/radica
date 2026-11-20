@@ -6,7 +6,7 @@
 // hash in CURRENT. legacy.test.ts fails until you do. Only list generations whose params have today's format.
 
 export const CURRENT = {
-  feed: "6eed3cbfb9e9931660dc86c13834a1e24c4e14e547cd66cd2eb1f7a59950d5b6",
+  feed: "34c54f5687fa2807470907a05bd72070c03215505f8dcd1e35eb8c169e02343c", // v3: length-prefixed signatures, PoW, caps
   log: "004279a5303a2bda886df679cef284433b396ceb7e68132049d91b748d5acb6e",
   // images (media-contract/): content-addressed, so a new media.wasm leaves every image at its old key. Rebuild it only
   // when you must, and then list the old hash in LEGACY.media and look images up there too.
@@ -14,7 +14,7 @@ export const CURRENT = {
 };
 
 export const LEGACY: Record<keyof typeof CURRENT, string[]> = {
-  feed: ["b1dd80fb71ed06047ded921e00dc4ad330c92cfd6299a1427423c56b5d8bba73"], // 42c394a, first build with the app path in params
+  feed: ["6eed3cbfb9e9931660dc86c13834a1e24c4e14e547cd66cd2eb1f7a59950d5b6", "b1dd80fb71ed06047ded921e00dc4ad330c92cfd6299a1427423c56b5d8bba73"], // last v2 build; 42c394a, first build with the app path in params
   log: ["4c17282a893595cb167387b785554e0bd100990d8b2a14a3fea290d65e306437", "690d6439e24f4dbd523f61c343b12a7276fd7466d9da8df741e5e371b12c4e8e"], // before: an author's newer entry did not replace the older under one key; 42c394a
   media: [],
 };

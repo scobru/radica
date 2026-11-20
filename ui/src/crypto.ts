@@ -155,6 +155,42 @@ export function formatDeleteSignatureMessage(owner: string, postId: string): str
   return `radica/delete/v2:${owner}:${postId}`;
 }
 
+// v3 feed messages (records with `v: 3`): `<tag>|` then each field as `<UTF-8 byte length>:<bytes>`, so a message reads
+// back one way only. Must match contract/src/lib.rs `lp` and its *_msg3 builders exactly.
+export function lp(tag: string, fields: (string | number | boolean)[]): string {
+  return `${tag}|` + fields.map((f) => `${enc.encode(String(f)).length}:${f}`).join("");
+}
+type PostFields = Parameters<typeof formatPostSignatureMessage>[0];
+export const postMsg3 = (p: PostFields) =>
+  lp("radica/post/v3", [p.id, p.author, p.category, p.caption, p.media_uri || "", p.community_id || "", p.location || "", p.event_date || "", !!p.is_nsfw, p.timestamp]);
+export const commentMsg3 = (owner: string, c: { id: string; post_id: string; author: string; text: string; timestamp: number; nonce?: number }) =>
+  lp("radica/comment/v3", [owner, c.post_id, c.id, c.author, c.text, c.timestamp, c.nonce ?? 0]);
+export const likeMsg3 = (owner: string, postId: string, liker: string, l: { liked: boolean; ts: number; nonce?: number }) =>
+  lp("radica/like/v3", [owner, postId, liker, l.liked, l.ts, l.nonce ?? 0]);
+export const profileMsg4 = (owner: string, p: { display_name: string; bio: string; avatar_url: string; enc_pub?: string; updated_at: number }) =>
+  lp("radica/profile/v4", [owner, p.display_name, p.bio, p.avatar_url, p.enc_pub ?? "", p.updated_at]);
+/** `following` sorted by code unit, like the contract's BTreeSet of hex keys. */
+export const followingMsg3 = (owner: string, updatedAt: number, following: string[]) =>
+  lp("radica/following/v3", [owner, updatedAt, ...[...following].sort()]);
+export const deleteMsg3 = (owner: string, postId: string) => lp("radica/delete/v3", [owner, postId]);
+
+/** The feed contract's proof of work: comments and likes on someone else's feed need this many leading zero bits of BLAKE3(message). */
+export const FEED_POW_BITS = 12;
+export function powBits(msg: string): number {
+  let n = 0;
+  for (const b of blake3(enc.encode(msg))) {
+    n += Math.clz32(b) - 24;
+    if (b) break;
+  }
+  return n;
+}
+/** The first nonce whose message meets FEED_POW_BITS (about 4k BLAKE3 hashes; hashing only, the signature comes once after). */
+export function grindNonce(msgOf: (nonce: number) => string): number {
+  let n = 0;
+  while (powBits(msgOf(n)) < FEED_POW_BITS) n++;
+  return n;
+}
+
 export function formatChatMessageSignatureMessage(
   id: string,
   roomId: string,

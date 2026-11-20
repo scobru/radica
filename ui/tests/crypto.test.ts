@@ -234,3 +234,15 @@ test("crypto: verifySignature binds cache key to message content", async () => {
   // Reuse of (sig1, pk) for a different message MUST NOT hit cached true
   assert.equal(await verifySignature(msg2, sig1, pk), false);
 });
+
+// Shared vectors with contract/src/lib.rs `v3_vectors_match_the_ui`: change both or neither.
+test("v3 feed messages: length-prefixed in UTF-8 bytes, same as the contract", async () => {
+  const { lp, postMsg3, commentMsg3, powBits, FEED_POW_BITS } = await import("../src/crypto.ts");
+  assert.equal(lp("t", ["a:b", "", "é"]), "t|3:a:b0:2:é");
+  assert.equal(
+    postMsg3({ id: "p1", author: "ab".repeat(32), category: "thought", caption: "hi: é", media_uri: "", timestamp: 7 }),
+    "radica/post/v3|2:p164:" + "ab".repeat(32) + "7:thought6:hi: é0:0:0:0:5:false1:7",
+  );
+  const c = { id: "c1", post_id: "p1", author: "cd".repeat(32), text: "x", timestamp: 9, nonce: 15254 };
+  assert.ok(powBits(commentMsg3("ab".repeat(32), c)) >= FEED_POW_BITS);
+});

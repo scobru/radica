@@ -987,4 +987,15 @@ mod tests {
         let d = compute_delta(&full, &FeedSummary::default());
         assert_eq!(merged(&o, &[d]), full);
     }
+
+    // Shared vectors with ui/tests/crypto.test.ts: change both or neither.
+    #[test]
+    fn v3_vectors_match_the_ui() {
+        assert_eq!(lp("t", &["a:b", "", "é"]), "t|3:a:b0:2:é");
+        let mut p = post(&sk(1), "p1", "hi: é", 7);
+        p.author = "ab".repeat(32);
+        assert_eq!(post_msg3(&p), format!("radica/post/v3|2:p164:{}7:thought6:hi: é0:0:0:0:5:false1:7", "ab".repeat(32)));
+        let c = Comment { id: "c1".into(), post_id: "p1".into(), author: "cd".repeat(32), text: "x".into(), timestamp: 9, sig: String::new(), cert: None, v: Some(3), nonce: 15254 };
+        assert!(pow_bits(&comment_msg3(&"ab".repeat(32), &c)) >= POW_BITS);
+    }
 }
