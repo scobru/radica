@@ -21,6 +21,7 @@ import {
   foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
 import { liveReleases, trackTitles, mbUrl, mbMatch, reportOf, reportDelta } from "./freetunes.js";
+import { legacyHashes, sweep } from "./sweep.js";
 
 const env = process.env;
 const NODE_WS = env.FREENET_WS || "ws://127.0.0.1:7509/v1/contract/command";
@@ -54,6 +55,10 @@ const FT_DAILY_REPORTS = Number(env.FT_DAILY_REPORTS || 20);
 const FT_DAILY_LOOKUPS = Number(env.FT_DAILY_LOOKUPS || 300);
 const MB_USER_AGENT = env.MB_USER_AGENT || "radica-attester/1";
 const TIMEOUT_MS = 45_000;
+// Carry feeds nobody opens to a new contract.wasm (see sweep.js): on unless SWEEP=0, a few per pass.
+const SWEEP = env.SWEEP !== "0";
+const SWEEP_PER_PASS = Number(env.SWEEP_PER_PASS || 5);
+const LEGACY_TS = env.LEGACY_TS || new URL("../../ui/src/legacy.ts", import.meta.url).pathname;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const withTimeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), TIMEOUT_MS))]);
@@ -108,7 +113,39 @@ function connect() {
 }
 
 // a persona's feed (contract/): parameters = its 32-byte key || app path, as in ui/src/network.ts
-const feedHash = MOD_KEY ? blake3(new Uint8Array(await readFile(FEED_WASM))) : null;
+const feedCode = new Uint8Array(await readFile(FEED_WASM));
+const feedHash = blake3(feedCode);
+const feedParams = (author) => new Uint8Array([...hexToBytes(author), ...new TextEncoder().encode(APP)]);
+const feedKey = (author, hash = feedHash) => new ContractKey(blake3(new Uint8Array([...hash, ...feedParams(author)])), hash);
+
+/** A feed's state under `hash` (default: the current build): null when there is none, throws when the lookup failed. */
+async function feedState(api, author, hash) {
+  try {
+    const r = await withTimeout(api.get(new GetRequest(feedKey(author, hash && hexToBytes(hash)), false, false)));
+    return r.state.length ? new TextDecoder().decode(Uint8Array.from(r.state)) : null;
+  } catch (e) {
+    if (/not found/i.test(String(e?.message ?? e))) return null;
+    throw e;
+  }
+}
+
+const sweepFile = join(DATA, `swept-${bytesToHex(feedHash)}.json`); // per generation: a new build sweeps everything again
+const sweepDone = new Set(existsSync(sweepFile) ? JSON.parse(await readFile(sweepFile, "utf8")) : []);
+const sweepTries = new Map();
+const legacyFeeds = SWEEP && existsSync(LEGACY_TS) ? legacyHashes(await readFile(LEGACY_TS, "utf8"), "feed") : [];
+/** Move feeds of people in the directory that only an earlier contract.wasm holds. */
+async function sweepPass(api) {
+  if (!legacyFeeds.length) return;
+  const ids = [...new Set(Object.values((await getEntries(api, "directory")) ?? {}).map((e) => e.author))].filter((a) => /^[0-9a-f]{64}$/.test(a));
+  const put = (author, text) => {
+    const contract = new WasmContractV1(new ContractCodeT(Array.from(feedCode), Array.from(feedHash)), Array.from(feedParams(author)), feedKey(author));
+    return withTimeout(api.put(new PutRequest(new ContractContainer(ContractType.WasmContractV1, contract), Array.from(new TextEncoder().encode(text)), new RelatedContractsT(), true)));
+  };
+  const r = await sweep({ ids, done: sweepDone, tries: sweepTries, legacy: legacyFeeds, get: (a, h) => feedState(api, a, h), put, limit: SWEEP_PER_PASS });
+  await writeFile(sweepFile, JSON.stringify([...sweepDone]));
+  if (r.checked) log(`[sweep] ${r.checked} feeds checked, ${r.moved} carried forward, ${r.failed} to retry, ${sweepDone.size}/${ids.length} done`);
+}
+
 async function getFeed(api, author) {
   const params = new Uint8Array([...hexToBytes(author), ...new TextEncoder().encode(APP)]);
   try {
@@ -516,6 +553,7 @@ for (;;) {
     log("connected to", NODE_WS);
     for (;;) {
       await pass(api, sk, st);
+      if (SWEEP) await sweepPass(api).catch((e) => log("[sweep] pass failed:", e.message || e)); // never in the way of receipts
       if (modSk && Date.now() >= modNext) {
         modNext = Date.now() + MOD_POLL_MS;
         const doGh = Date.now() >= ghNext;
