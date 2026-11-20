@@ -100,6 +100,16 @@ Settings (environment): `FT_CHECK` (on when set), `FT_POLL_MS` (default 30 minut
 Needs the FreeTunes reports contract to exist already (the first FreeTunes visitor creates it). Each track's artist and
 title go to MusicBrainz (see TERMS.md, section 6).
 
+## Contract sweep
+
+After a new `contract.wasm`, readers carry a feed forward when they open it (`ui/src/legacy.ts`). The attester moves the
+rest: each pass it checks a few people from the `directory` log, and a feed found only under an earlier build listed in
+`LEGACY.feed` is PUT under the current one (`src/sweep.js`). Progress is kept per build in `data/swept-<hash>.json`; a
+lookup that fails is retried on later passes, up to 3 times.
+
+Settings (environment): `SWEEP` (`0` turns it off), `SWEEP_PER_PASS` (default 5), `LEGACY_TS` (default
+`../ui/src/legacy.ts`, copied into the image).
+
 ## Test
 
 ```bash
