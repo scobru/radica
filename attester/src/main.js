@@ -143,7 +143,8 @@ async function stateOf(api, id, hash) {
   }
 }
 
-const sweepFile = join(DATA, `swept-${bytesToHex(feedHash).slice(0, 16)}-${bytesToHex(codeHash).slice(0, 16)}.json`); // a new build sweeps again
+// a new build sweeps again; "r2": the first sweep settled contracts that timed out under the new build without carrying them
+const sweepFile = join(DATA, `swept-r2-${bytesToHex(feedHash).slice(0, 16)}-${bytesToHex(codeHash).slice(0, 16)}.json`);
 const sweepDone = new Set(existsSync(sweepFile) ? JSON.parse(await readFile(sweepFile, "utf8")) : []);
 const sweepTries = new Map();
 const legacyTs = SWEEP && existsSync(LEGACY_TS) ? await readFile(LEGACY_TS, "utf8") : "";
@@ -154,7 +155,9 @@ async function sweepPass(api) {
   if (sweeping || (!legacyOf.feed.length && !legacyOf.log.length)) return;
   sweeping = true;
   try {
-    const people = [...new Set(Object.values((await getEntries(api, "directory")) ?? {}).map((e) => e.author))].filter((a) => /^[0-9a-f]{64}$/.test(a));
+    // who is on the network: the directory under this build and the earlier ones (it may not be carried forward yet)
+    const dirs = await Promise.all([undefined, ...legacyOf.log].map((h) => stateOf(api, "log:directory", h).catch(() => null)));
+    const people = [...new Set(dirs.flatMap((t) => Object.values(t ? JSON.parse(t).entries ?? {} : {}).map((e) => e.author)))].filter((a) => /^[0-9a-f]{64}$/.test(a));
     const ids = [
       ...(legacyOf.log.length ? SHARED_LOGS.map((n) => `log:${n}`) : []),
       ...people.flatMap((a) => [...(legacyOf.feed.length ? [`feed:${a}`] : []), ...(legacyOf.log.length ? OWNED_LOGS.map((n) => `log:${n}/${a}`) : [])]),
@@ -166,7 +169,10 @@ async function sweepPass(api) {
     };
     let moved = 0, checked = 0, failed = 0;
     for (const kind of ["feed", "log"]) {
-      const r = await sweep({ ids: ids.filter((i) => i.startsWith(`${kind}:`)), done: sweepDone, tries: sweepTries, legacy: legacyOf[kind], get: (id, h) => stateOf(api, id, h), put, limit: SWEEP_PER_PASS });
+      // under the current build a contract nobody PUT yet often times out instead of "not found": count it as missing
+      // (a PUT of the old state into one that does exist only merges); failed lookups in old builds are retried
+      const get = (id, h) => (h ? stateOf(api, id, h) : stateOf(api, id).catch(() => null));
+      const r = await sweep({ ids: ids.filter((i) => i.startsWith(`${kind}:`)), done: sweepDone, tries: sweepTries, legacy: legacyOf[kind], get, put, limit: SWEEP_PER_PASS });
       moved += r.moved, checked += r.checked, failed += r.failed;
     }
     await writeFile(sweepFile, JSON.stringify([...sweepDone]));
