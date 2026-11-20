@@ -12,6 +12,7 @@ export interface ProfileInfo {
   updated_at: number;
   sig: string;
   cert?: Cert; // Viso: delegation of the app key that signed
+  v?: number; // 3: signed the v3 way (contract/src/lib.rs); none: legacy
 }
 
 export interface Comment {
@@ -22,6 +23,8 @@ export interface Comment {
   timestamp: number;
   sig: string;
   cert?: Cert;
+  v?: number;
+  nonce?: number; // contract proof of work (v3, on someone else's feed)
 }
 
 export interface Like {
@@ -29,6 +32,8 @@ export interface Like {
   ts: number;
   sig: string; // by the liker
   cert?: Cert;
+  v?: number;
+  nonce?: number;
 }
 
 export interface Post {
@@ -43,6 +48,7 @@ export interface Post {
   timestamp: number;
   sig: string;
   cert?: Cert;
+  v?: number;
   likes: Record<string, Like>; // liker hex pubkey -> like (see likers())
   comments: Record<string, Comment>; // "<author>:<comment id>" -> Comment
   is_nsfw?: boolean;
@@ -84,7 +90,8 @@ export interface FeedState {
   following_updated_at?: number;
   following_sig?: string; // owner signature over the list
   following_cert?: Cert;
-  deleted?: Record<string, { sig: string; cert?: Cert }>; // deleted post id -> owner signature
+  following_v?: number;
+  deleted?: Record<string, { sig: string; cert?: Cert; v?: number }>; // deleted post id -> owner signature
 }
 
 /** Pubkeys that currently like a post. */

@@ -1600,6 +1600,11 @@
             <li><b>Proof of work</b>: a second or two of calculation on every post (a fraction of a second on a comment) and a few seconds, once per session, when you announce yourself. A stranger's post without it is covered, a comment without it waits behind a <b>show</b> button. Supporters on the wall and GhostKey holders do not need it.</li>
             <li><b>Dates in the future</b>: a post dated more than 5 minutes ahead is not shown (it would stay on top for good).</li>
           </ul>
+          <p><b>Enforced by the network itself</b>: every Freenet node checks these, no app can skip them.</p>
+          <ul>
+            <li>A comment or like on someone else's feed carries a few milliseconds of proof of work.</li>
+            <li>A feed keeps at most 500 comments and 2,000 likes per post. Past that, the ones that cost least are dropped first, never the owner's own. Nobody can fill a feed until it stops working.</li>
+          </ul>
           <p><b>3. Your own network decides</b>: so two people can see different things.</p>
           <ul>
             <li>Likes and dislikes weigh by who gives them (roots, friends of friends, strangers 0): see <b>Trust badges</b> and <b>Dislikes and shielded posts</b>. <b>Top</b> uses the same weights.</li>

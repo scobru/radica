@@ -32,12 +32,14 @@ import type {
   PoWProof,
 } from "./types.ts";
 import {
-  formatPostSignatureMessage,
   formatCommentSignatureMessage,
-  formatProfileSignatureMessage,
-  formatLikeSignatureMessage,
-  formatFollowingSignatureMessage,
-  formatDeleteSignatureMessage,
+  postMsg3,
+  commentMsg3,
+  likeMsg3,
+  profileMsg4,
+  followingMsg3,
+  deleteMsg3,
+  grindNonce,
   verifySignature,
   formatLogEntryMessage,
   formatChatMessageSignatureMessage,
@@ -670,16 +672,18 @@ export class FreenetClient {
     const feed = await this.getFeed(identity.pubkey);
     // a new app key (Viso's shared one): the profile must name it, since that is the key people encrypt to
     if (feed.profile && feed.profile.enc_pub !== identity.encPub) {
-      const pr = { ...feed.profile, enc_pub: identity.encPub, cert: identity.cert, updated_at: Date.now() };
-      pr.sig = await identity.sign(formatProfileSignatureMessage(identity.pubkey, pr.display_name, pr.bio, pr.avatar_url, pr.enc_pub, pr.updated_at));
+      const pr = { ...feed.profile, enc_pub: identity.encPub, cert: identity.cert, updated_at: Date.now(), v: 3 };
+      pr.sig = await identity.sign(profileMsg4(identity.pubkey, pr));
       feed.profile = pr;
     }
     await this.saveFeed(feed);
   }
 
-  /** One time: re-sign my feed in the v2 format the contract checks; drop what cannot be re-signed. */
+  /** One time: re-sign my feed in the v3 format (length-prefixed fields); drop what cannot be re-signed. Posts already on
+   *  the network stay as they are (the contract never replaces a post); the profile and following list get a new time so
+   *  the v3 versions win. */
   private async migrateOwnFeed(identity: UserIdentity): Promise<void> {
-    const marker = `radica_feed_v3_${identity.pubkey}`; // v3: profile signs its encryption key; Viso delegations
+    const marker = `radica_feed_v4_${identity.pubkey}`; // v4: v3 signatures (contract generation 2026-11)
     if (localStorage.getItem(marker)) return;
     const me = identity.pubkey;
     const feed = await this.getFeed(me);
@@ -688,12 +692,13 @@ export class FreenetClient {
       if (p.author !== me) continue;
       const comments: Record<string, Comment> = {};
       for (const c of Object.values(p.comments || {})) {
-        const msg = formatCommentSignatureMessage(c.id, c.post_id, c.author, c.text, c.timestamp);
+        const msg = c.v === 3 ? commentMsg3(me, c) : formatCommentSignatureMessage(c.id, c.post_id, c.author, c.text, c.timestamp);
         if (c.post_id === p.id && (await verifySignature(msg, c.sig, c.author))) comments[`${c.author}:${c.id}`] = c;
       }
       const post: Post = { ...p, is_nsfw: !!p.is_nsfw, comments, likes: Array.isArray(p.likes) ? {} : p.likes || {} };
       post.cert = identity.cert;
-      post.sig = await identity.sign(formatPostSignatureMessage(post));
+      post.v = 3;
+      post.sig = await identity.sign(postMsg3(post));
       posts[p.id] = post;
     }
     feed.posts = posts;
@@ -701,16 +706,19 @@ export class FreenetClient {
       const pr = feed.profile;
       pr.enc_pub = identity.encPub;
       pr.cert = identity.cert;
-      pr.sig = await identity.sign(formatProfileSignatureMessage(me, pr.display_name, pr.bio, pr.avatar_url, pr.enc_pub, pr.updated_at));
+      pr.updated_at = Date.now();
+      pr.v = 3;
+      pr.sig = await identity.sign(profileMsg4(me, pr));
     }
     if (feed.following.length) {
       feed.following_updated_at = Date.now();
       feed.following_cert = identity.cert;
-      feed.following_sig = await identity.sign(formatFollowingSignatureMessage(me, feed.following_updated_at, feed.following));
+      feed.following_v = 3;
+      feed.following_sig = await identity.sign(followingMsg3(me, feed.following_updated_at, feed.following));
     }
     const deleted: FeedState["deleted"] = {};
     for (const id of Object.keys(feed.deleted || {}))
-      deleted[id] = { sig: await identity.sign(formatDeleteSignatureMessage(me, id)), cert: identity.cert };
+      deleted[id] = { sig: await identity.sign(deleteMsg3(me, id)), cert: identity.cert, v: 3 };
     feed.deleted = deleted;
     localStorage.setItem(`freenet_feed_${me}`, JSON.stringify(feed));
     localStorage.setItem(marker, "1");
@@ -2102,8 +2110,7 @@ export class FreenetClient {
     avatarUrl: string
   ): Promise<ProfileInfo> {
     const updatedAt = Date.now();
-    const sigMsg = formatProfileSignatureMessage(identity.pubkey, displayName, bio, avatarUrl, identity.encPub, updatedAt);
-    const sig = await identity.sign(sigMsg);
+    const sig = await identity.sign(profileMsg4(identity.pubkey, { display_name: displayName, bio, avatar_url: avatarUrl, enc_pub: identity.encPub, updated_at: updatedAt }));
 
     const profile: ProfileInfo = {
       display_name: displayName,
@@ -2113,6 +2120,7 @@ export class FreenetClient {
       updated_at: updatedAt,
       sig,
       cert: identity.cert,
+      v: 3,
     };
 
     const feed = await this.getFeed(identity.pubkey);
@@ -2153,8 +2161,9 @@ export class FreenetClient {
       nsfw_score: nsfwScore,
       cert: identity.cert,
       pow: powProof,
+      v: 3,
     };
-    post.sig = await identity.sign(formatPostSignatureMessage(post));
+    post.sig = await identity.sign(postMsg3(post));
 
     const feed = await this.getFeed(identity.pubkey);
     feed.posts[id] = post;
@@ -2323,8 +2332,8 @@ export class FreenetClient {
     // tombstone even when the post is not in the local copy yet: the network may still hold it
     delete feed.posts[postId];
     delete this.peerCache[postId];
-    const sig = await identity.sign(formatDeleteSignatureMessage(identity.pubkey, postId));
-    feed.deleted = { ...feed.deleted, [postId]: { sig, cert: identity.cert } };
+    const sig = await identity.sign(deleteMsg3(identity.pubkey, postId));
+    feed.deleted = { ...feed.deleted, [postId]: { sig, cert: identity.cert, v: 3 } };
     await this.saveFeed(feed, { owner: feed.owner, posts: {}, following: [], deleted: { [postId]: feed.deleted[postId] } });
     return true;
   }
@@ -2341,18 +2350,8 @@ export class FreenetClient {
     // readers hide a newcomer's comment without its proof (pow.ts)
     const proof = withPow ? await solvePoW(identity.pubkey, timestamp, COMMENT_POW_BITS, "comment") : undefined;
     const commentId = postIdWithPow(timestamp, proof, "comment");
-    const sigMsg = formatCommentSignatureMessage(commentId, postId, identity.pubkey, text, timestamp);
-    const sig = await identity.sign(sigMsg);
-
-    const comment: Comment = {
-      id: commentId,
-      post_id: postId,
-      author: identity.pubkey,
-      text,
-      timestamp,
-      sig,
-      cert: identity.cert,
-    };
+    const comment: Comment = { id: commentId, post_id: postId, author: identity.pubkey, text, timestamp, sig: "", cert: identity.cert, v: 3 };
+    await this.signComment(identity, postAuthorPubkey, comment);
 
     const feed = await this.getFeed(postAuthorPubkey);
     if (feed.posts[postId]) {
@@ -2406,14 +2405,20 @@ export class FreenetClient {
     const old = post?.comments[key];
     if (!old || old.author !== identity.pubkey || old.text === "") return false;
     for (let ts = Math.max(Date.now(), old.timestamp + 1), tries = 0; tries < 64; ts++, tries++) {
-      const c: Comment = { ...old, text: "", timestamp: ts, cert: identity.cert, sig: "" };
-      c.sig = await identity.sign(formatCommentSignatureMessage(c.id, c.post_id, c.author, c.text, c.timestamp));
+      const c: Comment = { ...old, text: "", timestamp: ts, cert: identity.cert, sig: "", v: 3 };
+      await this.signComment(identity, postAuthor, c);
       if (c.sig <= old.sig) continue; // signatures are deterministic: another timestamp gives another one
       post.comments[key] = c;
       await this.saveFeed(feed, { owner: feed.owner, posts: { [postId]: { ...post, likes: {}, comments: { [key]: c } } }, following: [] });
       return true;
     }
     return false;
+  }
+
+  /** Sign a v3 comment on `owner`'s feed: on someone else's feed the contract wants a proof of work first. */
+  private async signComment(identity: UserIdentity, owner: string, c: Comment): Promise<void> {
+    c.nonce = identity.pubkey === owner ? 0 : grindNonce((nonce) => commentMsg3(owner, { ...c, nonce }));
+    c.sig = await identity.sign(commentMsg3(owner, c));
   }
 
   // Like or unlike a post
@@ -2424,8 +2429,9 @@ export class FreenetClient {
     const post = feed.posts[postId];
     const liked = !post.likes?.[identity.pubkey]?.liked;
     const ts = Date.now();
-    const sig = await identity.sign(formatLikeSignatureMessage(postAuthorPubkey, postId, identity.pubkey, liked, ts));
-    post.likes = { ...post.likes, [identity.pubkey]: { liked, ts, sig, cert: identity.cert } };
+    const nonce = identity.pubkey === postAuthorPubkey ? 0 : grindNonce((n) => likeMsg3(postAuthorPubkey, postId, identity.pubkey, { liked, ts, nonce: n }));
+    const sig = await identity.sign(likeMsg3(postAuthorPubkey, postId, identity.pubkey, { liked, ts, nonce }));
+    post.likes = { ...post.likes, [identity.pubkey]: { liked, ts, sig, cert: identity.cert, v: 3, nonce } };
     if (liked && identity.pubkey !== postAuthorPubkey) {
       // Trigger notification if liking someone else's post
       await this.addNotification(postAuthorPubkey, {
@@ -2460,11 +2466,10 @@ export class FreenetClient {
     }
     feed.following_updated_at = Date.now();
     feed.following_cert = identity.cert;
-    feed.following_sig = await identity.sign(
-      formatFollowingSignatureMessage(identity.pubkey, feed.following_updated_at, feed.following)
-    );
-    const { following_updated_at, following_sig, following_cert } = feed;
-    await this.saveFeed(feed, { owner: feed.owner, posts: {}, following: [...feed.following], following_updated_at, following_sig, following_cert });
+    feed.following_v = 3;
+    feed.following_sig = await identity.sign(followingMsg3(identity.pubkey, feed.following_updated_at, feed.following));
+    const { following_updated_at, following_sig, following_cert, following_v } = feed;
+    await this.saveFeed(feed, { owner: feed.owner, posts: {}, following: [...feed.following], following_updated_at, following_sig, following_cert, following_v });
     return following;
   }
 

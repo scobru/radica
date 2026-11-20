@@ -107,4 +107,4 @@ This is a one-way security migration: no return to v1. The aim is that **no v1 d
 4. ~~Count ceiling~~: `MAX_RECORDS = 10_000` per state, from the benchmark above. Before release, measure today's largest real feeds and logs (attester node): a legacy state over 10,000 records cannot be both carried and kept under 5 s, and would need splitting (for example, moving older log entries to an archive log).
 
 ## Status
-🟡 **IN PROGRESS** (2026-11-20): feed contract v3 written and tested (`contract/src/lib.rs`), not shipped. Next: UI v3 signing + PoW + `contract.wasm` swap (ship together), then `log-contract`.
+🟡 **IN PROGRESS** (2026-11-20): feed contract v3 shipped with the UI (v3 signing, PoW, `contract.wasm` swap, legacy lookup retry). Next: attester sweep (section 5.2), then `log-contract` v2.
