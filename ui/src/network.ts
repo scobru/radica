@@ -263,7 +263,13 @@ export class FreenetNetwork {
       if (r.state.length && id.startsWith("log:")) void this.fromLegacy(id).catch(() => {});
       return r.state.length ? dec.decode(toU8(r.state)) : null;
     } catch (e) {
-      if (/not found/i.test(String(e))) return this.fromLegacy(id).then((v) => (v === null ? null : JSON.stringify(v)));
+      // a contract nobody has PUT under this build yet often times out instead of "not found": look in earlier builds either way
+      const missing = /not found/i.test(String(e));
+      if (missing || /timeout/i.test(String(e))) {
+        const v = await this.fromLegacy(id);
+        if (v !== null) return JSON.stringify(v);
+        if (missing) return null;
+      }
       throw e;
     }
   }
