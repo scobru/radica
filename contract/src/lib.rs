@@ -172,6 +172,7 @@ pub const MAX_OTHERS_COMMENTS: usize = 2_500; // x ~4.4 KB at most: ~11 MB
 pub const MAX_OTHERS_LIKES: usize = 3_500;
 pub const MAX_STATE_BYTES: usize = 38 * 1024 * 1024;
 pub const POW_BITS: u32 = 12;
+pub const MAX_SKEW_MS: u64 = 10 * 60 * 1000;
 pub const MAX_FOLLOWING: usize = 5_000;
 pub const MAX_TEXT: usize = 4_000; // caption, comment, bio, location... (bytes)
 pub const MAX_NAME: usize = 100;
@@ -193,6 +194,8 @@ fn sig_prefix(s: &str) -> String {
 pub struct Owner {
     pub hex: String,
     pub app: Option<String>,
+    /// The node's clock (ms): records by others dated after `now + MAX_SKEW_MS` are left out until then.
+    pub now: u64,
 }
 
 impl Owner {
@@ -203,7 +206,7 @@ impl Owner {
         }
         VerifyingKey::from_bytes(&params[..32].try_into().unwrap()).map_err(|e| err(e.to_string()))?;
         let app = std::str::from_utf8(&params[32..]).map_err(|_| err("app path is not UTF-8"))?;
-        Ok(Owner { hex: hex::encode(&params[..32]), app: (!app.is_empty()).then(|| app.to_string()) })
+        Ok(Owner { hex: hex::encode(&params[..32]), app: (!app.is_empty()).then(|| app.to_string()), now: u64::MAX / 2 })
     }
 
     /// `who` signed `msg`: with their own key, or with an app key they delegated for this app.
@@ -415,6 +418,9 @@ pub fn merge(o: &Owner, state: &mut FeedState, inc: FeedState) -> R<()> {
         }
         let cur = state.posts.get_mut(&id).unwrap();
         for (k, c) in p.comments {
+            if c.author != owner && c.timestamp > o.now.saturating_add(MAX_SKEW_MS) {
+                continue; // dated in the future: it would outrank everything; taken once its time comes
+            }
             let replace = cur.comments.get(&k).map_or(true, |old| c.sig > old.sig); // same author, same id: one deterministic winner
             if replace {
                 check_comment(o, &id, &k, &c)?;
@@ -422,6 +428,9 @@ pub fn merge(o: &Owner, state: &mut FeedState, inc: FeedState) -> R<()> {
             }
         }
         for (liker, l) in p.likes {
+            if liker != owner && l.ts > o.now.saturating_add(MAX_SKEW_MS) {
+                continue;
+            }
             let newer = cur.likes.get(&liker).map_or(true, |old| (l.ts, &l.sig) > (old.ts, &old.sig));
             if newer {
                 o.signed(&liker, l.v, &like_msg3(&owner, &id, &liker, &l), || like_msg(&owner, &id, &liker, &l), liker != owner, &l.sig, &l.cert)?;
@@ -441,17 +450,17 @@ pub fn merge(o: &Owner, state: &mut FeedState, inc: FeedState) -> R<()> {
 }
 
 /// Order in which records by others are kept under a cap: v3 before legacy (anyone can still sign a legacy-format
-/// record for free, so legacy ones go first), then more proof of work, then older, then by signature. A strict total
-/// order, so the kept set is the same whatever order the records arrived in.
-type Rank = (bool, std::cmp::Reverse<u32>, u64, String, String, String);
+/// record for free), then newer first, then by signature, post id and key. Newer first, with no record dated in the
+/// future, means a spammer has to keep paying proof of work to hold the cap, and stops holding it once they stop; any
+/// order on age or on proof of work alone could be won once and kept. A strict total order, so the kept set is the
+/// same whatever order the records arrived in.
+type Rank = (bool, std::cmp::Reverse<u64>, String, String, String);
 
-fn comment_rank(o: &Owner, post_id: &str, k: &str, c: &Comment) -> Rank {
-    let bits = if c.v.is_some() { pow_bits(&comment_msg3(&o.hex, c)) } else { 0 };
-    (c.v.is_none(), std::cmp::Reverse(bits), c.timestamp, c.sig.clone(), post_id.to_string(), k.to_string())
+fn comment_rank(post_id: &str, k: &str, c: &Comment) -> Rank {
+    (c.v.is_none(), std::cmp::Reverse(c.timestamp), c.sig.clone(), post_id.to_string(), k.to_string())
 }
-fn like_rank(o: &Owner, post_id: &str, liker: &str, l: &Like) -> Rank {
-    let bits = if l.v.is_some() { pow_bits(&like_msg3(&o.hex, post_id, liker, l)) } else { 0 };
-    (l.v.is_none(), std::cmp::Reverse(bits), l.ts, l.sig.clone(), post_id.to_string(), liker.to_string())
+fn like_rank(post_id: &str, liker: &str, l: &Like) -> Rank {
+    (l.v.is_none(), std::cmp::Reverse(l.ts), l.sig.clone(), post_id.to_string(), liker.to_string())
 }
 
 /// Drop the lowest-ranked comments and likes by others past each cap (per post, then per feed). The owner's are never dropped.
@@ -459,26 +468,26 @@ fn evict(o: &Owner, s: &mut FeedState) {
     let mut comments: Vec<Rank> = Vec::new();
     let mut likes: Vec<Rank> = Vec::new();
     for (id, p) in s.posts.iter_mut() {
-        let mut cs: Vec<Rank> = p.comments.iter().filter(|(_, c)| c.author != o.hex).map(|(k, c)| comment_rank(o, id, k, c)).collect();
+        let mut cs: Vec<Rank> = p.comments.iter().filter(|(_, c)| c.author != o.hex).map(|(k, c)| comment_rank(id, k, c)).collect();
         cs.sort();
         for r in cs.drain(MAX_COMMENTS_PER_POST.min(cs.len())..) {
-            p.comments.remove(&r.5);
+            p.comments.remove(&r.4);
         }
-        let mut ls: Vec<Rank> = p.likes.iter().filter(|(k, _)| **k != o.hex).map(|(k, l)| like_rank(o, id, k, l)).collect();
+        let mut ls: Vec<Rank> = p.likes.iter().filter(|(k, _)| **k != o.hex).map(|(k, l)| like_rank(id, k, l)).collect();
         ls.sort();
         for r in ls.drain(MAX_LIKES_PER_POST.min(ls.len())..) {
-            p.likes.remove(&r.5);
+            p.likes.remove(&r.4);
         }
         comments.extend(cs);
         likes.extend(ls);
     }
     comments.sort();
     for r in comments.drain(MAX_OTHERS_COMMENTS.min(comments.len())..) {
-        s.posts.get_mut(&r.4).map(|p| p.comments.remove(&r.5));
+        s.posts.get_mut(&r.3).map(|p| p.comments.remove(&r.4));
     }
     likes.sort();
     for r in likes.drain(MAX_OTHERS_LIKES.min(likes.len())..) {
-        s.posts.get_mut(&r.4).map(|p| p.likes.remove(&r.5));
+        s.posts.get_mut(&r.3).map(|p| p.likes.remove(&r.4));
     }
 }
 
@@ -559,6 +568,10 @@ pub fn validate(o: &Owner, s: &FeedState) -> bool {
 
 // ---- Freenet Contract Interface ----
 
+fn now_ms() -> u64 {
+    freenet_stdlib::time::now().timestamp_millis().max(0) as u64
+}
+
 pub struct RadicaFeedContract;
 
 #[contract]
@@ -568,7 +581,7 @@ impl ContractInterface for RadicaFeedContract {
         state: State<'static>,
         _related: RelatedContracts<'static>,
     ) -> Result<ValidateResult, ContractError> {
-        let o = Owner::from_params(parameters.as_ref())?;
+        let o = Owner { now: now_ms(), ..Owner::from_params(parameters.as_ref())? };
         let ok = de::<FeedState>(state.as_ref()).is_ok_and(|s| validate(&o, &s));
         Ok(if ok { ValidateResult::Valid } else { ValidateResult::Invalid })
     }
@@ -578,7 +591,7 @@ impl ContractInterface for RadicaFeedContract {
         state: State<'static>,
         data: Vec<UpdateData<'static>>,
     ) -> Result<UpdateModification<'static>, ContractError> {
-        let o = Owner::from_params(parameters.as_ref())?;
+        let o = Owner { now: now_ms(), ..Owner::from_params(parameters.as_ref())? };
         let mut cur: FeedState = de(state.as_ref())?;
         for item in data {
             let parts: Vec<Vec<u8>> = match item {
@@ -624,7 +637,7 @@ mod tests {
     }
     const APP: &str = "/v1/contract/web/Radica1/";
     fn own(k: &SigningKey) -> Owner {
-        Owner { hex: hx(k), app: Some(APP.into()) }
+        Owner { hex: hx(k), app: Some(APP.into()), now: 1 << 40 }
     }
     /// Persona `who` delegates an app key for APP (as Viso does); returns the key and the certificate.
     fn delegate(who: &SigningKey, app: &str) -> (SigningKey, Cert) {
@@ -845,7 +858,7 @@ mod tests {
         merge(&own(&o), &mut s, with_posts(vec![liked])).unwrap();
         assert_eq!(s.posts["p1"].comments.len(), 1);
         // a feed without an app path takes no delegations
-        assert!(merge(&Owner { hex: hx(&o), app: None }, &mut FeedState::default(), with_posts(vec![p])).is_err());
+        assert!(merge(&Owner { hex: hx(&o), app: None, now: 1 << 40 }, &mut FeedState::default(), with_posts(vec![p])).is_err());
     }
 
     #[test]
@@ -997,5 +1010,25 @@ mod tests {
         assert_eq!(post_msg3(&p), format!("radica/post/v3|2:p164:{}7:thought6:hi: é0:0:0:0:5:false1:7", "ab".repeat(32)));
         let c = Comment { id: "c1".into(), post_id: "p1".into(), author: "cd".repeat(32), text: "x".into(), timestamp: 9, sig: String::new(), cert: None, v: Some(3), nonce: 15254 };
         assert!(pow_bits(&comment_msg3(&"ab".repeat(32), &c)) >= POW_BITS);
+    }
+
+    #[test]
+    fn others_cannot_date_ahead_and_newer_ones_stay() {
+        let o = sk(1);
+        let me = own(&o);
+        let mut p = post3(&o, "p1", "x", 10);
+        let (k, ahead) = comment3(&sk(2), &o, "c1", "p1", me.now + MAX_SKEW_MS + 1);
+        p.comments.insert(k.clone(), ahead);
+        let mut s = FeedState::default();
+        merge(&me, &mut s, with_posts(vec![p])).unwrap();
+        assert!(s.posts["p1"].comments.is_empty(), "left out until its time comes");
+        // past the cap, the oldest go first
+        let keys = others(MAX_COMMENTS_PER_POST + 1);
+        let mut q = post3(&o, "p1", "x", 10);
+        q.comments.extend(keys.iter().enumerate().map(|(i, k)| comment3(k, &o, "c", "p1", 100 + i as u64)));
+        let s = merged(&o, &[with_posts(vec![q])]);
+        let oldest = format!("{}:c", hx(&keys[0]));
+        assert!(!s.posts["p1"].comments.contains_key(&oldest));
+        assert_eq!(s.posts["p1"].comments.len(), MAX_COMMENTS_PER_POST);
     }
 }
