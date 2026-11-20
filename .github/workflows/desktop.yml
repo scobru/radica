@@ -29,7 +29,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           TAG_NAME: ${{ github.ref_name }}
-        run: test "$TAG_NAME" = "v$(node -p "require('./package.json').version")" || { echo "Tag $TAG_NAME does not match package.json"; exit 1; }
+        run: node -e "const v='v'+require('./package.json').version; if(process.env.TAG_NAME!==v){console.error('Tag '+process.env.TAG_NAME+' does not match '+v); process.exit(1);}"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -81,7 +81,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           TAG_NAME: ${{ github.ref_name }}
-        run: test "$TAG_NAME" = "v$(node -p "require('./package.json').version")" || { echo "Tag $TAG_NAME does not match package.json"; exit 1; }
+        run: node -e "const v='v'+require('./package.json').version; if(process.env.TAG_NAME!==v){console.error('Tag '+process.env.TAG_NAME+' does not match '+v); process.exit(1);}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
