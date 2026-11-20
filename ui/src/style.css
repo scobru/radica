@@ -7907,6 +7907,7 @@ kbd {
 
 .tree-growth-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -7919,6 +7920,28 @@ kbd {
   flex: 1;
   accent-color: var(--primary);
   cursor: pointer;
+}
+
+.tree-repulsion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 200px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tree-repulsion input {
+  flex: 1;
+  min-width: 70px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.tree-post-node {
+  touch-action: none; /* a drag on a bud moves it instead of scrolling */
 }
 
 .tree-time-label {

@@ -2,6 +2,7 @@
 import {
   baseViewBoxDims,
   buildTreeGraph,
+  leafT,
   renderTreeInspectorHtml,
   renderTreeSvg,
   viewBoxFor,
@@ -12,6 +13,7 @@ import {
   type TreeViewMode,
 } from "./treeGraph.ts";
 import { escapeHtml } from "./html.ts";
+import { simStep, type SimNode, type SimRect } from "./treeSim.ts";
 import type { Community, Post } from "./types.ts";
 
 export interface TreePageDeps {
@@ -42,6 +44,101 @@ let panY = 0;
 let growthRaf: number | null = null;
 let lastModel: TreeGraphModel | null = null;
 let initialized = false;
+
+// ---- Physics: buds spring to their spot on the tree and push each other away, like a force graph (treeSim.ts) ----
+const BLOOM_SHIFT = 0.72;
+let simRepulsion = 1;
+let simNodes: SimNode[] = [];
+let simRects: SimRect[] = [];
+/** per post: the elements to move, by index in lastModel.posts */
+let simEls: Element[][] = [];
+const simByKey = new Map<string, SimNode>(); // kept across redraws, so a selection or a sync does not snap them back
+let simRaf: number | null = null;
+let simDragging = false;
+const reducedMotion = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function applySim() {
+  const posts = lastModel?.posts;
+  if (!posts) return;
+  simNodes.forEach((n, i) => {
+    const p = posts[i];
+    const dx = n.x - p.x;
+    const dy = n.y - p.y;
+    for (const el of simEls[i] ?? []) {
+      if (el.classList.contains("tree-post-branch"))
+        el.setAttribute("d", `M${p.startX} ${p.startY} Q${(p.ctrlX + dx / 2).toFixed(1)} ${(p.ctrlY + dy / 2).toFixed(1)} ${n.x.toFixed(1)} ${n.y.toFixed(1)}`);
+      else if (el.classList.contains("tree-bloom"))
+        el.setAttribute("transform", `translate(${(n.x + p.radius * BLOOM_SHIFT).toFixed(1)} ${(n.y - p.radius * BLOOM_SHIFT).toFixed(1)})`);
+      else if (el.classList.contains("tree-post-node")) el.setAttribute("transform", `translate(${dx.toFixed(1)} ${dy.toFixed(1)})`);
+      else {
+        // a reply leaf: the branch point at t moves by t times the bud's shift (see spreadPostEnds)
+        const ci = Number((el as HTMLElement).dataset.leafIndex);
+        const l = p.leaves[ci];
+        if (!l) continue;
+        const t = leafT(ci, p.leaves.length);
+        el.setAttribute("transform", `translate(${(l.branchX + dx * t).toFixed(1)} ${(l.branchY + dy * t).toFixed(1)}) rotate(${((l.angle * 180) / Math.PI).toFixed(1)})`);
+      }
+    }
+  });
+}
+
+function runSim() {
+  if (simRaf !== null || !simNodes.length) return;
+  const tick = () => {
+    simRaf = null;
+    if (!isTreeOpen() || growthRaf !== null) return;
+    const energy = simStep(simNodes, simRects, simRepulsion);
+    applySim();
+    if (energy > 0.002 || simDragging) simRaf = requestAnimationFrame(tick);
+  };
+  simRaf = requestAnimationFrame(tick);
+}
+
+/** After a redraw: hook the new SVG to the physics. New buds start at their bough and spring out. */
+function attachSim(model: TreeGraphModel) {
+  const svg = getTreeSvgEl();
+  if (!svg || growthRaf !== null || mode === "roots") {
+    simNodes = [];
+    return;
+  }
+  const still = reducedMotion();
+  simNodes = model.posts.map((p) => {
+    const key = `${p.author}:${p.id}`;
+    const old = simByKey.get(key);
+    const n: SimNode = old
+      ? { ...old, ax: p.x, ay: p.y, r: p.radius, pinned: false }
+      : { x: still ? p.x : p.startX, y: still ? p.y : p.startY, vx: 0, vy: 0, ax: p.x, ay: p.y, r: p.radius, pinned: false };
+    simByKey.set(key, n);
+    return n;
+  });
+  simRects = model.boughs.map((b) => ({ x: b.x, y: b.y - 1, w: 84, h: 20 }));
+  simEls = model.posts.map(() => []);
+  const leafCount = new Map<number, number>();
+  svg.querySelectorAll<SVGElement>("[data-sim]").forEach((el) => {
+    const i = Number(el.dataset.sim);
+    if (el.classList.contains("tree-comment-leaf")) {
+      const ci = leafCount.get(i) ?? 0; // leaves are drawn in their branch's order
+      leafCount.set(i, ci + 1);
+      el.dataset.leafIndex = String(ci);
+    }
+    simEls[i]?.push(el);
+  });
+  if (still) {
+    // no animation: settle at once
+    for (let k = 0; k < 300 && simStep(simNodes, simRects, simRepulsion) > 0.002; k++);
+    applySim();
+    return;
+  }
+  applySim();
+  runSim();
+}
+
+function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } | null {
+  const m = svg.getScreenCTM();
+  if (!m) return null;
+  const pt = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+  return { x: pt.x, y: pt.y };
+}
 
 const treeModal = () => document.getElementById("tree-modal") as HTMLElement | null;
 const isTreeOpen = () => {
@@ -125,6 +222,7 @@ function renderTreeView(cachedData?: { posts: Post[]; communities: Community[]; 
   const svgHost = document.getElementById("tree-svg-container");
   if (svgHost) {
     svgHost.innerHTML = renderTreeSvg(model, { mode, selection, zoom, panX, panY });
+    attachSim(model);
   }
 
   const inspector = document.getElementById("tree-inspector");
@@ -181,6 +279,7 @@ function startGrowthAnimation() {
     playBtn.setAttribute("aria-pressed", "true");
   }
   if (timeProgress >= 0.99) timeProgress = 0.02;
+  simByKey.clear();
   const startProgress = timeProgress;
   const durationMs = Math.max(1800, (1 - startProgress) * 7000);
   const startTs = performance.now();
@@ -215,8 +314,8 @@ function startGrowthAnimation() {
       growthRaf = requestAnimationFrame(step);
     } else {
       timeProgress = 1;
-      renderTreeView();
       stopGrowthAnimation();
+      renderTreeView();
     }
   };
   growthRaf = requestAnimationFrame(step);
@@ -298,6 +397,11 @@ export function initTreePage(nextDeps: TreePageDeps): void {
     stopGrowthAnimation();
     timeProgress = Math.max(0, Math.min(1, Number((e.target as HTMLInputElement).value) / 100));
     renderTreeView();
+  });
+
+  document.getElementById("tree-repulsion-slider")?.addEventListener("input", (e) => {
+    simRepulsion = Number((e.target as HTMLInputElement).value);
+    runSim();
   });
 
   document.getElementById("tree-play-growth-btn")?.addEventListener("click", () => {
@@ -394,8 +498,17 @@ export function initTreePage(nextDeps: TreePageDeps): void {
       applySvgViewBoxOnly();
     };
 
+    // dragging a bud pulls it (and pushes its neighbours); on release it springs back to the tree
+    let drag: { pointerId: number; node: SimNode; x0: number; y0: number } | null = null;
     canvasWrap.addEventListener("pointerdown", (e) => {
       if ((e.target as HTMLElement).closest(".tree-zoom-controls")) return;
+      const bud = (e.target as Element).closest<SVGElement>(".tree-post-node[data-sim]");
+      const node = bud ? simNodes[Number(bud.dataset.sim)] : undefined;
+      if (node && pointers.size === 0) {
+        drag = { pointerId: e.pointerId, node, x0: e.clientX, y0: e.clientY };
+        moved = false;
+        return;
+      }
       if (pointers.size === 0) {
         moved = false;
       } else {
@@ -407,6 +520,19 @@ export function initTreePage(nextDeps: TreePageDeps): void {
     });
 
     window.addEventListener("pointermove", (e) => {
+      if (drag && drag.pointerId === e.pointerId) {
+        if (!moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) <= 4) return;
+        const svg = getTreeSvgEl();
+        const pt = svg && svgPoint(svg, e.clientX, e.clientY);
+        if (!pt) return;
+        moved = true;
+        simDragging = true;
+        drag.node.pinned = true;
+        drag.node.x = pt.x;
+        drag.node.y = pt.y;
+        runSim();
+        return;
+      }
       if (!pointers.has(e.pointerId)) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!gestureRect) gestureRect = canvasWrap.getBoundingClientRect();
@@ -437,6 +563,13 @@ export function initTreePage(nextDeps: TreePageDeps): void {
     });
 
     const endPointer = (e: PointerEvent) => {
+      if (drag && drag.pointerId === e.pointerId) {
+        drag.node.pinned = false;
+        drag = null;
+        simDragging = false;
+        runSim();
+        return;
+      }
       if (!pointers.has(e.pointerId)) return;
       commitGestureTransform();
       pointers.delete(e.pointerId);

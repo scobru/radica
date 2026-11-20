@@ -248,6 +248,9 @@ export function computeNetworkTreeStage(
   };
 }
 
+/** Where reply leaf `ci` of `n` sits along its post branch (0 = bough, 1 = bud). */
+export const leafT = (ci: number, n: number) => (n === 1 ? 0.62 : 0.28 + (0.62 * ci) / (n - 1));
+
 function leafSvgPath(s: number): string {
   return `M0 0C${round1(s * 0.22)} ${round1(-s * 0.5)} ${round1(s * 0.74)} ${round1(-s * 0.42)} ${round1(s)} 0C${round1(s * 0.74)} ${round1(s * 0.42)} ${round1(s * 0.22)} ${round1(s * 0.5)} 0 0Z`;
 }
@@ -596,7 +599,7 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
       const leaves: TreeCommentLeafNode[] = visibleComments.slice(0, MAX_LEAVES_PER_POST).map((c, ci, arr) => {
         const cAppear = pThresh + 0.03 + (0.12 * (ci + 1)) / Math.max(1, arr.length + 1);
         const leafGrowth = isGrowthActive ? clamp((timeProgress - cAppear) / 0.10, 0.25, 1) : 1;
-        const lt = arr.length === 1 ? 0.62 : 0.28 + (0.62 * ci) / (arr.length - 1);
+        const lt = leafT(ci, arr.length);
         const [bx, by] = quadPoint(sx, sy, ctrlX, ctrlY, ex, ey, lt);
         const lSide = ci % 2 === 0 ? 1 : -1;
         const lAngle = clampedAngle + lSide * (0.68 + (ci % 3) * 0.14);
@@ -870,7 +873,7 @@ export function spreadPostEnds(posts: TreePostBranchNode[], gap = 6, passes = 30
     p.ctrlX = round1(p.ctrlX + dx / 2);
     p.ctrlY = round1(p.ctrlY + dy / 2);
     p.leaves.forEach((l, ci, arr) => {
-      const t = arr.length === 1 ? 0.62 : 0.28 + (0.62 * ci) / (arr.length - 1);
+      const t = leafT(ci, arr.length);
       l.x = round1(l.x + dx * t);
       l.y = round1(l.y + dy * t);
       l.branchX = round1(l.branchX + dx * t);
@@ -1017,10 +1020,11 @@ export function renderTreeSvg(
       );
     }
 
-    for (const p of posts) {
+    // data-sim: the post's index, so the physics (treeSim.ts) can move its bud, branch, leaves and bloom
+    for (const [i, p] of posts.entries()) {
       const pSelected = isSelected("post", p.id, p.author);
       branchHtml.push(
-        `<path class="tree-post-branch${p.fresh ? " fresh" : ""}${p.matched ? " matched" : ""}${pSelected ? " selected" : ""}" stroke-width="${p.width}" d="M${p.startX} ${p.startY} Q${p.ctrlX} ${p.ctrlY} ${p.x} ${p.y}"/>`
+        `<path data-sim="${i}" class="tree-post-branch${p.fresh ? " fresh" : ""}${p.matched ? " matched" : ""}${pSelected ? " selected" : ""}" stroke-width="${p.width}" d="M${p.startX} ${p.startY} Q${p.ctrlX} ${p.ctrlY} ${p.x} ${p.y}"/>`
       );
 
       for (const l of p.leaves) {
@@ -1037,7 +1041,7 @@ export function renderTreeSvg(
           .join(" ");
 
         leafHtml.push(
-          `<g class="${lCls}" data-node-type="comment" data-post-id="${escapeHtml(l.postId)}" data-comment-id="${escapeHtml(l.id)}" data-author="${escapeHtml(l.author)}" transform="translate(${l.branchX} ${l.branchY}) rotate(${deg})" tabindex="0" role="button" aria-label="Reply by ${escapeHtml(l.authorName)}">` +
+          `<g data-sim="${i}" class="${lCls}" data-node-type="comment" data-post-id="${escapeHtml(l.postId)}" data-comment-id="${escapeHtml(l.id)}" data-author="${escapeHtml(l.author)}" transform="translate(${l.branchX} ${l.branchY}) rotate(${deg})" tabindex="0" role="button" aria-label="Reply by ${escapeHtml(l.authorName)}">` +
             `<path class="tree-leaf-shape" d="${leafSvgPath(l.size)}"/>` +
             `<title>${escapeHtml(l.authorName)}: ${escapeHtml(cut(plainMentions(l.text), 80))}</title>` +
             `</g>`
@@ -1049,7 +1053,7 @@ export function renderTreeSvg(
           .map((a) => `<ellipse class="tree-bloom-petal" rx="1.8" ry="3.2" cy="-3.2" transform="rotate(${a})"/>`)
           .join("");
         bloomHtml.push(
-          `<g class="tree-bloom" transform="translate(${round1(p.x + p.radius * 0.72)} ${round1(p.y - p.radius * 0.72)})">${petals}<circle class="tree-bloom-heart" r="1.4"/></g>`
+          `<g data-sim="${i}" class="tree-bloom" transform="translate(${round1(p.x + p.radius * 0.72)} ${round1(p.y - p.radius * 0.72)})">${petals}<circle class="tree-bloom-heart" r="1.4"/></g>`
         );
       }
 
@@ -1067,7 +1071,7 @@ export function renderTreeSvg(
 
       const preview = plainMentions(p.caption || "").replace(/\s+/g, " ").trim();
       postNodeHtml.push(
-        `<g class="${pCls}" data-node-type="post" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(p.author)}" tabindex="0" role="button" aria-label="Post by ${escapeHtml(p.authorName)}">` +
+        `<g data-sim="${i}" class="${pCls}" data-node-type="post" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(p.author)}" tabindex="0" role="button" aria-label="Post by ${escapeHtml(p.authorName)}">` +
           (p.fresh ? `<circle class="tree-pulse" cx="${p.x}" cy="${p.y}" r="${round1(p.radius + 3.5)}"/>` : "") +
           `<circle class="tree-post-bud" cx="${p.x}" cy="${p.y}" r="${p.radius}"/>` +
           (p.commentsCount > 0

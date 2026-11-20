@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-20", text: "The Living Tree moves: posts now push each other apart and away from the bough names, like a force graph, so even a busy bough stays readable. Use the new Node repulsion slider to spread them more or less, and drag any post to pull it around — it springs back to its branch when you let go." },
   { date: "2026-11-20", text: "Living Tree easier to read: on a busy bough (like Thoughts) the posts no longer pile up on each other. Each post keeps some room around it, so you can see and tap every one, with its reply leaves following along." },
   { date: "2026-11-20", text: "Greenhouse: after planting an idea or sending a comment, the text no longer stays in the box. The comment box empties at once (your text comes back if sending fails), and a new seed clears without waiting for the whole list to reload." },
   { date: "2026-11-20", text: "Text Size now sticks: after closing and reopening Freenet, Radica went back to normal size even if you had chosen 115% or 130%. Your choice is now restored as soon as you sign in." },
