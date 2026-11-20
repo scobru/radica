@@ -3485,11 +3485,11 @@ function renderTimeline() {
           : `<img ${mediaAttr(thumb)} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover"/>`;
         return {
           key: `${p.author}:${p.id}`,
-          html: `<div class="gram-card media-item" data-post-id="${p.id}" data-author="${p.author}">
+          html: `<div class="gram-card media-item" data-post-id="${escapeHtml(p.id)}" data-author="${escapeHtml(p.author)}">
           <div class="uview-post-thumb" style="width:100%; aspect-ratio:4/5; overflow:hidden; cursor:pointer"
-               data-media="${thumb}"
-               data-author="${p.author}"
-               data-post-id="${p.id}"
+               data-media="${escapeHtml(thumb)}"
+               data-author="${escapeHtml(p.author)}"
+               data-post-id="${escapeHtml(p.id)}"
                tabindex="0" role="button"
                onerror="this.style.display='none'">
             ${thumbInner}

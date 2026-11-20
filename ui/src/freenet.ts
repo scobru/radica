@@ -33,6 +33,8 @@ import type {
 } from "./types.ts";
 import {
   formatCommentSignatureMessage,
+  formatProfileSignatureMessage,
+  formatLogEntryMessage,
   postMsg3,
   commentMsg3,
   likeMsg3,
@@ -41,6 +43,7 @@ import {
   deleteMsg3,
   grindNonce,
   verifySignature,
+  verifyAuthorSignature,
   logMsg2,
   formatChatMessageSignatureMessage,
   formatCommunitySignatureMessage,
@@ -1252,7 +1255,8 @@ export class FreenetClient {
     const mine = this.logEntries(`orto/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
     try {
       const url = mine && JSON.parse(mine.body).url;
-      return typeof url === "string" ? url : null;
+      // ponytail: allow only http(s), freenet:, or #fblog= to block javascript:/data: injection
+      return typeof url === "string" && /^(?:https?:\/\/|freenet:|#fblog=)/i.test(url.trim()) ? url.trim() : null;
     } catch {
       return null;
     }
@@ -1789,18 +1793,32 @@ export class FreenetClient {
   /** Merge the network's entries of a log with ours, rebuild what it feeds, and send what only we have. */
   private async takeLog(name: string, remote: Record<string, LogEntry>): Promise<void> {
     const local = this.logEntries(name);
+    const localByKey = new Map(local.map((e) => [`${e.author}:${e.id}`, e]));
+    const checkedRemote: Record<string, LogEntry> = {};
+    for (const [k, e] of Object.entries(remote)) {
+      if (!e || k !== `${e.author}:${e.id}`) continue;
+      const cur = localByKey.get(k);
+      if (cur && cur.sig === e.sig && cur.ts === e.ts && cur.body === e.body) {
+        checkedRemote[k] = e;
+        continue;
+      }
+      const msg = e.v === 2 ? logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce ?? 0) : formatLogEntryMessage(name, e.author, e.id, e.ts, e.body);
+      if (await verifyAuthorSignature(msg, e.sig, e.author, e.cert)) {
+        checkedRemote[k] = e;
+      }
+    }
     // what only we have, or a newer state entry under a key the network holds an older one of (as the contract decides)
     const missing = local.filter((e) => {
-      const r = remote[`${e.author}:${e.id}`];
+      const r = checkedRemote[`${e.author}:${e.id}`];
       return !r || e.ts > r.ts || (e.ts === r.ts && e.sig > r.sig);
     });
-    const remoteCount = Object.keys(remote).length;
+    const remoteCount = Object.keys(checkedRemote).length;
     if (missing.length === 0 && local.length === remoteCount) {
       this.unsentLogs.delete(name);
       return;
     }
     const before = localStorage.getItem(`freenet_log_${name}`);
-    this.saveLog(name, [...Object.values(remote), ...missing]); // later wins: ours where it is newer
+    this.saveLog(name, [...Object.values(checkedRemote), ...missing]); // later wins: ours where it is newer
     if (localStorage.getItem(`freenet_log_${name}`) !== before) { // unchanged log: no rebuild, no redraw
       this.applyLog(name);
       this.notifyListeners();
@@ -1960,8 +1978,14 @@ export class FreenetClient {
   /** The key to encrypt to for `pubkey`: the one in their signed profile (Viso users), else the persona key. */
   private async encPubOf(pubkey: string): Promise<string> {
     if (pubkey === this.me && this.identity) return this.identity.encPub;
-    const enc = (await this.getFeed(pubkey)).profile?.enc_pub;
-    return enc && /^[0-9a-f]{64}$/.test(enc) ? enc : pubkey;
+    const pr = (await this.getFeed(pubkey)).profile;
+    const enc = pr?.enc_pub;
+    if (!pr || !enc || !/^[0-9a-f]{64}$/.test(enc) || enc === pubkey) return pubkey;
+    const msg = pr.v === 3
+      ? profileMsg4(pubkey, pr)
+      : formatProfileSignatureMessage(pubkey, pr.display_name ?? "", pr.bio ?? "", pr.avatar_url ?? "", enc, pr.updated_at ?? 0);
+    const ok = await verifyAuthorSignature(msg, pr.sig ?? "", pubkey, pr.cert);
+    return ok ? enc : pubkey;
   }
 
   // A Viso persona has one app key per device, and the profile names only one: each device also publishes its key in

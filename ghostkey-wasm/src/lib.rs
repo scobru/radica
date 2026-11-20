@@ -66,6 +66,13 @@ fn verify_with(bundle: &[u8], pk: &[u8; 32], master: &Option<VerifyingKey>) -> R
     let sig = Signature::from_slice(&b.signature).map_err(|e| e.to_string())?;
     cert.verifying_key.verify_strict(&b.scoped_payload, &sig).map_err(|_| "bad ghostkey signature".to_string())?;
     let scoped: ScopedPayload = uncbor(&b.scoped_payload)?;
+    // ponytail: reject empty/null requestor without coupling to a specific requestor schema
+    match &scoped.requestor {
+        ciborium::value::Value::Null => return Err("missing requestor in GhostKey proof".into()),
+        ciborium::value::Value::Text(s) if s.trim().is_empty() => return Err("empty requestor in GhostKey proof".into()),
+        ciborium::value::Value::Bytes(b) if b.is_empty() => return Err("empty requestor in GhostKey proof".into()),
+        _ => {}
+    }
     if scoped.payload != binding_payload(pk) {
         return Err("this GhostKey proof is for a different identity".into());
     }
@@ -104,17 +111,15 @@ pub fn run(input: &str) -> String {
 
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    let mut v = Vec::<u8>::with_capacity(len);
-    let p = v.as_mut_ptr();
-    std::mem::forget(v);
-    p
+    // ponytail: exact-size boxed slice so dealloc frees exact capacity
+    Box::leak(vec![0u8; len].into_boxed_slice()).as_mut_ptr()
 }
 
 /// # Safety
 /// `ptr` and `len` must come from `alloc` (or be the output of `call`).
 #[no_mangle]
 pub unsafe extern "C" fn dealloc(ptr: *mut u8, len: usize) {
-    drop(Vec::from_raw_parts(ptr, 0, len));
+    drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len)));
 }
 
 /// # Safety
@@ -181,5 +186,18 @@ mod tests {
         let out: Value = serde_json::from_str(&run(&json!({"op":"reply","payload":hex::encode(reply)}).to_string())).unwrap();
         let b: SignedBundle = uncbor(&hex::decode(out["bundle"].as_str().unwrap()).unwrap()).unwrap();
         assert_eq!((b.scoped_payload, b.signature, b.certificate_pem.as_str()), (vec![1], vec![2], "pem"));
+    }
+
+    #[test]
+    fn empty_requestor_is_rejected() {
+        let mut rng = rand::rngs::OsRng;
+        let (master_sk, master_vk) = ghostkey_lib::util::create_keypair(&mut rng).unwrap();
+        let (notary, notary_sk) = NotaryCertificateV1::new(&master_sk, &"donation_amount:20".to_string()).unwrap();
+        let (cert, sk) = GhostkeyCertificateV1::new(&notary, &notary_sk);
+        let pk = [5u8; 32];
+        let scoped = cbor(&TestScoped { requestor: "   ".into(), payload: binding_payload(&pk) }).unwrap();
+        let signature = sk.sign(&scoped).to_bytes().to_vec();
+        let bundle = cbor(&SignedBundle { scoped_payload: scoped, signature, certificate_pem: cert.to_armored_string().unwrap() }).unwrap();
+        assert!(verify_with(&bundle, &pk, &Some(master_vk)).unwrap_err().contains("requestor"));
     }
 }

@@ -246,3 +246,29 @@ test("v3 feed messages: length-prefixed in UTF-8 bytes, same as the contract", a
   const c = { id: "c1", post_id: "p1", author: "cd".repeat(32), text: "x", timestamp: 9, nonce: 15254 };
   assert.ok(powBits(commentMsg3("ab".repeat(32), c)) >= FEED_POW_BITS);
 });
+
+test("crypto: verifyAuthorSignature verifies direct Ed25519 and Viso delegated certs, rejects forged certs", async () => {
+  const { verifyAuthorSignature } = await import("../src/crypto.ts");
+  const { connectMessage } = await import("../src/whoiam.ts");
+  const personaSk = ed.utils.randomPrivateKey();
+  const personaPk = bytesToHex(await ed.getPublicKeyAsync(personaSk));
+  const appSk = ed.utils.randomPrivateKey();
+  const appPk = bytesToHex(await ed.getPublicKeyAsync(appSk));
+
+  const msg = "radica/log/v2|test";
+  const directSig = bytesToHex(await ed.signAsync(new TextEncoder().encode(msg), personaSk));
+  assert.equal(await verifyAuthorSignature(msg, directSig, personaPk), true);
+  assert.equal(await verifyAuthorSignature(msg + "!", directSig, personaPk), false);
+
+  const base = "http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+  const challenge = `wd1.${appPk}.deadbeef`;
+  const ts = Date.now();
+  const certSig = bytesToHex(await ed.signAsync(connectMessage(await ed.getPublicKeyAsync(personaSk), base, challenge, ts), personaSk));
+  const cert = { base, challenge, ts, sig: certSig };
+  const delegatedSig = bytesToHex(await ed.signAsync(new TextEncoder().encode(msg), appSk));
+
+  assert.equal(await verifyAuthorSignature(msg, delegatedSig, personaPk, cert), true);
+  assert.equal(await verifyAuthorSignature(msg, directSig, personaPk, cert), false); // signed by persona instead of delegated appKey
+  const wrongPersonaPk = bytesToHex(await ed.getPublicKeyAsync(ed.utils.randomPrivateKey()));
+  assert.equal(await verifyAuthorSignature(msg, delegatedSig, wrongPersonaPk, cert), false);
+});

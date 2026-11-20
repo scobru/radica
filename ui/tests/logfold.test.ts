@@ -680,4 +680,18 @@ test("logfold security: scoped community self-delete, cascading mod removal, hex
   assert.equal(proofs.creatorListed.has(mallory), false);
   assert.equal(proofs.joinProofs.get(mallory), proofHex);
   assert.equal(proofs.joinProofs.has(mod), false);
+
+  // 5. Creator-prefixed community IDs reject front-running by other authors, and creator-revoked mods cannot be re-added by other mods
+  const prefId = `c_${owner.slice(0, 8)}_builders`;
+  const [cPref] = foldCommunities([
+    entry(mallory, 0, { type: "community_create", community: { id: prefId, name: "Hijack" } }), // rejected: prefix mismatch
+    entry(owner, 10, { type: "community_create", community: { id: prefId, name: "Real" } }),
+    entry(owner, 11, { type: "community_mod_add", community_id: prefId, target: mod }),
+    entry(owner, 12, { type: "community_mod_add", community_id: prefId, target: user }),
+    entry(owner, 13, { type: "community_mod_remove", community_id: prefId, target: mod }),
+    entry(user, 14, { type: "community_mod_add", community_id: prefId, target: mod }), // rejected: creator revoked mod
+  ], []);
+  assert.equal(cPref.creator, owner);
+  assert.equal(cPref.name, "Real");
+  assert.deepEqual(cPref.moderators, [owner, user]);
 });

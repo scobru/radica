@@ -178,7 +178,8 @@ fn secrets_of(s: &ChatRoomStateV1, p: &ChatRoomParametersV1, me: &SigningKey, ex
         }
     }
     let my_id: MemberId = me.verifying_key().into();
-    for b in s.secrets.encrypted_secrets.iter().chain(extra).filter(|b| b.secret.member_id == my_id) {
+    // ponytail: only owner signs secret blobs; ignore forged/unverified blobs
+    for b in s.secrets.encrypted_secrets.iter().chain(extra).filter(|b| b.secret.member_id == my_id && b.verify_signature(&p.owner).is_ok()) {
         // the try_ variant: river-core's plain one panics on a blob that does not decrypt, and a panic here is a WASM trap
         if let Ok(k) = try_decrypt_secret_from_member_blob_raw(&b.secret.ciphertext, &b.secret.nonce, &b.secret.sender_ephemeral_public_key, me) {
             out.insert(b.secret.secret_version, k); // a blob wins over a derived secret: rooms made by River's UI use random ones
@@ -257,7 +258,22 @@ fn rotation(s: &ChatRoomStateV1, owner: &SigningKey, skip: Option<VerifyingKey>,
     let v = s.secrets.current_version.checked_add(1).ok_or("secret version overflow")?;
     let record = SecretVersionRecordV1 { version: v, cipher_spec: RoomCipherSpec::Aes256Gcm, created_at: time(time_ms) };
     let secret = derive_room_secret(&owner.to_bytes(), &owner_vk, v);
-    let keep = std::iter::once(owner_vk).chain(s.members.members.iter().map(|m| m.member.member_vk)).filter(|k| Some(*k) != skip);
+    // ponytail: exclude banned target and their entire invite subtree from receiving the rotated secret
+    let mut gone: Vec<MemberId> = skip.map(MemberId::from).into_iter().collect();
+    let mut i = 0;
+    while i < gone.len() {
+        let t = gone[i];
+        for m in &s.members.members {
+            let id = m.member.id();
+            if m.member.invited_by == t && !gone.contains(&id) {
+                gone.push(id);
+            }
+        }
+        i += 1;
+    }
+    let keep = std::iter::once(owner_vk)
+        .chain(s.members.members.iter().filter(|m| !gone.contains(&m.member.id())).map(|m| m.member.member_vk))
+        .filter(|k| Some(*k) != skip);
     let blobs = keep
         .map(|k| {
             let (ciphertext, nonce, eph) = encrypt_secret_for_member(&secret, &k);
@@ -476,6 +492,7 @@ fn handle(req: Req) -> R<Value> {
         Req::Read { owner_vk, state, member_sk, secret, secrets: plain } => {
             let p = params(&owner_vk)?;
             let s: ChatRoomStateV1 = uncbor(&state)?;
+            s.verify(&s, &p)?;
             let blob = secret.as_deref().map(uncbor::<AuthorizedEncryptedSecretForMember>).transpose()?;
             let viewer = member_sk.as_deref().map(sk).transpose()?;
             let secrets = match &viewer {
@@ -603,17 +620,15 @@ mod rng {
 // Raw WASM ABI for the browser: alloc a buffer, write the request, call, read (ptr << 32 | len), dealloc both.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    let mut v = Vec::<u8>::with_capacity(len);
-    let p = v.as_mut_ptr();
-    std::mem::forget(v);
-    p
+    // ponytail: exact-size boxed slice so dealloc frees exact capacity
+    Box::leak(vec![0u8; len].into_boxed_slice()).as_mut_ptr()
 }
 
 /// # Safety
 /// `ptr` must come from `alloc(len)` (or `call`) and not be freed twice.
 #[no_mangle]
 pub unsafe extern "C" fn dealloc(ptr: *mut u8, len: usize) {
-    drop(Vec::from_raw_parts(ptr, 0, len));
+    drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len)));
 }
 
 /// # Safety
@@ -952,5 +967,37 @@ mod tests {
         bumped.replace_range(7..8, "8"); // version 8, same signature
         assert!(run(&json!({"op":"pointer","state":bumped}).to_string()).contains("not signed by River"));
         assert!(run(&json!({"op":"pointer","state":&RECORD[..198]}).to_string()).contains("100 bytes"));
+    }
+
+    #[test]
+    fn read_rejects_forged_state_and_unverified_extra_secret() {
+        let ((owner_sk, owner_vk), (me_sk, _)) = (hx(1), hx(2));
+        let (owner, me) = (sk(&owner_sk).unwrap(), sk(&me_sk).unwrap());
+        let p = ChatRoomParametersV1 { owner: owner.verifying_key() };
+        let (ciphertext, nonce, eph) = encrypt_secret_for_member(&[9; 32], &me.verifying_key());
+        let raw_b = EncryptedSecretForMemberV1 { member_id: me.verifying_key().into(), secret_version: 5, ciphertext, nonce, sender_ephemeral_public_key: eph.to_bytes(), provider: p.owner.into() };
+        let forged_blob = AuthorizedEncryptedSecretForMember::new(raw_b, &me); // signed by `me`, NOT `owner`
+        let s = ChatRoomStateV1::default();
+        assert!(secrets_of(&s, &p, &me, Some(&forged_blob)).is_empty());
+
+        let state = ok(json!({"op":"new_room","owner_sk":owner_sk,"name":"Radica","nickname":"Ann","time_ms":1}))["state"].clone();
+        let mut bad: ChatRoomStateV1 = uncbor(state.as_str().unwrap()).unwrap();
+        bad.configuration.configuration.display.name = SealedBytes::public(b"forged".to_vec());
+        let bad_hex = cbor(&bad).unwrap();
+        assert!(run(&json!({"op":"read","owner_vk":owner_vk,"state":bad_hex}).to_string()).contains("error"));
+    }
+
+    #[test]
+    fn kick_rotation_excludes_banned_invite_subtree() {
+        let (owner, a, b) = (SigningKey::from_bytes(&[1; 32]), SigningKey::from_bytes(&[2; 32]), SigningKey::from_bytes(&[3; 32]));
+        let owner_vk = owner.verifying_key();
+        let mut s = ChatRoomStateV1::default();
+        s.configuration.configuration.privacy_mode = PrivacyMode::Private;
+        let m_a = AuthorizedMember::new(Member { owner_member_id: owner_vk.into(), invited_by: owner_vk.into(), member_vk: a.verifying_key() }, &owner);
+        let m_b = AuthorizedMember::new(Member { owner_member_id: owner_vk.into(), invited_by: a.verifying_key().into(), member_vk: b.verifying_key() }, &a);
+        s.members.members = vec![m_a, m_b];
+        let rot = rotation(&s, &owner, Some(a.verifying_key()), 1000).unwrap();
+        let recipients: Vec<MemberId> = rot.new_encrypted_secrets.iter().map(|e| e.secret.member_id).collect();
+        assert_eq!(recipients, vec![MemberId::from(owner_vk)]);
     }
 }

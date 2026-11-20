@@ -594,3 +594,11 @@ test("syncFreenetMailInbox: rejects forged/invalid ML-DSA-65 signatures and bind
   assert.equal(stored.fromAddress, `admin@${alice.inboxAddress}`);
   assert.equal(mailSenderKey(stored.fromAddress), alice.inboxAddress);
 });
+
+test("normalizeMailAddress: accepts valid 3- or 6-word BIP-39 verify clause and rejects tampered verify words", () => {
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(0x41));
+  assert.equal(normalizeMailAddress(alice.contactCard), alice.inboxAddress);
+  assert.equal(normalizeMailAddress(`${alice.inboxAddress} verify: ${alice.fingerprintShort}`), alice.inboxAddress);
+  assert.equal(normalizeMailAddress(`${alice.inboxAddress} verify: notaword-bogus-fake`), "");
+  assert.equal(normalizeMailAddress(`${alice.inboxAddress} verify: ${alice.fingerprintWords.slice(0, 2).join("-")}`), "");
+});

@@ -59,11 +59,15 @@ export function isPostDeletedInCommunity(
 export function foldCommunities(entries: LogEntry[], base: Community[]): Community[] {
   const map = new Map<string, Community>(base.map((c) => [c.id, structuredClone(c)]));
   const appointedBy = new Map<string, Map<string, string>>(); // commId -> (mod -> appointer)
+  const creatorRevoked = new Map<string, Set<string>>(); // commId -> mods removed by creator (only creator can re-appoint)
   for (const { e, b } of bodies(entries)) {
     const a = norm(e.author);
     if (b.type === "community_create") {
       const m = b.community ?? {};
       if (typeof m.id !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(m.id)) continue;
+      // ponytail: if community id embeds an 8..64 hex creator prefix (c_<hex>_...), bind creation to that author to block ts=0 front-running
+      const prefixMatch = /^c_([0-9a-f]{8,64})(?:_|$)/.exec(m.id);
+      if (prefixMatch && !a.startsWith(prefixMatch[1])) continue;
       const cur = map.get(m.id);
       if (!cur) {
         map.set(m.id, {
@@ -105,12 +109,15 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
       case "community_leave":
         c.members = c.members.filter((m) => m !== a);
         break;
-      case "community_mod_add":
-        if (isMod(c, a) && t && !banned.includes(t) && !c.moderators.includes(t)) {
+      case "community_mod_add": {
+        const revoked = creatorRevoked.get(c.id);
+        if (isMod(c, a) && t && !banned.includes(t) && !c.moderators.includes(t) && (a === c.creator || !revoked?.has(t))) {
           c.moderators.push(t);
           appointers.set(t, a);
+          if (a === c.creator) revoked?.delete(t);
         }
         break;
+      }
       case "community_mod_remove":
         if (t !== c.creator && (a === c.creator || a === t || (isMod(c, a) && (AI_REPORTERS.includes(t) || c.creator === "system")))) {
           const toRemove = new Set<string>([t]);
@@ -126,6 +133,11 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
           }
           for (const rem of toRemove) appointers.delete(rem);
           c.moderators = c.moderators.filter((m) => !toRemove.has(m));
+          if (a === c.creator) {
+            let rev = creatorRevoked.get(c.id);
+            if (!rev) creatorRevoked.set(c.id, (rev = new Set()));
+            for (const rem of toRemove) rev.add(rem);
+          }
         }
         break;
       case "community_ban":

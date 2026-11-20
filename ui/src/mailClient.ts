@@ -159,6 +159,8 @@ export function isValidMailAddress(address: string): boolean {
   return !!fullMatch;
 }
 
+import { BIP39_WORDLIST } from "./bip39Words.ts";
+
 /**
  * Normalize an address to extract the clean recipient address.
  * Handles display brackets (`Name <address>`), `fmail:` prefixes, and both
@@ -167,6 +169,14 @@ export function isValidMailAddress(address: string): boolean {
 export function normalizeMailAddress(address: string): string {
   const trimmed = address.trim();
   if (!trimmed) return "";
+
+  if (/\bverify:/i.test(trimmed)) {
+    const vm = /\bverify:\s*([^\r\n]+)/i.exec(trimmed);
+    const words = vm?.[1]?.trim().toLowerCase().split(/[\s\-]+/).filter(Boolean) ?? [];
+    if ((words.length !== 3 && words.length !== 6) || !words.every((w) => BIP39_WORDLIST.includes(w))) {
+      return "";
+    }
+  }
 
   const lines = trimmed
     .split(/\r?\n/)

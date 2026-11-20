@@ -99,6 +99,30 @@ export async function verifySignature(msg: string, sigHex: string, pubHex: strin
   }
 }
 
+/** Verify a record signed directly by `authorHex` or via a Viso delegation `cert` for this app. */
+export async function verifyAuthorSignature(
+  msg: string,
+  sigHex: string,
+  authorHex: string,
+  cert?: { base: string; challenge: string; ts: number; sig: string },
+): Promise<boolean> {
+  if (!sigHex || !authorHex) return false;
+  if (!cert) return verifySignature(msg, sigHex, authorHex);
+  const m = /^wd1\.([0-9a-f]{64})\.[0-9a-f]+$/i.exec(cert.challenge ?? "");
+  if (!m) return false;
+  const app = appPath();
+  if (app.startsWith("/v1/contract/web/")) {
+    try {
+      if (new URL(cert.base).pathname.replace(/\/+$/, "") !== app.replace(/\/+$/, "")) return false;
+    } catch {
+      return false;
+    }
+  }
+  const { verifyProof } = await import("./whoiam.ts");
+  if (!(await verifyProof({ ...cert, pk: authorHex }))) return false;
+  return verifySignature(msg, sigHex, m[1].toLowerCase());
+}
+
 /** Log entry message: must match log-contract/src/lib.rs entry_msg. `log` is the name without the "radica/" prefix. */
 export function formatLogEntryMessage(log: string, author: string, id: string, ts: number, body: string): string {
   const params = ed.etc.bytesToHex(enc.encode(`radica/${log}|${appPath()}`));
