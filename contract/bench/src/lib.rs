@@ -17,17 +17,17 @@ pub extern "C" fn prepare(posts: u32, comments: u32, likes: u32) -> u32 {
     for p in 0..posts {
         let mut post = Post { id: format!("p{p}"), author: oh.clone(), category: "thought".into(), caption: "x".repeat(200),
             community_id: None, media_uri: None, location: None, event_date: None, is_nsfw: false, timestamp: 1_700_000_000_000 + p as u64,
-            sig: String::new(), cert: None, likes: BTreeMap::new(), comments: BTreeMap::new() };
+            sig: String::new(), cert: None, v: None, likes: BTreeMap::new(), comments: BTreeMap::new() };
         post.sig = hex::encode(owner.sign(post_msg(&post).as_bytes()).to_bytes());
         for c in 0..comments {
             let k = &others[c as usize];
-            let mut cm = Comment { id: format!("c{c}"), post_id: post.id.clone(), author: hx(k), text: "y".repeat(200), timestamp: 1, sig: String::new(), cert: None };
+            let mut cm = Comment { id: format!("c{c}"), post_id: post.id.clone(), author: hx(k), text: "y".repeat(200), timestamp: 1, sig: String::new(), cert: None, v: None, nonce: 0 };
             cm.sig = hex::encode(k.sign(comment_msg(&cm).as_bytes()).to_bytes());
             post.comments.insert(format!("{}:{}", cm.author, cm.id), cm);
         }
         for l in 0..likes {
             let k = &others[l as usize];
-            let mut lk = Like { liked: true, ts: 1, sig: String::new(), cert: None };
+            let mut lk = Like { liked: true, ts: 1, sig: String::new(), cert: None, v: None, nonce: 0 };
             lk.sig = hex::encode(k.sign(like_msg(&oh, &post.id, &hx(k), &lk).as_bytes()).to_bytes());
             post.likes.insert(hx(k), lk);
         }

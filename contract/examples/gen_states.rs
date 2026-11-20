@@ -6,7 +6,7 @@ use std::fs;
 
 fn state(sk: &SigningKey, name: &str, ts: u64, follows: &[&str]) -> FeedState {
     let owner = hex::encode(sk.verifying_key().as_bytes());
-    let mut p = ProfileInfo { display_name: name.into(), bio: "Decentralized on Freenet".into(), avatar_url: String::new(), enc_pub: String::new(), updated_at: ts, sig: String::new(), cert: None };
+    let mut p = ProfileInfo { display_name: name.into(), bio: "Decentralized on Freenet".into(), avatar_url: String::new(), enc_pub: String::new(), updated_at: ts, sig: String::new(), cert: None, v: None };
     p.sig = hex::encode(sk.sign(profile_msg(&owner, &p).as_bytes()).to_bytes());
     let following: BTreeSet<String> = follows.iter().map(|f| f.repeat(64)).collect();
     let following_sig = hex::encode(sk.sign(following_msg(&owner, ts, &following).as_bytes()).to_bytes());
