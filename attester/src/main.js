@@ -18,7 +18,7 @@ import { CLAIMS_LOG, RECEIPTS_LOG, judgeClaim, issueReceipt, signEntry, bytesToH
 import {
   REPORTS_LOG, BATCH, recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody,
   retractBody, budget, shouldHold, categoryDisabled, applyHoldOutcomes, modsOf, CATEGORIES,
-  foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
+  openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
 import { liveReleases, trackTitles, mbUrl, mbMatch, reportOf, reportDelta } from "./freetunes.js";
 import { legacyHashes, sweep } from "./sweep.js";
@@ -45,7 +45,6 @@ const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split
 const GITHUB_REPO = env.GITHUB_REPO ?? "scobru/radica";
 const GITHUB_TOKEN = env.GITHUB_TOKEN || "";
 const GH_POLL_MS = Number(env.GH_POLL_MS || 30 * 60_000);
-const GARDENER_COMMUNITIES = env.GARDENER_COMMUNITIES ? new Set(env.GARDENER_COMMUNITIES.split(",").map((s) => s.trim()).filter(Boolean)) : null;
 // FreeTunes check (see freetunes.js): off unless FT_CHECK is set. Ids are the contracts' instance ids (freetunes ui wasm).
 const FT_CHECK = !!env.FT_CHECK;
 const FT_DIRECTORY = env.FT_DIRECTORY || "EUaPiZR7q2yEbsi18Za8yUudza65G85HkVaQVBHQiRyr";
@@ -272,7 +271,7 @@ async function pass(api, sk, st) {
 const modFile = join(DATA, "moderated.json");
 const loadMod = async () => {
   const base = existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : {};
-  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenChat: [], chatStrikes: {}, mirroredSeeds: [], lastGhSha: "", ...base };
+  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, mirroredSeeds: [], lastGhSha: "", ...base };
 };
 const saveMod = (state) => writeJsonAtomic(modFile, state);
 
@@ -291,74 +290,6 @@ const askModel = (posts) => askRaw(buildMessages(posts));
 async function globalProtectedSet(api, extraKeys = []) {
   const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
   return new Set([MOD_MAINTAINER.toLowerCase(), ...modsOf(maintainerLog, MOD_DEFAULT_MODS, MOD_MAINTAINER), ...extraKeys.filter(Boolean).map((k) => k.toLowerCase())]);
-}
-
-async function signCommunityChat(modSk, communityId, text) {
-  const sender = bytesToHex(await ed.getPublicKeyAsync(modSk));
-  const room_id = `comm_${communityId}`;
-  const timestamp = Date.now();
-  const id = `msg_${timestamp}_${bytesToHex(crypto.getRandomValues(new Uint8Array(3)))}`;
-  const msg = `${id}:${room_id}:${sender}:community:${text}:${timestamp}`;
-  const sig = bytesToHex(await ed.signAsync(new TextEncoder().encode(msg), modSk));
-  return { id, room_id, sender, community_id: communityId, text, timestamp, sig };
-}
-
-/** Patrol public community chats where The Gardener is an active moderator: warn 1st offense, ban + delete on 2nd. */
-async function chatModPass(api, modSk, modPk, mod, globalProtected, b) {
-  const comms = foldCommunitiesState(await getEntries(api, "communities"), MOD_MAINTAINER, [modPk]).filter((c) => c.moderators.has(modPk) && (!GARDENER_COMMUNITIES || GARDENER_COMMUNITIES.has(c.id)));
-  if (!comms.length) return;
-  const seenChat = new Set(mod.seenChat ?? []);
-  let strikes = { ...(mod.chatStrikes ?? {}) };
-  let dirty = false;
-  for (const comm of comms) {
-    if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
-    const chatProtected = new Set([...globalProtected, comm.creator, ...comm.moderators]);
-    const msgs = freshChatMessages(await getEntries(api, `community-chat/${comm.id}`), comm, seenChat, chatProtected);
-    const actedThisPass = new Set(); // at most 1 strike per (comm.id, sender) per pass
-    for (let i = 0; i < msgs.length && b.requestsLeft > 0 && b.reportsLeft > 0; i += BATCH, b.requestsLeft--) {
-      const batch = msgs.slice(i, i + BATCH);
-      b.used.requests++;
-      let verdicts = null;
-      try { verdicts = parseVerdicts(await askModel(batch), batch.length); } catch (e) { log("[gardener:chat] model unreachable:", e.message || e); }
-      if (!verdicts) continue;
-      for (const v of verdicts) {
-        if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
-        const msg = batch[v.i];
-        if (actedThisPass.has(msg.sender)) continue;
-        // Require a lone second-opinion check before acting (prompt injection defense)
-        b.used.requests++; b.requestsLeft--;
-        let second = null;
-        try { second = parseVerdicts(await askModel([msg]), 1); } catch (e) { log("[gardener:chat] second opinion unreachable:", e.message || e); }
-        if (!confirmsHold(second, v.category)) continue;
-
-        const decision = decideChatAction(strikes, comm.id, msg.sender, chatProtected);
-        strikes = decision.nextStrikes;
-        actedThisPass.add(msg.sender);
-        const short = msg.sender.slice(0, 8);
-        if (decision.action === "warn") {
-          b.used.reports++; b.reportsLeft--;
-          const warnTxt = `⚠️ @${short}: The Gardener flagged ${v.category} (${v.reason}). Please keep r/${comm.slug} clean — next violation leads to a ban.`;
-          const chatMsg = await signCommunityChat(modSk, comm.id, warnTxt);
-          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat", message: chatMsg }));
-          log("[gardener:chat] warned", short, "in", comm.slug, v.category);
-        } else if (decision.action === "ban") {
-          b.used.reports++; b.reportsLeft--;
-          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat_delete", roomId: `comm_${comm.id}`, messageId: msg.msgId }));
-          await append(api, "communities", await signEntry(modSk, "communities", APP, { type: "community_ban", community_id: comm.id, target: msg.sender }));
-          const banTxt = `🌱 The Gardener banned @${short} from r/${comm.slug} after a prior warning (${v.category}).`;
-          const chatMsg = await signCommunityChat(modSk, comm.id, banTxt);
-          await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat", message: chatMsg }));
-          log("[gardener:chat] banned", short, "from", comm.slug, v.category);
-        }
-      }
-      for (const m of batch) seenChat.add(m.key);
-      dirty = true;
-    }
-  }
-  if (dirty) {
-    mod.seenChat = [...seenChat].slice(-2000);
-    mod.chatStrikes = strikes;
-  }
 }
 
 async function ghFetch(path, init = {}) {
@@ -509,7 +440,6 @@ async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = f
     await saveMod({ ...mod, judged: [...judged], used, heldTargets, categoryStats });
   }
   const rem = { used, requestsLeft, reportsLeft, holdsLeft };
-  await chatModPass(api, modSk, modPk, mod, protectedSet, rem).catch((e) => log("[gardener:chat] failed:", e.message || e));
   if (runGithubSync) await greenhousePass(api, modSk, modPk, mod, rem).catch((e) => log("[gardener:gh] failed:", e.message || e));
   await saveMod({ ...mod, judged: [...judged], used: rem.used, heldTargets, categoryStats });
   log(`[mod] ${authors.length} feeds, ${posts.length} new posts, ${flagged} reported (${held} held, ${retracted} retracted), ${rem.used.requests}/${MOD_LIMITS.requests} requests, ${rem.used.holds}/${MOD_LIMITS.holds} holds today`);

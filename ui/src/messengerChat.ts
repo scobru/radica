@@ -17,7 +17,6 @@ export { computeSafetyBlocks, shouldHydratePreview, shouldUpdateCachedPreview, t
 import { personaName } from "./crypto.ts";
 import { plainMentions, renderChatText } from "./caption.ts";
 import { CHAT_REACTIONS } from "./logfold.ts";
-import { AI_REPORTERS } from "./types.ts";
 import { safeStorage } from "./storage.ts";
 import { durable } from "./durable.ts";
 import { generateDefaultAvatar, compressAvatarFile } from "./avatar.ts";
@@ -63,7 +62,6 @@ export interface MessengerActiveState {
   peer: string | null;
   isSecret?: boolean;
   privateRoom: PrivateRoom | null;
-  community: Community | null;
   shownMessages: ChatMessage[];
   replyingTo: ChatMessage | null;
   online: boolean;
@@ -75,7 +73,6 @@ export interface MessengerDeps {
   isVisible?: () => boolean;
   getIdentity: () => UserIdentity | null;
   getAllPrivateRooms: () => PrivateRoom[];
-  getJoinedCommunities: () => Community[];
   getAllCommunities: () => Community[];
   getFollowingKeys: () => string[];
   getActiveState: () => MessengerActiveState;
@@ -85,7 +82,6 @@ export interface MessengerDeps {
 
   onSelectPeer: (pubkey: string, isSecret?: boolean) => Promise<void>;
   onSelectPrivateRoom: (room: PrivateRoom) => Promise<void>;
-  onSelectCommunity: (comm: Community) => Promise<void>;
   onSendMessage: (rawText: string, sourceBox?: HTMLElement) => Promise<boolean>;
   onEditMessage?: (roomId: string, msgId: string, newText: string) => Promise<void>;
   onPinMessage?: (roomId: string, msgId: string | null) => Promise<void>;
@@ -117,9 +113,9 @@ export interface MessengerDeps {
 }
 
 interface UnifiedConversation {
-  key: string; // "dm:<pk>" | "priv:<roomId>" | "comm:<commId>" | "secret:<pk>"
+  key: string; // "dm:<pk>" | "priv:<roomId>" | "secret:<pk>"
   roomId: string;
-  type: "dm" | "priv" | "comm" | "secret";
+  type: "dm" | "priv" | "secret";
   isSecret?: boolean;
   name: string;
   dupSuffix?: string;
@@ -135,7 +131,6 @@ interface UnifiedConversation {
   previewOptimistic: boolean;
   peerPk?: string;
   privateRoom?: PrivateRoom;
-  community?: Community;
   isChannel?: boolean;
 }
 
@@ -154,10 +149,9 @@ function senderColor(seed: string): string {
   return SENDER_COLORS[Math.abs(h) % SENDER_COLORS.length];
 }
 
-function makeMonogram(label: string, isComm = false): string {
+function makeMonogram(label: string): string {
   const clean = label.replace(/^#?r\//i, "").trim();
-  if (!clean) return isComm ? "#" : "RM";
-  if (isComm) return `#${clean.slice(0, 1).toUpperCase()}`;
+  if (!clean) return "RM";
   const parts = clean.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return clean.slice(0, 2).toUpperCase();
@@ -261,7 +255,7 @@ export function reconcileRows(container: HTMLElement, items: { key: string; html
 export function createMessengerChat(deps: MessengerDeps) {
   const { rootEl } = deps;
 
-  let activeFilter: "all" | "unread" | "dm" | "priv" | "channel" | "comm" = "all";
+  let activeFilter: "all" | "unread" | "dm" | "priv" | "channel" = "all";
   let inboxQuery = "";
   let threadQuery = "";
   let drawerOpen = false;
@@ -359,7 +353,6 @@ export function createMessengerChat(deps: MessengerDeps) {
   function activeConvKey(): string | null {
     const st = deps.getActiveState();
     if (st.privateRoom) return `priv:${st.privateRoom.id}`;
-    if (st.community) return `comm:${st.community.id}`;
     if (st.peer) return `${st.isSecret ? "secret" : "dm"}:${st.peer}`;
     return null;
   }
@@ -429,7 +422,7 @@ export function createMessengerChat(deps: MessengerDeps) {
               type="text"
               id="rm-inbox-search"
               class="rm-search-input"
-              placeholder="Search contacts, groups, or #communities…"
+              placeholder="Search contacts, groups, or channels…"
               autocomplete="off"
             />
             <button type="button" class="rm-search-clear" id="rm-inbox-search-clear" title="Clear search">${renderIcon("x", { size: 12, className: "icon-xs" })}</button>
@@ -442,7 +435,6 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-filter-chip" data-filter="dm">DMs</button>
           <button type="button" class="rm-filter-chip" data-filter="priv">Groups</button>
           <button type="button" class="rm-filter-chip" data-filter="channel">Channels</button>
-          <button type="button" class="rm-filter-chip" data-filter="comm">Communities</button>
         </div>
 
         <div id="rm-inbox-player-slot"></div>
@@ -822,13 +814,11 @@ export function createMessengerChat(deps: MessengerDeps) {
   function mentionCandidates(): string[] {
     const st = deps.getActiveState();
     const me = deps.getIdentity()?.pubkey;
-    const pks = st.community
-      ? freenet.getCommunityParticipants(st.community)
-      : st.privateRoom
-        ? [...new Set((st.privateRoom.river ? freenet.riverRoster(st.privateRoom.id)?.members : undefined) ?? st.privateRoom.members)]
-        : st.peer
-          ? [st.peer]
-          : [];
+    const pks = st.privateRoom
+      ? [...new Set((st.privateRoom.river ? freenet.riverRoster(st.privateRoom.id)?.members : undefined) ?? st.privateRoom.members)]
+      : st.peer
+        ? [st.peer]
+        : [];
     return pks.filter((pk) => pk !== me);
   }
 
@@ -927,7 +917,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     return meta;
   }
 
-  function formatPreviewLine(text: string, sender: string, me: string, type: "dm" | "priv" | "comm"): string {
+  function formatPreviewLine(text: string, sender: string, me: string, type: "dm" | "priv"): string {
     const clean = summarizeChatMediaText(text, (t) => plainMentions(t, deps.getAuthorDisplayName));
     if (!clean) return "Encrypted message";
     if (sender === me) return clean;
@@ -1002,7 +992,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           name,
           origin: r.is_channel ? (r.river ? "Channel · River" : "Channel") : (r.river ? "River" : undefined),
           avatarUrl: r.avatar_url,
-          monogram: makeMonogram(name, false),
+          monogram: makeMonogram(name),
           pinned: pins.has(`priv:${r.id}`),
           unread,
           lastTs,
@@ -1015,44 +1005,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       })
     );
 
-    // 2. Community Rooms
-    for (const c of deps.getJoinedCommunities()) {
-      const roomId = `comm_${c.id}`;
-      const unread = openId === roomId ? 0 : deps.conversation.unread(roomId, read);
-      const meta = storedRoomMeta(roomId);
-      const cached = getCachedPreview(roomId);
-      const lastTs = Math.max(cached?.timestamp ?? 0, meta.lastTs, c.created_at || 0);
-
-      let previewText = c.description ? c.description : `Public room #r/${c.slug}`;
-      let previewMine = false;
-      let previewOptimistic = false;
-      if (meta.count > 0) {
-        previewMine = meta.lastSender === me;
-        previewOptimistic = meta.optimistic;
-        previewText = formatPreviewLine(meta.rawText, meta.lastSender, me, "comm");
-      } else if (cached) {
-        previewMine = cached.sender === me;
-        previewOptimistic = !!cached.optimistic;
-        previewText = formatPreviewLine(cached.text, cached.sender, me, "comm");
-      }
-
-      items.push({
-        key: `comm:${c.id}`,
-        roomId,
-        type: "comm",
-        name: `r/${c.slug}`,
-        monogram: makeMonogram(c.slug, true),
-        pinned: pins.has(`comm:${c.id}`),
-        unread,
-        lastTs,
-        previewText,
-        previewMine,
-        previewOptimistic,
-        community: c,
-      });
-    }
-
-    // 3. Direct Messages: only people we have a conversation with. Following someone does not open an empty chat
+    // 2. Direct Messages: only people we have a conversation with. Following someone does not open an empty chat
     // (new chats start from the contact search, which still offers the people we follow).
     // the open plain DM is listed even before its first message; an open Secret Chat does not bring the plain DM along
     const openDm = st.peer && !st.isSecret ? st.peer : null;
@@ -1280,7 +1233,6 @@ export function createMessengerChat(deps: MessengerDeps) {
           if (activeFilter === "dm" && c.type !== "dm" && c.type !== "secret") return false; // Secret Chats are DMs too
           if (activeFilter === "priv" && (c.type !== "priv" || c.isChannel)) return false;
           if (activeFilter === "channel" && (c.type !== "priv" || !c.isChannel)) return false;
-          if (activeFilter === "comm" && c.type !== "comm") return false;
           if (q) {
             const hay = `${c.name} ${c.peerPk ?? ""} ${c.previewText}`.toLowerCase();
             if (!hay.includes(q)) return false;
@@ -1322,7 +1274,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                     </span>
                   </div>
                 `;
-            } else if (c.type === "priv") {
+            } else {
               const isChan = !!c.isChannel;
               const innerAvatar = c.avatarUrl
                 ? `<img class="rm-conv-avatar" src="${safeUrl(c.avatarUrl)}" alt="${escapeHtml(c.name)}" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='grid';" /><div class="rm-room-monogram ${isChan ? "chan" : "priv"}" style="display:none;">${isChan ? renderIcon("megaphone", { size: 20 }) : escapeHtml(c.monogram || "RM")}</div>`
@@ -1333,13 +1285,6 @@ export function createMessengerChat(deps: MessengerDeps) {
                     <span class="rm-avatar-subbadge" title="${isChan ? "Broadcast Channel (Read-Only for Subscribers)" : "E2EE Private Group"}">
                       ${isChan ? renderIcon("megaphone", { size: 10, className: "icon-xs" }) : renderIcon("lock", { size: 10, className: "icon-xs" })}
                     </span>
-                  </div>
-                `;
-            } else {
-              avatarHtml = `
-                  <div class="rm-conv-avatar-wrap">
-                    <div class="rm-room-monogram comm">${escapeHtml(c.monogram || "#")}</div>
-                    <span class="rm-avatar-subbadge comm-dot" title="Public Community">#</span>
                   </div>
                 `;
             }
@@ -1526,9 +1471,9 @@ export function createMessengerChat(deps: MessengerDeps) {
       const isOwnerOrMod = (roster?.creator ?? r.creator) === me || (roster?.moderators ?? r.moderators ?? []).includes(me);
 
       if (r.avatar_url) {
-        headerAvatarSlotEl.innerHTML = `<img class="rm-header-avatar" src="${safeUrl(r.avatar_url)}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.replaceWith((function(){const d=document.createElement('div');d.className='rm-header-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}';if(isChannel){d.innerHTML = renderIcon('megaphone', { size: 22 });}else{d.textContent=makeMonogram(name, false);}return d;})());" />`;
+        headerAvatarSlotEl.innerHTML = `<img class="rm-header-avatar" src="${safeUrl(r.avatar_url)}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.replaceWith((function(){const d=document.createElement('div');d.className='rm-header-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}';if(isChannel){d.innerHTML = renderIcon('megaphone', { size: 22 });}else{d.textContent=makeMonogram(name);}return d;})());" />`;
       } else {
-        headerAvatarSlotEl.innerHTML = `<div class="rm-header-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}">${isChannel ? renderIcon("megaphone", { size: 22 }) : escapeHtml(makeMonogram(name, false))}</div>`;
+        headerAvatarSlotEl.innerHTML = `<div class="rm-header-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}">${isChannel ? renderIcon("megaphone", { size: 22 }) : escapeHtml(makeMonogram(name))}</div>`;
       }
       headerTitleEl.textContent = name;
       headerTrustBadgeEl.style.display = "inline-flex";
@@ -1566,34 +1511,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       }
       inviteTopBtn.style.display = "inline-flex";
       safetyTopBtn.style.display = "inline-flex";
-    } else if (st.community) {
-      composerOuterEl.style.display = "";
-      const c = st.community;
-      const count = freenet.getCommunityParticipants(c).length;
-      headerAvatarSlotEl.innerHTML = `<div class="rm-header-monogram rm-room-monogram comm">${escapeHtml(makeMonogram(c.slug, true))}</div>`;
-      headerTitleEl.textContent = `r/${c.slug}`;
-      headerTrustBadgeEl.style.display = "inline-flex";
-      headerTrustBadgeEl.className = "rm-trust-pill public";
-      headerTrustBadgeEl.innerHTML = `${renderIcon("globe", { size: 11 })} <span>Public Room</span>`;
-      headerSubtitleEl.textContent = `${count} participants · ${c.name} · Public Ed25519 signed`;
-      composerInputEl.placeholder = `Public message in #r/${c.slug}…`;
-      composerInputEl.disabled = false;
-      sendBtnEl.disabled = false;
-      inviteTopBtn.style.display = "none";
-      safetyTopBtn.style.display = "none";
     } else {
       composerOuterEl.style.display = "";
       headerAvatarSlotEl.innerHTML = "";
       headerTitleEl.textContent = "Messages on Freenet";
       headerTrustBadgeEl.style.display = "none";
-      headerSubtitleEl.textContent = "Select a contact, E2EE group, or community";
+      headerSubtitleEl.textContent = "Select a contact, E2EE group, or channel";
       composerInputEl.placeholder = "Select a conversation first…";
       composerInputEl.disabled = true;
       sendBtnEl.disabled = true;
       inviteTopBtn.style.display = "none";
       safetyTopBtn.style.display = "none";
     }
-    const hasActiveConv = !!(st.peer || st.privateRoom || st.community);
+    const hasActiveConv = !!(st.peer || st.privateRoom);
     if (!hasActiveConv) {
       attachBtnEl.disabled = true;
     }
@@ -1679,11 +1609,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             </div>
           </div>
         </div>`
-      : st.community
-        ? `<div class="rm-e2ee-banner">
-            <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("globe", { size: 13, className: "icon-xs" })} <span>Public community chat for <b>#r/${escapeHtml(st.community.slug)}</b>. Messages are signed with Ed25519 and visible on the node.</span></span>
-          </div>`
-        : `<div class="rm-e2ee-banner">
+      : `<div class="rm-e2ee-banner">
             <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("lock", { size: 13, className: "icon-xs" })} <span>Messages in this conversation are end-to-end encrypted on your Freenet node.</span></span>
             <button type="button" id="rm-inline-verify-btn">Verify safety number</button>
           </div>`;
@@ -1747,7 +1673,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         const name = roomNameCache.get(st.privateRoom.id) || "Private Room";
         const roomAvatarHtml = st.privateRoom.avatar_url
           ? `<img src="${safeUrl(st.privateRoom.avatar_url)}" alt="${escapeHtml(name)}" style="width:68px;height:68px;border-radius:50%;object-fit:cover;border:1px solid var(--rm-border-subtle);display:block;margin:0 auto 10px;" />`
-          : `<div class="rm-room-monogram priv" style="width:68px;height:68px;font-size:1.4rem;">${escapeHtml(makeMonogram(name, false))}</div>`;
+          : `<div class="rm-room-monogram priv" style="width:68px;height:68px;font-size:1.4rem;">${escapeHtml(makeMonogram(name))}</div>`;
         cardHtml = `
           <div class="rm-first-contact-card">
             ${roomAvatarHtml}
@@ -1756,14 +1682,6 @@ export function createMessengerChat(deps: MessengerDeps) {
               End-to-end encrypted group room. Only authorized members hold the key to read messages.
             </div>
             <button type="button" class="rm-icebreaker-btn" id="rm-empty-invite-btn">${renderIcon("userPlus", { size: 14, className: "icon-xs" })} Invite Members</button>
-          </div>
-        `;
-      } else if (st.community) {
-        cardHtml = `
-          <div class="rm-first-contact-card">
-            <div class="rm-room-monogram comm" style="width:68px;height:68px;font-size:1.4rem;">${escapeHtml(makeMonogram(st.community.slug, true))}</div>
-            <h3>#r/${escapeHtml(st.community.slug)}</h3>
-            <div class="rm-first-contact-mutual">${escapeHtml(st.community.description || `Welcome to the ${st.community.name} community chatroom!`)}</div>
           </div>
         `;
       }
@@ -1776,16 +1694,15 @@ export function createMessengerChat(deps: MessengerDeps) {
     const isChannel = !!st.privateRoom?.is_channel;
     const roomCreator = st.privateRoom
       ? freenet.riverRoster(st.privateRoom.id)?.creator ?? st.privateRoom.creator
-      : st.community?.creator ?? "";
+      : "";
     const roomMods = st.privateRoom
       ? freenet.riverRoster(st.privateRoom.id)?.moderators ?? st.privateRoom.moderators ?? []
-      : st.community?.moderators ?? [];
+      : [];
     const isRoomCreator = roomCreator === me;
     const iAmRoomMod = roomMods.includes(me);
     const isOwnerOrMod = isRoomCreator || iAmRoomMod;
     const isChannelReadOnly = isChannel && !isOwnerOrMod;
-    const iAmCommMod = !!(st.community && (st.community.creator === me || st.community.moderators.includes(me)));
-    const canPin = st.peer ? true : (st.privateRoom ? (isRoomCreator || iAmRoomMod) : (st.community ? iAmCommMod : false));
+    const canPin = st.peer ? true : (st.privateRoom ? (isRoomCreator || iAmRoomMod) : false);
 
     const msgById = new Map<string, ChatMessage>();
     for (const x of allMsgs) msgById.set(x.id, x);
@@ -1934,13 +1851,11 @@ export function createMessengerChat(deps: MessengerDeps) {
         ? true
         : st.privateRoom
           ? !st.privateRoom.river || isMine
-          : st.community
-            ? isMine || iAmCommMod
-            : true;
+          : true;
 
       const isPinned = pinnedMsgId === m.id;
       // A River DM carries text only (River's DirectMessageBody: Text | Invite): no reaction, reply quote or edit reaches the other side
-      const riverDm = !!st.peer && !st.privateRoom && !st.community && freenet.riverOnly.has(st.peer);
+      const riverDm = !!st.peer && !st.privateRoom && freenet.riverOnly.has(st.peer);
       const tFrom = !isMine && textWithoutMedia ? translatableFrom(textWithoutMedia) : null;
       const translated = chatTranslations.get(m.id);
       const hoverBarHtml = `
@@ -2377,8 +2292,8 @@ export function createMessengerChat(deps: MessengerDeps) {
           <div class="rm-drawer-avatar-wrap">
             ${
               room.avatar_url
-                ? `<img class="rm-drawer-avatar" src="${safeUrl(room.avatar_url)}" alt="${escapeHtml(name)}" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='grid';" /><div class="rm-drawer-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}" style="display:none;">${isChannel ? renderIcon("megaphone", { size: 28 }) : escapeHtml(makeMonogram(name, false))}</div>`
-                : `<div class="rm-drawer-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}">${isChannel ? renderIcon("megaphone", { size: 28 }) : escapeHtml(makeMonogram(name, false))}</div>`
+                ? `<img class="rm-drawer-avatar" src="${safeUrl(room.avatar_url)}" alt="${escapeHtml(name)}" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='grid';" /><div class="rm-drawer-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}" style="display:none;">${isChannel ? renderIcon("megaphone", { size: 28 }) : escapeHtml(makeMonogram(name))}</div>`
+                : `<div class="rm-drawer-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}">${isChannel ? renderIcon("megaphone", { size: 28 }) : escapeHtml(makeMonogram(name))}</div>`
             }
             ${
               isOwnerOrMod
@@ -2458,81 +2373,6 @@ export function createMessengerChat(deps: MessengerDeps) {
 
       fillChatMedia(drawerContentEl, (h) => freenet.getMedia(h));
       return;
-    }
-
-    if (st.community) {
-      const comm = st.community;
-      const isUserMod = me === comm.creator || comm.moderators.includes(me);
-      const commPks = freenet.getCommunityParticipants(comm);
-      const allDisplayPks = Array.from(new Set([...commPks, ...(isUserMod ? comm.banned_members || [] : [])]));
-
-      drawerHeaderLabelEl.textContent = "Community Info";
-      const memberRows = allDisplayPks
-        .map((mPk) => {
-          const isCreator = mPk === comm.creator;
-          const isMod = comm.moderators.includes(mPk);
-          const isGlobalMod = freenet.globalModerators().includes(mPk);
-          const isYou = mPk === me;
-          const isBanned = !!(comm.banned_members && comm.banned_members.includes(mPk));
-          const mName = mPk === "system" ? "Radica Genesis" : deps.getAuthorDisplayName(mPk);
-          const mAvatar = deps.getAuthorAvatarUrl(mPk);
-          const mFallback = generateDefaultAvatar(mPk);
-
-          return `
-            <div class="rm-member-row ${isBanned ? "banned" : ""}">
-              <img src="${safeUrl(mAvatar) || mFallback}" alt="${escapeHtml(mName)}" ${!isYou && mPk !== "system" ? `data-open-profile="${escapeHtml(mPk)}"` : ""} onerror="this.onerror=null;this.src='${mFallback}'" />
-              <div class="rm-member-meta">
-                <div class="rm-member-name">
-                  <span>${escapeHtml(mName)}</span>
-                  ${isCreator ? `<span class="rm-role-tag">${renderIcon("crown", { size: 10, className: "icon-xs" })} Founder</span>` : ""}
-                  ${!isCreator && isMod ? `<span class="rm-role-tag">${renderIcon("shield", { size: 10, className: "icon-xs" })} Mod</span>` : ""}
-                  ${isBanned ? `<span class="rm-role-tag" style="color:var(--rm-danger);">Banned</span>` : ""}
-                  ${isYou ? `<span class="rm-role-tag">You</span>` : ""}
-                </div>
-                <div class="rm-member-sub">@${escapeHtml(shortenKey(mPk))}</div>
-              </div>
-              <div class="rm-member-actions">
-                ${!isYou && mPk !== "system" && !isBanned ? `<button type="button" class="rm-mini-act" data-dm-pk="${escapeHtml(mPk)}" title="Direct Message">${renderIcon("messageCircle", { size: 12 })}</button>` : ""}
-                ${mPk !== "system" ? `<button type="button" class="rm-mini-act" data-copy-pk="${escapeHtml(mPk)}" title="Copy public key">${renderIcon("copy", { size: 12 })}</button>` : ""}
-                ${
-                  !isYou && mPk !== "system"
-                    ? `<button type="button" class="rm-mini-act" data-block-peer="${escapeHtml(mPk)}" title="${deps.isPeerBlocked?.(mPk) ? "Unblock contact" : "Block contact"}">${deps.isPeerBlocked?.(mPk) ? "Unblock" : renderIcon("ban", { size: 12 })}</button>`
-                    : ""
-                }
-                ${
-                  isUserMod && !isYou && !isCreator && !isMod && !isGlobalMod && mPk !== "system"
-                    ? isBanned
-                      ? `<button type="button" class="rm-mini-act" data-comm-unban="${escapeHtml(mPk)}">Unban</button>`
-                      : `<button type="button" class="rm-mini-act danger" data-comm-ban="${escapeHtml(mPk)}">Ban</button>`
-                    : ""
-                }
-              </div>
-            </div>
-          `;
-        })
-        .join("");
-
-      const gardenerPk = AI_REPORTERS[0];
-      const hasGardener = !!(gardenerPk && comm.moderators.includes(gardenerPk));
-      drawerContentEl.innerHTML = `
-        <div class="rm-drawer-hero">
-          <div class="rm-drawer-monogram rm-room-monogram comm">${escapeHtml(makeMonogram(comm.slug, true))}</div>
-          <div class="rm-drawer-name">#r/${escapeHtml(comm.slug)}</div>
-          <div class="rm-drawer-handle">${escapeHtml(comm.name)} · ${commPks.length} participants</div>
-          ${comm.description ? `<p style="font-size:0.79rem;color:var(--rm-text-secondary);margin:8px 0 0;">${escapeHtml(comm.description)}</p>` : ""}
-          <div class="rm-quick-tiles">
-            <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span></button>
-            ${isUserMod && gardenerPk ? `<button type="button" class="rm-tile-btn" data-comm-gardener="${hasGardener ? "0" : "1"}"><span>${hasGardener ? "🗑️" : "🌱"}</span><span>${hasGardener ? "Delete Gardener" : "Add Gardener"}</span></button>` : ""}
-            ${isUserMod ? `<button type="button" class="rm-tile-btn" data-clear-chat="1">${renderIcon("trash2", { size: 18 })}<span>Clear</span></button>` : ""}
-          </div>
-        </div>
-        <div class="rm-drawer-section">
-          <h4>Community Participants (${commPks.length})</h4>
-          <div>${memberRows}</div>
-        </div>
-        ${renderSharedMediaDrawerSection(st.shownMessages)}
-      `;
-      fillChatMedia(drawerContentEl, (h) => freenet.getMedia(h));
     }
   }
 
@@ -2705,7 +2545,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     menu.setAttribute("role", "menu");
     menu.innerHTML =
       item("pin", "pin", c.pinned ? "Unpin" : "Pin") +
-      (c.type !== "comm" ? item("clear", "trash2", "Clear messages") : "") +
+      item("clear", "trash2", "Clear messages") +
       (c.type === "dm" || c.type === "secret" ? item("remove", "x", "Remove from chats", true) : "") +
       (c.type === "priv" ? item("leave", "logOut", c.privateRoom?.creator === deps.getIdentity()?.pubkey ? "Remove from chats" : "Leave", true) : "");
     rootEl.appendChild(menu);
@@ -2802,7 +2642,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (!emoji) return;
       closeReactPicker();
       const st = deps.getActiveState();
-      const peer = st.community || st.privateRoom ? undefined : st.peer ?? undefined;
+      const peer = st.privateRoom ? undefined : st.peer ?? undefined;
       await deps.onReactMessage(roomId, msgId, emoji, peer);
     });
   };
@@ -2851,10 +2691,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       const rId = key.slice(5);
       const found = deps.getAllPrivateRooms().find((r) => r.id === rId);
       if (found) await deps.onSelectPrivateRoom(found);
-    } else if (key.startsWith("comm:")) {
-      const cId = key.slice(5);
-      const found = deps.getAllCommunities().find((c) => c.id === cId);
-      if (found) await deps.onSelectCommunity(found);
     }
     if (seq !== convSelectSeq) return;
     mobileShowThread = true;
@@ -3122,7 +2958,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (reactBtn) {
       messagesTrackEl.querySelectorAll(".rm-msg-row.actions-open").forEach((el) => el.classList.remove("actions-open"));
       const st = deps.getActiveState();
-      const peer = st.community || st.privateRoom ? undefined : st.peer ?? undefined;
+      const peer = st.privateRoom ? undefined : st.peer ?? undefined;
       await deps.onReactMessage(reactBtn.dataset.roomId!, reactBtn.dataset.msgId!, reactBtn.dataset.reactEmoji!, peer);
       return;
     }
@@ -3421,49 +3257,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         alert(`Could not kick member: ${err.message || err}`);
       }
       return;
-    }
-
-    const banBtn = t.closest<HTMLElement>("[data-comm-ban]");
-    if (banBtn?.dataset.commBan && st.community) {
-      const pk = banBtn.dataset.commBan;
-      const name = deps.getAuthorDisplayName(pk);
-      if (!confirm(`Ban ${name} from r/${st.community.slug}?`)) return;
-      try {
-        const res = await freenet.banMemberFromCommunity(identity, st.community.id, pk);
-        if (res.success && res.community) await deps.onSelectCommunity(res.community);
-        else alert(res.msg);
-      } catch (err: any) {
-        alert(`Could not ban member: ${err.message || err}`);
-      }
-      return;
-    }
-
-    const gardenerBtn = t.closest<HTMLElement>("[data-comm-gardener]");
-    if (gardenerBtn && st.community && AI_REPORTERS[0]) {
-      const add = gardenerBtn.dataset.commGardener === "1";
-      if (!add && !confirm(`Remove 🌱 The Gardener from #r/${st.community.slug}?`)) return;
-      try {
-        const res = add
-          ? await freenet.addCommunityModerator(identity, st.community.id, AI_REPORTERS[0])
-          : await freenet.removeCommunityModerator(identity, st.community.id, AI_REPORTERS[0]);
-        deps.showToast(res.msg, res.success ? "info" : "warning");
-        const updated = res.success ? await freenet.getCommunity(st.community.id) : null;
-        if (updated) await deps.onSelectCommunity(updated);
-      } catch (err: any) {
-        alert(`Could not update Gardener: ${err.message || err}`);
-      }
-      return;
-    }
-
-    const unbanBtn = t.closest<HTMLElement>("[data-comm-unban]");
-    if (unbanBtn?.dataset.commUnban && st.community) {
-      try {
-        const res = await freenet.unbanMemberFromCommunity(identity, st.community.id, unbanBtn.dataset.commUnban);
-        if (res.success && res.community) await deps.onSelectCommunity(res.community);
-        else alert(res.msg);
-      } catch (err: any) {
-        alert(`Could not unban member: ${err.message || err}`);
-      }
     }
   });
 

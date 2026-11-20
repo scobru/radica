@@ -222,59 +222,6 @@ function sortedParsed(entries) {
     .filter(Boolean);
 }
 
-/** Minimal community authority state from `communities` log for The Gardener: tracks creator, moderators and banned. */
-export function foldCommunitiesState(entries, maintainer = "", botKeys = []) {
-  const bots = new Set(botKeys);
-  const map = new Map([
-    ["c_radica", { id: "c_radica", slug: "radica", creator: "system", moderators: new Set(["system", ...(maintainer ? [maintainer] : [])]), banned: new Set() }],
-    ["c_tech", { id: "c_tech", slug: "tech", creator: "system", moderators: new Set(["system"]), banned: new Set() }],
-  ]);
-  for (const { e, b } of sortedParsed(entries)) {
-    const a = e.author;
-    if (b?.type === "community_create") {
-      const id = b.community?.id;
-      if (typeof id !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(id) || map.has(id)) continue;
-      map.set(id, { id, slug: id.slice(2), creator: a, moderators: new Set([a]), banned: new Set() });
-      continue;
-    }
-    const c = map.get(b?.community_id);
-    if (!c) continue;
-    const isMod = a === c.creator || c.moderators.has(a);
-    const t = typeof b.target === "string" ? b.target : "";
-    if (b.type === "community_mod_add" && isMod && t && !c.banned.has(t)) c.moderators.add(t);
-    else if (b.type === "community_mod_remove" && t !== c.creator && (a === c.creator || a === t || (isMod && (bots.has(t) || c.creator === "system")))) c.moderators.delete(t);
-    else if (b.type === "community_ban" && isMod && t && t !== c.creator && !c.moderators.has(t) && t !== maintainer) c.banned.add(t);
-    else if (b.type === "community_unban" && isMod) c.banned.delete(t);
-  }
-  return [...map.values()];
-}
-
-/** Recent public community chat messages not yet judged and not sent by protected owners/moderators/banned users. */
-export function freshChatMessages(entries, community, seenIds, protectedSet, now = Date.now()) {
-  const roomId = `comm_${community.id}`;
-  const out = [];
-  for (const { e, b } of sortedParsed(entries)) {
-    const m = b?.message;
-    if (b?.type !== "chat" || !m || m.sender !== e.author || m.room_id !== roomId || typeof m.id !== "string") continue;
-    const ts = Number(m.timestamp || e.ts || 0);
-    if (now - ts > DAY) continue;
-    if (protectedSet.has(m.sender) || community.banned?.has(m.sender)) continue;
-    const key = `${community.id}:${m.id}`;
-    if (seenIds.has(key) || typeof m.text !== "string" || m.text.trim().length <= 2) continue;
-    out.push({ key, msgId: m.id, sender: m.sender, text: m.text.slice(0, 1000), ts });
-  }
-  return out;
-}
-
-/** Decide warn -> ban action for a flagged community chat sender; owners/mods/protected keys are always skipped. */
-export function decideChatAction(strikes, communityId, sender, protectedSet) {
-  if (protectedSet.has(sender)) return { action: "skip", nextStrikes: strikes ?? {} };
-  const cur = strikes ?? {};
-  const k = `${communityId}:${sender}`;
-  const prev = Number(cur[k] ?? 0);
-  return { action: prev === 0 ? "warn" : "ban", nextStrikes: { ...cur, [k]: prev + 1 } };
-}
-
 /** Open Greenhouse proposals (`status` not "done" or "not-now"), newest first, honoring `maintainer` + `statusIssuers`. */
 export function openGreenhouseSeeds(entries, maintainer, statusIssuers = []) {
   const canSetStatus = new Set([maintainer, ...statusIssuers].map((k) => String(k).toLowerCase()));

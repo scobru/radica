@@ -115,8 +115,7 @@ const isInteractiveContract = (id: ContractId): boolean =>
   id.startsWith("river:") ||
   id.startsWith("mail:") ||
   id.startsWith("log:inbox/") ||
-  id.startsWith("log:room/") ||
-  id.startsWith("log:community-chat/");
+  id.startsWith("log:room/");
 
 export class FreenetNetwork {
   private apiP?: Promise<FreenetWsApi>;

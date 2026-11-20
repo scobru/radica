@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "ui/src/whoiam.ts": {
-    "mtime": 1795176992.727224,
-    "ast_hash": "837c5affac4794b79a704532a03c42d8",
+    "mtime": 1795190866.7602592,
+    "ast_hash": "9bfaafb9c26fb5adfc790d0de730e3e9",
     "semantic_hash": ""
   },
   "ui/tsconfig.json": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795188644.9612522,
-    "ast_hash": "489cf79425111e181d6f650bac557c5b",
+    "mtime": 1795190873.0400674,
+    "ast_hash": "d23e6d8fe6735153d10a7c6f7367e5d0",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "attester/src/main.js": {
-    "mtime": 1795188644.78013,
-    "ast_hash": "d119e95f609b8218eef182eacc2597c4",
+    "mtime": 1795190970.377132,
+    "ast_hash": "520f3c9379c284cee84794ff7073ab77",
     "semantic_hash": ""
   },
   "attester/start.sh": {
@@ -790,8 +790,8 @@
     "semantic_hash": ""
   },
   "ui/scripts/fetch-translation-models.mjs": {
-    "mtime": 1793709226.6054184,
-    "ast_hash": "e916a444aa33137138fc8f29e76e5a8c",
+    "mtime": 1795190879.1042242,
+    "ast_hash": "212ed106cbeeacc564870bb7a2c207f9",
     "semantic_hash": ""
   },
   "ui/scripts/split-freenet-dist.mjs": {

@@ -235,10 +235,6 @@
           </div>
           <div class="comm-banner-actions">
             <button class="btn-primary btn-sm" id="comm-join-btn">Join</button>
-            <button class="btn-secondary btn-sm btn-icon-text" id="comm-chat-btn">
-              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <span>Community Chat</span>
-            </button>
             <button class="btn-secondary btn-sm btn-icon-text" id="comm-reddit-view-btn" title="Open in Reddit-style Communities view">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span>Reddit View</span>
@@ -501,14 +497,6 @@
                   </div>
                 </div>
                 <div id="chat-private-rooms-list" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px;"></div>
-
-                <div class="rv-section-title">
-                  <span class="btn-icon-text">
-                    <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
-                    <span>COMMUNITY ROOMS</span>
-                  </span>
-                </div>
-                <div id="chat-communities-list" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px;"></div>
 
                 <!-- SECRET CHATS -->
                 <div class="rv-section-title rv-section-title-row" id="chat-secret-header">
@@ -1466,7 +1454,7 @@
         </details>
 
         <details><summary>@ Mentioning someone in chat</summary>
-          <p>Type <code>@</code> in a chat message to open a popup of that conversation's people (the other person in a DM, everyone in a private room, or a community's participants), which narrows as you keep typing their name. Pick one with the mouse, the Arrow keys + Enter/Tab, or press Escape to close it.</p>
+          <p>Type <code>@</code> in a chat message to open a popup of that conversation's people (the other person in a DM or everyone in a private group/channel), which narrows as you keep typing their name. Pick one with the mouse, the Arrow keys + Enter/Tab, or press Escape to close it.</p>
         </details>
 
         <details><summary>🧭 Customizing your main rail shortcuts</summary>
@@ -1514,8 +1502,8 @@
         </details>
 
         <details><summary>🏛️ Communities and moderators</summary>
-          <p>A community's creator and its moderators can remove a post <b>from that community</b> and ban people from it. They cannot touch your profile or your own feed: a removed post still exists there.</p>
-          <p><b>An offensive community</b> is up to its own moderators, and, when they do nothing, to <b>Radica's moderators</b> (named by the maintainer): they can <b>hide a community</b> (the 🛡️ button in its header, or Moderation → Hidden communities) for everyone who follows Radica's moderation, and ban whoever runs it. A hidden community leaves their lists, their search and their timelines, and so do its posts; what the people banned by Radica write in a community's chat is hidden too. Nothing is deleted from the network: someone who stops following the maintainer's list sees it all again. r/radica cannot be hidden.</p>
+          <p>A community's creator and its moderators can remove a post <b>from that community</b> and ban people from it. They cannot touch your profile or your own feed: a removed post still exists there. Communities live in the Feed and Communities views; founders who want real-time chat or announcements can share an invite link to a Private Group or Broadcast Channel in the community description.</p>
+          <p><b>An offensive community</b> is up to its own moderators, and, when they do nothing, to <b>Radica's moderators</b> (named by the maintainer): they can <b>hide a community</b> (the 🛡️ button in its header, or Moderation → Hidden communities) for everyone who follows Radica's moderation, and ban whoever runs it. A hidden community leaves their lists, their search and their timelines, and so do its posts. Nothing is deleted from the network: someone who stops following the maintainer's list sees it all again. r/radica cannot be hidden.</p>
         </details>
 
         <details><summary>📰 Articles &amp; Newsletters</summary>
@@ -1613,7 +1601,7 @@
             <li><b>Activity</b>: notifications from strangers wait under <b>Others</b>, unless a real comment on your post is behind them.</li>
             <li>Communities can be open only to vouched members.</li>
           </ul>
-          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators (owners and moderators can never be banned), and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, a <b>Recently moderated</b> team log showing who removed or dismissed each item, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss — fellow global moderators are alerted automatically if another moderator already handled a post: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper (<b>🌱 The Gardener</b>) reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held. Public Communities can also invite <b>🌱 The Gardener</b> via the Community Moderation Panel to warn abusive senders in public community chat on a 1st offense and ban on a 2nd offense.</p>
+          <p><b>4. People who clean up</b>: <b>Hide</b> (private), <b>Block</b> and <b>Report</b> (a public blocklist you can share), the blocklists you choose to follow, community moderators (owners and moderators can never be banned), and <b>Radica's moderators</b>, who have a <b>Moderation</b> page (reported posts, a <b>Recently moderated</b> team log showing who removed or dismissed each item, bans, and hidden communities) with the posts people reported, the ones reported by people they trust first (a report from a fresh key weighs nothing, so a swarm of fake accounts cannot push a post up the queue; theirs wait in a fold), and can remove, ban or dismiss — fellow global moderators are alerted automatically if another moderator already handled a post: what they remove or ban is hidden for everyone following the maintainer's list. An optional AI helper (<b>🌱 The Gardener</b>) reads public posts and reports the clearest cases (spam, scams, threats, illegal content, doxxing) marked <b>(AI helper)</b>; for the most dangerous ones it also holds the post at once, shown first in the queue as <b>⏸ held by the AI helper</b>, until a moderator dismisses or removes it &mdash; the author still sees their own post, and a category the AI keeps getting wrong on stops being held.</p>
           <p><b>What a newcomer meets</b>: a 15-second pause between posts and a few seconds of proof; the posts show in <b>Recent</b> from the first one, but not in <b>Top</b> or <b>Following</b> until someone in the reader's network likes or follows them; their comments show, with the proof. A newcomer on an old version of the app, without the proof, is covered until they update. A supporter badge, a GhostKey, or being followed by someone trusted lifts these limits.</p>
           <p><b>What it does not stop</b>: someone with a lot of computing power can still make many accounts with valid proofs. They then fill the newcomers' lane and are covered or hidden for people outside their reach, and reports and blocklists do the rest. Each layer is a brake, none is a wall.</p>
         </details>
@@ -2673,10 +2661,6 @@
             <span>Add Mod</span>
           </button>
         </form>
-        <div id="comm-gardener-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 18px; font-size: 0.8rem;">
-          <span><b>🌱 The Gardener (AI Chat Mod)</b>: warns on 1st spam/scam/threat, bans on 2nd (owners &amp; mods immune).</span>
-          <button type="button" class="btn-secondary btn-sm" id="comm-gardener-btn" style="flex-shrink: 0;">🌱 Invite The Gardener</button>
-        </div>
 
         <h4 style="margin-bottom: 8px;">Moderation Log / Removed Posts (<span id="mod-deleted-count">0</span>)</h4>
         <div id="comm-deleted-posts-list" style="font-size: 0.8rem; color: var(--text-muted); max-height: 120px; overflow-y: auto;">

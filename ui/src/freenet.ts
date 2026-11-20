@@ -889,7 +889,7 @@ export class FreenetClient {
     }
   }
 
-  // ---- Logs (log-contract): inbox/<pubkey>, communities, community-chat/<id>, room/<id> ----
+  // ---- Logs (log-contract): inbox/<pubkey>, communities, room/<id>, dm/<id> ----
 
   // JSON kept in memory while its stored text is unchanged: re-parsing a log or chat on every call is what slows each sync pass.
   // Only for reads that never modify what they get back.
@@ -1916,12 +1916,6 @@ export class FreenetClient {
             this.knownPeers[e.author] = { ...this.knownPeers[e.author], display_name: b.display_name.slice(0, 100) };
         } catch {}
       }
-    } else if (name.startsWith("community-chat/")) {
-      const id = name.slice("community-chat/".length);
-      const comm = this.foldedCommunities().find((c) => c.id === id);
-      const isMod = (pk: string) => !!comm && (pk === comm.creator || comm.moderators.includes(pk));
-      const banned = (pk: string) => !!comm?.banned_members?.includes(pk);
-      this.writeChat(`comm_${id}`, foldChat(entries, `comm_${id}`, (a, m) => a === m.sender || isMod(a), (sender) => banned(sender) || this.isBlocked(sender)), entries);
     } else if (name.startsWith("dm/")) {
       this.applyDm(name.slice("dm/".length));
     } else if (name.startsWith("room/")) {
@@ -2122,7 +2116,6 @@ export class FreenetClient {
 
   /** Which log a chat room lives in: every room and conversation in its own log. */
   private logOfRoom(roomId: string): string {
-    if (roomId.startsWith("comm_")) return `community-chat/${roomId.slice(5)}`;
     if (roomId.startsWith("privroom_")) return `room/${roomId}`;
     if (this.me && dmPeerOf(roomId, this.me)) return `dm/${roomId}`; // a direct message or Secret Chat: its own log
     return `inbox/${this.me}`;
@@ -2554,13 +2547,6 @@ export class FreenetClient {
     for (const posts of peers) for (const p of posts) postMap[p.id] = p;
 
     return Object.values(postMap).sort((a, b) => b.timestamp - a.timestamp);
-  }
-
-  /** Moderators and members of a community plus everyone who spoke in its chat (nobody has to "join" to chat). */
-  public getCommunityParticipants(comm: Community): string[] {
-    const banned = comm.banned_members ?? [];
-    const speakers = this.visibleChat(`comm_${comm.id}`).map((m) => m.sender);
-    return [...new Set([...comm.moderators, ...comm.members, ...speakers])].filter((pk) => pk !== "system" && !banned.includes(pk)); // "system" is the seed communities' creator, not a person
   }
 
   public getDiscoveredPeers(myPubkey: string): { pubkey: string; name: string }[] {
@@ -3062,55 +3048,8 @@ export class FreenetClient {
     }
   }
 
-  public async sendCommunityChatMessage(
-    identity: UserIdentity,
-    communityId: string,
-    text: string,
-    replyTo?: string
-  ): Promise<ChatMessage> {
-    const comm = await this.getCommunity(communityId);
-    if (comm && comm.banned_members && comm.banned_members.includes(identity.pubkey)) {
-      throw new Error("You are banned from sending messages in this community.");
-    }
-
-    const roomId = `comm_${communityId}`;
-    const id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const timestamp = Date.now();
-    const sigMsg = formatChatMessageSignatureMessage(id, roomId, identity.pubkey, "community", text, timestamp);
-    const sig = await identity.sign(sigMsg);
-
-    const message: ChatMessage = {
-      id,
-      room_id: roomId,
-      sender: identity.pubkey,
-      community_id: communityId,
-      text,
-      timestamp,
-      sig,
-      ...(replyTo ? { reply_to: replyTo } : {}),
-    };
-
-    const roomKey = `freenet_chat_${roomId}`;
-    const raw = localStorage.getItem(roomKey);
-    const messages: ChatMessage[] = raw ? JSON.parse(raw) : [];
-    messages.push(message);
-    localStorage.setItem(roomKey, JSON.stringify(messages));
-
-    this.broadcast({ type: "chat", message });
-    await this.logAppend(`community-chat/${communityId}`, { type: "chat", message });
-    return message;
-  }
-
   public computeLogJoins(roomId: string, entries: LogEntry[]): ChatMessage[] {
     return computeLogJoins(roomId, entries as any);
-  }
-
-  public async getCommunityChatMessages(communityId: string): Promise<ChatMessage[]> {
-    void this.refreshLog(`community-chat/${communityId}`);
-    const entries = this.logEntries(`community-chat/${communityId}`);
-    const joins = this.computeLogJoins(`comm_${communityId}`, entries);
-    const messages = this.visibleChat(`comm_${communityId}`);
-    return [...messages, ...joins].sort((a, b) => a.timestamp - b.timestamp);
   }
 
   /** Stored messages of a room, without those before the last time I cleared it. */
@@ -3204,7 +3143,7 @@ export class FreenetClient {
           encryptedText = await encryptWithSymmetricKey(roomKey, newText);
         }
       }
-    } else if (!roomId.startsWith("comm_")) {
+    } else {
       const dmPair = /^([0-9a-f]{64}):([0-9a-f]{64})$/.exec(roomId);
       if (dmPair) {
         const peer = dmPair[1] === this.me ? dmPair[2] : dmPair[1];
@@ -3214,8 +3153,8 @@ export class FreenetClient {
         }
       }
     }
-    // only a community's chat is public by design: anything else goes out sealed or not at all
-    if (encryptedText === newText && !roomId.startsWith("comm_")) throw new Error("This message cannot be edited here");
+    // every chat goes out sealed or not at all
+    if (encryptedText === newText) throw new Error("This message cannot be edited here");
 
     const roomKey = `freenet_chat_${roomId}`;
     const raw = localStorage.getItem(roomKey);

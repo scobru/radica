@@ -183,7 +183,6 @@ let activeComposerType: PostCategory = "thought";
 let timelinePosts: Post[] = [];
 let followingKeys: string[] = [];
 let activeChatPeer: string | null = null;
-let activeChatCommunity: Community | null = null;
 let activeChatPrivateRoom: PrivateRoom | null = null;
 let activeChatSecret = false;
 let allCommunities: Community[] = [];
@@ -434,7 +433,6 @@ const commHideBtn = document.getElementById("comm-hide-btn") as HTMLButtonElemen
 const commMembersCount = document.getElementById("comm-members-count") as HTMLElement;
 const commModsCount = document.getElementById("comm-mods-count") as HTMLElement;
 const commJoinBtn = document.getElementById("comm-join-btn") as HTMLButtonElement;
-const commChatBtn = document.getElementById("comm-chat-btn") as HTMLButtonElement | null;
 const commModBtn = document.getElementById("comm-mod-btn") as HTMLButtonElement;
 const commEditBtn = document.getElementById("comm-edit-btn") as HTMLButtonElement;
 const commBannerName = document.getElementById("comm-banner-name") as HTMLElement;
@@ -799,7 +797,6 @@ const uviewCloseBtn = document.getElementById("uview-close-btn") as HTMLButtonEl
 const chatModal = document.getElementById("chat-modal") as HTMLElement;
 const chatBody = document.getElementById("chat-body") as HTMLElement | null;
 const chatPeerInfo = document.getElementById("chat-peer-info") as HTMLElement;
-const chatCommunitiesList = document.getElementById("chat-communities-list") as HTMLElement;
 const chatSecretList = document.getElementById("chat-secret-list") as HTMLElement | null;
 const chatPeersList = document.getElementById("chat-peers-list") as HTMLElement;
 const newSecretChatBtn = document.getElementById("new-secret-chat-btn") as HTMLButtonElement | null;
@@ -860,7 +857,6 @@ const chatPinLabel = document.getElementById("chat-pin-label") as HTMLElement | 
 
 function getActiveChatConvKey(): string | null {
   if (activeChatPrivateRoom) return `priv:${activeChatPrivateRoom.id}`;
-  if (activeChatCommunity) return `comm:${activeChatCommunity.id}`;
   if (activeChatPeer) return `${activeChatSecret ? "secret" : "dm"}:${activeChatPeer}`;
   return null;
 }
@@ -6890,24 +6886,7 @@ async function showChat(load: () => Promise<unknown>) {
   }
 }
 
-function openCommunityChat(comm: Community) {
-  activeChatCommunity = comm;
-  activeChatPeer = null;
-  activeChatPrivateRoom = null;
-  void showChat(async () => {
-    await renderChatSidebar();
-    await selectCommunityRoom(comm);
-    messengerChat.openThreadOnMobile();
-  });
-}
-
-/** Chat lists the rooms I joined (plus the one on screen), not every community on the network. */
-function joinedCommunities(): Community[] {
-  return allCommunities.filter((c) => c.members.includes(currentIdentity?.pubkey ?? "") || c.id === activeChatCommunity?.id);
-}
-
 function openChatWithPeer(peerPubkey?: string, focusThread = true, isSecret = false) {
-  activeChatCommunity = null;
   if (peerPubkey) {
     activeChatPeer = peerPubkey;
     activeChatPrivateRoom = null;
@@ -6921,16 +6900,13 @@ function openChatWithPeer(peerPubkey?: string, focusThread = true, isSecret = fa
     if (activeChatPrivateRoom) await selectPrivateRoom(activeChatPrivateRoom);
     else if (activeChatPeer) await selectChatPeer(activeChatPeer, activeChatSecret);
     else if (allPrivateRooms.length > 0) await selectPrivateRoom(allPrivateRooms[0]);
-    else if (joinedCommunities().length > 0) await selectCommunityRoom(joinedCommunities()[0]);
     else messengerChat.renderThread();
     if (focusThread && peerPubkey) messengerChat.openThreadOnMobile();
   });
 }
 
 openChatBtn.addEventListener("click", () => {
-  if (activeCommunity) {
-    openCommunityChat(activeCommunity);
-  } else if (activeChatPrivateRoom) {
+  if (activeChatPrivateRoom) {
     messengerChat.showInboxOnMobile(); // phones open on the conversations list, not on the last open room
     void showChat(async () => {
       await renderChatSidebar();
@@ -7222,31 +7198,12 @@ if (chatParticipantsToggleBtn && chatBody) {
   });
 }
 
-if (commChatBtn) {
-  commChatBtn.addEventListener("click", () => {
-    if (activeCommunity) {
-      openCommunityChat(activeCommunity);
-    }
-  });
-}
-
 async function clearActiveChat() {
   if (!currentIdentity) return;
   if (activeChatPrivateRoom) {
     if (!confirm("Clear all messages in this private encrypted room?")) return;
     await freenet.clearChatRoom(activeChatPrivateRoom.id);
     await selectPrivateRoom(activeChatPrivateRoom);
-  } else if (activeChatCommunity) {
-    const isMod =
-      activeChatCommunity.creator === currentIdentity.pubkey ||
-      activeChatCommunity.moderators.includes(currentIdentity.pubkey);
-    if (!isMod) {
-      alert("Only community moderators can clear the community chatroom.");
-      return;
-    }
-    if (!confirm(`Clear all messages in the r/${activeChatCommunity.slug} community chat?`)) return;
-    await freenet.clearChatRoom(`comm_${activeChatCommunity.id}`);
-    await selectCommunityRoom(activeChatCommunity);
   } else if (activeChatPeer) {
     if (!confirm("Clear this conversation history?")) return;
     const roomId = activeChatSecret
@@ -7381,7 +7338,6 @@ function paintChat(html: string | (() => string)) {
 async function rerenderChat() {
   const top = chatMessagesList.scrollTop;
   if (activeChatPrivateRoom) await selectPrivateRoom(activeChatPrivateRoom);
-  else if (activeChatCommunity) await selectCommunityRoom(activeChatCommunity);
   else if (activeChatPeer) await selectChatPeer(activeChatPeer, activeChatSecret);
   chatMessagesList.scrollTop = top;
 }
@@ -7439,7 +7395,7 @@ function openClassicReactPicker(msgId: string, roomId: string, anchorEl: HTMLEle
         roomId,
         msgId,
         emoji,
-        activeChatCommunity || activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined
+        activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined
       );
     } catch (err: any) {
       alert(`Could not react: ${err.message || err}`);
@@ -7471,7 +7427,7 @@ chatMessagesList.addEventListener("click", async (e) => {
   const react = t.closest<HTMLElement>("[data-react]");
   if (react) {
     try {
-      await freenet.reactToChatMessage(react.dataset.roomId!, react.dataset.msgId!, react.dataset.react!, activeChatCommunity || activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined);
+      await freenet.reactToChatMessage(react.dataset.roomId!, react.dataset.msgId!, react.dataset.react!, activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined);
     } catch (err: any) {
       alert(`Could not react: ${err.message || err}`);
     }
@@ -7513,7 +7469,6 @@ function attachBubbleDeleteListeners() {
 function openRoomId(): string | null {
   if (!currentIdentity) return null;
   if (activeChatPrivateRoom) return activeChatPrivateRoom.id;
-  if (activeChatCommunity) return `comm_${activeChatCommunity.id}`;
   if (activeChatPeer) {
     return activeChatSecret
       ? freenet.getSecretRoomId(currentIdentity.pubkey, activeChatPeer)
@@ -7533,7 +7488,7 @@ function switchChatLayout(mode: ChatLayoutMode) {
   } else {
     void renderChatSidebar();
     renderChatParticipants();
-    if (activeChatPrivateRoom || activeChatCommunity || activeChatPeer) {
+    if (activeChatPrivateRoom || activeChatPeer) {
       void rerenderChat();
     }
   }
@@ -7572,14 +7527,12 @@ const messengerChat = createMessengerChat({
   isVisible: () => chatModal.style.display !== "none" && currentChatLayout() === "messenger",
   getIdentity: () => currentIdentity,
   getAllPrivateRooms: () => allPrivateRooms,
-  getJoinedCommunities: joinedCommunities,
   getAllCommunities: () => allCommunities,
   getFollowingKeys: () => followingKeys,
   getActiveState: () => ({
     peer: activeChatPeer,
     isSecret: activeChatSecret,
     privateRoom: activeChatPrivateRoom,
-    community: activeChatCommunity,
     shownMessages,
     replyingTo,
     online: chatOnlineState,
@@ -7589,7 +7542,6 @@ const messengerChat = createMessengerChat({
   getAuthorAvatarUrl,
   onSelectPeer: selectChatPeer,
   onSelectPrivateRoom: selectPrivateRoom,
-  onSelectCommunity: selectCommunityRoom,
   onSendMessage: sendActiveChatText,
   onSetReply: setReply,
   onReactMessage: async (roomId, msgId, emoji, peer) => {
@@ -7953,44 +7905,6 @@ async function renderChatSidebar() {
     }
   }
 
-  // 1. Render Communities Chatrooms
-  if (chatCommunitiesList) {
-    const joined = joinedCommunities();
-    joined.sort((a, b) => {
-      const aPin = pins.has(`comm:${a.id}`);
-      const bPin = pins.has(`comm:${b.id}`);
-      if (aPin !== bPin) return Number(bPin) - Number(aPin);
-      return a.slug.localeCompare(b.slug);
-    });
-    if (joined.length === 0) {
-      setHtmlIfChanged(chatCommunitiesList, `<div style="font-size: 0.75rem; color: var(--text-muted); padding: 4px;">No joined communities yet. Join one from the sidebar to chat here.</div>`);
-    } else {
-      const paintedComms = setHtmlIfChanged(chatCommunitiesList, joined
-        .map((c) => {
-          const isActive = activeChatCommunity?.id === c.id;
-          const isPinned = pins.has(`comm:${c.id}`);
-          return `
-            <div class="chat-comm-item ${isActive ? "active" : ""}" data-comm-id="${escapeHtml(c.id)}" title="Enter r/${escapeHtml(c.slug)} chatroom">
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                <span>${isPinned ? "📌 " : ""}${renderIcon("hash", { className: "icon-xs" })}</span>
-                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">r/${escapeHtml(c.slug)}</span>
-              </div>
-              <span>${unreadBadge(`comm_${c.id}`, read)}<span class="chat-comm-badge">${c.members.length}</span></span>
-            </div>
-          `;
-        })
-        .join(""));
-
-      if (paintedComms) chatCommunitiesList.querySelectorAll(".chat-comm-item").forEach((el) => {
-        el.addEventListener("click", () => {
-          const cId = (el as HTMLElement).dataset.commId!;
-          const found = allCommunities.find((c) => c.id === cId);
-          if (found) selectCommunityRoom(found);
-        });
-      });
-    }
-  }
-
   const me = currentIdentity!.pubkey;
   const myBlocked = freenet.blockedBy(me);
   const localHidden = new Set(hiddenUsers());
@@ -8016,7 +7930,7 @@ async function renderChatSidebar() {
           .map((pk) => {
             const displayName = getAuthorDisplayName(pk);
             const secretRoomId = freenet.getSecretRoomId(me, pk);
-            const isActive = activeChatPeer === pk && activeChatSecret && !activeChatCommunity && !activeChatPrivateRoom;
+            const isActive = activeChatPeer === pk && activeChatSecret && !activeChatPrivateRoom;
             const isPinned = pins.has(`secret:${pk}`);
             return `
               <div class="chat-secret-item ${isActive ? "active" : ""}" data-secret-peer="${escapeHtml(pk)}" title="Secret Chat with ${escapeHtml(displayName)} (PFS)">
@@ -8090,7 +8004,7 @@ async function renderChatSidebar() {
       const inRooms = riverRooms.length ? `<span class="peer-from" title="${escapeHtml(riverRooms.join(", "))}">in ${escapeHtml(riverRooms.join(", "))}</span>` : "";
       const dup = (nameCount.get(displayName) ?? 0) > 1 ? ` <span class="peer-key">${escapeHtml(pk.slice(0, 4))}</span>` : "";
       const riverTag = fromRiver ? ` <span class="peer-origin" title="Contact from River">River</span>` : "";
-      const isActive = activeChatPeer === pk && !activeChatCommunity && !activeChatPrivateRoom;
+      const isActive = activeChatPeer === pk && !activeChatPrivateRoom;
       const isPinned = pins.has(`dm:${pk}`);
       return `
     <div class="chat-peer-item ${isActive ? "active" : ""}" data-peer="${escapeHtml(pk)}" title="${escapeHtml(pk)}">
@@ -8349,130 +8263,6 @@ function renderChatParticipants() {
         }
       });
     }
-  } else if (activeChatCommunity) {
-    const comm = activeChatCommunity;
-    const isUserMod =
-      currentIdentity.pubkey === comm.creator || comm.moderators.includes(currentIdentity.pubkey);
-
-    chatParticipantsTitle.innerHTML = `<span class="btn-icon-text">${renderIcon("users", { className: "icon-sm" })} <span>Community Members</span></span>`;
-    const commPks = freenet.getCommunityParticipants(comm);
-    chatParticipantsCount.textContent = commPks.length.toString();
-    if (chatParticipantsHeaderCount) {
-      chatParticipantsHeaderCount.textContent = commPks.length.toString();
-    }
-
-    const allDisplayPks = Array.from(new Set([...commPks, ...(isUserMod ? comm.banned_members || [] : [])]));
-
-    const items = allDisplayPks.map((memberPk) => {
-      const isCreator = memberPk === comm.creator;
-      const isMod = comm.moderators.includes(memberPk);
-      const isYou = memberPk === currentIdentity!.pubkey;
-      const isBanned = !!(comm.banned_members && comm.banned_members.includes(memberPk));
-      const peerProfile = freenet.knownPeers[memberPk];
-      const displayName = peerProfile?.display_name || (memberPk === "system" ? "Radica Genesis" : personaName(memberPk));
-      const shortPk = shortenKey(memberPk);
-      const avatarUrl =
-        peerProfile?.avatar_url || generateDefaultAvatar(memberPk);
-
-      return `
-        <div class="chat-participant-item ${isBanned ? "banned" : ""}" data-pubkey="${escapeHtml(memberPk)}" title="Public Key: ${escapeHtml(memberPk)}">
-          <img src="${safeUrl(avatarUrl)}" loading="lazy" decoding="async" class="chat-participant-avatar" onerror="this.onerror=null; this.src='${generateDefaultAvatar(memberPk)}'" />
-          <div class="chat-participant-details">
-            <div class="chat-participant-name">
-              <span>${escapeHtml(displayName)}</span>
-              ${isCreator ? `<span class="chat-participant-tag creator btn-icon-text">${renderIcon("crown", { className: "icon-xs" })} <span>Founder</span></span>` : ""}
-              ${!isCreator && isMod ? `<span class="chat-participant-tag mod btn-icon-text">${renderIcon("shield", { className: "icon-xs" })} <span>Mod</span></span>` : ""}
-              ${isBanned ? `<span class="chat-participant-tag btn-icon-text" style="background:#fee2e2; color:#b91c1c;">${renderIcon("ban", { className: "icon-xs" })} <span>Banned</span></span>` : ""}
-              ${isYou ? `<span class="chat-participant-tag you">You</span>` : ""}
-            </div>
-            <div class="chat-participant-key">@${shortPk}</div>
-          </div>
-          <div class="chat-participant-actions">
-            ${!isYou && memberPk !== "system" && !isBanned ? `<button type="button" class="btn-secondary btn-sm chat-part-dm-btn" data-pubkey="${escapeHtml(memberPk)}" title="Send Direct Message" style="padding: 2px 6px; font-size: 0.7rem;">${renderIcon("chat", { className: "icon-xs" })}</button>` : ""}
-            ${memberPk !== "system" ? `<button type="button" class="btn-secondary btn-sm chat-part-copy-btn" data-pubkey="${escapeHtml(memberPk)}" title="Copy Public Key" style="padding: 2px 6px; font-size: 0.7rem;">${renderIcon("copy", { className: "icon-xs" })}</button>` : ""}
-            ${isUserMod && !isYou && !isCreator && memberPk !== "system" ? (
-              isBanned
-                ? `<button type="button" class="btn-secondary btn-sm chat-part-unban-btn" data-pubkey="${escapeHtml(memberPk)}" title="Unban member" style="padding: 2px 6px; font-size: 0.7rem; color: #10b981;">Unban</button>`
-                : `<button type="button" class="btn-secondary btn-sm chat-part-ban-btn btn-icon-text" data-pubkey="${escapeHtml(memberPk)}" title="Ban member from community" style="padding: 2px 6px; font-size: 0.7rem; color: var(--danger);">${renderIcon("ban", { className: "icon-xs" })} <span>Ban</span></button>`
-            ) : ""}
-          </div>
-        </div>
-      `;
-    });
-
-    if (!setHtmlIfChanged(chatParticipantsList, items.join(""))) return; // nothing changed: the rows and their listeners stay
-
-    chatParticipantsList.querySelectorAll(".chat-part-dm-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const pk = (btn as HTMLElement).dataset.pubkey;
-        if (pk) selectChatPeer(pk);
-      });
-    });
-
-    chatParticipantsList.querySelectorAll(".chat-part-copy-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const pk = (btn as HTMLElement).dataset.pubkey;
-        if (pk) {
-          navigator.clipboard.writeText(pk);
-          alert(`Public key copied to clipboard:\n${pk}`);
-        }
-      });
-    });
-
-    chatParticipantsList.querySelectorAll(".chat-part-ban-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const pk = (btn as HTMLElement).dataset.pubkey;
-        if (!pk || !currentIdentity || !activeChatCommunity) return;
-        const p = freenet.knownPeers[pk];
-        const name = p?.display_name || `@${shortenKey(pk)}`;
-        if (
-          !confirm(
-            `Are you sure you want to ban ${name} from r/${activeChatCommunity.slug}?\n\nThey will be removed from members and barred from sending messages in this community.`
-          )
-        ) {
-          return;
-        }
-        try {
-          const res = await freenet.banMemberFromCommunity(
-            currentIdentity,
-            activeChatCommunity.id,
-            pk
-          );
-          if (res.success && res.community) {
-            await selectCommunityRoom(res.community);
-            alert(`User ${name} has been banned from the community.`);
-          } else {
-            alert(res.msg);
-          }
-        } catch (err: any) {
-          alert(`Could not ban member: ${err.message || err}`);
-        }
-      });
-    });
-
-    chatParticipantsList.querySelectorAll(".chat-part-unban-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const pk = (btn as HTMLElement).dataset.pubkey;
-        if (!pk || !currentIdentity || !activeChatCommunity) return;
-        try {
-          const res = await freenet.unbanMemberFromCommunity(
-            currentIdentity,
-            activeChatCommunity.id,
-            pk
-          );
-          if (res.success && res.community) {
-            await selectCommunityRoom(res.community);
-            alert(`User unbanned.`);
-          }
-        } catch (err: any) {
-          alert(`Could not unban member: ${err.message || err}`);
-        }
-      });
-    });
   } else if (activeChatPeer) {
     const peerPk = activeChatPeer;
     chatParticipantsTitle.innerHTML = `<span class="btn-icon-text">${renderIcon("lock", { className: "icon-sm" })} <span>Direct Chat</span></span>`;
@@ -8569,7 +8359,6 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   if (!currentIdentity) return;
   markChatSeen((n) => n.linkRoomId === room.id);
   activeChatPrivateRoom = room;
-  activeChatCommunity = null;
   activeChatPeer = null;
   updateChatPinBtnUI();
 
@@ -8786,87 +8575,11 @@ function appendChatMessageToView(opts: {
   void messengerChat.refreshInbox();
 }
 
-async function selectCommunityRoom(comm: Community, preserveScroll = false) {
-  if (!currentIdentity) return;
-  activeChatCommunity = comm;
-  activeChatPeer = null;
-  activeChatPrivateRoom = null;
-  updateChatPinBtnUI();
-  if (chatInviteBtn) chatInviteBtn.style.display = "none";
-
-  chatPeerInfo.innerHTML = `<strong>#r/${escapeHtml(comm.slug)}</strong> (${freenet.getCommunityParticipants(comm).length} members) — ${escapeHtml(comm.name)} <span class="chat-security-badge public btn-icon-text" title="Public Community Chatroom - Authenticated by Ed25519">${renderIcon("globe", { className: "icon-xs" })} <span>Public Room</span></span>`;
-  const isMod =
-    comm.creator === currentIdentity.pubkey || comm.moderators.includes(currentIdentity.pubkey);
-  chatClearBtn.style.display = isMod ? "inline-block" : "none";
-  chatClearBtn.title = "Moderator: Clear community chatroom";
-  if (chatSafetyBtn) chatSafetyBtn.style.display = "none";
-  if (chatTtlBtn) chatTtlBtn.style.display = "none";
-  if (chatBtnAttach) chatBtnAttach.disabled = false;
-  const chatSendFormComm = document.getElementById("chat-send-form") as HTMLFormElement | null;
-  if (chatSendFormComm) chatSendFormComm.style.display = "flex";
-
-  const isMessenger = currentChatLayout() === "messenger";
-  if (!isMessenger) {
-    renderChatSidebar();
-    renderChatParticipants();
-  }
-
-  const roomId = `comm_${comm.id}`;
-  conversation.markRead(roomId);
-  updateChatBadge();
-
-  // the bans of the lists I follow (Radica's moderators') reach a community's chat too, as they do River groups
-  const messages = (await freenet.getCommunityChatMessages(comm.id)).filter((m) => m.sender === currentIdentity!.pubkey || !isHiddenAuthor(m.sender));
-  shownMessages = messages;
-
-  if (!isMessenger) {
-    const wasNearBottom = chatMessagesList.scrollHeight - chatMessagesList.scrollTop - chatMessagesList.clientHeight < 90;
-    const visibleMessages = filterClassicMessages(messages);
-    if (visibleMessages.length === 0) {
-      paintChat(classicThreadQuery ? `<div class="empty-state" style="padding: 20px;">No messages matching "${escapeHtml(classicThreadQuery)}".</div>` : `<div class="empty-state" style="padding: 20px;">Welcome to #r/${escapeHtml(comm.slug)} community chat! Say hello to fellow members.</div>`);
-    } else {
-      paintChat(() => visibleMessages
-        .map((msg, i) => {
-          const isMine = msg.sender === currentIdentity!.pubkey;
-          const msgIsMod = comm.creator === msg.sender || comm.moderators.includes(msg.sender);
-          return renderChatMessage({
-            msg,
-            prev: visibleMessages[i - 1],
-            all: visibleMessages,
-            roomId,
-            isMine,
-            senderName: getAuthorDisplayName(msg.sender),
-            badge: msgIsMod ? `<span class="rv-badge">${renderIcon("shield", { className: "icon-xs" })}</span>` : "",
-            canDelete: isMine || isMod,
-          });
-        })
-        .join(""));
-    }
-    attachBubbleDeleteListeners();
-    chatMessageInput.disabled = false;
-    chatMessageInput.placeholder = "Type a message… (Shift+Enter: new line)";
-    const chatSendBtn = document.getElementById("chat-send-btn") as HTMLButtonElement | null;
-    if (chatSendBtn) chatSendBtn.disabled = false;
-    if (!preserveScroll || wasNearBottom) chatMessagesList.scrollTop = chatMessagesList.scrollHeight;
-  }
-
-  if (replyingTo && replyingTo.room_id !== roomId) setReply(null); // another conversation
-
-  if (isMessenger) {
-    messengerChat.renderThread(!preserveScroll);
-    messengerChat.refreshDrawer();
-    void messengerChat.refreshInbox(!preserveScroll);
-  }
-
-  freenet.warmPeers([...new Set(messages.map((x) => x.sender))]);
-}
-
 async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScroll = false) {
   if (!currentIdentity) return;
   markChatSeen((n) => n.from === peerPubkey && !!n.isSecret === isSecret && !(n.linkRoomId && !n.linkRoomId.includes(":"))); // a room id without ":" is a private room, not a DM
   activeChatPeer = peerPubkey;
   activeChatSecret = isSecret;
-  activeChatCommunity = null;
   activeChatPrivateRoom = null;
   updateChatPinBtnUI();
   if (chatInviteBtn) chatInviteBtn.style.display = "none";
@@ -8957,7 +8670,7 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
   if (!currentIdentity) return false;
   const text = rawText.trim();
   if (!text) return false;
-  if (!activeChatPrivateRoom && !activeChatCommunity && !activeChatPeer) return false;
+  if (!activeChatPrivateRoom && !activeChatPeer) return false;
 
   if (activeChatPeer && isHiddenAuthor(activeChatPeer)) {
     showToast("Cannot send message: this contact is blocked.", "warning");
@@ -9049,45 +8762,6 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
       console.error("Private room chat error:", err);
       showToast(`Chat error: ${err.message || err}`, "error");
       rejectOptimistic(optId, room.river ? undefined : roomKey);
-    });
-    return true;
-  }
-
-  if (activeChatCommunity) {
-    const comm = activeChatCommunity;
-    const roomId = `comm_${comm.id}`;
-    const roomKey = `freenet_chat_${roomId}`;
-    const raw = safeStorage.getItem(roomKey);
-    const list: ChatMessage[] = raw ? JSON.parse(raw) : [];
-    const optId = `msg_opt_${Date.now()}`;
-    const optMsg: ChatMessage = {
-      id: optId,
-      room_id: roomId,
-      sender: currentIdentity.pubkey,
-      community_id: comm.id,
-      text: finalText,
-      timestamp: Date.now(),
-      sig: "",
-      ...(replyTo ? { reply_to: replyTo } : {}),
-    };
-    list.push(optMsg);
-    safeStorage.setItem(roomKey, JSON.stringify(list));
-    appendChatMessageToView({
-      msg: optMsg,
-      prev: shownMessages[shownMessages.length - 1],
-      all: shownMessages,
-      roomId,
-      isMine: true,
-      canDelete: true,
-      senderName: "You",
-    });
-
-    freenet.sendCommunityChatMessage(currentIdentity, comm.id, finalText, replyTo).then((sentMsg) => {
-      resolveOptimistic(optId, sentMsg, roomKey);
-    }).catch((err) => {
-      console.error("Community chat error:", err);
-      showToast(`Chat error: ${err.message || err}`, "error");
-      rejectOptimistic(optId, roomKey);
     });
     return true;
   }
@@ -10160,8 +9834,7 @@ async function openNotification(n: NotificationItem) {
     if (isSecret) {
       openChatWithPeer(n.from, true, true);
     } else if (n.linkRoomId && !n.linkRoomId.includes(":")) {
-      // Named private room or community room
-      activeChatCommunity = null;
+      // Named private room
       activeChatPeer = null;
       void showChat(async () => {
         allPrivateRooms = await freenet.getPrivateRooms(currentIdentity!);
@@ -10301,7 +9974,6 @@ function updateChatBadge() {
   }
   for (const peer of freenet.getSecretChatPeers(me)) if (peer && peer !== me) n += conversation.unread(freenet.getSecretRoomId(me, peer), read);
   for (const r of allPrivateRooms) n += conversation.unread(r.id, read);
-  for (const c of joinedCommunities()) n += conversation.unread(`comm_${c.id}`, read);
   chatBadge.textContent = n > 99 ? "99+" : String(n);
   chatBadge.style.display = n ? "inline-block" : "none";
   if (prevChatUnread !== -1 && n > prevChatUnread) {
@@ -10666,34 +10338,6 @@ function openModerationPanel(comm: Community) {
     `
       )
       .join("");
-  }
-
-  const gardenerRow = document.getElementById("comm-gardener-row") as HTMLElement | null;
-  const gardenerBtn = document.getElementById("comm-gardener-btn") as HTMLButtonElement | null;
-  const gardenerPk = AI_REPORTERS[0];
-  const isCommMod = currentIdentity!.pubkey === comm.creator || comm.moderators.includes(currentIdentity!.pubkey);
-  if (gardenerRow) gardenerRow.style.display = isCommMod && gardenerPk ? "flex" : "none";
-  if (gardenerBtn && gardenerPk && isCommMod) {
-    const hasGardener = comm.moderators.includes(gardenerPk);
-    gardenerBtn.disabled = false;
-    gardenerBtn.className = hasGardener ? "btn-danger btn-sm" : "btn-secondary btn-sm";
-    gardenerBtn.textContent = hasGardener ? "🗑️ Delete Gardener" : "🌱 Add Gardener";
-    gardenerBtn.onclick = async () => {
-      if (!currentIdentity) return;
-      if (hasGardener && !confirm(`Remove 🌱 The Gardener from r/${comm.slug}?`)) return;
-      const res = hasGardener
-        ? await freenet.removeCommunityModerator(currentIdentity, comm.id, gardenerPk)
-        : await freenet.addCommunityModerator(currentIdentity, comm.id, gardenerPk);
-      showToast(res.msg, res.success ? "info" : "warning");
-      if (res.success) {
-        allCommunities = await loadCommunities();
-        const updated = allCommunities.find((c) => c.id === comm.id)!;
-        if (activeCommunity?.id === comm.id) activeCommunity = updated;
-        if (selectedRedditCommunity?.id === comm.id) selectedRedditCommunity = updated;
-        openModerationPanel(updated);
-        renderCommunities();
-      }
-    };
   }
 
   commModModal.style.display = "flex";
@@ -11077,7 +10721,6 @@ function renderCommunitiesPage() {
       </div>
       <div class="reddit-hero-actions">
         <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rhero-action="join">${joined ? "✓ Joined" : "+ Join"}</button>
-        <button type="button" class="btn-secondary btn-sm" data-rhero-action="chat" title="Open community chat">${renderIcon("chat", { className: "icon-xs" })} Chat</button>
         <button type="button" class="btn-secondary btn-sm" data-rhero-action="feed" title="View in main feed">Feed View</button>
         ${isOwner ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community info">${renderIcon("edit", { className: "icon-xs" })} Edit</button>` : ""}
         ${isMod ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="mod" title="Open community moderation tools">${renderIcon("shield", { className: "icon-xs" })} Mod</button>` : ""}
@@ -11332,7 +10975,6 @@ function renderCommunitiesPage() {
           </div>
           <div class="reddit-about-btns">
             <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rside-join="${escapeHtml(c.id)}">${joined ? "✓ Joined" : "Join Community"}</button>
-            <button type="button" class="btn-secondary btn-sm" data-rside-chat="${escapeHtml(c.id)}">${renderIcon("chat", { className: "icon-xs" })} Community Chat</button>
           </div>
         </div>`;
       })()
@@ -11801,8 +11443,6 @@ redditSubHero.addEventListener("click", async (e) => {
       selectCommunity(activeCommunity, true);
     }
     renderCommunities();
-  } else if (action === "chat") {
-    openCommunityChat(comm);
   } else if (action === "feed") {
     communitiesModal.style.display = "none";
     selectCommunity(comm);
@@ -12082,13 +11722,6 @@ redditSidebarContent.addEventListener("click", async (e) => {
       selectCommunity(activeCommunity, true);
     }
     renderCommunities();
-    return;
-  }
-
-  const chatBtn = target.closest<HTMLElement>("[data-rside-chat]");
-  if (chatBtn?.dataset.rsideChat) {
-    const comm = allCommunities.find((c) => c.id === chatBtn.dataset.rsideChat);
-    if (comm) openCommunityChat(comm);
     return;
   }
 
@@ -14130,9 +13763,6 @@ async function init() {
       loadCommunities(),
       freenet.getPrivateRooms(currentIdentity!),
     ]);
-    // the chats of my communities, even unopened, so their new messages count as unread (each log is fetched at most
-    // once a minute, then followed by its subscription)
-    for (const c of joinedCommunities()) void freenet.refreshLog(`community-chat/${c.id}`);
     if (activeCommunity) {
       const refreshed = allCommunities.find((c) => c.id === activeCommunity!.id);
       if (refreshed) {
@@ -14158,11 +13788,9 @@ async function init() {
 
     // Live update open chat dialog
     if (chatModal.style.display !== "none") {
-      if (!activeChatPrivateRoom && !activeChatCommunity && !activeChatPeer) renderChatSidebar(); // the select* below draws it itself
+      if (!activeChatPrivateRoom && !activeChatPeer) renderChatSidebar(); // the select* below draws it itself
       if (activeChatPrivateRoom) {
         await selectPrivateRoom(activeChatPrivateRoom, true);
-      } else if (activeChatCommunity) {
-        await selectCommunityRoom(activeChatCommunity, true);
       } else if (activeChatPeer && currentIdentity) {
         await selectChatPeer(activeChatPeer, activeChatSecret, true); // a sync must not turn an open Secret Chat into the plain DM
       }

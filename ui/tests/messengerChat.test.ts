@@ -161,19 +161,21 @@ test("broadcast channels: read-only permission check and discussion linking", ()
 test("conversation filter: separates broadcast channels from private groups", () => {
   const convs = [
     { key: "dm:1", type: "dm", isChannel: false },
+    { key: "secret:2", type: "secret", isChannel: false },
     { key: "priv:group1", type: "priv", isChannel: false },
     { key: "priv:channel1", type: "priv", isChannel: true },
-    { key: "comm:radica", type: "comm", isChannel: false },
   ];
 
-  const filterConvs = (filter: "all" | "dm" | "priv" | "channel" | "comm") =>
+  const filterConvs = (filter: "all" | "dm" | "priv" | "channel") =>
     convs.filter((c) => {
-      if (filter === "dm" && c.type !== "dm") return false;
+      if (filter === "dm" && c.type !== "dm" && c.type !== "secret") return false;
       if (filter === "priv" && (c.type !== "priv" || c.isChannel)) return false;
       if (filter === "channel" && (c.type !== "priv" || !c.isChannel)) return false;
-      if (filter === "comm" && c.type !== "comm") return false;
       return true;
     });
+
+  assert.equal(filterConvs("all").length, 4);
+  assert.deepEqual(filterConvs("dm").map((c) => c.key), ["dm:1", "secret:2"]);
 
   const groupOnly = filterConvs("priv");
   assert.equal(groupOnly.length, 1);

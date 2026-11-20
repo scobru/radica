@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   recentAuthors, postEdits, freshPosts, buildMessages, parseVerdicts, confirmsHold, reportBody, retractBody, budget,
   shouldHold, categoryDisabled, recordHoldOutcome, holdOutcome, applyHoldOutcomes, modsOf, HOLD_CATEGORIES,
-  foldCommunitiesState, freshChatMessages, decideChatAction, openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
+  openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
 } from "./moderator.js";
 
 const NOW = 1_800_000_000_000;
@@ -158,34 +158,6 @@ test("freshPosts: skips authors in immuneAuthors (owners and moderators)", () =>
   const f = feed(post("1", "spam link buy now"));
   assert.equal(freshPosts(f, A, new Set(), NOW, new Map(), new Set([A])).length, 0);
   assert.equal(freshPosts(f, A, new Set(), NOW, new Map(), new Set([B])).length, 1);
-});
-
-test("foldCommunitiesState + freshChatMessages + decideChatAction: warns then bans users, never bans mods/owners", () => {
-  const bot = "ee".repeat(32);
-  const owner = A, user = B;
-  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
-  const comms = foldCommunitiesState([
-    le(owner, 1, { type: "community_create", community: { id: "c_garden", name: "Garden" } }),
-    le(owner, 2, { type: "community_mod_add", community_id: "c_garden", target: bot }),
-    le(bot, 3, { type: "community_ban", community_id: "c_garden", target: owner }),
-  ]);
-  const comm = comms.find((c) => c.id === "c_garden");
-  assert.ok(comm && comm.moderators.has(bot));
-  assert.equal(comm.banned.has(owner), false); // owner immune
-
-  const chatLog = [
-    le(owner, NOW - 500, { type: "chat", message: { id: "m1", room_id: "comm_c_garden", sender: owner, text: "owner msg", timestamp: NOW - 500 } }, "m1"),
-    le(user, NOW - 400, { type: "chat", message: { id: "m2", room_id: "comm_c_garden", sender: user, text: "buy crypto giveaway!", timestamp: NOW - 400 } }, "m2"),
-  ];
-  const prot = new Set([owner, bot]);
-  const msgs = freshChatMessages(chatLog, comm, new Set(), prot, NOW);
-  assert.deepEqual(msgs.map((m) => m.msgId), ["m2"]);
-
-  assert.equal(decideChatAction({}, "c_garden", owner, prot).action, "skip");
-  const first = decideChatAction({}, "c_garden", user, prot);
-  assert.equal(first.action, "warn");
-  const second = decideChatAction(first.nextStrikes, "c_garden", user, prot);
-  assert.equal(second.action, "ban");
 });
 
 test("openGreenhouseSeeds + parseGithubMatches: honors maintainer/bot statuses and accepts high-confidence commit matches", () => {
