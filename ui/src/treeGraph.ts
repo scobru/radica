@@ -658,6 +658,8 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
     });
   }
 
+  spreadPostEnds(posts);
+
   // Place Underground Roots (You at taproot, followed Tier 1, Tier 2, and newcomers)
   const rootGrowth = isGrowthActive ? clamp((timeProgress - 0.03) / 0.55, 0.25, 1) : 1;
   const tapX = 0;
@@ -829,6 +831,52 @@ export function buildTreeGraph(input: BuildTreeGraphInput): TreeGraphModel {
       freshPosts: freshPostsCount,
     },
   };
+}
+
+/** Minimum node distance: a busy bough piles its post ends on top of each other, so overlapping ones are pushed
+ *  apart (a few relaxation passes) while each branch keeps its start on the bough. The curve and its leaves follow. */
+export function spreadPostEnds(posts: TreePostBranchNode[], gap = 6, passes = 30): void {
+  const pos = posts.map((p) => [p.x, p.y]);
+  for (let pass = 0; pass < passes; pass++) {
+    let moved = false;
+    for (let i = 0; i < pos.length; i++)
+      for (let j = i + 1; j < pos.length; j++) {
+        const dx = pos[j][0] - pos[i][0];
+        const dy = pos[j][1] - pos[i][1];
+        const d = Math.hypot(dx, dy);
+        const min = posts[i].radius + posts[j].radius + gap;
+        if (d >= min) continue;
+        const [ux, uy] = d > 0.01 ? [dx / d, dy / d] : [1, 0]; // same spot: split sideways
+        const push = (min - d) / 2;
+        pos[i][0] -= ux * push;
+        pos[i][1] -= uy * push;
+        pos[j][0] += ux * push;
+        pos[j][1] += uy * push;
+        moved = true;
+      }
+    for (const q of pos) {
+      q[0] = clamp(q[0], -345, 345); // inside the canopy view (720 wide)
+      q[1] = clamp(q[1], -355, -20); // above the ground line
+    }
+    if (!moved) break;
+  }
+  posts.forEach((p, i) => {
+    const dx = pos[i][0] - p.x;
+    const dy = pos[i][1] - p.y;
+    if (!dx && !dy) return;
+    p.x = round1(pos[i][0]);
+    p.y = round1(pos[i][1]);
+    // moving the end by d and the control by d/2 moves the curve's point at t by exactly t*d
+    p.ctrlX = round1(p.ctrlX + dx / 2);
+    p.ctrlY = round1(p.ctrlY + dy / 2);
+    p.leaves.forEach((l, ci, arr) => {
+      const t = arr.length === 1 ? 0.62 : 0.28 + (0.62 * ci) / (arr.length - 1);
+      l.x = round1(l.x + dx * t);
+      l.y = round1(l.y + dy * t);
+      l.branchX = round1(l.branchX + dx * t);
+      l.branchY = round1(l.branchY + dy * t);
+    });
+  });
 }
 
 export function baseViewBoxDims(mode: TreeViewMode): [number, number, number, number] {

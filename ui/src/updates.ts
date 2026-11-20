@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-20", text: "Living Tree easier to read: on a busy bough (like Thoughts) the posts no longer pile up on each other. Each post keeps some room around it, so you can see and tap every one, with its reply leaves following along." },
   { date: "2026-11-20", text: "Greenhouse: after planting an idea or sending a comment, the text no longer stays in the box. The comment box empties at once (your text comes back if sending fails), and a new seed clears without waiting for the whole list to reload." },
   { date: "2026-11-20", text: "Text Size now sticks: after closing and reopening Freenet, Radica went back to normal size even if you had chosen 115% or 130%. Your choice is now restored as soon as you sign in." },
   { date: "2026-11-18", text: "Article permalinks: a shared article link (Copy Permalink) now opens the article even in a fresh session or another browser. Before, the reader could show \"Untitled Article — body still propagating\" because it only looked in the timeline already loaded; it now fetches the author's posts first, and if the article really is not reachable yet it says so instead." },
