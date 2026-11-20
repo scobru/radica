@@ -23,6 +23,10 @@ test("rejects claims the attester must not sign", async () => {
     [entry(tok({ proof: proof({ scope: "5" }) })), deps(), /wrong scope/],
     [entry(tok()), deps(false), /rejected on-chain/],
     [entry(tok()), deps(true, new Map([["77", "ee".repeat(32)]])), /another key/],
+    [entry(tok({ proof: proof({ nullifier: "077" }) })), deps(), /bad proof nullifier/],
+    [entry(tok({ proof: proof({ nullifier: "0x4d" }) })), deps(), /bad proof nullifier/],
+    [entry(tok({ proof: proof({ nullifier: " 77 " }) })), deps(), /bad proof nullifier/],
+    [entry(tok({ proof: proof({ points: Array(7).fill("0") }) })), deps(), /bad proof format/],
     [entry("garbage"), deps(), /bad token/],
   ];
   for (const [e, d, re] of cases) assert.match((await judgeClaim(e, d)).reason, re);

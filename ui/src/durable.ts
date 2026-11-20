@@ -13,6 +13,8 @@ export const DURABLE_PREFIXES = [
   "radica_secret_plain_", // Secret Chat v2 plain texts: a Double Ratchet key opens a message once
   "radica_pinned_chats_",
   "radica_verified_chats_",
+  "river_key_",
+  "river_join_",
   "radica_hidden_users",
   "radica_trusted_blocklists",
   "radica_supporter_receipt_",

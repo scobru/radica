@@ -37,9 +37,32 @@ export async function issueReceipt(sk, donorPk, tier, now = Date.now()) {
   return `RADICA-RECEIPT-V1:${btoa(String.fromCharCode(...enc.encode(json)))}`;
 }
 
+const UINT256_MAX_PLUS_1 = 1n << 256n;
+
 /**
- * Decide on one claim entry. `seen` maps nullifier -> pubkey already attested; `verifyOnChain(groupId, proof)` asks the
- * Semaphore contract. Returns { ok: true, donor, tier, nullifier } or { ok: false, reason }.
+ * Canonical base-10 uint256 field element representation (`"0"` or `[1-9][0-9]*`, `< 2^256`).
+ * Rejects padded `"077"`, hex `"0x..."`, whitespace, signs, and out-of-range values so
+ * attacker formatting tricks cannot bypass `seen` nullifier deduplication.
+ */
+export function canonicalFieldStr(v) {
+  if (typeof v === "bigint") {
+    return v >= 0n && v < UINT256_MAX_PLUS_1 ? v.toString(10) : null;
+  }
+  if (typeof v === "number") {
+    if (!Number.isSafeInteger(v) || v < 0) return null;
+    return BigInt(v).toString(10);
+  }
+  if (typeof v === "string") {
+    if (!/^(0|[1-9][0-9]*)$/.test(v)) return null;
+    const n = BigInt(v);
+    return n < UINT256_MAX_PLUS_1 ? n.toString(10) : null;
+  }
+  return null;
+}
+
+/**
+ * Decide on one claim entry. `seen` maps canonical decimal nullifier -> pubkey already attested;
+ * `verifyOnChain(groupId, proof)` asks the Semaphore contract. Returns `{ ok: true, donor, tier, nullifier }` or `{ ok: false, reason }`.
  */
 export async function judgeClaim(entry, { chainId, contract, groups, seen, verifyOnChain }) {
   let claim;
@@ -51,20 +74,55 @@ export async function judgeClaim(entry, { chainId, contract, groups, seen, verif
     return { ok: false, reason: `bad token: ${e.message}` };
   }
   const { proof, tier } = claim;
+  if (!proof || typeof proof !== "object") return { ok: false, reason: "bad proof format" };
   if (claim.chainId !== chainId || String(claim.contract).toLowerCase() !== contract.toLowerCase()) return { ok: false, reason: "other chain or contract" };
   if (String(claim.groupId) !== String(groups[tier])) return { ok: false, reason: "group does not match tier" };
-  if (String(proof.scope) !== SCOPE_FIELD) return { ok: false, reason: "wrong scope" };
+
+  const nullifier = canonicalFieldStr(proof.nullifier);
+  if (!nullifier) return { ok: false, reason: "bad proof nullifier" };
+  const merkleTreeRoot = canonicalFieldStr(proof.merkleTreeRoot);
+  const message = canonicalFieldStr(proof.message);
+  const scope = canonicalFieldStr(proof.scope);
+  if (
+    !Number.isInteger(proof.merkleTreeDepth) ||
+    proof.merkleTreeDepth < 1 ||
+    proof.merkleTreeDepth > 32 ||
+    !merkleTreeRoot ||
+    !message ||
+    !scope ||
+    !Array.isArray(proof.points) ||
+    proof.points.length !== 8
+  ) {
+    return { ok: false, reason: "bad proof format" };
+  }
+  const points = [];
+  for (const p of proof.points) {
+    const c = canonicalFieldStr(p);
+    if (!c) return { ok: false, reason: "bad proof format" };
+    points.push(c);
+  }
+
+  if (scope !== SCOPE_FIELD) return { ok: false, reason: "wrong scope" };
   let donor;
   try {
-    donor = pubkeyOf(proof.message);
+    donor = pubkeyOf(message);
   } catch {
     return { ok: false, reason: "bad message" };
   }
-  if (donor !== entry.author) return { ok: false, reason: "proof is for another Radica key" };
-  const prior = seen.get(String(proof.nullifier));
-  if (prior && prior !== donor) return { ok: false, reason: "donation already attested for another key" };
-  if (!(await verifyOnChain(BigInt(claim.groupId), proof))) return { ok: false, reason: "proof rejected on-chain" };
-  return { ok: true, donor, tier, nullifier: String(proof.nullifier) };
+  if (donor !== String(entry.author ?? "").toLowerCase()) return { ok: false, reason: "proof is for another Radica key" };
+  const prior = seen.get(nullifier);
+  if (prior && String(prior).toLowerCase() !== donor) return { ok: false, reason: "donation already attested for another key" };
+
+  const canonicalProof = {
+    merkleTreeDepth: proof.merkleTreeDepth,
+    merkleTreeRoot,
+    nullifier,
+    message,
+    scope,
+    points,
+  };
+  if (!(await verifyOnChain(BigInt(claim.groupId), canonicalProof))) return { ok: false, reason: "proof rejected on-chain" };
+  return { ok: true, donor, tier, nullifier };
 }
 
 export { bytesToHex, hexToBytes };

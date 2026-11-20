@@ -19,6 +19,7 @@ import {
   encryptRoomKeyForPeer,
   decryptRoomKeyFromPeer,
   formatPrivateRoomSignatureMessage,
+  verifySignature,
   bytesToHex,
   hexToBytes,
 } from "../src/crypto.ts";
@@ -220,4 +221,16 @@ test("crypto: a message sent to an old app key still reads after Viso's shared k
   addReadKeys([hex(oldMine)]);
   assert.equal(await decryptDirectMessage(newMine, peerPub, sealed), "hello");
   assert.deepEqual(await readEncPubs(), [hex(await ed.getPublicKeyAsync(oldMine))]);
+});
+
+test("crypto: verifySignature binds cache key to message content", async () => {
+  const sk = ed.utils.randomPrivateKey();
+  const pk = bytesToHex(await ed.getPublicKeyAsync(sk));
+  const msg1 = "hello message 1";
+  const msg2 = "completely different message 2";
+  const sig1 = bytesToHex(await ed.signAsync(new TextEncoder().encode(msg1), sk));
+
+  assert.equal(await verifySignature(msg1, sig1, pk), true);
+  // Reuse of (sig1, pk) for a different message MUST NOT hit cached true
+  assert.equal(await verifySignature(msg2, sig1, pk), false);
 });

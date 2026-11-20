@@ -44,18 +44,24 @@ export async function requestGhostkeyProof(pubkey: string): Promise<string> {
   return r.bundle;
 }
 
-/** The checked proofs of many people at once (the ghostkeys log), each checked once per page. */
-const checked = new Map<string, Promise<boolean>>();
+/** The checked proofs of many people at once (the ghostkeys log), each checked once per page.
+ *  Deduplicated by GhostKey fingerprint so one GhostKey vouches for at most one author. */
+const checked = new Map<string, Promise<string | null>>();
 export async function verifiedGhostkeys(entries: { author: string; bundle: string | null }[]): Promise<string[]> {
   if (!entries.some((e) => e.bundle)) return [];
   const call = await ghostkey();
-  const ok = await Promise.all(
+  const fps = await Promise.all(
     entries.map(({ author, bundle }) => {
-      if (!bundle) return false;
+      if (!bundle) return Promise.resolve<string | null>(null);
       const k = `${author}|${bundle}`;
-      if (!checked.has(k)) checked.set(k, checkGhostkey(bundle, author, call).then(() => true, () => false));
+      if (!checked.has(k)) checked.set(k, checkGhostkey(bundle, author, call).then((r) => r.fingerprint || null, () => null));
       return checked.get(k)!;
     })
   );
-  return entries.filter((_, i) => ok[i]).map((e) => e.author);
+  const byFingerprint = new Map<string, string>();
+  entries.forEach((e, i) => {
+    const fp = fps[i];
+    if (fp) byFingerprint.set(fp, e.author);
+  });
+  return [...byFingerprint.values()];
 }

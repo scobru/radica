@@ -19,6 +19,56 @@
 
 const utf8Enc = new TextEncoder();
 
+const FORBIDDEN_PROTO_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Secrets and security-critical state MUST never travel in `#auth_state=` or `window.name` (nor be accepted from them). */
+const SENSITIVE_STORAGE_PREFIXES = [
+  "radica_session",
+  "spruce_session",
+  "radica_ed25519_seed",
+  "spruce_ed25519_seed",
+  "radica_app_key",
+  "spruce_app_key",
+  "radica_read_keys",
+  "radica_signin_pending",
+  "spruce_signin_pending",
+  "radica_viso_epriv",
+  "radica_viso_url",
+  "radica_viso_nokey",
+  "river_key_",
+  "river_join_",
+  "freenet_room_key_",
+  "radica_fmail_store_",
+  "radica_secret_",
+  "radica_hidden_users",
+  "radica_trusted_blocklists",
+  "radica_poh_",
+  "radica_ghostkey_",
+  "radica_delegation_",
+  "radica_supporter_",
+  "radica_apps_custom_",
+];
+
+/** Non-secret UI / cache prefixes allowed to ride in `#auth_state=` inside opaque-origin sandboxes. */
+const HASH_SAFE_SOFT_PREFIXES = [
+  "radica_profile_",
+  "freenet_chat_peers_",
+  "freenet_private_rooms",
+  "radica_pinned_chats_",
+  "radica_verified_chats_",
+  "radica_mail_alias_",
+  "radica_mail_contacts_",
+  "radica_mail_welcomed_",
+];
+const HASH_SAFE_OPTIONAL_PREFIXES = ["freenet_feed_", "freenet_chat_"];
+
+const isSensitiveStorageKey = (k: string): boolean =>
+  FORBIDDEN_PROTO_KEYS.has(k) || SENSITIVE_STORAGE_PREFIXES.some((p) => k.startsWith(p));
+
+const isHashSafeKey = (k: string): boolean =>
+  !isSensitiveStorageKey(k) &&
+  (HASH_SAFE_SOFT_PREFIXES.some((p) => k.startsWith(p)) || HASH_SAFE_OPTIONAL_PREFIXES.some((p) => k.startsWith(p)));
+
 /** The native storage bridge apps/android and apps/desktop inject (see their `NativeStorage`/`native_storage_script`),
  *  reachable from this sandboxed iframe too. `getAll`/`setAll` carry the whole store as one JSON blob. */
 function nativeBridge(): { getAll?: () => string | null; setAll?: (json: string) => void } | undefined {
@@ -154,7 +204,7 @@ class SafeStorage {
         const parsed = JSON.parse(json);
         if (parsed && typeof parsed === "object") {
           for (const [k, v] of Object.entries(parsed)) {
-            if (typeof v === "string") {
+            if (typeof v === "string" && !isSensitiveStorageKey(k)) {
               this.mem.set(k, v);
             }
           }
@@ -172,7 +222,7 @@ class SafeStorage {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         for (const [k, v] of Object.entries(parsed)) {
-          if (typeof v === "string") this.mem.set(k, v);
+          if (typeof v === "string" && !FORBIDDEN_PROTO_KEYS.has(k)) this.mem.set(k, v);
         }
       }
     } catch {
@@ -181,6 +231,8 @@ class SafeStorage {
   }
 
   public hydrateFromHashString(hashString: string): void {
+    // Normal-origin browsers and native wrappers must NEVER accept state injected from URL fragments.
+    if (this.isLocalStorageAvailable() || nativeBridge()?.getAll) return;
     try {
       const hash = hashString.replace(/^#/, "");
       const parts = hash.split("&");
@@ -190,7 +242,7 @@ class SafeStorage {
           const parsed = decodeBase64State(rawB64);
           if (parsed && typeof parsed === "object") {
             for (const [k, v] of Object.entries(parsed)) {
-              if (typeof v === "string") {
+              if (typeof v === "string" && isHashSafeKey(k) && !this.mem.has(k)) {
                 this.mem.set(k, v);
               }
             }
@@ -213,26 +265,11 @@ class SafeStorage {
   }
 
   public computeBudgetedState(otherParts: string[] = []): { authObj: Record<string, string>; hash: string } {
-    // The shell cuts the hash at 8192 chars and a cut hash is unreadable: everything, identity included, would be lost.
-    // So the identity keys always go in, and the rest only while it fits (the private rooms also live in the node's delegate).
-    const criticalPrefixes = ["radica_session", "radica_app_key", "radica_read_keys", "radica_ed25519_seed", "radica_signin_pending"];
-    const softPrefixes = [
-      "radica_profile_",
-      "freenet_chat_peers_",
-      "freenet_private_rooms",
-      "radica_hidden_users",
-      "radica_pinned_chats_",
-      "radica_verified_chats_",
-      "river_key_",
-      "river_join_",
-      "freenet_room_key_",
-      "radica_fmail_store_",
-      "radica_mail_alias_",
-      "radica_mail_contacts_",
-      "radica_mail_welcomed_",
-    ];
+    // The shell cuts the hash at 8192 chars and a cut hash is unreadable. Secrets and identity keys live in the node's
+    // identity delegate (never in URL fragments); only non-secret UI/feed caches ride in `#auth_state=`.
+    const softPrefixes = HASH_SAFE_SOFT_PREFIXES;
     // Larger data: budgeted strictly up to MAX_HASH_LENGTH (7500 chars)
-    const optionalPrefixes = ["freenet_feed_", "freenet_chat_"];
+    const optionalPrefixes = HASH_SAFE_OPTIONAL_PREFIXES;
 
     const build = (obj: Record<string, string>): string => {
       const parts = [...otherParts];
@@ -246,16 +283,13 @@ class SafeStorage {
     };
 
     const authObj: Record<string, string> = {};
-    for (const [k, v] of this.mem.entries()) {
-      if (criticalPrefixes.some((p) => k.startsWith(p))) authObj[k] = v;
-    }
 
     // Exact UTF-8 JSON byte cap matching Base64 <= MAX_HASH_LENGTH (avoids O(N) full-object stringify+btoa per check)
     const otherLen = otherParts.length > 0 ? otherParts.join("&").length + 1 : 0;
     const maxB64 = SafeStorage.MAX_HASH_LENGTH - (1 + otherLen + this.hashPrefix.length);
     const maxJsonBytes = maxB64 >= 4 ? Math.floor(maxB64 / 4) * 3 : 0;
     let curBytes = utf8Enc.encode(JSON.stringify(authObj)).length;
-    let hasKeys = Object.keys(authObj).length > 0;
+    let hasKeys = false;
 
     const fits = (k: string, v: string): boolean => {
       if (curBytes + k.length + v.length + (hasKeys ? 6 : 5) > maxJsonBytes) return false;
@@ -271,7 +305,7 @@ class SafeStorage {
 
     for (const prefix of softPrefixes) {
       for (const [k, v] of this.mem.entries()) {
-        if (!k.startsWith(prefix)) continue;
+        if (!k.startsWith(prefix) || isSensitiveStorageKey(k)) continue;
         if (fits(k, v)) {
           setAuth(k, v);
         } else if (k === "freenet_private_rooms" && fits(k, "[]")) {
@@ -298,9 +332,12 @@ class SafeStorage {
 
     let myPersona = "";
     try {
-      if (authObj["radica_session"]) myPersona = JSON.parse(authObj["radica_session"])?.persona ?? "";
+      const sessionRaw = this.mem.get("radica_session");
+      if (sessionRaw) myPersona = JSON.parse(sessionRaw)?.persona ?? "";
     } catch {}
-    const optionalEntries = [...this.mem.entries()].filter(([k]) => optionalPrefixes.some((p) => k.startsWith(p)));
+    const optionalEntries = [...this.mem.entries()].filter(
+      ([k]) => optionalPrefixes.some((p) => k.startsWith(p)) && !isSensitiveStorageKey(k)
+    );
     optionalEntries.sort(([ka], [kb]) => {
       const prio = (k: string) =>
         myPersona && k === `freenet_feed_${myPersona}` ? 0 : k.startsWith("freenet_feed_") && authObj[`radica_profile_${k.slice(13)}`] ? 1 : 2;
@@ -402,13 +439,13 @@ class SafeStorage {
       if (!this.isLocalStorageAvailable()) {
         this.syncNativeBridge();
 
-        // 1. Sync essential & moderate keys to window.name (skip multi-MB network caches so serialization stays <1ms)
+        // 1. Sync non-secret, moderate keys to window.name (skip secrets and multi-MB network caches)
         try {
           const allObj: Record<string, string> = {};
           let bytes = 0;
           const MAX_WIN_NAME = 512 * 1024;
           for (const [k, v] of this.mem.entries()) {
-            if (k.startsWith("freenet_log_") || k.startsWith("river_state_")) continue;
+            if (isSensitiveStorageKey(k) || k.startsWith("freenet_log_") || k.startsWith("river_state_")) continue;
             if (v.length > 65536 || bytes + k.length + v.length > MAX_WIN_NAME) continue;
             allObj[k] = v;
             bytes += k.length + v.length;
@@ -526,8 +563,14 @@ try {
 export async function takeHandedKey(challenge: string): Promise<string | null> {
   const esk = handedEsk;
   handedEsk = null;
-  const priv = safeStorage.getItem("radica_viso_epriv");
+  let priv = safeStorage.getItem("radica_viso_epriv");
   safeStorage.removeItem("radica_viso_epriv"); // single use
+  if (!priv && typeof window !== "undefined") {
+    priv = await import("./delegate.ts").then((m) => m.nodeGet("viso-epriv"), () => null);
+  }
+  if (typeof window !== "undefined") {
+    void import("./delegate.ts").then((m) => m.nodePut("viso-epriv", ""), () => {});
+  }
   if (!esk || !priv) return null;
   try {
     return await (await import("./visoSeal.ts")).openEsk(esk, priv, challenge);

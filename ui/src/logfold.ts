@@ -41,12 +41,26 @@ function bodies(entries: LogEntry[]): { e: LogEntry; b: any }[] {
 }
 
 const isMod = (c: Community, pk: string) => pk === c.creator || c.moderators.includes(pk);
+const norm = (s: unknown): string => (typeof s === "string" ? s.toLowerCase() : "");
+
+/** Whether `post` was deleted in `comm` (mod deletion stores bare `post.id`; author self-delete stores `<author>:<id>`). */
+export function isPostDeletedInCommunity(
+  comm: Pick<Community, "deleted_post_ids"> | null | undefined,
+  post: { id: string; author: string },
+): boolean {
+  if (!comm) return false;
+  return (
+    comm.deleted_post_ids.includes(post.id) ||
+    comm.deleted_post_ids.includes(`${norm(post.author)}:${post.id}`)
+  );
+}
 
 /** Communities from the `communities` log, on top of `base` (the built-in ones). */
 export function foldCommunities(entries: LogEntry[], base: Community[]): Community[] {
   const map = new Map<string, Community>(base.map((c) => [c.id, structuredClone(c)]));
+  const appointedBy = new Map<string, Map<string, string>>(); // commId -> (mod -> appointer)
   for (const { e, b } of bodies(entries)) {
-    const a = e.author;
+    const a = norm(e.author);
     if (b.type === "community_create") {
       const m = b.community ?? {};
       if (typeof m.id !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(m.id)) continue;
@@ -78,7 +92,12 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
     const c = map.get(b.community_id);
     if (!c) continue;
     const banned = (c.banned_members ??= []);
-    const t = typeof b.target === "string" ? b.target : "";
+    const t = norm(b.target);
+    let appointers = appointedBy.get(c.id);
+    if (!appointers) {
+      appointers = new Map();
+      appointedBy.set(c.id, appointers);
+    }
     switch (b.type) {
       case "community_join":
         if (!banned.includes(a) && !c.members.includes(a)) c.members.push(a);
@@ -87,11 +106,27 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
         c.members = c.members.filter((m) => m !== a);
         break;
       case "community_mod_add":
-        if (isMod(c, a) && t && !banned.includes(t) && !c.moderators.includes(t)) c.moderators.push(t);
+        if (isMod(c, a) && t && !banned.includes(t) && !c.moderators.includes(t)) {
+          c.moderators.push(t);
+          appointers.set(t, a);
+        }
         break;
       case "community_mod_remove":
-        if (t !== c.creator && (a === c.creator || a === t || (isMod(c, a) && (AI_REPORTERS.includes(t) || c.creator === "system"))))
-          c.moderators = c.moderators.filter((m) => m !== t);
+        if (t !== c.creator && (a === c.creator || a === t || (isMod(c, a) && (AI_REPORTERS.includes(t) || c.creator === "system")))) {
+          const toRemove = new Set<string>([t]);
+          const queue = [t];
+          while (queue.length > 0) {
+            const curMod = queue.shift()!;
+            for (const [modKey, appointer] of appointers.entries()) {
+              if (appointer === curMod && !toRemove.has(modKey) && modKey !== c.creator) {
+                toRemove.add(modKey);
+                queue.push(modKey);
+              }
+            }
+          }
+          for (const rem of toRemove) appointers.delete(rem);
+          c.moderators = c.moderators.filter((m) => !toRemove.has(m));
+        }
         break;
       case "community_ban":
         // Moderators, the creator/owner, and Radica's maintainer cannot be banned directly (creator must demote a mod first).
@@ -104,8 +139,15 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
         if (isMod(c, a)) c.banned_members = banned.filter((m) => m !== t);
         break;
       case "community_delete_post":
-        if ((isMod(c, a) || a === b.post_author) && typeof b.post_id === "string" && !c.deleted_post_ids.includes(b.post_id))
-          c.deleted_post_ids.push(b.post_id);
+        if (typeof b.post_id === "string") {
+          if (isMod(c, a)) {
+            if (!c.deleted_post_ids.includes(b.post_id)) c.deleted_post_ids.push(b.post_id);
+          } else if (b.post_author === undefined || norm(b.post_author) === a) {
+            // Non-mod authors can only mark their own post as deleted (scoped to authenticated signer `a`).
+            const ownKey = `${a}:${b.post_id}`;
+            if (!c.deleted_post_ids.includes(ownKey)) c.deleted_post_ids.push(ownKey);
+          }
+        }
         break;
     }
   }
@@ -152,38 +194,47 @@ export function foldChat(
   blocked: (sender: string) => boolean = () => false,
   canReact: (author: string, m: ChatMessage) => boolean = () => true
 ): ChatMessage[] {
+  // Key messages by `${sender}:${messageId}` so a colliding `message.id` from another author can never overwrite or hijack.
   const msgs = new Map<string, ChatMessage>();
   const deletes: { author: string; id: string }[] = [];
   const edits: { author: string; id: string; text: string; ts: number }[] = [];
   const reacts = new Map<string, { author: string; id: string; emoji: string; on: boolean; ts: number }>(); // the latest word of each person on each emoji
   for (const { e, b } of bodies(entries)) {
-    if (b.type === "chat" && b.message?.sender === e.author && b.message.room_id === roomId && typeof b.message.id === "string") {
-      const { reactions: _forged, ...message } = b.message; // reactions come only from signed chat_react entries
-      msgs.set(b.message.id, message);
-    } else if ((b.type === "chat_delete" || b.type === "chat_burn") && b.roomId === roomId) {
-      deletes.push({ author: e.author, id: b.messageId });
+    const a = norm(e.author);
+    if (b.type === "chat" && norm(b.message?.sender) === a && b.message.room_id === roomId && typeof b.message.id === "string") {
+      const { reactions: _forged, ...rest } = b.message; // reactions come only from signed chat_react entries
+      msgs.set(`${a}:${b.message.id}`, { ...rest, sender: a });
+    } else if ((b.type === "chat_delete" || b.type === "chat_burn") && b.roomId === roomId && typeof b.messageId === "string") {
+      deletes.push({ author: a, id: b.messageId });
     } else if (b.type === "chat_edit" && b.roomId === roomId && typeof b.messageId === "string" && typeof b.text === "string") {
-      edits.push({ author: e.author, id: b.messageId, text: b.text, ts: e.ts });
+      edits.push({ author: a, id: b.messageId, text: b.text, ts: e.ts });
     } else if (b.type === "chat_react" && b.roomId === roomId && typeof b.messageId === "string" && CHAT_REACTIONS.includes(b.emoji)) {
-      const k = `${e.author}|${b.messageId}|${b.emoji}`;
-      if ((reacts.get(k)?.ts ?? -1) <= e.ts) reacts.set(k, { author: e.author, id: b.messageId, emoji: b.emoji, on: b.on === true, ts: e.ts });
+      const k = `${a}|${b.messageId}|${b.emoji}`;
+      if ((reacts.get(k)?.ts ?? -1) <= e.ts) reacts.set(k, { author: a, id: b.messageId, emoji: b.emoji, on: b.on === true, ts: e.ts });
     }
   }
   for (const ed of edits) {
-    const m = msgs.get(ed.id);
+    const mk = `${ed.author}:${ed.id}`;
+    const m = msgs.get(mk);
     if (m && ed.author === m.sender && (!m.edited_at || ed.ts >= m.edited_at)) {
-      msgs.set(ed.id, { ...m, text: ed.text, edited_at: ed.ts });
+      msgs.set(mk, { ...m, text: ed.text, edited_at: ed.ts });
     }
   }
   for (const d of deletes) {
-    const m = msgs.get(d.id);
-    if (m && canDelete(d.author, m)) msgs.delete(d.id);
+    const ownKey = `${d.author}:${d.id}`;
+    const own = msgs.get(ownKey);
+    if (own && canDelete(d.author, own)) msgs.delete(ownKey);
+    for (const [mk, m] of msgs) {
+      if (mk !== ownKey && m.id === d.id && canDelete(d.author, m)) msgs.delete(mk);
+    }
   }
   for (const r of reacts.values()) {
-    const m = msgs.get(r.id);
-    if (!r.on || !m || blocked(r.author) || !canReact(r.author, m)) continue;
-    const who = m.reactions?.[r.emoji] ?? [];
-    msgs.set(r.id, { ...m, reactions: { ...m.reactions, [r.emoji]: [...who, r.author] } });
+    if (!r.on || blocked(r.author)) continue;
+    for (const [mk, m] of msgs) {
+      if (m.id !== r.id || !canReact(r.author, m)) continue;
+      const who = m.reactions?.[r.emoji] ?? [];
+      if (!who.includes(r.author)) msgs.set(mk, { ...m, reactions: { ...m.reactions, [r.emoji]: [...who, r.author] } });
+    }
   }
   return [...msgs.values()].filter((m) => !blocked(m.sender)).sort((x, y) => x.timestamp - y.timestamp);
 }
@@ -198,9 +249,12 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
   const kicked = new Set<string>();
   const joined: Record<string, string> = {}; // who came in by link -> their key copy
   for (const { e, b } of bodies(entries)) {
-    if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && b.room.creator === e.author) {
+    const a = norm(e.author);
+    if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && norm(b.room.creator) === a) {
       room = structuredClone(b.room);
-      room!.moderators = (room!.moderators ?? []).filter((m) => m !== room!.creator && room!.members.includes(m));
+      room!.creator = a;
+      room!.members = (room!.members ?? []).map((m) => norm(m));
+      room!.moderators = (room!.moderators ?? []).map((m) => norm(m)).filter((m) => m !== room!.creator && room!.members.includes(m));
       for (const m of room!.members) kicked.delete(m); // the creator listing someone again lets them in
       // the creator's copy may predate the joins by link: they stay in
       for (const [m, k] of Object.entries(joined)) {
@@ -208,40 +262,41 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
         room!.members.push(m);
         if (k) room!.encrypted_keys = { ...room!.encrypted_keys, [m]: k };
       }
-    } else if (b.type === "room_join" && b.roomId === roomId && room && !room.members.includes(e.author) && !kicked.has(e.author)) {
-      room.members.push(e.author);
-      joined[e.author] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
+    } else if (b.type === "room_join" && b.roomId === roomId && room && !room.members.includes(a) && !kicked.has(a)) {
+      room.members.push(a);
+      joined[a] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
       // the key the joiner encrypted to themselves, so the room opens again after a reload
-      if (typeof b.encrypted_key === "string") room.encrypted_keys = { ...room.encrypted_keys, [e.author]: b.encrypted_key };
-    } else if (b.type === "room_leave" && b.roomId === roomId && room && e.author !== room.creator && room.members.includes(e.author)) {
+      if (typeof b.encrypted_key === "string") room.encrypted_keys = { ...room.encrypted_keys, [a]: b.encrypted_key };
+    } else if (b.type === "room_leave" && b.roomId === roomId && room && a !== room.creator && room.members.includes(a)) {
       // a member leaves on their own: gone from the list, and their key copy with them
-      room.members = room.members.filter((m) => m !== e.author);
-      delete joined[e.author];
-      room.moderators = (room.moderators ?? []).filter((m) => m !== e.author);
-      room.encrypted_keys = Object.fromEntries(Object.entries(room.encrypted_keys ?? {}).filter(([m]) => m !== e.author));
+      room.members = room.members.filter((m) => m !== a);
+      delete joined[a];
+      room.moderators = (room.moderators ?? []).filter((m) => m !== a);
+      room.encrypted_keys = Object.fromEntries(Object.entries(room.encrypted_keys ?? {}).filter(([m]) => m !== a));
     } else if (b.type === "room_kick" && b.roomId === roomId && room && typeof b.target === "string") {
-      const byCreator = e.author === room.creator;
+      const t = norm(b.target);
+      const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      const allowed = byCreator || mods.includes(e.author);
-      if (!allowed || b.target === room.creator || !room.members.includes(b.target) || (!byCreator && mods.includes(b.target))) continue;
-      room.members = room.members.filter((m) => m !== b.target);
-      room.moderators = mods.filter((m) => m !== b.target);
-      kicked.add(b.target);
-      delete joined[b.target];
+      const allowed = byCreator || mods.includes(a);
+      if (!allowed || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t))) continue;
+      room.members = room.members.filter((m) => m !== t);
+      room.moderators = mods.filter((m) => m !== t);
+      kicked.add(t);
+      delete joined[t];
       const keys: Record<string, string> = typeof b.encrypted_keys === "object" && b.encrypted_keys ? b.encrypted_keys : {};
       room.encrypted_keys = Object.fromEntries(Object.entries(keys).filter(([m]) => room!.members.includes(m)));
       if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
       room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? b.keys_enc_pub : undefined;
     } else if (b.type === "room_avatar" && b.roomId === roomId && room) {
-      const byCreator = e.author === room.creator;
+      const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      if (byCreator || mods.includes(e.author)) {
+      if (byCreator || mods.includes(a)) {
         room.avatar_url = typeof b.avatar_url === "string" && b.avatar_url.trim() ? b.avatar_url.trim() : undefined;
       }
     } else if (b.type === "room_pin" && b.roomId === roomId && room) {
-      const byCreator = e.author === room.creator;
+      const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      if (byCreator || mods.includes(e.author)) {
+      if (byCreator || mods.includes(a)) {
         room.pinned_message_id = typeof b.messageId === "string" && b.messageId.trim() ? b.messageId.trim() : undefined;
       }
     }
@@ -249,13 +304,47 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
   return room;
 }
 
+/** Creator-authorized members vs link-join proofs (`room_join.key_proof`) so a kick never rotates keys to spoofed joiners. */
+export function roomJoinProofs(
+  entries: LogEntry[],
+  roomId: string,
+): { creatorListed: Set<string>; joinProofs: Map<string, string> } {
+  const creatorListed = new Set<string>();
+  const joinProofs = new Map<string, string>();
+  let creator = "";
+  for (const { e, b } of bodies(entries)) {
+    const a = norm(e.author);
+    if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && norm(b.room.creator) === a) {
+      creator = a;
+      creatorListed.add(a);
+      for (const m of b.room.members ?? []) {
+        const ml = norm(m);
+        if (ml) creatorListed.add(ml);
+      }
+    } else if (b.type === "room_join" && b.roomId === roomId && creator) {
+      if (typeof b.key_proof === "string" && /^[0-9a-f]{64}$/i.test(b.key_proof)) {
+        joinProofs.set(a, b.key_proof.toLowerCase());
+      }
+    } else if (b.type === "room_leave" && b.roomId === roomId) {
+      creatorListed.delete(a);
+      joinProofs.delete(a);
+    } else if (b.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
+      const t = norm(b.target);
+      creatorListed.delete(t);
+      joinProofs.delete(t);
+    }
+  }
+  return { creatorListed, joinProofs };
+}
+
 /** Did `me` leave this room: they are no longer in it and their last join or leave entry in the room log is a leave. */
 export function hasLeftRoom(entries: LogEntry[], roomId: string, me: string): boolean {
+  const meNorm = norm(me);
   const room = foldRoom(entries, roomId);
-  if (!room || room.members.includes(me)) return false;
+  if (!room || room.members.includes(meNorm)) return false;
   let left = false;
   for (const { e, b } of bodies(entries)) {
-    if (e.author !== me || b.roomId !== roomId) continue;
+    if (norm(e.author) !== meNorm || b.roomId !== roomId) continue;
     if (b.type === "room_leave") left = true;
     else if (b.type === "room_join") left = false;
   }
@@ -269,11 +358,13 @@ export function roomJoiners(entries: LogEntry[], roomId: string, removers: Reado
   const kicked = new Set<string>();
   for (const { e, b } of bodies(entries)) {
     if (b?.roomId !== roomId) continue;
-    if (b.type === "room_join" && !kicked.has(e.author)) inRoom.set(e.author, true);
-    else if (b.type === "room_leave") inRoom.set(e.author, false);
-    else if (b.type === "room_kick" && removers.has(e.author) && typeof b.target === "string") {
-      kicked.add(b.target);
-      inRoom.set(b.target, false);
+    const a = norm(e.author);
+    if (b.type === "room_join" && !kicked.has(a)) inRoom.set(a, true);
+    else if (b.type === "room_leave") inRoom.set(a, false);
+    else if (b.type === "room_kick" && (removers.has(e.author) || removers.has(a)) && typeof b.target === "string") {
+      const t = norm(b.target);
+      kicked.add(t);
+      inRoom.set(t, false);
     }
   }
   return [...inRoom].filter(([, on]) => on).map(([pk]) => pk);
@@ -281,11 +372,13 @@ export function roomJoiners(entries: LogEntry[], roomId: string, removers: Reado
 
 /** Authors a curator blocked, from their `blocklist/<curator>` log. Only the curator's own entries count; the newest per target wins. */
 export function foldBlocklist(entries: LogEntry[], curator: string, type: "block" | "mod" = "block", initial: Iterable<string> = []): Set<string> {
-  const blocked = new Set<string>(initial);
+  const cur = norm(curator);
+  const blocked = new Set<string>([...initial].map((x) => norm(x)));
   for (const { e, b } of bodies(entries)) {
-    if (e.author !== curator || b.type !== type || typeof b.target !== "string") continue;
-    if (b.on === false) blocked.delete(b.target);
-    else blocked.add(b.target);
+    if (norm(e.author) !== cur || b.type !== type || typeof b.target !== "string") continue;
+    const t = norm(b.target);
+    if (b.on === false) blocked.delete(t);
+    else blocked.add(t);
   }
   return blocked;
 }
@@ -293,9 +386,10 @@ export function foldBlocklist(entries: LogEntry[], curator: string, type: "block
 /** The communities a curator hid (`c_<slug>` -> reason), from their `blocklist/<curator>` log: only their own entries count, the
  *  newest per community wins, and `on: false` shows it again. Hiding is not deleting: it hides for whoever follows that list. */
 export function foldHiddenCommunities(entries: LogEntry[], curator: string): Map<string, string> {
+  const cur = norm(curator);
   const hidden = new Map<string, string>();
   for (const { e, b } of bodies(entries)) {
-    if (e.author !== curator || b.type !== "hide_community" || typeof b.target !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(b.target)) continue;
+    if (norm(e.author) !== cur || b.type !== "hide_community" || typeof b.target !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(b.target)) continue;
     if (b.on === false) hidden.delete(b.target);
     else hidden.set(b.target, typeof b.reason === "string" ? b.reason.trim().slice(0, 200) : "");
   }
@@ -305,9 +399,10 @@ export function foldHiddenCommunities(entries: LogEntry[], curator: string): Map
 /** Posts a curator reported (`<author>:<post id>` -> reason), from their `blocklist/<curator>` log. Only the curator's own
  *  entries count; the newest per target wins, and `on: false` withdraws a report. */
 export function foldReports(entries: LogEntry[], curator: string): Map<string, string> {
+  const cur = norm(curator);
   const reported = new Map<string, string>();
   for (const { e, b } of bodies(entries)) {
-    if (e.author !== curator || b.type !== "report" || typeof b.target !== "string") continue;
+    if (norm(e.author) !== cur || b.type !== "report" || typeof b.target !== "string") continue;
     if (b.on === false) reported.delete(b.target);
     else reported.set(b.target, typeof b.reason === "string" ? b.reason.slice(0, 200) : "");
   }
@@ -319,10 +414,12 @@ export function foldReports(entries: LogEntry[], curator: string): Map<string, s
  *  own report, this is not on anyone's blocklist, so a human "Dismiss" cannot touch it the same way; the caller is
  *  expected to also drop any target a moderator dismissed (see FreenetNetwork.aiHeldTargets). */
 export function foldAiHolds(entries: LogEntry[], aiReporters: readonly string[]): Set<string> {
+  const aiSet = new Set(aiReporters.map((r) => norm(r)));
   const held = new Map<string, boolean>(); // `<reporter>|<target>` -> currently held
   for (const { e, b } of bodies(entries)) {
-    if (!aiReporters.includes(e.author) || b.type !== "report" || typeof b.target !== "string") continue;
-    held.set(`${e.author}|${b.target}`, b.on !== false && b.hold === true);
+    const a = norm(e.author);
+    if (!aiSet.has(a) || b.type !== "report" || typeof b.target !== "string") continue;
+    held.set(`${a}|${b.target}`, b.on !== false && b.hold === true);
   }
   const out = new Set<string>();
   for (const [key, isHeld] of held) if (isHeld) out.add(key.slice(key.indexOf("|") + 1));
@@ -331,9 +428,10 @@ export function foldAiHolds(entries: LogEntry[], aiReporters: readonly string[])
 
 /** Posts a moderator set aside without removing them (`dismiss` entries on their `blocklist/<curator>` log), newest wins. */
 export function foldDismissed(entries: LogEntry[], curator: string): Set<string> {
+  const cur = norm(curator);
   const dismissed = new Set<string>();
   for (const { e, b } of bodies(entries)) {
-    if (e.author !== curator || b.type !== "dismiss" || typeof b.target !== "string") continue;
+    if (norm(e.author) !== cur || b.type !== "dismiss" || typeof b.target !== "string") continue;
     if (b.on === false) dismissed.delete(b.target);
     else dismissed.add(b.target);
   }

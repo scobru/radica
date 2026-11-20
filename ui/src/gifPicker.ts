@@ -274,27 +274,55 @@ export function openGifPicker(options: { onSelect: (url: string) => void }): voi
   const closeBtn = modal.querySelector<HTMLButtonElement>(".gif-picker-close")!;
   const tabBtns = modal.querySelectorAll<HTMLButtonElement>(".gif-tab");
 
-  function isDirectUrl(q: string): boolean {
+  function safeDirectUrl(q: string): string | null {
     const trimmed = q.trim();
-    return /^https?:\/\/.+\.(?:gif|png|jpe?g|webp)(?:\?.*)?$/i.test(trimmed) ||
-           /^https?:\/\/(?:media\d*\.giphy\.com|media\.tenor\.com|c\.tenor\.com|i\.imgur\.com)\/.+/i.test(trimmed);
+    if (!trimmed || /[\s"'<>]/.test(trimmed)) return null;
+    try {
+      const u = new URL(trimmed);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+      const looksImage = /\.(?:gif|png|jpe?g|webp)(?:\?.*)?$/i.test(u.pathname + u.search);
+      const trustedHost = /^(?:media\d*\.giphy\.com|media\.tenor\.com|c\.tenor\.com|i\.imgur\.com)$/i.test(u.hostname);
+      return looksImage || trustedHost ? u.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function isDirectUrl(q: string): boolean {
+    return safeDirectUrl(q) !== null;
   }
 
   function renderGrid() {
-    const q = searchQuery.toLowerCase().trim();
-    const isUrl = isDirectUrl(q);
+    const rawQ = searchQuery.trim();
+    const q = rawQ.toLowerCase();
+    const directUrl = safeDirectUrl(rawQ);
 
-    if (isUrl) {
+    if (directUrl) {
       useUrlBtn.style.display = "inline-block";
-      grid.innerHTML = `
-        <div class="gif-url-preview-card">
-          <p class="gif-url-preview-label">Direct Link Preview:</p>
-          <div class="gif-item gif-url-preview-item" data-url="${q}">
-            <img src="${q}" alt="GIF Preview" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'gif-error\\'>Could not load image from link</span>'" />
-            <span class="gif-item-title">Click to use this GIF</span>
-          </div>
-        </div>
-      `;
+      const card = document.createElement("div");
+      card.className = "gif-url-preview-card";
+      const label = document.createElement("p");
+      label.className = "gif-url-preview-label";
+      label.textContent = "Direct Link Preview:";
+      const item = document.createElement("div");
+      item.className = "gif-item gif-url-preview-item";
+      item.dataset.url = directUrl;
+      const img = document.createElement("img");
+      img.src = directUrl;
+      img.alt = "GIF Preview";
+      img.loading = "lazy";
+      img.addEventListener("error", () => {
+        const err = document.createElement("span");
+        err.className = "gif-error";
+        err.textContent = "Could not load image from link";
+        item.replaceChildren(err);
+      });
+      const caption = document.createElement("span");
+      caption.className = "gif-item-title";
+      caption.textContent = "Click to use this GIF";
+      item.append(img, caption);
+      card.append(label, item);
+      grid.replaceChildren(card);
       return;
     }
 

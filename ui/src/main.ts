@@ -129,7 +129,7 @@ import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
-import { CHAT_REACTIONS } from "./logfold";
+import { CHAT_REACTIONS, isPostDeletedInCommunity } from "./logfold";
 import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
 import { commentsBy, type CommentEntry } from "./commentHistory.ts";
 import { renderIcon, type IconName } from "./icons";
@@ -3296,7 +3296,7 @@ function renderSinglePostContent(post: Post): void {
     (mod.reported.has(`${post.author}:${post.id}`) ||
       (mod.reportedMedia.size > 0 && mod.reportedMedia.has(postMediaHash(post) ?? "")));
   const comm = post.community_id ? mod.commByRef.get(post.community_id) : undefined;
-  const deletedInComm = !!comm && comm.deleted_post_ids.includes(post.id);
+  const deletedInComm = isPostDeletedInCommunity(comm, post);
 
   if (singlePostContext) {
     singlePostContext.textContent = comm
@@ -3416,7 +3416,6 @@ function renderTimeline() {
   const { hidden, reported, reportedMedia, commByRef } = mod;
   const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
 
-  const deletedSet = activeCommunity?.deleted_post_ids ? new Set(activeCommunity.deleted_post_ids) : null;
   const tagLower = activeTagFilter ? "#" + activeTagFilter.toLowerCase() : null;
   const qLower = searchQuery ? searchQuery.toLowerCase() : null;
 
@@ -3441,13 +3440,13 @@ function renderTimeline() {
 
     if (currentFeedScope !== "myposts" && currentFeedScope !== "saved" && currentFeedScope !== "media") {
       const c = commOf(p);
-      if (c && c.deleted_post_ids.includes(p.id)) return false;
+      if (isPostDeletedInCommunity(c, p)) return false;
       if (!activeCommunity && c && !isJoined(c) && p.author !== me) return false;
     }
 
     if (activeCommunity) {
       if (p.community_id !== activeCommunity.id && p.community_id !== activeCommunity.slug) return false;
-      if (deletedSet && deletedSet.has(p.id)) return false;
+      if (isPostDeletedInCommunity(activeCommunity, p)) return false;
     }
 
     const postCaption = freenet.postEdit(p.author, p.id)?.caption ?? p.caption;
@@ -10989,7 +10988,7 @@ function renderCommunitiesPage() {
     if (!p.community_id) return false;
     const comm = commById.get(p.community_id);
     if (!comm) return false;
-    if (comm.deleted_post_ids.includes(p.id)) return false;
+    if (isPostDeletedInCommunity(comm, p)) return false;
     if (p.author !== me && hiddenAuthors.has(p.author)) return false;
     if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
     if (p.author !== me && freenet.aiHeldTargets().has(`${p.author}:${p.id}`)) return false;
@@ -13955,6 +13954,24 @@ async function init() {
   initTheme();
   initFullWidth();
 
+  // Strip any stale #auth_state= fragment from the URL in normal-origin or native contexts
+  try {
+    const canRealStorage = (() => {
+      try {
+        window.localStorage.setItem("__radica_chk__", "1");
+        window.localStorage.removeItem("__radica_chk__");
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    if (window.location.hash && /(?:^#|&)auth_state=/i.test(window.location.hash) && (canRealStorage || (globalThis as { __radicaNative?: unknown }).__radicaNative)) {
+      const kept = window.location.hash.replace(/^#/, "").split("&").filter((p) => p && !p.startsWith("auth_state="));
+      const cleanHash = kept.length > 0 ? "#" + kept.join("&") : "";
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + cleanHash);
+    }
+  } catch {}
+
   // Check Viso callback in URL query parameters
   const queryParams = new URLSearchParams(window.location.search);
   if (
@@ -14003,6 +14020,14 @@ async function init() {
     return;
   }
   currentIdentity = identity;
+  if (currentIdentity.type === "local") {
+    // Zero-loss backfill: ensure existing browser local-seed users have their seed backed up in the node delegate
+    void import("./delegate.ts").then(async (m) => {
+      const existing = await m.nodeGet("local-seed");
+      const sk = localIdentityKey();
+      if (!existing && sk) await m.nodePut("local-seed", sk);
+    }, () => {});
+  }
   freenet.setIdentity(currentIdentity);
   { const slots = loadDashboardSlots(); applyDashboardSlots(slots); paintDashboardSlotSelects(slots); } // re-read now the per-identity key is known (the anon default ran first)
   conversation.sweepBurns(); // TTL messages burn on time even in chats that stay closed

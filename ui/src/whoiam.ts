@@ -194,8 +194,7 @@ export async function startSignIn(visoUrl: string): Promise<string> {
   const isAllowedHost =
     u.host === location.host ||
     u.host === "127.0.0.1:7509" ||
-    u.host === "localhost:7509" ||
-    (location.port && location.port !== "7509");
+    u.host === "localhost:7509";
 
   if (!isAllowedHost || !/^\/v[12]\/contract\/web\/[^/]+\/?$/.test(u.pathname)) {
     throw new Error(
@@ -205,9 +204,11 @@ export async function startSignIn(visoUrl: string): Promise<string> {
   const appKeyHex = await getAppKeyPubkey();
   let nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
   let key = "";
+  let epkPriv = "";
   if (!safeStorage.getItem("radica_viso_nokey")) {
     const { newEpk } = await import("./visoSeal.ts");
     const epk = newEpk(); // Viso seals the key to this one-time public key; the private half waits here for the reply
+    epkPriv = epk.priv;
     safeStorage.setItem("radica_viso_epriv", epk.priv);
     nonce = epk.pub; // Viso requires the epk as the nonce: the persona's signature over the challenge then covers it
     key = `&key=v1&epk=${epk.pub}`;
@@ -216,6 +217,13 @@ export async function startSignIn(visoUrl: string): Promise<string> {
 
   safeStorage.setItem("radica_signin_pending", challenge);
   safeStorage.setItem("radica_viso_url", u.origin + u.pathname);
+  if (typeof window !== "undefined") {
+    const syncDelegate = import("./delegate.ts").then(async (m) => {
+      await m.nodePut("signin-pending", challenge);
+      if (epkPriv) await m.nodePut("viso-epriv", epkPriv);
+    }, () => {});
+    await Promise.race([syncDelegate, new Promise<void>((r) => setTimeout(r, 1500))]);
+  }
 
   // key=v1: Viso hands back the app key it derives from the persona and this app, the same on every device, so
   // direct messages to me read everywhere (a Viso that does not hand it over is asked the old way next time)
@@ -228,9 +236,15 @@ export async function finishSignIn(q: URLSearchParams): Promise<{ persona: strin
   if (q.get("viso") === "denied" || q.get("whoiam") === "denied") {
     throw new Error("You chose not to share a persona in Viso.");
   }
-  const pending = safeStorage.getItem("radica_signin_pending") || safeStorage.getItem("spruce_signin_pending");
+  let pending = safeStorage.getItem("radica_signin_pending") || safeStorage.getItem("spruce_signin_pending");
   safeStorage.removeItem("radica_signin_pending");
   safeStorage.removeItem("spruce_signin_pending");
+  if (!pending && typeof window !== "undefined") {
+    pending = await import("./delegate.ts").then((m) => m.nodeGet("signin-pending"), () => null);
+  }
+  if (typeof window !== "undefined") {
+    void import("./delegate.ts").then((m) => m.nodePut("signin-pending", ""), () => {});
+  }
 
   const sharedKey = await takeHandedKey(q.get("challenge") ?? ""); // first: a replayed callback must not leave it lying around either
   const persona = q.get("pk") ?? "";
@@ -251,22 +265,21 @@ export async function finishSignIn(q: URLSearchParams): Promise<{ persona: strin
     }
   };
   if (done(safeStorage.getItem("radica_session"))) return { persona, replayed: true };
-  const saved = await import("./delegate.ts").then((m) => m.nodeGet("viso-session"), () => null); // page storage may be reset
+  const saved = typeof window !== "undefined"
+    ? await import("./delegate.ts").then((m) => m.nodeGet("viso-session"), () => null) // page storage may be reset
+    : null;
   if (done(saved)) {
     safeStorage.setItem("radica_session", saved!);
     return { persona, replayed: true };
   }
 
-  // If pending challenge is present in storage, enforce exact match.
-  // In sandboxed opaque iframes where memory is reset upon navigation,
-  // authentication relies on the cryptographic Ed25519 signature of the persona and timestamp freshness.
-  const nonceOf = (c: string) => c.split(".").pop();
-  // with key=v1 Viso names its own app key in the challenge: the nonce is what must match
-  if (pending && nonceOf(cert.challenge) !== nonceOf(pending)) {
-    throw new Error("This sign-in is unknown or was already used. Please start again from the Identity panel.");
-  }
   if (!Number.isFinite(cert.ts) || Math.abs(Date.now() - cert.ts) > LINK_MAX_AGE_MS) {
     throw new Error("The sign-in request expired or system clock is out of sync. Please try again.");
+  }
+  const nonceOf = (c: string) => c.split(".").pop();
+  // Unconditionally require a single-use matching pending challenge (prevents login CSRF even in sandboxed browsers).
+  if (!pending || !/^wd1\.[0-9a-f]{64}\.[0-9a-f]+$/i.test(cert.challenge) || nonceOf(cert.challenge) !== nonceOf(pending)) {
+    throw new Error("This sign-in is unknown or was already used. Please start again from the Identity panel.");
   }
   const delegated = cert.challenge.split(".")[1];
   if (sharedKey) {

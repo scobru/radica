@@ -565,3 +565,32 @@ test("sendMailMessage: a 36-char Freenet Mail v2 address is refused with a clear
   // my own v2 address still reaches my inbox (self-send stays local)
   assert.equal((await sendMailMessage(pubkey, mockIdentity, `alice@${mockIdentity.address}`, "Me", "Note")).success, true);
 });
+
+test("syncFreenetMailInbox: rejects forged/invalid ML-DSA-65 signatures and binds sender_vk over forged inner from", async () => {
+  const pubkey = "test_user_sig_verify";
+  const alice = deriveMailIdentity("alice", new Uint8Array(32).fill(0x31));
+  const bob = deriveMailIdentity("bob", new Uint8Array(32).fill(0x32));
+  const { deltaJson } = encryptFreenetMailV1(
+    bob.kemEk,
+    alice.dsaSk,
+    alice.dsaVk,
+    "bob@11111111111111111111111111111111111111111111",
+    "Spoofed From",
+    "Body",
+    "admin@official",
+  );
+  const validWire = JSON.parse(deltaJson).AddMessages.messages[0];
+
+  // Tampered signature must be rejected
+  const badSig = { ...validWire, signature: [...validWire.signature.slice(0, -1), (validWire.signature.at(-1)! ^ 1)] };
+  const missingSig = { ...validWire, signature: [] };
+  const freenetBad = { getByInstance: async () => new TextEncoder().encode(JSON.stringify({ messages: [badSig, missingSig] })) };
+  assert.equal((await syncFreenetMailInbox(pubkey, bob, freenetBad)).newCount, 0);
+
+  // Valid signature with spoofed inner "admin@official" still binds @<inbox> to alice's sender_vk
+  const freenetOk = { getByInstance: async () => new TextEncoder().encode(JSON.stringify({ messages: [validWire] })) };
+  assert.equal((await syncFreenetMailInbox(pubkey, bob, freenetOk)).newCount, 1);
+  const stored = loadMailStore(pubkey).messages.find((m) => m.subject === "Spoofed From")!;
+  assert.equal(stored.fromAddress, `admin@${alice.inboxAddress}`);
+  assert.equal(mailSenderKey(stored.fromAddress), alice.inboxAddress);
+});

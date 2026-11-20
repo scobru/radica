@@ -160,16 +160,16 @@ test("safeStorage: strips older moment media first when budget is tight, preserv
   safeStorage.clear();
 });
 
-test("safeStorage: a big room list never pushes the identity out of the hash", () => {
+test("safeStorage: a big room list keeps newest rooms in budget and never exports secret keys to #auth_state", () => {
   safeStorage.setItem("radica_ed25519_seed", "ab".repeat(32));
   safeStorage.setItem("radica_read_keys", JSON.stringify(["ef".repeat(32)]));
   safeStorage.setItem("radica_session", JSON.stringify({ persona: "cd".repeat(32), type: "local" }));
   safeStorage.setItem("freenet_private_rooms", JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ id: `privroom_${i}`, created_at: i, keys: "k".repeat(1200) }))));
   const { authObj, hash } = safeStorage.computeBudgetedState();
   assert.ok(hash.length <= 7500, `hash is ${hash.length} chars`);
-  assert.equal(authObj["radica_ed25519_seed"], "ab".repeat(32));
-  assert.equal(authObj["radica_read_keys"], JSON.stringify(["ef".repeat(32)]));
-  assert.ok(authObj["radica_session"]);
+  assert.equal(authObj["radica_ed25519_seed"], undefined);
+  assert.equal(authObj["radica_read_keys"], undefined);
+  assert.equal(authObj["radica_session"], undefined);
   const kept = JSON.parse(authObj["freenet_private_rooms"] ?? "[]");
   assert.equal(kept[0]?.id, "privroom_19"); // newest first
   assert.ok(kept.length > 0 && kept.length < 20); // the newest rooms that fit; the rest is left to the node and the network
@@ -222,7 +222,7 @@ test("safeStorage: syncs the whole store to window.__radicaNative, unbudgeted", 
   }
 });
 
-test("safeStorage: preserves pinned and verified chats across hash reload", () => {
+test("safeStorage: preserves pinned and verified chats across sandbox hash reload, while excluding secrets", () => {
   const me = "11".repeat(32);
   const pinnedKey = `radica_pinned_chats_${me}`;
   const verifiedKey = `radica_verified_chats_${me}`;
@@ -232,20 +232,77 @@ test("safeStorage: preserves pinned and verified chats across hash reload", () =
   safeStorage.setItem("river_key_room123", "secretkey123");
   safeStorage.setItem("river_join_room123", JSON.stringify({ member: "mem1", secret: "sec1" }));
 
-  const { hash } = safeStorage.computeBudgetedState();
+  const { authObj, hash } = safeStorage.computeBudgetedState();
   assert.ok(hash.length > 0);
+  assert.equal(authObj["radica_ed25519_seed"], undefined);
+  assert.equal(authObj["river_key_room123"], undefined);
+  assert.equal(authObj["river_join_room123"], undefined);
+
+  // Even a forged #auth_state= payload with secrets or sensitive config must be rejected by hydrateFromHashString
+  const forgedPayload = Buffer.from(
+    JSON.stringify({
+      radica_ed25519_seed: "ff".repeat(32),
+      radica_session: '{"persona":"bad"}',
+      radica_viso_url: "https://evil.example/",
+      radica_trusted_blocklists: '["attacker"]',
+      river_key_room123: "stolen",
+      [pinnedKey]: JSON.stringify(["priv:injected"]),
+    }),
+    "utf8",
+  ).toString("base64");
 
   safeStorage.clear();
   assert.equal(safeStorage.getItem(pinnedKey), null);
   assert.equal(safeStorage.getItem(verifiedKey), null);
-  assert.equal(safeStorage.getItem("river_key_room123"), null);
-  assert.equal(safeStorage.getItem("river_join_room123"), null);
 
   safeStorage.hydrateFromHashString(hash);
   assert.deepEqual(JSON.parse(safeStorage.getItem(pinnedKey) || "[]"), ["priv:channel1", "dm:peer2"]);
   assert.deepEqual(JSON.parse(safeStorage.getItem(verifiedKey) || "[]"), ["priv:channel1"]);
-  assert.equal(safeStorage.getItem("river_key_room123"), "secretkey123");
-  assert.deepEqual(JSON.parse(safeStorage.getItem("river_join_room123") || "{}"), { member: "mem1", secret: "sec1" });
+  // Secrets never round-trip through hash
+  assert.equal(safeStorage.getItem("river_key_room123"), null);
+  assert.equal(safeStorage.getItem("river_join_room123"), null);
+
+  // Attempt forged #auth_state= injection on top: secrets/security keys dropped, existing keys never overwritten
+  safeStorage.hydrateFromHashString(`#auth_state=${forgedPayload}`);
+  assert.equal(safeStorage.getItem("radica_ed25519_seed"), null);
+  assert.equal(safeStorage.getItem("radica_session"), null);
+  assert.equal(safeStorage.getItem("radica_viso_url"), null);
+  assert.equal(safeStorage.getItem("radica_trusted_blocklists"), null);
+  assert.equal(safeStorage.getItem("river_key_room123"), null);
+  assert.deepEqual(JSON.parse(safeStorage.getItem(pinnedKey) || "[]"), ["priv:channel1", "dm:peer2"]);
 
   safeStorage.clear();
+});
+
+test("safeStorage: ignores #auth_state completely when real localStorage is available", () => {
+  const origLocalStorage = (globalThis as any).localStorage;
+  const origWindow = (globalThis as any).window;
+  const store = new Map<string, string>();
+  const mockLs = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => store.set(k, v),
+    removeItem: (k: string) => store.delete(k),
+    clear: () => store.clear(),
+    key: (i: number) => [...store.keys()][i] ?? null,
+    get length() { return store.size; },
+  };
+  try {
+    (globalThis as any).localStorage = mockLs;
+    (globalThis as any).window = { ...(origWindow || {}), localStorage: mockLs };
+    (safeStorage as any).localStorageAvailable = null;
+    safeStorage.clear();
+    const payload = Buffer.from(JSON.stringify({ radica_profile_test: "injected" }), "utf8").toString("base64");
+    safeStorage.hydrateFromHashString(`#auth_state=${payload}`);
+    assert.equal(safeStorage.getItem("radica_profile_test"), null);
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", {
+      value: origLocalStorage,
+      configurable: true,
+      writable: true,
+    });
+    if (origWindow === undefined) delete (globalThis as any).window;
+    else (globalThis as any).window = origWindow;
+    (safeStorage as any).localStorageAvailable = null;
+    safeStorage.clear();
+  }
 });

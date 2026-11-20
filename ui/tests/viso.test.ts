@@ -300,3 +300,67 @@ test("viso poh google: verifies google:verified issuer and preserves multiple pr
   );
   assert.deepEqual((byAuthor.get(pkHex) ?? []).map((b) => b.provider).sort(), ["github", "google"]);
 });
+
+test("viso anti-sybil: one PoH attestation delegated to multiple authors grants at most one badge, and foreign contract scopes are rejected", async () => {
+  const { delegationScopeMatches } = await import("../src/viso.ts");
+  const origLocation = globalThis.location;
+  try {
+    (globalThis as any).location = { pathname: "/v1/contract/web/RadicaApp/index.html" };
+    assert.equal(delegationScopeMatches("/v1/contract/web/RadicaApp/"), true);
+    assert.equal(delegationScopeMatches("/v1/contract/web/OtherApp/"), false);
+  } finally {
+    globalThis.location = origLocation;
+  }
+
+  const kp = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "der" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  const issuers: PohIssuer[] = [
+    { keyId: "github:age1y:2026", provider: "github", tier: "age1y", epoch: "2026", spkiDerHex: Buffer.from(kp.publicKey).toString("hex") },
+  ];
+  const targetSk = ed.utils.randomPrivateKey();
+  const targetPk = await ed.getPublicKeyAsync(targetSk);
+  const targetHex = ed.etc.bytesToHex(targetPk);
+
+  const mkSybil = async (timeMs: number) => {
+    const sybilSk = ed.utils.randomPrivateKey();
+    const sybilPk = await ed.getPublicKeyAsync(sybilSk);
+    const sybilHex = ed.etc.bytesToHex(sybilPk);
+    const msg = delegationMsg(sybilPk, targetPk, "*", timeMs);
+    const del: DelegationProofV1 = {
+      version: 1,
+      from: toBase58(sybilPk),
+      to: toBase58(targetPk),
+      scope: "*",
+      time_ms: timeMs,
+      sig_from: ed.etc.bytesToHex(await ed.signAsync(msg, sybilSk)),
+      sig_to: ed.etc.bytesToHex(await ed.signAsync(msg, targetSk)),
+    };
+    return { sybilHex, del };
+  };
+
+  const s1 = await mkSybil(1_794_781_500_000);
+  const s2 = await mkSybil(1_794_781_600_000);
+  const r = new Uint8Array(randomBytes(32));
+  const pSig = new Uint8Array(
+    cryptoSign("sha384", Buffer.concat([r, pohMsg("github:age1y:2026", targetHex)]), {
+      key: kp.privateKey,
+      padding: cryptoConstants.RSA_PKCS1_PSS_PADDING,
+      saltLength: 48,
+    }),
+  );
+  const attHex = Buffer.from(cborEncode({ version: 1, key_id: "github:age1y:2026", msg_randomizer: r, sig: pSig })).toString("hex");
+
+  const badges = await verifiedPohBadgesByAuthor(
+    [
+      { author: s1.sybilHex, proof: attHex, delegation: s1.del },
+      { author: s2.sybilHex, proof: attHex, delegation: s2.del },
+    ],
+    issuers,
+  );
+  assert.equal(badges.size, 1);
+  assert.equal(badges.has(s2.sybilHex), true);
+  assert.equal(badges.has(s1.sybilHex), false);
+});

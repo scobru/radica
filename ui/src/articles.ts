@@ -206,7 +206,7 @@ function renderInlineMarkdown(escapedLine: string): string {
       let s = part;
       // Markdown links: [label](url)
       s = s.replace(/\[([^\]\r\n]{1,256})\]\(([^)\s]+)\)/g, (_, label: string, url: string) => {
-        if (!SAFE_URL_RE.test(url)) return label;
+        if (!SAFE_URL_RE.test(url) || /(?:^|[#&])auth_state=/i.test(url)) return label;
         const isExternal = /^https?:\/\//i.test(url);
         const attrs = isExternal ? ` target="_blank" rel="noopener noreferrer"` : "";
         return `<a href="${url}" class="article-md-link"${attrs}>${label}</a>`;

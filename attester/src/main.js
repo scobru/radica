@@ -66,12 +66,29 @@ async function loadKey(name = "attester.key") {
 }
 
 const stateFile = join(DATA, "attested.json");
+const TIER_RANK = { sprout: 1, root: 2, oak: 3 };
 async function loadState() {
-  if (!existsSync(stateFile)) return { done: new Set(), seen: new Map() };
+  if (!existsSync(stateFile)) return { done: new Set(), seen: new Map(), tiers: new Map() };
   const s = JSON.parse(await readFile(stateFile, "utf8"));
-  return { done: new Set(s.done), seen: new Map(Object.entries(s.seen)) };
+  const seen = new Map();
+  for (const [k, v] of Object.entries(s.seen ?? {})) {
+    try {
+      seen.set(BigInt(k).toString(10), String(v).toLowerCase());
+    } catch {
+      seen.set(String(k), String(v).toLowerCase());
+    }
+  }
+  const tiers = new Map();
+  for (const [k, v] of Object.entries(s.tiers ?? {})) {
+    try {
+      tiers.set(BigInt(k).toString(10), String(v));
+    } catch {
+      tiers.set(String(k), String(v));
+    }
+  }
+  return { done: new Set(s.done ?? []), seen, tiers };
 }
-const saveState = (st) => writeFile(stateFile, JSON.stringify({ done: [...st.done], seen: Object.fromEntries(st.seen) }));
+const saveState = (st) => writeFile(stateFile, JSON.stringify({ done: [...st.done], seen: Object.fromEntries(st.seen), tiers: Object.fromEntries(st.tiers) }));
 
 const code = new Uint8Array(await readFile(LOG_WASM));
 const codeHash = blake3(code);
@@ -147,11 +164,19 @@ async function pass(api, sk, st) {
       log("skip for now (chain unreachable):", k, e.shortMessage || e.message); // not marked done: retried next pass
       continue;
     }
-    if (v.ok && st.seen.get(v.nullifier) === v.donor) log("already attested", v.tier, v.donor); // a repeated claim: one receipt is enough
-    else if (v.ok) {
+    const priorDonor = st.seen.get(v.nullifier);
+    const priorTier = st.tiers.get(v.nullifier);
+    const sameOrHigherAttested =
+      priorDonor === v.donor &&
+      (!priorTier || (TIER_RANK[priorTier] ?? 0) >= (TIER_RANK[v.tier] ?? 0));
+    if (v.ok && sameOrHigherAttested) {
+      if (!priorTier) st.tiers.set(v.nullifier, v.tier);
+      log("already attested", v.tier, v.donor); // a repeated claim: one receipt is enough
+    } else if (v.ok) {
       const token = await issueReceipt(sk, v.donor, v.tier);
       await append(api, RECEIPTS_LOG, await signEntry(sk, RECEIPTS_LOG, APP, { type: "receipt", donor: v.donor, token }));
       st.seen.set(v.nullifier, v.donor);
+      st.tiers.set(v.nullifier, v.tier);
       log("attested", v.tier, v.donor);
     } else {
       log("rejected", k, v.reason);
@@ -167,7 +192,7 @@ async function pass(api, sk, st) {
 const modFile = join(DATA, "moderated.json");
 const loadMod = async () => {
   const base = existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : {};
-  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenChat: [], chatStrikes: {}, lastGhSha: "", ...base };
+  return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenChat: [], chatStrikes: {}, mirroredSeeds: [], lastGhSha: "", ...base };
 };
 const saveMod = (state) => writeFile(modFile, JSON.stringify(state));
 
@@ -185,7 +210,7 @@ const askModel = (posts) => askRaw(buildMessages(posts));
 
 async function globalProtectedSet(api, extraKeys = []) {
   const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
-  return new Set([MOD_MAINTAINER, ...modsOf(maintainerLog, MOD_DEFAULT_MODS), ...extraKeys.filter(Boolean)]);
+  return new Set([MOD_MAINTAINER.toLowerCase(), ...modsOf(maintainerLog, MOD_DEFAULT_MODS, MOD_MAINTAINER), ...extraKeys.filter(Boolean).map((k) => k.toLowerCase())]);
 }
 
 async function signCommunityChat(modSk, communityId, text) {
@@ -206,26 +231,38 @@ async function chatModPass(api, modSk, modPk, mod, globalProtected, b) {
   let strikes = { ...(mod.chatStrikes ?? {}) };
   let dirty = false;
   for (const comm of comms) {
-    if (b.requestsLeft <= 0) break;
+    if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
     const chatProtected = new Set([...globalProtected, comm.creator, ...comm.moderators]);
     const msgs = freshChatMessages(await getEntries(api, `community-chat/${comm.id}`), comm, seenChat, chatProtected);
-    for (let i = 0; i < msgs.length && b.requestsLeft > 0; i += BATCH, b.requestsLeft--) {
+    const actedThisPass = new Set(); // at most 1 strike per (comm.id, sender) per pass
+    for (let i = 0; i < msgs.length && b.requestsLeft > 0 && b.reportsLeft > 0; i += BATCH, b.requestsLeft--) {
       const batch = msgs.slice(i, i + BATCH);
       b.used.requests++;
       let verdicts = null;
       try { verdicts = parseVerdicts(await askModel(batch), batch.length); } catch (e) { log("[gardener:chat] model unreachable:", e.message || e); }
       if (!verdicts) continue;
       for (const v of verdicts) {
+        if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
         const msg = batch[v.i];
+        if (actedThisPass.has(msg.sender)) continue;
+        // Require a lone second-opinion check before acting (prompt injection defense)
+        b.used.requests++; b.requestsLeft--;
+        let second = null;
+        try { second = parseVerdicts(await askModel([msg]), 1); } catch (e) { log("[gardener:chat] second opinion unreachable:", e.message || e); }
+        if (!confirmsHold(second, v.category)) continue;
+
         const decision = decideChatAction(strikes, comm.id, msg.sender, chatProtected);
         strikes = decision.nextStrikes;
+        actedThisPass.add(msg.sender);
         const short = msg.sender.slice(0, 8);
         if (decision.action === "warn") {
+          b.used.reports++; b.reportsLeft--;
           const warnTxt = `⚠️ @${short}: The Gardener flagged ${v.category} (${v.reason}). Please keep r/${comm.slug} clean — next violation leads to a ban.`;
           const chatMsg = await signCommunityChat(modSk, comm.id, warnTxt);
           await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat", message: chatMsg }));
           log("[gardener:chat] warned", short, "in", comm.slug, v.category);
         } else if (decision.action === "ban") {
+          b.used.reports++; b.reportsLeft--;
           await append(api, `community-chat/${comm.id}`, await signEntry(modSk, `community-chat/${comm.id}`, APP, { type: "chat_delete", roomId: `comm_${comm.id}`, messageId: msg.msgId }));
           await append(api, "communities", await signEntry(modSk, "communities", APP, { type: "community_ban", community_id: comm.id, target: msg.sender }));
           const banTxt = `🌱 The Gardener banned @${short} from r/${comm.slug} after a prior warning (${v.category}).`;
@@ -268,12 +305,16 @@ async function greenhousePass(api, modSk, modPk, mod, b) {
         const m = /Seed ID:\s*`?([^\s`]+)`?/.exec(iss.body ?? "");
         if (m && openSeeds.some((s) => s.id === m[1])) await markDone(m[1], `issue #${iss.number} closed`);
       }
+      const mirrored = new Set(mod.mirroredSeeds ?? []);
       const existingIds = new Set(issues.map((i) => /Seed ID:\s*`?([^\s`]+)`?/.exec(i.body ?? "")?.[1]).filter(Boolean));
-      for (const s of openSeeds.filter((x) => !existingIds.has(x.id)).slice(0, 5)) {
+      for (const id of existingIds) mirrored.add(id);
+      for (const s of openSeeds.filter((x) => !mirrored.has(x.id)).slice(0, 5)) {
         const body = `Seed ID: \`${s.id}\`\nKind: ${s.kind}\nPermalink: #greenhouse&seed=${encodeURIComponent(s.id)}\n\n${s.text || "_No extra description._"}`;
         await ghFetch("/issues", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `[Greenhouse] ${s.title}`, body, labels: ["greenhouse"] }) });
+        mirrored.add(s.id);
         log("[gardener:gh] opened issue for", s.id);
       }
+      mod.mirroredSeeds = [...mirrored].slice(-2000);
     } catch (e) { log("[gardener:gh] issues sync skipped:", e.message || e); }
   }
   if (b.requestsLeft <= 0) return;
@@ -283,7 +324,11 @@ async function greenhousePass(api, modSk, modPk, mod, b) {
     if (!headSha || headSha === mod.lastGhSha) return;
     const commits = rawCommits.map((c) => ({ sha: c.sha, message: c.commit?.message ?? "" }));
     b.used.requests++; b.requestsLeft--;
-    const matches = parseGithubMatches(await askRaw(buildGithubSyncMessages(openSeeds.slice(0, 20), commits)), new Set(openSeeds.map((s) => s.id)));
+    const matches = parseGithubMatches(
+      await askRaw(buildGithubSyncMessages(openSeeds.slice(0, 20), commits)),
+      new Set(openSeeds.map((s) => s.id)),
+      commits.map((c) => c.sha),
+    );
     for (const m of matches) await markDone(m.id, `${m.sha}: ${m.reason}`);
     mod.lastGhSha = headSha;
   } catch (e) { log("[gardener:gh] commit check skipped:", e.message || e); }
@@ -293,11 +338,17 @@ async function greenhousePass(api, modSk, modPk, mod, b) {
  *  folding any decision found into `categoryStats` and returning the targets to stop tracking (they are decided). */
 async function resolveHeldOutcomes(api, heldTargets, categoryStats) {
   if (!Object.keys(heldTargets).length) return { heldTargets, categoryStats, resolved: [] };
-  const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {});
-  const mods = modsOf(maintainerLog, MOD_DEFAULT_MODS);
+  const maintNorm = MOD_MAINTAINER.toLowerCase();
+  const maintainerLog = Object.values((await getEntries(api, `blocklist/${MOD_MAINTAINER}`)) ?? {})
+    .filter((e) => String(e?.author ?? "").toLowerCase() === maintNorm);
+  const mods = modsOf(maintainerLog, MOD_DEFAULT_MODS, MOD_MAINTAINER);
+  const allowed = new Set([maintNorm, ...mods]);
   const entries = [...maintainerLog];
-  for (const m of mods) entries.push(...Object.values((await getEntries(api, `blocklist/${m}`)) ?? {}));
-  return applyHoldOutcomes(heldTargets, categoryStats, entries);
+  for (const m of mods) {
+    const mNorm = String(m).toLowerCase();
+    entries.push(...Object.values((await getEntries(api, `blocklist/${m}`)) ?? {}).filter((e) => String(e?.author ?? "").toLowerCase() === mNorm));
+  }
+  return applyHoldOutcomes(heldTargets, categoryStats, entries, allowed);
 }
 
 /** Read the recent public posts, ask the model about the ones not judged yet, report (and sometimes hold) the
@@ -341,8 +392,9 @@ async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = f
         if (reportsLeft <= 0) break;
         const post = batch[v.i];
         let hold = shouldHold(v.category, v.confidence, disabled);
-        if (hold && holdsLeft > 0) {
+        if (hold && holdsLeft > 0 && requestsLeft > 0) {
           used.requests++; // the second opinion is its own model call, within the same daily request budget
+          requestsLeft--;
           let second = null;
           try {
             second = parseVerdicts(await askModel([post]), 1);
@@ -366,7 +418,7 @@ async function modPass(api, modSk, modPk, extraProtected = [], runGithubSync = f
       // an edited post that no longer deserves its old hold/report retracts it; one this pass never reached stays as is
       for (const p of batch) {
         judged.add(p.mark);
-        if (p.edited && heldTargets[p.key] !== undefined && !flaggedKeys.has(p.key)) {
+        if ((p.edited || p.mark.includes("@")) && heldTargets[p.key] !== undefined && !flaggedKeys.has(p.key)) {
           await append(api, REPORTS_LOG, await signEntry(modSk, REPORTS_LOG, APP, retractBody(p.key)));
           delete heldTargets[p.key];
           retracted++;

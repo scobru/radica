@@ -205,7 +205,7 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
         if (!p || p.c !== tagOf(msg.text)) return { ...msg, text: UNREADABLE };
         return { ...msg, text: p.text, ttl_seconds: p.ttl, burn_at: burnAtOf({ ...msg, ttl_seconds: p.ttl }) };
       }
-      if (!msg.text?.startsWith("secret:v1:")) return msg;
+      if (!msg.text?.startsWith("secret:v1:")) return { ...msg, text: UNREADABLE };
       // v1, before the Double Ratchet: still opened from the identity key, for the messages sent with it
       const outgoing = msg.sender === me;
       const cacheKey = `${me}|${peer}|${outgoing ? sessionEphem : "in"}|${msg.text}`;

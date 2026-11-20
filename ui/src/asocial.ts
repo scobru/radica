@@ -168,7 +168,7 @@ export function asocialCard(caption: string, origin = defaultNodeOrigin()): stri
   );
 }
 
-/** Initialize all Asocial cards under root, attaching iframe player and control handshake. */
+/** Initialize all Asocial cards under root without mounting untrusted inline iframes. */
 export function fillAsocial(root: ParentNode, origin = defaultNodeOrigin()): void {
   root.querySelectorAll<HTMLElement>(".asocial-card:not([data-initialized])").forEach((card) => {
     card.dataset.initialized = "true";
@@ -181,94 +181,60 @@ export function fillAsocial(root: ParentNode, origin = defaultNodeOrigin()): voi
       const siteKey = card.dataset.site;
       const params = card.dataset.params || "";
 
-      // Determine game source URL for iframe:
+      const validId = (v?: string): v is string => !!v && new RegExp(`^${BS58_ID}$`).test(v);
       let gameUrl = "";
-      if (siteKey) {
+      if (validId(siteKey)) {
         gameUrl = `${origin}/v1/contract/web/${siteKey}/${params ? `?${params}` : ""}`;
-      } else if (ASOCIAL_SITE && publisher) {
+      } else if (ASOCIAL_SITE && validId(publisher)) {
         gameUrl = `${origin}/v1/contract/web/${ASOCIAL_SITE}/#work/${publisher}/${encodeURIComponent(title)}${params ? `?${params}` : ""}`;
-      } else {
-        // Direct link or fallback
-        gameUrl = `${origin}/v1/contract/web/${publisher || ""}/`;
+      } else if (validId(publisher)) {
+        gameUrl = `${origin}/v1/contract/web/${publisher}/`;
       }
+      if (!gameUrl) return;
+
+      // Never embed untrusted third-party web contracts in an inline same-origin iframe:
+      // open in a separate browser tab/window and render a safe launch panel.
+      try {
+        window.open(gameUrl, "_blank", "noopener,noreferrer");
+      } catch {}
 
       const initialHtml = card.innerHTML;
       const cleanTitle = title.replace(/[-_]/g, " ");
+      const wrap = document.createElement("div");
+      wrap.className = "asocial-player-wrap";
+      const bar = document.createElement("div");
+      bar.className = "asocial-player-toolbar";
+      const titleEl = document.createElement("span");
+      titleEl.className = "asocial-player-title";
+      const titleBold = document.createElement("b");
+      titleBold.textContent = cleanTitle;
+      titleEl.append("\u{1F3AE} ", titleBold);
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "asocial-tool-btn asocial-close-btn";
+      closeBtn.title = "Back to card";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.textContent = "\u2715";
+      bar.append(titleEl, closeBtn);
 
-      card.innerHTML =
-        `<div class="asocial-player-wrap">` +
-          `<div class="asocial-player-toolbar">` +
-            `<span class="asocial-player-title">&#x1F3AE; <b>${esc(cleanTitle)}</b></span>` +
-            `<div class="asocial-player-actions">` +
-              `<button type="button" class="asocial-tool-btn asocial-pause-btn" title="Pause / Resume" aria-label="Pause">&#x23EF;</button>` +
-              `<button type="button" class="asocial-tool-btn asocial-mute-btn" title="Mute / Unmute" aria-label="Mute">&#x1F50A;</button>` +
-              `<button type="button" class="asocial-tool-btn asocial-fs-btn" title="Toggle Fullscreen" aria-label="Fullscreen">&#x26F6;</button>` +
-              `<button type="button" class="asocial-tool-btn asocial-close-btn" title="Close Game" aria-label="Close">&#x2715;</button>` +
-            `</div>` +
-          `</div>` +
-          `<iframe ` +
-            `class="asocial-iframe" ` +
-            `src="${esc(gameUrl)}" ` +
-            `sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-forms" ` +
-            `allow="autoplay; gamepad; fullscreen" ` +
-            `title="${esc(cleanTitle)}"` +
-          `></iframe>` +
-        `</div>`;
+      const panel = document.createElement("div");
+      panel.className = "asocial-launch-panel";
+      const info = document.createElement("p");
+      info.textContent = validId(siteKey)
+        ? `Asocial game (${shortKey(siteKey)}) opens in its own browser tab to keep your Radica session isolated.`
+        : "Asocial game opens in its own browser tab to keep your Radica session isolated.";
+      const link = document.createElement("a");
+      link.className = "btn-primary btn-sm";
+      link.href = gameUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open in new tab \u2197";
+      panel.append(info, link);
 
-      const wrap = card.querySelector<HTMLElement>(".asocial-player-wrap")!;
-      const iframe = card.querySelector<HTMLIFrameElement>(".asocial-iframe")!;
-      const pauseBtn = card.querySelector<HTMLButtonElement>(".asocial-pause-btn")!;
-      const muteBtn = card.querySelector<HTMLButtonElement>(".asocial-mute-btn")!;
-      const fsBtn = card.querySelector<HTMLButtonElement>(".asocial-fs-btn")!;
-      const closeBtn = card.querySelector<HTMLButtonElement>(".asocial-close-btn")!;
-
-      let isPaused = false;
-      let isMuted = false;
-
-      // Asocial player controls handshake:
-      // When the game iframe announces `{ asocial: "controls", supports: ["pause", "volume", "speed"] }`
-      const onMessage = (ev: MessageEvent) => {
-        if (ev.source !== iframe.contentWindow) return;
-        if (ev.data && typeof ev.data === "object" && ev.data.asocial === "controls") {
-          // Handshake initial volume
-          iframe.contentWindow?.postMessage(
-            { asocial: "control", control: "volume", value: isMuted ? 0.0 : 1.0 },
-            "*"
-          );
-        }
-      };
-      window.addEventListener("message", onMessage);
-
-      pauseBtn.onclick = () => {
-        isPaused = !isPaused;
-        pauseBtn.innerHTML = isPaused ? "&#x25B6;" : "&#x23EF;";
-        iframe.contentWindow?.postMessage(
-          { asocial: "control", control: isPaused ? "pause" : "resume" },
-          "*"
-        );
-      };
-
-      muteBtn.onclick = () => {
-        isMuted = !isMuted;
-        muteBtn.innerHTML = isMuted ? "&#x1F507;" : "&#x1F50A;";
-        iframe.contentWindow?.postMessage(
-          { asocial: "control", control: "volume", value: isMuted ? 0.0 : 1.0 },
-          "*"
-        );
-      };
-
-      fsBtn.onclick = () => {
-        if (!document.fullscreenElement) {
-          void wrap.requestFullscreen?.().catch(() => {});
-        } else {
-          void document.exitFullscreen?.().catch(() => {});
-        }
-      };
+      wrap.append(bar, panel);
+      card.replaceChildren(wrap);
 
       closeBtn.onclick = () => {
-        window.removeEventListener("message", onMessage);
-        // Clear iframe to kill audio and process
-        iframe.src = "about:blank";
         card.innerHTML = initialHtml;
         card.removeAttribute("data-initialized");
         fillAsocial(card.parentElement || card, origin);

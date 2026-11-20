@@ -8,13 +8,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  watch:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      behind: ${{ steps.cmp.outputs.behind }}
+      version: ${{ steps.cmp.outputs.version }}
+      skip: ${{ steps.check_existing.outputs.skip }}
+      update_ok: ${{ steps.try_update.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -50,23 +53,59 @@ jobs:
         with:
           node-version: "22"
 
+      # Untrusted build & verification runs WITHOUT GH_TOKEN and with read-only permissions.
       - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true'
         id: try_update
         continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
+          npm --prefix ui ci
           python3 .github/scripts/river-watch.py --apply
           cargo build --manifest-path river-wasm/Cargo.toml --target wasm32-unknown-unknown --release
           cp river-wasm/target/wasm32-unknown-unknown/release/radica_river.wasm ui/src/wasm/river.wasm
-          npm --prefix ui ci
           node --experimental-strip-types --test ui/tests/river.test.ts ui/tests/riverPointer.test.ts ui/tests/riverRooms.test.ts
 
+      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: river-watch-note
+          path: river-watch.md
+
       - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true' && steps.try_update.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: river-watch-files
+          path: |
+            river-wasm/Cargo.toml
+            river-wasm/Cargo.lock
+            ui/src/wasm/river.wasm
+            ui/src/wasm/river_room_contract.wasm
+            ui/src/riverPointer.ts
+            ui/tests/riverPointer.test.ts
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.behind == 'true' && needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: river-watch-note
+
+      - if: needs.prepare.outputs.update_ok == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: river-watch-files
+
+      - if: needs.prepare.outputs.update_ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: "river-watch/v${{ steps.cmp.outputs.version }}"
-          VERSION: "${{ steps.cmp.outputs.version }}"
+          BRANCH: "river-watch/v${{ needs.prepare.outputs.version }}"
+          VERSION: "${{ needs.prepare.outputs.version }}"
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -77,11 +116,10 @@ jobs:
           git push -u origin "$BRANCH"
           gh pr create --title "chore(river): bump River room contract to v$VERSION" --body-file river-watch.md
 
-      - if: steps.cmp.outputs.behind == 'true' && steps.check_existing.outputs.skip != 'true' && steps.try_update.outcome != 'success'
+      - if: needs.prepare.outputs.update_ok != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TITLE: "River room contract moved to v${{ steps.cmp.outputs.version }}"
+          TITLE: "River room contract moved to v${{ needs.prepare.outputs.version }}"
         run: |
-          git reset --hard && git clean -fd -e river-watch.md
           printf '\n> ⚠️ Automatic `river-wasm` build/tests failed (likely an upstream `river-core` API change requiring manual adjustment).\n' >> river-watch.md
           gh issue create --title "$TITLE" --body-file river-watch.md

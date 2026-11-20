@@ -2,6 +2,10 @@
 //! does from one codebase. Before the page can load, the node must run: this finds, installs or starts it with the same
 //! code the native app uses ([`DesktopHost`]), showing each step in the window.
 
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 
 use tao::event::{Event, WindowEvent};
@@ -12,8 +16,33 @@ use wry::{NewWindowResponse, WebContext, WebViewBuilder};
 use crate::host::{DesktopHost, InstallStep, MANUAL_INSTALL_URL, NodeProbe};
 
 /// Radica web, as the node serves it.
+const RADICA_KEY: &str = "Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw";
+const VISO_KEY: &str = "GzHy3jnEtj26EoGqMsBpoawcY378hK9kp91rTcNYiAac";
 const RADICA_WEB_URL: &str =
     "http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+const MAX_STORAGE_BYTES: usize = 8 * 1024 * 1024;
+
+fn is_contract_prefix(url: &str, key: &str) -> bool {
+    let loopback = format!("http://127.0.0.1:7509/v1/contract/web/{key}");
+    let localhost = format!("http://localhost:7509/v1/contract/web/{key}");
+    [loopback, localhost].iter().any(|base| {
+        url == base
+            || url.starts_with(&format!("{base}/"))
+            || url.starts_with(&format!("{base}?"))
+            || url.starts_with(&format!("{base}#"))
+    })
+}
+
+fn is_radica_url(url: &str) -> bool {
+    is_contract_prefix(url, RADICA_KEY)
+}
+
+fn is_allowed_nav(url: &str) -> bool {
+    is_radica_url(url)
+        || is_contract_prefix(url, VISO_KEY)
+        || url == "about:blank"
+        || url.starts_with("data:text/html")
+}
 
 enum Ui {
     Status(String),
@@ -53,6 +82,7 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
 fn native_storage_script(initial_blob: &str) -> String {
     format!(
         r#"(function() {{
+  if (!/^http:\/\/(?:127\.0\.0\.1|localhost):7509\/v1\/contract\/web\/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw(?:[/?#]|$)/.test(String(location.href || ""))) return;
   var initial = {};
   window.__radicaNative = {{
     getAll: function() {{ return initial; }},
@@ -71,10 +101,36 @@ fn storage_path() -> Option<std::path::PathBuf> {
     directories::ProjectDirs::from("", "Freenet", "Radica").map(|d| d.data_local_dir().join("storage.json"))
 }
 
+fn write_storage_atomic(path: &std::path::Path, json: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    {
+        use std::io::Write;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.create(true).write(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let mut f = opts.open(&tmp)?;
+        f.write_all(json.as_bytes())?;
+        f.sync_all()?;
+    }
+    std::fs::rename(&tmp, path)
+}
+
 /// Only web pages, and the one app-handler link Radica itself renders (Spore Radio's hand-off to the Spore desktop
 /// app), go to the system: anything else the page asks for (`file:`, an arbitrary app-handler URL) is refused.
+fn is_safe_external_url(url: &str) -> bool {
+    !url.chars().any(|c| c.is_control())
+        && (url.starts_with("https://") || url.starts_with("http://") || url.starts_with("spore:radio:"))
+}
+
 fn open_external(url: &str) {
-    if url.starts_with("https://") || url.starts_with("http://") || url.starts_with("spore:radio:") {
+    if is_safe_external_url(url) {
         launch_externally(url);
     }
 }
@@ -83,9 +139,15 @@ fn open_external(url: &str) {
 fn launch_externally(url: &str) {
     use std::process::Command;
     #[cfg(target_os = "windows")]
-    let _ = Command::new("rundll32.exe")
-        .args(["url.dll,FileProtocolHandler", url])
-        .spawn();
+    {
+        let sys_root = std::env::var_os("SystemRoot")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+        let rundll32 = sys_root.join("System32").join("rundll32.exe");
+        let _ = Command::new(rundll32)
+            .args(["url.dll,FileProtocolHandler", url])
+            .spawn();
+    }
     #[cfg(target_os = "macos")]
     let _ = Command::new("open").arg(url).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -226,24 +288,42 @@ pub fn run() -> wry::Result<()> {
             .map(|d| d.data_local_dir().join("webview")),
     );
     let retry = event_loop.create_proxy();
+    let radica_opened = Arc::new(AtomicBool::new(false));
+    let radica_opened_ipc = Arc::clone(&radica_opened);
     let storage_path = storage_path();
     let initial_storage_blob = storage_path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_html(LOADING)
         .with_initialization_script_for_main_only(OPEN_IN_BROWSER, false)
         .with_initialization_script_for_main_only(&native_storage_script(&initial_storage_blob), false)
-        .with_ipc_handler(move |req| match req.body().strip_prefix("open:") {
-            Some(url) => open_external(url),
-            None if req.body() == "retry" => {
-                let _ = retry.send_event(Ui::Retry);
+        .with_navigation_handler(|url| {
+            if is_allowed_nav(&url) {
+                true
+            } else {
+                open_external(&url);
+                false
             }
-            None => {
-                if let Some(json) = req.body().strip_prefix("storage:") {
-                    if let Some(p) = &storage_path {
-                        if let Some(parent) = p.parent() {
-                            let _ = std::fs::create_dir_all(parent);
+        })
+        .with_ipc_handler(move |req| {
+            let origin_uri = req.uri().to_string();
+            match req.body().strip_prefix("open:") {
+                Some(url) => {
+                    if is_radica_url(&origin_uri) {
+                        open_external(url);
+                    }
+                }
+                None if req.body() == "retry" => {
+                    if !radica_opened_ipc.load(Ordering::Relaxed) {
+                        let _ = retry.send_event(Ui::Retry);
+                    }
+                }
+                None => {
+                    if let Some(json) = req.body().strip_prefix("storage:") {
+                        if is_radica_url(&origin_uri) && json.len() <= MAX_STORAGE_BYTES {
+                            if let Some(p) = &storage_path {
+                                let _ = write_storage_atomic(p, json);
+                            }
                         }
-                        let _ = std::fs::write(p, json.as_bytes());
                     }
                 }
             }
@@ -274,6 +354,7 @@ pub fn run() -> wry::Result<()> {
             Event::UserEvent(Ui::Status(s)) => status(&s, false),
             Event::UserEvent(Ui::Failed(e)) => status(&e, true),
             Event::UserEvent(Ui::Open) => {
+                radica_opened.store(true, Ordering::Relaxed);
                 let _ = webview.load_url(RADICA_WEB_URL);
             }
             Event::UserEvent(Ui::Retry) => {
@@ -299,5 +380,23 @@ mod tests {
         assert_eq!(step_text(&d(50, Some(200))), "Downloading Freenet… 25%");
         assert_eq!(step_text(&d(3_000_000, None)), "Downloading Freenet… 3 MB");
         assert_eq!(step_text(&d(1, Some(0))), "Downloading Freenet… 0 MB");
+    }
+
+    #[test]
+    fn radica_and_allowed_nav_gate_untrusted_contracts() {
+        assert!(is_radica_url(RADICA_WEB_URL));
+        assert!(is_radica_url("http://localhost:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/#p=1"));
+        assert!(!is_radica_url("http://127.0.0.1:7509/v1/contract/web/GzHy3jnEtj26EoGqMsBpoawcY378hK9kp91rTcNYiAac/"));
+        assert!(!is_radica_url("http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2SwEVIL/"));
+
+        assert!(is_allowed_nav(RADICA_WEB_URL));
+        assert!(is_allowed_nav("http://127.0.0.1:7509/v1/contract/web/GzHy3jnEtj26EoGqMsBpoawcY378hK9kp91rTcNYiAac/?connect=v1"));
+        assert!(is_allowed_nav("about:blank"));
+        assert!(!is_allowed_nav("http://127.0.0.1:7509/v1/contract/web/SomeOtherApp/"));
+        assert!(!is_allowed_nav("https://evil.example/"));
+        assert!(is_safe_external_url("https://freenet.org"));
+        assert!(is_safe_external_url("spore:radio:123"));
+        assert!(!is_safe_external_url("https://freenet.org/\nevil"));
+        assert!(!is_safe_external_url("file:///etc/passwd"));
     }
 }

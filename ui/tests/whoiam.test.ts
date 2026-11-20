@@ -159,3 +159,32 @@ test("whoiam / Viso: on a remote node the return path matches the signed base, s
   assert.equal(certShowsHost({ base: "http://127.0.0.1:7509/v1/contract/web/App1/", challenge: "", ts: 0, sig: "" }), false);
   assert.equal(certShowsHost(undefined), false);
 });
+
+test("whoiam / Viso: rejects unsolicited fresh sign-in callbacks (login CSRF) and foreign Viso hosts", async () => {
+  const { finishSignIn, getAppKeyPubkey } = await import("../src/whoiam.ts");
+  const { safeStorage } = await import("../src/storage.ts");
+  const origLocation = globalThis.location;
+  try {
+    (globalThis as any).location = { port: "5173", host: "localhost:5173", protocol: "http:", pathname: "/" };
+    await assert.rejects(
+      startSignIn(`https://evil.example/v1/contract/web/${VISO_KEY}/`),
+      /address of your Viso site/,
+    );
+
+    safeStorage.removeItem("radica_signin_pending");
+    safeStorage.removeItem("radica_session");
+    const personaSk = ed.utils.randomPrivateKey();
+    const personaPk = hex(await ed.getPublicKeyAsync(personaSk));
+    const appPk = await getAppKeyPubkey();
+    const challenge = `wd1.${appPk}.${"aa".repeat(16)}`;
+    const ts = Date.now();
+    const base = "http://127.0.0.1:7509/";
+    const sig = hex(await ed.signAsync(connectMessage(ed.etc.hexToBytes(personaPk), base, challenge, ts), personaSk));
+    await assert.rejects(
+      finishSignIn(new URLSearchParams({ viso: "ok", pk: personaPk, sig, challenge, ts: String(ts) })),
+      /unknown or was already used/,
+    );
+  } finally {
+    globalThis.location = origLocation;
+  }
+});

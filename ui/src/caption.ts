@@ -103,6 +103,9 @@ function isSafeUrl(url: string): boolean {
   if (/^(?:javascript|vbscript|data):/i.test(trimmed)) {
     return false;
   }
+  if (/(?:^|[#&])auth_state=/i.test(trimmed)) {
+    return false;
+  }
   return /^(?:https?:\/\/|freenet:|fn:|spore:|\/v[12]\/contract\/|\/|#|mailto:)/i.test(trimmed);
 }
 

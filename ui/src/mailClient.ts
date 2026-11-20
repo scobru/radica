@@ -21,6 +21,7 @@ import {
 } from "./freenetMail.ts";
 import { fromBase58, toBase58 } from "./whoiam.ts";
 import { ContractKey } from "@freenetorg/freenet-stdlib";
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 
 export type MailFolder = "inbox" | "sent" | "drafts" | "contacts";
 
@@ -556,18 +557,14 @@ function bytesEqual(a: unknown, b: Uint8Array): boolean {
 /**
  * Resolve a full sender email address (`alias@inboxAddress`) and display string
  * using the decrypted `from` label and the outer message's 1952-byte ML-DSA-65 `sender_vk`.
+ * When `sender_vk` is present, its derived inbox address is ALWAYS authoritative so an
+ * attacker cannot spoof `admin@official` or bypass sender blocklists via inner `from` text.
  */
 export function resolveFreemailSenderAddress(
   rawFrom: string,
   senderVk?: number[] | Uint8Array | null
 ): { fromAddress: string; fromDisplay: string } {
   const cleanRaw = (rawFrom || "").trim();
-  if (cleanRaw.includes("@")) {
-    const candidate = normalizeMailAddress(cleanRaw);
-    if (isValidMailAddress(candidate)) {
-      return { fromAddress: candidate, fromDisplay: candidate };
-    }
-  }
 
   const vkBytes =
     senderVk instanceof Uint8Array
@@ -577,10 +574,19 @@ export function resolveFreemailSenderAddress(
         : null;
   if (vkBytes && vkBytes.length === 1952) {
     const senderInbox = deriveInboxContractAddress(vkBytes);
-    const isBareInbox = cleanRaw === senderInbox || (!cleanRaw.includes("@") && cleanRaw.length >= 43);
-    const alias = isBareInbox ? "user" : (sanitizeMailAlias(cleanRaw.split("@")[0]) || "user");
+    const extracted = normalizeMailAddress(cleanRaw);
+    const rawLocal = extracted.includes("@") ? extracted.split("@")[0] : cleanRaw;
+    const isBareInbox = rawLocal === senderInbox || (!cleanRaw.includes("@") && cleanRaw.length >= 43);
+    const alias = isBareInbox ? "user" : (sanitizeMailAlias(rawLocal) || "user");
     const fullAddress = `${alias}@${senderInbox}`;
     return { fromAddress: fullAddress, fromDisplay: fullAddress };
+  }
+
+  if (cleanRaw.includes("@")) {
+    const candidate = normalizeMailAddress(cleanRaw);
+    if (isValidMailAddress(candidate)) {
+      return { fromAddress: candidate, fromDisplay: candidate };
+    }
   }
 
   if (!cleanRaw.includes("@") && cleanRaw.length >= 43 && cleanRaw.length <= 44) {
@@ -889,7 +895,19 @@ export async function syncFreenetMailInbox(
 
     for (const msg of parsedInbox.messages) {
       if (!msg.content || !Array.isArray(msg.content)) continue;
+      if (!Array.isArray(msg.sender_vk) || msg.sender_vk.length !== 1952) continue;
+      if (!Array.isArray(msg.signature) || msg.signature.length === 0) continue;
       const contentBytes = new Uint8Array(msg.content);
+      const vkBytes = new Uint8Array(msg.sender_vk);
+      const sigBytes = new Uint8Array(msg.signature);
+      let sigOk = false;
+      try {
+        sigOk = ml_dsa65.verify(sigBytes, contentBytes, vkBytes);
+      } catch {
+        sigOk = false;
+      }
+      if (!sigOk) continue;
+
       const dec = decryptFreenetMailV1(identity.kemDk, contentBytes);
       if (!dec) continue;
 

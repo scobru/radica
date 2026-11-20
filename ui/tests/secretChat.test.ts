@@ -125,3 +125,19 @@ test("secretChat: notification item routing distinguishes secret chat from stand
     false
   );
 });
+
+test("secretChat: rejects negative or oversized msgIndex immediately without unbounded HKDF looping", async () => {
+  const sk = crypto.getRandomValues(new Uint8Array(32));
+  const pk = ed.etc.bytesToHex(await ed.getPublicKeyAsync(sk));
+  const peer = "33".repeat(32);
+  const iv = "00".repeat(12);
+  const ct = "aa".repeat(32);
+  await assert.rejects(
+    decryptSecretMessage(sk, pk, peer, `secret:v1:${pk}:999999999:${iv}:${ct}`),
+    /Invalid secret message index/,
+  );
+  await assert.rejects(
+    decryptSecretMessage(sk, pk, peer, `secret:v1:${pk}:-1:${iv}:${ct}`),
+    /Invalid secret message index/,
+  );
+});

@@ -18,6 +18,7 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -25,9 +26,12 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
  * Radica web, served by the Freenet node on this phone. Android has no Freenet of its own: the node comes from
@@ -36,7 +40,14 @@ import java.net.URL;
  */
 public class MainActivity extends Activity {
     private static final String NODE = "http://127.0.0.1:7509";
-    private static final String RADICA = NODE + "/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+    private static final String RADICA_KEY = "Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw";
+    private static final String VISO_KEY = "GzHy3jnEtj26EoGqMsBpoawcY378hK9kp91rTcNYiAac";
+    private static final String RADICA_PREFIX_LOOPBACK = "http://127.0.0.1:7509/v1/contract/web/" + RADICA_KEY + "/";
+    private static final String RADICA_PREFIX_LOCALHOST = "http://localhost:7509/v1/contract/web/" + RADICA_KEY + "/";
+    private static final String VISO_PREFIX_LOOPBACK = "http://127.0.0.1:7509/v1/contract/web/" + VISO_KEY + "/";
+    private static final String VISO_PREFIX_LOCALHOST = "http://localhost:7509/v1/contract/web/" + VISO_KEY + "/";
+    private static final String RADICA = RADICA_PREFIX_LOOPBACK;
+    private static final int MAX_STORAGE_BYTES = 8 * 1024 * 1024;
     private static final String NODE_APP = "org.freenet.androidnode";
     private static final String NODE_APP_RELEASES = "https://github.com/HostFat/freenet-android-node/releases/latest";
     private static final int PICK_FILES = 1;
@@ -46,6 +57,7 @@ public class MainActivity extends Activity {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private WebView web;
+    private volatile String currentTopUrl = "";
     private boolean opened;
     private Node shown;
     private ValueCallback<Uri[]> pendingFiles;
@@ -61,6 +73,7 @@ public class MainActivity extends Activity {
                     if (opened) return;
                     if (up) {
                         opened = true;
+                        currentTopUrl = RADICA;
                         web.loadUrl(RADICA);
                     } else {
                         show(nodeAppInstalled() ? Node.STOPPED : Node.MISSING);
@@ -79,6 +92,8 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportMultipleWindows(true);
         web.setWebViewClient(new Client());
@@ -217,27 +232,83 @@ public class MainActivity extends Activity {
                 && uri.getPort() == 7509;
     }
 
+    private static boolean isRadicaUrl(String url) {
+        if (url == null) return false;
+        return url.startsWith(RADICA_PREFIX_LOOPBACK) || url.startsWith(RADICA_PREFIX_LOCALHOST);
+    }
+
+    private static boolean isAllowedInAppUrl(String url) {
+        if (isRadicaUrl(url)) return true;
+        if (url == null) return false;
+        return url.startsWith(VISO_PREFIX_LOOPBACK) || url.startsWith(VISO_PREFIX_LOCALHOST);
+    }
+
+    private static boolean isSubframeDocumentRequest(WebResourceRequest req) {
+        if (req.isForMainFrame()) return false;
+        Map<String, String> headers = req.getRequestHeaders();
+        if (headers == null) return false;
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            String k = entry.getKey();
+            String v = entry.getValue();
+            if (k == null || v == null) continue;
+            if (k.equalsIgnoreCase("Sec-Fetch-Dest")) {
+                String lower = v.trim().toLowerCase();
+                if (lower.equals("iframe") || lower.equals("frame") || lower.equals("fencedframe")) return true;
+            } else if (k.equalsIgnoreCase("Accept") && v.toLowerCase().contains("text/html")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Radica runs in a sandboxed iframe the node's shell serves (no `allow-same-origin`): `window.localStorage`
      *  throws there, and storage.ts's fallback (`window.name` + URL hash) is lost whenever this app is closed and
      *  reopened (a new Activity means a new WebView, so a fresh, empty `window.name`). addJavascriptInterface
      *  objects are reachable from every frame of the WebView, sandboxed iframes included, so this gives
-     *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that. */
+     *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that — strictly gated to Radica. */
     private class NativeStorage {
         @JavascriptInterface
         public String getAll() {
+            if (!isRadicaUrl(currentTopUrl)) return null;
             return getSharedPreferences("radica_storage", MODE_PRIVATE).getString("blob", null);
         }
 
         @JavascriptInterface
         public void setAll(String json) {
+            if (!isRadicaUrl(currentTopUrl)) return;
+            if (json == null || json.length() > MAX_STORAGE_BYTES) return;
             getSharedPreferences("radica_storage", MODE_PRIVATE).edit().putString("blob", json).apply();
         }
     }
 
     private class Client extends WebViewClient {
         @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            if (url != null && !"radica://status".equals(url)) currentTopUrl = url;
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+            Uri uri = req.getUrl();
+            String url = uri != null ? uri.toString() : "";
+            if (isSubframeDocumentRequest(req) && !isRadicaUrl(url)) {
+                return new WebResourceResponse(
+                        "text/plain",
+                        "utf-8",
+                        403,
+                        "Forbidden",
+                        java.util.Collections.emptyMap(),
+                        new ByteArrayInputStream("Forbidden subframe navigation".getBytes(StandardCharsets.UTF_8))
+                );
+            }
+            return super.shouldInterceptRequest(view, req);
+        }
+
+        @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
             Uri uri = req.getUrl();
+            String url = uri != null ? uri.toString() : "";
             if ("radica".equals(uri.getScheme())) {
                 switch (String.valueOf(uri.getHost())) {
                     case "install":
@@ -254,8 +325,11 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
-            if (isNodePage(uri)) return false; // Radica and other apps on this node stay here
-            // other sites go to the browser; anything else (intent:, file:, …) is refused
+            if (isAllowedInAppUrl(url)) {
+                currentTopUrl = url;
+                return false; // Only Radica and Viso (for SSO bounce) stay in this WebView
+            }
+            // Other Freenet contracts and external sites open in the system browser; anything else (intent:, file:, ...) is refused
             if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) openOutside(uri);
             return true;
         }
@@ -270,8 +344,13 @@ public class MainActivity extends Activity {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
                     Uri uri = req.getUrl();
-                    if (isNodePage(uri)) web.loadUrl(uri.toString());
-                    else if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) openOutside(uri);
+                    String url = uri != null ? uri.toString() : "";
+                    if (isAllowedInAppUrl(url)) {
+                        currentTopUrl = url;
+                        web.loadUrl(url);
+                    } else if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) {
+                        openOutside(uri);
+                    }
                     v.destroy();
                     return true;
                 }
@@ -295,11 +374,11 @@ public class MainActivity extends Activity {
             return true;
         }
 
-        /** Voice notes: the microphone, for pages on the node only. */
+        /** Voice notes: the microphone, for Radica only. */
         @Override
         public void onPermissionRequest(PermissionRequest req) {
             boolean mic = java.util.Arrays.asList(req.getResources()).contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
-            if (!mic || !isNodePage(req.getOrigin())) {
+            if (!mic || !isRadicaUrl(currentTopUrl)) {
                 req.deny();
             } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                 req.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});

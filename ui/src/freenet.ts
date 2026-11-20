@@ -1,3 +1,5 @@
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { AI_REPORTERS, RADICA_DEFAULT_MODS, RADICA_MAINTAINER, type SecretChatSession } from "./types.ts";
 import {
   isDelegationProofShape,
@@ -59,7 +61,11 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+
+function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
+  return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
+}
 import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
@@ -1895,21 +1901,20 @@ export class FreenetClient {
         const list: PrivateRoom[] = JSON.parse(localStorage.getItem("freenet_private_rooms") || "[]");
         const existing = list.find((r) => r.id === id);
         const me = this.me;
-        // Keep this user's membership if they already had access (via River invite code or saved key)
-        const myMembership = me && (
+        const isRiverRoom = !!(room.river || existing?.river);
+        // For native Radica rooms, foldRoom is authoritative so kicked members & stale encrypted_keys never resurrect.
+        // River rooms still keep local access markers because River drops silent joiners from its member list.
+        const myMembership = isRiverRoom && me && (
           existing?.members?.includes(me) ||
           !!localStorage.getItem(`river_key_${id}`) ||
           this.rememberedRooms.has(id)
         );
-        const mergedMembers = Array.from(new Set([
-          ...(room.members || []),
-          ...(existing?.members || []),
-          ...(myMembership ? [me] : []),
-        ]));
-        const mergedKeys = {
-          ...(room.encrypted_keys || {}),
-          ...(existing?.encrypted_keys || {}),
-        };
+        const mergedMembers = isRiverRoom
+          ? Array.from(new Set([...(room.members || []), ...(existing?.members || []), ...(myMembership ? [me!] : [])]))
+          : room.members;
+        const mergedKeys = isRiverRoom
+          ? { ...(room.encrypted_keys || {}), ...(existing?.encrypted_keys || {}) }
+          : room.encrypted_keys;
         const mergedRoom: PrivateRoom = {
           ...existing,
           ...room,
@@ -3619,11 +3624,10 @@ export class FreenetClient {
     if (!comm) return [];
 
     const timeline = await this.getTimeline(identity);
-    const deleted = new Set(comm.deleted_post_ids);
     return timeline.filter(
       (p) =>
         (p.community_id === comm.id || p.community_id === comm.slug) &&
-        !deleted.has(p.id)
+        !isPostDeletedInCommunity(comm, p)
     );
   }
 
@@ -3737,7 +3741,7 @@ export class FreenetClient {
     identity: UserIdentity,
     name: string,
     memberPubkeys: string[],
-    roomId = `privroom_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    roomId = `privroom_${Date.now()}_${bytesToHex(crypto.getRandomValues(new Uint8Array(16)))}`,
     opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string; public?: boolean; river?: boolean }
   ): Promise<PrivateRoom> {
     let room: PrivateRoom;
@@ -3942,12 +3946,12 @@ export class FreenetClient {
     room: PrivateRoom
   ): Promise<Uint8Array | null> {
     if (room.river) return null; // River seals the room: there is no Radica room key
-    const cached = this.privateRoomKeyCache.get(room.id);
-    if (cached) return cached;
-    await this.readKeysReady;
-
     const myEncryptedKey = room.encrypted_keys ? room.encrypted_keys[identity.pubkey] : undefined;
     if (!myEncryptedKey) return null;
+    const cacheKey = `${room.id}:${myEncryptedKey}:${room.keys_enc_pub ?? ""}`;
+    const cached = this.privateRoomKeyCache.get(cacheKey) ?? this.privateRoomKeyCache.get(room.id);
+    if (cached && this.privateRoomKeyCache.has(cacheKey)) return cached;
+    await this.readKeysReady;
 
     // Encrypted by the moderator who last rotated the keys, by the creator, or by myself when I joined through an invite link
     const key =
@@ -3955,7 +3959,7 @@ export class FreenetClient {
       (await decryptRoomKeyFromPeer(identity.secretKey, room.creator_enc_pub || room.creator, myEncryptedKey)) ??
       (await decryptRoomKeyFromPeer(identity.secretKey, identity.encPub, myEncryptedKey));
     if (key) {
-      this.privateRoomKeyCache.set(room.id, key);
+      this.privateRoomKeyCache.set(cacheKey, key);
       return key;
     }
     return null;
@@ -4130,16 +4134,43 @@ export class FreenetClient {
     if (targetPubkey === room.creator) throw new Error("The room creator cannot be kicked");
     if (!byCreator && mods.includes(targetPubkey)) throw new Error("Only the room creator can kick a moderator");
 
-    // 1. Remove from members (and moderators), and drop their key
-    room.members = room.members.filter((m) => m !== targetPubkey);
-    room.moderators = mods.filter((m) => m !== targetPubkey);
+    // 1. Remove kicked target, drop unverified room_joiners who lack key possession proof, and clear their keys
+    const targetLower = targetPubkey.toLowerCase();
+    const oldRoomKey = await this.getPrivateRoomKey(identity, room);
+    const roomEntries = this.logEntries(`room/${room.id}`);
+    const { creatorListed, joinProofs } = roomJoinProofs(roomEntries, room.id);
+    const legacyProvenJoiners = new Set<string>();
+    if (oldRoomKey) {
+      for (const le of roomEntries) {
+        const sender = le.author.toLowerCase();
+        if (creatorListed.has(sender) || legacyProvenJoiners.has(sender)) continue;
+        try {
+          const parsed = JSON.parse(le.body);
+          if (parsed?.type === "chat" && typeof parsed?.message?.text === "string" && parsed.message.text.startsWith("sym:")) {
+            const plain = await decryptWithSymmetricKey(oldRoomKey, parsed.message.text);
+            if (!plain.startsWith("[Encrypted room message")) legacyProvenJoiners.add(sender);
+          }
+        } catch {}
+      }
+    }
+
+    room.members = room.members.filter((m) => {
+      const ml = m.toLowerCase();
+      if (ml === targetLower) return false;
+      if (ml === room.creator.toLowerCase() || ml === identity.pubkey.toLowerCase() || creatorListed.has(ml)) return true;
+      if (!oldRoomKey) return false;
+      return joinProofs.get(ml) === computeRoomJoinProof(oldRoomKey, room.id, ml) || legacyProvenJoiners.has(ml);
+    });
+    room.moderators = mods.filter((m) => m.toLowerCase() !== targetLower && room.members.includes(m));
     delete room.encrypted_keys?.[targetPubkey];
 
     // 2. Key rotation for forward secrecy: a new symmetric key for the room, encrypted by me for each remaining member
     const newRoomKey = generateRoomKey();
     const currentName = await this.getPrivateRoomDecryptedName(identity, room);
     room.name_encrypted = await encryptWithSymmetricKey(newRoomKey, currentName);
-    this.privateRoomKeyCache.set(room.id, newRoomKey);
+    for (const ck of [...this.privateRoomKeyCache.keys()]) {
+      if (ck === room.id || ck.startsWith(`${room.id}:`)) this.privateRoomKeyCache.delete(ck);
+    }
     const updatedKeys: Record<string, string> = {};
     for (const m of room.members) {
       try {
@@ -4150,20 +4181,21 @@ export class FreenetClient {
     }
     room.encrypted_keys = updatedKeys;
     room.keys_enc_pub = byCreator ? undefined : identity.encPub;
+    const newSelfEnc = updatedKeys[identity.pubkey];
+    if (newSelfEnc) this.privateRoomKeyCache.set(`${room.id}:${newSelfEnc}:${room.keys_enc_pub ?? ""}`, newRoomKey);
 
     this.replacePrivateRoom(room);
     this.broadcast({ type: "private_room_kick", roomId, kicked: targetPubkey, room });
-    // the creator publishes the whole descriptor; a moderator can only publish the kick, which peers check against the moderators list
+    // Always publish room_kick so foldRoom records target in kicked and prevents uninvited rejoin via stale room_join
     if (byCreator) await this.logAppend(`room/${room.id}`, { type: "private_room", room });
-    else
-      await this.logAppend(`room/${room.id}`, {
-        type: "room_kick",
-        roomId,
-        target: targetPubkey,
-        name_encrypted: room.name_encrypted,
-        encrypted_keys: room.encrypted_keys,
-        keys_enc_pub: room.keys_enc_pub,
-      });
+    await this.logAppend(`room/${room.id}`, {
+      type: "room_kick",
+      roomId,
+      target: targetPubkey,
+      name_encrypted: room.name_encrypted,
+      encrypted_keys: room.encrypted_keys,
+      keys_enc_pub: room.keys_enc_pub,
+    });
     this.notifyListeners();
     return room;
   }
@@ -4570,11 +4602,9 @@ export class FreenetClient {
       throw new Error("Invalid room key in invite link");
     }
 
-    // Cache the decrypted room key locally
-    this.privateRoomKeyCache.set(roomId, roomKey);
-
-    // Encrypt room key for self so it persists across sessions
+    // Cache the decrypted room key locally and encrypt for self
     const encKeyForSelf = await encryptRoomKeyForPeer(identity.secretKey, identity.encPub, roomKey);
+    this.privateRoomKeyCache.set(`${roomId}:${encKeyForSelf}:`, roomKey);
 
     const existingRooms = await this.getPrivateRooms(identity);
     let room = existingRooms.find((r) => r.id === roomId);
@@ -4606,7 +4636,8 @@ export class FreenetClient {
 
     this.mergeRemotePrivateRooms([room]);
     this.broadcast({ type: "private_room", room });
-    await this.logAppend(`room/${roomId}`, { type: "room_join", roomId, encrypted_key: encKeyForSelf }); // my copy of the key, for my eyes only
+    const key_proof = computeRoomJoinProof(roomKey, roomId, identity.pubkey);
+    await this.logAppend(`room/${roomId}`, { type: "room_join", roomId, encrypted_key: encKeyForSelf, key_proof }); // my copy of the key, for my eyes only + HMAC possession proof
     await this.rememberRoom(roomId);
 
     if (linked_room_id && linked_key_hex && linked_key_hex.length === 64) {

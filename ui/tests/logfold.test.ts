@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, roomJoiners, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -631,4 +631,53 @@ test("logfold: foldHandledReports attributes each decision to the moderator who 
     ],
   );
   assert.deepEqual(handled[2].reasons, ["[AI] scam: fake link", "spam"]);
+});
+
+test("logfold security: scoped community self-delete, cascading mod removal, hex case normalization, chat id isolation, and roomJoinProofs", () => {
+  // 1. Non-mod spoofing post_author cannot delete owner's post, while author self-delete scopes to signer
+  const comm = foldCommunities([
+    entry(owner, 1, { type: "community_create", community: { id: "c_sec", name: "Sec" } }),
+    entry(mallory, 2, { type: "community_delete_post", community_id: "c_sec", post_id: "p1", post_author: owner }),
+    entry(mallory, 3, { type: "community_delete_post", community_id: "c_sec", post_id: "p1", post_author: mallory }),
+    entry(mod, 4, { type: "community_mod_add", community_id: "c_sec", target: user }), // ignored: not a mod yet
+    entry(owner, 5, { type: "community_mod_add", community_id: "c_sec", target: mod }),
+    entry(mod, 6, { type: "community_mod_add", community_id: "c_sec", target: mallory }), // appointed by mod
+    entry(owner, 7, { type: "community_mod_add", community_id: "c_sec", target: user }), // appointed directly by owner
+    entry(owner, 8, { type: "community_mod_remove", community_id: "c_sec", target: mod }), // cascades to mallory, keeps user
+    entry(mod, 9, { type: "community_delete_post", community_id: "c_sec", post_id: "p2" }),
+    entry(owner, 10, { type: "community_delete_post", community_id: "c_sec", post_id: "p3" }),
+    entry(mallory.toUpperCase(), 11, { type: "community_ban", community_id: "c_sec", target: user }), // revoked mod + upper hex ignored
+  ], [])[0];
+
+  assert.equal(isPostDeletedInCommunity(comm, { id: "p1", author: owner }), false);
+  assert.equal(isPostDeletedInCommunity(comm, { id: "p1", author: mallory }), true);
+  assert.equal(isPostDeletedInCommunity(comm, { id: "p3", author: user }), true);
+  assert.deepEqual(comm.moderators, [owner, user]); // mallory cascaded out on mod removal
+
+  // 2. Hex-case normalization in blocklist/bans
+  const bl = foldBlocklist([entry(owner.toUpperCase(), 1, { type: "block", target: mallory.toUpperCase(), on: true })], owner);
+  assert.equal(bl.has(mallory), true);
+
+  // 3. Colliding chat message.id from mallory cannot overwrite or delete user's message
+  const chat = foldChat([
+    entry(user, 1, { type: "chat", message: { id: "m1", room_id: "r1", sender: user, text: "real", timestamp: 1 } }),
+    entry(mallory, 2, { type: "chat", message: { id: "m1", room_id: "r1", sender: mallory, text: "collide", timestamp: 2 } }),
+    entry(mallory, 3, { type: "chat_delete", roomId: "r1", messageId: "m1" }),
+  ], "r1");
+  assert.deepEqual(chat.map((m) => [m.sender, m.text]), [[user, "real"]]);
+
+  // 4. roomJoinProofs tracks creatorListed vs joinProofs and clears on leave/kick
+  const room = { id: "privroom_p", creator: owner, name_encrypted: "x", members: [owner, user], encrypted_keys: {}, created_at: 1, sig: "" };
+  const proofHex = "ab".repeat(32);
+  const proofs = roomJoinProofs([
+    entry(owner, 1, { type: "private_room", room }),
+    entry(mallory, 2, { type: "room_join", roomId: "privroom_p", key_proof: proofHex }),
+    entry(mod, 3, { type: "room_join", roomId: "privroom_p", key_proof: "cd".repeat(32) }),
+    entry(mod, 4, { type: "room_leave", roomId: "privroom_p" }),
+  ], "privroom_p");
+  assert.equal(proofs.creatorListed.has(owner), true);
+  assert.equal(proofs.creatorListed.has(user), true);
+  assert.equal(proofs.creatorListed.has(mallory), false);
+  assert.equal(proofs.joinProofs.get(mallory), proofHex);
+  assert.equal(proofs.joinProofs.has(mod), false);
 });

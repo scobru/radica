@@ -7,6 +7,7 @@ import { blake3 } from "@noble/hashes/blake3.js";
 import { bitsOf, challengeBytes, checkProof } from "./ante.ts";
 import { fromBase58, toBase58 } from "./base58.ts";
 import { asBytes, asNumber, asString, cborDecode, cborEncode, mapGet } from "./cbor.ts";
+import { appPath } from "./whoiam.ts";
 
 if (!ed.etc.sha512Sync) ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 if (!ed.etc.sha512Async) ed.etc.sha512Async = (...m) => Promise.resolve(sha512(ed.etc.concatBytes(...m)));
@@ -215,7 +216,12 @@ export function isValidDelegationScope(scope: string): boolean {
 export function delegationScopeMatches(scope: string, accepted: readonly string[] = ["*", "radica"]): boolean {
   if (!isValidDelegationScope(scope)) return false;
   if (accepted.includes(scope)) return true;
-  return scope.startsWith("/v1/contract/web/") || scope.startsWith("/v2/contract/web/");
+  if (!scope.startsWith("/v1/contract/web/") && !scope.startsWith("/v2/contract/web/")) return false;
+  const cur = appPath().replace(/\/+$/, "");
+  const expected = /^\/v[12]\/contract\/web\/[^/]+$/.test(cur)
+    ? cur
+    : "/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw";
+  return scope.replace(/\/+$/, "") === expected;
 }
 
 /** Canonical Viso `DelegationProofV1` signed bytes: `"viso-delegation-v1" || from(32) || to(32) || u32le(len) || scope || u64le(time_ms)`. */
@@ -320,9 +326,11 @@ export function serializeStoredPoh(proof: string, delegation?: DelegationProofV1
   return delegation ? JSON.stringify({ proof, delegation }) : proof;
 }
 
-const checkedPoh = new Map<string, Promise<PohBadge | null>>();
+type CheckedPohEntry = { badge: PohBadge; targetPk: string; direct: boolean; timeMs: number } | null;
+const checkedPohEntries = new Map<string, Promise<CheckedPohEntry>>();
 
-/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge[]`. */
+/** Verify PoH proofs (direct or via a verified `DelegationProofV1`) from Radica's `"poh"` log, returning `author -> PohBadge[]`.
+ *  Deduplicates by `(attestedPersona, provider)` so one PoH attestation can vouch for at most one Radica author. */
 export async function verifiedPohBadgesByAuthor(
   entries: PohLogEntry[],
   issuers: readonly PohIssuer[] = VISO_POH_ISSUERS,
@@ -330,36 +338,52 @@ export async function verifiedPohBadgesByAuthor(
   const out = new Map<string, PohBadge[]>();
   if (!entries.some((e) => e.proof) || !issuers.length) return out;
   const issuerSig = issuers.map((i) => i.keyId).join(",");
-  const badges = await Promise.all(
+  const results = await Promise.all(
     entries.map(({ author, proof, delegation }) => {
-      if (!proof) return Promise.resolve(null);
+      if (!proof) return Promise.resolve<CheckedPohEntry>(null);
       const delKey = delegation ? JSON.stringify(delegation) : "";
       const k = `${author}|${proof}|${delKey}|${issuerSig}`;
-      if (!checkedPoh.has(k)) {
-        checkedPoh.set(
+      if (!checkedPohEntries.has(k)) {
+        checkedPohEntries.set(
           k,
-          (async () => {
+          (async (): Promise<CheckedPohEntry> => {
             if (delegation) {
               const del = await verifyVisoDelegation(delegation, author);
               if (!del) return null;
-              return await verifyVisoPoh(hex(proof), del.toHex, issuers);
+              const badge = await verifyVisoPoh(hex(proof), del.toHex, issuers);
+              return badge ? { badge, targetPk: del.toHex, direct: false, timeMs: del.time_ms } : null;
             }
-            return await verifyVisoPoh(hex(proof), author, issuers);
+            const badge = await verifyVisoPoh(hex(proof), author, issuers);
+            return badge ? { badge, targetPk: author.toLowerCase(), direct: true, timeMs: Number.MAX_SAFE_INTEGER } : null;
           })().catch(() => null),
         );
       }
-      return checkedPoh.get(k)!;
+      return checkedPohEntries.get(k)!;
     }),
   );
+
+  // Enforce 1 attested persona -> at most 1 Radica author per provider (prevents 1->N Sybil cloning via DelegationProofV1).
+  const winners = new Map<string, { author: string; direct: boolean; timeMs: number; badge: PohBadge }>();
   entries.forEach((e, i) => {
-    const b = badges[i];
-    if (!b) return;
-    const list = out.get(e.author) ?? [];
-    const idx = list.findIndex((x) => x.provider === b.provider);
-    if (idx >= 0) list[idx] = b;
-    else list.push(b);
-    out.set(e.author, list);
+    const res = results[i];
+    if (!res) return;
+    const authorNorm = e.author.toLowerCase();
+    const slotKey = `${res.targetPk}|${res.badge.provider}`;
+    const prev = winners.get(slotKey);
+    const beats =
+      !prev ||
+      (res.direct && !prev.direct) ||
+      (res.direct === prev.direct && (res.timeMs > prev.timeMs || (res.timeMs === prev.timeMs && authorNorm < prev.author)));
+    if (beats) {
+      winners.set(slotKey, { author: e.author, direct: res.direct, timeMs: res.timeMs, badge: res.badge });
+    }
   });
+
+  for (const w of winners.values()) {
+    const list = out.get(w.author) ?? [];
+    list.push(w.badge);
+    out.set(w.author, list);
+  }
   return out;
 }
 

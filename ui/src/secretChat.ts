@@ -280,8 +280,20 @@ export async function decryptSecretMessage(
   }
 
   const [, , peerEphemPubHex, indexStr, ivHex, cipherHex] = parts;
-  const msgIndex = parseInt(indexStr, 10);
+  if (!/^\d+$/.test(indexStr)) {
+    throw new Error("Invalid secret message index");
+  }
+  const msgIndex = Number(indexStr);
+  if (!Number.isInteger(msgIndex) || msgIndex < 0 || msgIndex > 500) {
+    throw new Error("Invalid secret message index");
+  }
+  if (!/^[0-9a-f]{64}$/i.test(peerEphemPubHex)) {
+    throw new Error("Invalid secret message key");
+  }
   const iv = ed.etc.hexToBytes(ivHex);
+  if (iv.length !== 12) {
+    throw new Error("Invalid secret message IV");
+  }
   const cipherBytes = ed.etc.hexToBytes(cipherHex);
 
   // Ensure session exists
