@@ -621,10 +621,9 @@ pub unsafe extern "C" fn dealloc(ptr: *mut u8, len: usize) {
 #[no_mangle]
 pub unsafe extern "C" fn call(ptr: *const u8, len: usize) -> u64 {
     let input = String::from_utf8_lossy(std::slice::from_raw_parts(ptr, len));
-    let mut out = run(&input).into_bytes();
-    out.shrink_to_fit();
+    // a boxed slice has capacity == len exactly (shrink_to_fit only promises >=), so `dealloc(p, n)` frees the right layout
+    let out = Box::leak(run(&input).into_bytes().into_boxed_slice());
     let (p, n) = (out.as_mut_ptr(), out.len());
-    std::mem::forget(out);
     ((p as u64) << 32) | n as u64
 }
 

@@ -19,10 +19,24 @@ export function lightFeedOf(raw: string, delta?: string): LightFeed {
   return { ...lightFeed(text), text };
 }
 
+/** False for a post whose fields could have been re-split by whoever relayed it. The signed message joins the fields with ":"
+ *  (contract `post_msg`), so text can move across a boundary and keep the signature valid. The fields between the free-text ones
+ *  (caption, location) only take forms that cannot absorb such text. Self-contained: it is also copied into the worker below.
+ *  shortcut: client-side only, a contract v2 with length-prefixed signatures removes the cause. */
+export function isCanonicalPost(p: Post): boolean {
+  const media = (p.media_uri ?? "").split(" ").filter(Boolean);
+  return (
+    (p.category === "thought" || p.category === "moment" || p.category === "event") &&
+    media.every((u) => /^(radica-media:[0-9a-f]{64}|https?:\/\/\S+|data:[a-z]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)$/.test(u)) &&
+    (!p.community_id || /^[A-Za-z0-9_-]{1,100}$/.test(p.community_id)) &&
+    (!p.event_date || /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/.test(p.event_date))
+  );
+}
+
 /** The newest `n` posts, the profile and whom the owner follows, of a stored feed. Parsing a big feed is what blocks the page, so this runs in a worker. */
 export function lightFeed(raw: string, n = PEER_POSTS): LightFeed {
   const feed = JSON.parse(raw);
-  const all = Object.values<Post>(feed.posts ?? {});
+  const all = Object.values<Post>(feed.posts ?? {}).filter(isCanonicalPost);
   const posts = all.sort((a, b) => b.timestamp - a.timestamp).slice(0, n);
   const following = Array.isArray(feed.following) ? feed.following.filter((k: unknown) => typeof k === "string") : [];
   return { posts, profile: feed.profile ?? undefined, total: all.length, following };
@@ -40,6 +54,7 @@ const waiting = new Map<number, { raw: string; delta?: string; resolve: (f: Ligh
 // where HTTP worker URLs throw SecurityError.
 const WORKER_SRC = `
 const PEER_POSTS = ${PEER_POSTS};
+const isCanonicalPost = ${isCanonicalPost.toString()};
 function overlayFeed(f, d) {
   const newer = (tsA = 0, sigA = "", tsB = 0, sigB = "") => tsA > tsB || (tsA === tsB && sigA > sigB);
   if (d.profile && (!f.profile || newer(d.profile.updated_at, d.profile.sig, f.profile.updated_at, f.profile.sig))) f.profile = d.profile;
@@ -65,7 +80,7 @@ function overlayFeed(f, d) {
 }
 function lightFeed(raw, n = PEER_POSTS) {
   const feed = JSON.parse(raw);
-  const all = Object.values(feed.posts ?? {});
+  const all = Object.values(feed.posts ?? {}).filter(isCanonicalPost);
   const posts = all.sort((a, b) => b.timestamp - a.timestamp).slice(0, n);
   const following = Array.isArray(feed.following) ? feed.following.filter((k) => typeof k === "string") : [];
   return { posts, profile: feed.profile ?? undefined, total: all.length, following };

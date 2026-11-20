@@ -9,7 +9,7 @@
 //!   {"op":"verify","bundle","pubkey"}  -> {"fingerprint","info"}    a proof that this GhostKey vouches for `pubkey`
 //! Errors come back as {"error"}.
 
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use ghostkey_common::{GhostkeyRequest, GhostkeyResponse};
 use ghostkey_lib::armorable::Armorable;
 use ghostkey_lib::ghost_key_certificate::GhostkeyCertificateV1;
@@ -64,7 +64,7 @@ fn verify_with(bundle: &[u8], pk: &[u8; 32], master: &Option<VerifyingKey>) -> R
     let cert = GhostkeyCertificateV1::from_armored_string(&b.certificate_pem).map_err(|e| format!("bad certificate: {e}"))?;
     let info = cert.verify(master).map_err(|e| format!("certificate chain invalid: {e}"))?;
     let sig = Signature::from_slice(&b.signature).map_err(|e| e.to_string())?;
-    cert.verifying_key.verify(&b.scoped_payload, &sig).map_err(|_| "bad ghostkey signature".to_string())?;
+    cert.verifying_key.verify_strict(&b.scoped_payload, &sig).map_err(|_| "bad ghostkey signature".to_string())?;
     let scoped: ScopedPayload = uncbor(&b.scoped_payload)?;
     if scoped.payload != binding_payload(pk) {
         return Err("this GhostKey proof is for a different identity".into());
@@ -122,10 +122,9 @@ pub unsafe extern "C" fn dealloc(ptr: *mut u8, len: usize) {
 #[no_mangle]
 pub unsafe extern "C" fn call(ptr: *const u8, len: usize) -> u64 {
     let input = String::from_utf8_lossy(std::slice::from_raw_parts(ptr, len));
-    let mut out = run(&input).into_bytes();
-    out.shrink_to_fit();
+    // a boxed slice has capacity == len exactly (shrink_to_fit only promises >=), so `dealloc(p, n)` frees the right layout
+    let out = Box::leak(run(&input).into_bytes().into_boxed_slice());
     let (p, n) = (out.as_mut_ptr(), out.len());
-    std::mem::forget(out);
     ((p as u64) << 32) | n as u64
 }
 

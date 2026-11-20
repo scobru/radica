@@ -70,7 +70,7 @@ import { overlayFeed } from "./feedmerge.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
 import { river } from "./river.ts";
 import { buildPrivateRoomInviteLink, createNativeRoomDescriptor, filterChannelMessages } from "./nativeRooms.ts";
-import { lightFeedAsync, type LightFeed } from "./feedlight.ts";
+import { isCanonicalPost, lightFeedAsync, type LightFeed } from "./feedlight.ts";
 import { parseSite, resolveSiteCode, siteKey, type DeltaSite } from "./delta.ts";
 import { computeLogJoins } from "./messengerLogic.ts";
 import { ortoVaultKey, parseOrtoVaultPosts, parseOrtoUri, type OrtoBlog, type OrtoPost, ORTO_SITE } from "./orto.ts";
@@ -826,6 +826,8 @@ export class FreenetClient {
         if (hit?.raw === raw) parsed = hit.feed;
         else {
           parsed = JSON.parse(raw);
+          // never my own: saveFeed would drop the post for good
+          if (ownerPubkey !== this.me) for (const [id, p] of Object.entries(parsed.posts ?? {})) if (!isCanonicalPost(p)) delete parsed.posts[id];
           this.feedCache.set(key, { raw, feed: parsed });
           this.postTotals.set(ownerPubkey, Object.keys(parsed.posts ?? {}).length);
         }
