@@ -53,16 +53,17 @@ About **195 µs per signed record**, almost all of it Ed25519 `verify_strict`. T
 - **PoW alone does not stop it.** A 4 KB comment at 12 bits costs about 4k hashes. Filling 50 MiB takes about 13k comments, or 50M hashes: a few minutes on one PC. PoW makes spam cost something; only a cap bounds the size.
 
 Proposal (PoW approved by the maintainer, 2026-11-20):
-- **Third-party records carry a proof of work.** `ui/src/pow.ts` already exists. The contract checks `leading_zero_bits(blake3(sig)) >= POW_BITS` for comments, likes and log entries written by anyone other than the owner (feed) or by anyone at all (log). `POW_BITS = 12`.
-- **Byte budgets, not only counts.** The node limits bytes, so the caps are in bytes, with a margin under the node limit:
-  - feed: `MAX_STATE_BYTES = 40 MiB` in total, of which `MAX_THIRD_PARTY_BYTES = 8 MiB` for comments and likes from others;
-  - each post: `MAX_COMMENTS = 500`, `MAX_LIKES = 2_000`;
-  - each log: `MAX_STATE_BYTES = 40 MiB`;
-  - **`MAX_RECORDS = 10_000` signed records per state** (about 2 s measured, a 2.5× margin for slower nodes and fuel metering): at most 4,000 by the owner (posts, profile, following, deletions; `MAX_POSTS` drops from 10,000 to 4,000) and 6,000 by others (comments + likes). Each log gets the same 10,000 (`MAX_ENTRIES` drops from 20,000).
-  - Optional speed-up: Ed25519 batch verification (`ed25519-dalek` `batch` feature) is about 2× faster on large states. It needs its own benchmark, and a fallback to single verification to find which record is bad.
-- **The owner's own content is never evicted by third parties.** It counts toward `MAX_STATE_BYTES`; the owner hits their own limit (already partly bounded by `MAX_POSTS`, `MAX_MEDIA`) and the UI warns before publishing.
-- **Deterministic eviction.** When a merge goes over a budget, keep the records with the most PoW bits, then the lowest `(ts, sig)`. Every peer computes the same set.
-- **Legacy records** (v1-signed, no PoW) are **exempt from eviction**: nobody can sign new v1 records, so they cannot be used to spam, and every legacy record is carried. They still count toward the byte and record limits.
+- **Third-party records carry a proof of work.** `ui/src/pow.ts` already exists. The contract checks `leading_zero_bits(blake3(v3 message)) >= POW_BITS`, where the message includes a `nonce` the client grinds by hashing alone and then signs once (an Ed25519 signature is deterministic, so grinding the signature would mean re-signing each try) for comments, likes and log entries written by anyone other than the owner (feed) or by anyone at all (log). `POW_BITS = 12`.
+- **Count caps, evicting only records by others** (`contract/src/lib.rs`):
+  - `MAX_POSTS = 4_000` (was 10,000); the owner's own records are never evicted;
+  - each post: `MAX_COMMENTS_PER_POST = 500`, `MAX_LIKES_PER_POST = 2_000`;
+  - each feed: `MAX_OTHERS_COMMENTS = 2_500` (at most ~11 MB with 4 KB comments), `MAX_OTHERS_LIKES = 3_500`;
+  - about 10,000 signed records at most, about 2 s measured: a 2.5× margin for slower nodes and fuel metering;
+  - `MAX_STATE_BYTES = 38 MiB`: a merge that would exceed it is refused, never evicted.
+  - **Why counts and not bytes:** eviction keeps the top N of a strict total order, so `merge` stays independent of order (`cap(cap(A ∪ B) ∪ C) = cap(A ∪ B ∪ C)`). A byte budget breaks that, because records of different sizes displace each other unevenly. Hence only a hard refusal on bytes.
+- **Deterministic eviction.** Keep order: v3 before legacy, then more PoW bits, then older `ts`, then signature, post id and key.
+- **Legacy records rank last.** *Correction:* anyone can still sign a legacy-format record with their own key, for free, so legacy records cannot be privileged. Under the caps, every carried record is kept. In a spam wave, v3 records with PoW push them out first. Free legacy spam can push out real legacy comments (ordered by a self-declared `ts`). That loss is bounded by the caps and is visible as spam, which the UI moderation hides. If it turns out to matter: when an owner re-signs a post in v3, the post would list the legacy comments to keep. Not done now.
+- **Optional speed-up:** Ed25519 batch verification (`ed25519-dalek` `batch` feature) is about 2× faster on large states. It needs its own benchmark, and a fallback to single verification to find which record is bad.
 - Logs written by the system (inbox, `blocklist/*`, `reports`) keep the same caps. The readers' fold already drops what it does not trust.
 
 ### 3. Hex and delta fixes
@@ -106,4 +107,4 @@ This is a one-way security migration: no return to v1. The aim is that **no v1 d
 4. ~~Count ceiling~~: `MAX_RECORDS = 10_000` per state, from the benchmark above. Before release, measure today's largest real feeds and logs (attester node): a legacy state over 10,000 records cannot be both carried and kept under 5 s, and would need splitting (for example, moving older log entries to an archive log).
 
 ## Status
-⚪ **TODO** (2026-11-20)
+🟡 **IN PROGRESS** (2026-11-20): feed contract v3 written and tested (`contract/src/lib.rs`), not shipped. Next: UI v3 signing + PoW + `contract.wasm` swap (ship together), then `log-contract`.
