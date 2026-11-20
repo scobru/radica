@@ -55,7 +55,7 @@ const FT_DAILY_REPORTS = Number(env.FT_DAILY_REPORTS || 20);
 const FT_DAILY_LOOKUPS = Number(env.FT_DAILY_LOOKUPS || 300);
 const MB_USER_AGENT = env.MB_USER_AGENT || "radica-attester/1";
 const TIMEOUT_MS = 45_000;
-// Carry feeds nobody opens to a new contract.wasm (see sweep.js): on unless SWEEP=0, a few per pass.
+// Carry feeds and logs nobody opens to a new contract.wasm / log.wasm (see sweep.js): on unless SWEEP=0, a few per pass.
 const SWEEP = env.SWEEP !== "0";
 const SWEEP_PER_PASS = Number(env.SWEEP_PER_PASS || 5);
 const LEGACY_TS = env.LEGACY_TS || new URL("../../ui/src/legacy.ts", import.meta.url).pathname;
@@ -118,10 +118,24 @@ const feedHash = blake3(feedCode);
 const feedParams = (author) => new Uint8Array([...hexToBytes(author), ...new TextEncoder().encode(APP)]);
 const feedKey = (author, hash = feedHash) => new ContractKey(blake3(new Uint8Array([...hash, ...feedParams(author)])), hash);
 
-/** A feed's state under `hash` (default: the current build): null when there is none, throws when the lookup failed. */
-async function feedState(api, author, hash) {
+// What the sweep moves (see sweep.js): "feed:<key>" and "log:<name>". Shared logs, and each directory member's own logs
+// (the names Radica writes as `<name>/<key>`). Chats and rooms are carried by their members when they open them.
+const SHARED_LOGS = ["directory", "communities", "reports", "supporters", "supporter-claims", "supporter-receipts", "poh", "ghostkeys", "delegations", "post-edits", "greenhouse"];
+const OWNED_LOGS = ["inbox", "blocklist", "reactions", "devices", "wallets", "orto", "freetunes", "freetree", "fh", "delta", "asocial"];
+const parts = (id) => {
+  const [kind, rest] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+  return kind === "feed" ? { code: feedCode, hash: feedHash, params: feedParams(rest) } : { code, hash: codeHash, params: paramsOf(rest) };
+};
+const keyFor = (id, hash) => {
+  const p = parts(id);
+  const h = hash ? hexToBytes(hash) : p.hash;
+  return new ContractKey(blake3(new Uint8Array([...h, ...p.params])), h);
+};
+
+/** A contract's state under `hash` (default: the current build): null when there is none, throws when the lookup failed. */
+async function stateOf(api, id, hash) {
   try {
-    const r = await withTimeout(api.get(new GetRequest(feedKey(author, hash && hexToBytes(hash)), false, false)));
+    const r = await withTimeout(api.get(new GetRequest(keyFor(id, hash), false, false)));
     return r.state.length ? new TextDecoder().decode(Uint8Array.from(r.state)) : null;
   } catch (e) {
     if (/not found/i.test(String(e?.message ?? e))) return null;
@@ -129,21 +143,37 @@ async function feedState(api, author, hash) {
   }
 }
 
-const sweepFile = join(DATA, `swept-${bytesToHex(feedHash)}.json`); // per generation: a new build sweeps everything again
+const sweepFile = join(DATA, `swept-${bytesToHex(feedHash).slice(0, 16)}-${bytesToHex(codeHash).slice(0, 16)}.json`); // a new build sweeps again
 const sweepDone = new Set(existsSync(sweepFile) ? JSON.parse(await readFile(sweepFile, "utf8")) : []);
 const sweepTries = new Map();
-const legacyFeeds = SWEEP && existsSync(LEGACY_TS) ? legacyHashes(await readFile(LEGACY_TS, "utf8"), "feed") : [];
-/** Move feeds of people in the directory that only an earlier contract.wasm holds. */
+const legacyTs = SWEEP && existsSync(LEGACY_TS) ? await readFile(LEGACY_TS, "utf8") : "";
+const legacyOf = { feed: legacyHashes(legacyTs, "feed"), log: legacyHashes(legacyTs, "log") };
+let sweeping = false;
+/** Move feeds and logs that only an earlier contract.wasm / log.wasm holds. Runs beside the receipts loop, never in its way. */
 async function sweepPass(api) {
-  if (!legacyFeeds.length) return;
-  const ids = [...new Set(Object.values((await getEntries(api, "directory")) ?? {}).map((e) => e.author))].filter((a) => /^[0-9a-f]{64}$/.test(a));
-  const put = (author, text) => {
-    const contract = new WasmContractV1(new ContractCodeT(Array.from(feedCode), Array.from(feedHash)), Array.from(feedParams(author)), feedKey(author));
-    return withTimeout(api.put(new PutRequest(new ContractContainer(ContractType.WasmContractV1, contract), Array.from(new TextEncoder().encode(text)), new RelatedContractsT(), true)));
-  };
-  const r = await sweep({ ids, done: sweepDone, tries: sweepTries, legacy: legacyFeeds, get: (a, h) => feedState(api, a, h), put, limit: SWEEP_PER_PASS });
-  await writeFile(sweepFile, JSON.stringify([...sweepDone]));
-  if (r.checked) log(`[sweep] ${r.checked} feeds checked, ${r.moved} carried forward, ${r.failed} to retry, ${sweepDone.size}/${ids.length} done`);
+  if (sweeping || (!legacyOf.feed.length && !legacyOf.log.length)) return;
+  sweeping = true;
+  try {
+    const people = [...new Set(Object.values((await getEntries(api, "directory")) ?? {}).map((e) => e.author))].filter((a) => /^[0-9a-f]{64}$/.test(a));
+    const ids = [
+      ...(legacyOf.log.length ? SHARED_LOGS.map((n) => `log:${n}`) : []),
+      ...people.flatMap((a) => [...(legacyOf.feed.length ? [`feed:${a}`] : []), ...(legacyOf.log.length ? OWNED_LOGS.map((n) => `log:${n}/${a}`) : [])]),
+    ];
+    const put = (id, text) => {
+      const p = parts(id);
+      const contract = new WasmContractV1(new ContractCodeT(Array.from(p.code), Array.from(p.hash)), Array.from(p.params), keyFor(id));
+      return withTimeout(api.put(new PutRequest(new ContractContainer(ContractType.WasmContractV1, contract), Array.from(new TextEncoder().encode(text)), new RelatedContractsT(), true)));
+    };
+    let moved = 0, checked = 0, failed = 0;
+    for (const kind of ["feed", "log"]) {
+      const r = await sweep({ ids: ids.filter((i) => i.startsWith(`${kind}:`)), done: sweepDone, tries: sweepTries, legacy: legacyOf[kind], get: (id, h) => stateOf(api, id, h), put, limit: SWEEP_PER_PASS });
+      moved += r.moved, checked += r.checked, failed += r.failed;
+    }
+    await writeFile(sweepFile, JSON.stringify([...sweepDone]));
+    if (checked) log(`[sweep] ${checked} checked, ${moved} carried forward, ${failed} to retry, ${sweepDone.size}/${ids.length} done`);
+  } finally {
+    sweeping = false;
+  }
 }
 
 async function getFeed(api, author) {
@@ -553,7 +583,7 @@ for (;;) {
     log("connected to", NODE_WS);
     for (;;) {
       await pass(api, sk, st);
-      if (SWEEP) await sweepPass(api).catch((e) => log("[sweep] pass failed:", e.message || e)); // never in the way of receipts
+      if (SWEEP) void sweepPass(api).catch((e) => log("[sweep] pass failed:", e.message || e)); // in the background: lookups can take 45 s each
       if (modSk && Date.now() >= modNext) {
         modNext = Date.now() + MOD_POLL_MS;
         const doGh = Date.now() >= ghNext;

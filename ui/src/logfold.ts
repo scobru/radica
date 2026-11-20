@@ -5,7 +5,7 @@ import type { Cert } from "./whoiam.ts";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { ANNOUNCE_POW_BITS, powBits } from "./pow.ts";
 
-export type LogEntry = { author: string; id: string; ts: number; body: string; sig: string; cert?: Cert };
+export type LogEntry = { author: string; id: string; ts: number; body: string; sig: string; cert?: Cert; v?: number; nonce?: number };
 
 const ordered = (entries: LogEntry[]) =>
   [...entries].sort((a, b) => a.ts - b.ts || (a.author + a.id < b.author + b.id ? -1 : 1));

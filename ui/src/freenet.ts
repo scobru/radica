@@ -41,7 +41,7 @@ import {
   deleteMsg3,
   grindNonce,
   verifySignature,
-  formatLogEntryMessage,
+  logMsg2,
   formatChatMessageSignatureMessage,
   formatCommunitySignatureMessage,
   formatModActionSignatureMessage,
@@ -950,8 +950,10 @@ export class FreenetClient {
     if (!me) throw new Error("No identity to sign with");
     // state (a read mark, a hidden room…) goes under one id per subject: the log keeps only the newest
     const id = stateSlotFor(body as Record<string, unknown>) ?? Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const e: LogEntry = { author: me.pubkey, id, ts: Date.now(), body: JSON.stringify(body), sig: "" };
-    e.sig = await me.sign(formatLogEntryMessage(name, e.author, e.id, e.ts, e.body));
+    const e: LogEntry = { author: me.pubkey, id, ts: Date.now(), body: JSON.stringify(body), sig: "", v: 2, nonce: 0 };
+    // the log contract wants a proof of work from everyone but a log's owner (`<name>/<my key>`)
+    if (name.split("/").pop() !== me.pubkey || !name.includes("/")) e.nonce = grindNonce((n) => logMsg2(name, e.author, e.id, e.ts, e.body, n));
+    e.sig = await me.sign(logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce!));
     if (me.cert) e.cert = me.cert;
     this.saveLog(name, [...this.logEntries(name), e]);
     this.applyLog(name);

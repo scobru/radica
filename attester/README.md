@@ -102,10 +102,12 @@ title go to MusicBrainz (see TERMS.md, section 6).
 
 ## Contract sweep
 
-After a new `contract.wasm`, readers carry a feed forward when they open it (`ui/src/legacy.ts`). The attester moves the
-rest: each pass it checks a few people from the `directory` log, and a feed found only under an earlier build listed in
-`LEGACY.feed` is PUT under the current one (`src/sweep.js`). Progress is kept per build in `data/swept-<hash>.json`; a
-lookup that fails is retried on later passes, up to 3 times.
+After a new `contract.wasm` or `log.wasm`, readers carry a feed or log forward when they open it (`ui/src/legacy.ts`).
+The attester moves the rest, in the background: the shared logs (`directory`, `communities`, `supporter-receipts`, …),
+and for each person in `directory` their feed and their own logs (`inbox/<key>`, `blocklist/<key>`, …). Each pass it
+checks `SWEEP_PER_PASS` of each kind; one found only under an earlier build listed in `LEGACY` is PUT under the
+current one (`src/sweep.js`). Progress is kept per build pair in `data/swept-<feed>-<log>.json`; a lookup that fails is
+retried on later passes, up to 3 times. Chats and rooms are carried by their members.
 
 Settings (environment): `SWEEP` (`0` turns it off), `SWEEP_PER_PASS` (default 5), `LEGACY_TS` (default
 `../ui/src/legacy.ts`, copied into the image).
