@@ -36,7 +36,7 @@ So the v2 contract must **accept every record v1 accepts today** (old signatures
 
 **The 5 s limit binds first.** `validate_state` re-verifies every signature in the state. `update_state` verifies only the incoming delta, but a first PUT (including every carry-forward from `LEGACY`) goes through `validate_state`.
 
-Benchmark (2026-11-20): today's `contract` built `opt-level = "z"` for `wasm32-unknown-unknown`, with `validate` (parse + full re-validation) run in Node 22 (V8) on a 4-core container. Feeds of 200-byte posts and comments, likes and comments by distinct keys:
+Benchmark (2026-11-20, `contract/bench/`): today's `contract` built `opt-level = "z"` for `wasm32-unknown-unknown`, with `validate` (parse + full re-validation) run in Node 22 (V8) on a 4-core container. Feeds of 200-byte posts and comments, likes and comments by distinct keys:
 
 | Signed records | State | Full validation | Per record |
 |---|---|---|---|
