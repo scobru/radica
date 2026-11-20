@@ -8,6 +8,7 @@ services:
       dockerfile: attester/Dockerfile.freenet
     restart: unless-stopped
     volumes:
+      - freenet-bin:/root/.local/bin
       - freenet-data:/root/.local/share/freenet
       - freenet-config:/root/.config/freenet
 
@@ -25,6 +26,7 @@ services:
       - attester-data:/data # attester.key lives here: back it up, never share it
 
 volumes:
+  freenet-bin:
   freenet-data:
   freenet-config:
   attester-data:

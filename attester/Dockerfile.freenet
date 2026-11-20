@@ -1,6 +1,9 @@
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl wget && rm -rf /var/lib/apt/lists/*
 # Freenet's official installer: a prebuilt binary, no compiling (see freenet.org's "Run Freenet in Docker")
+ENV PATH="/root/.local/bin:${PATH}"
 RUN curl -fsSL https://freenet.org/install.sh -o /tmp/install.sh \
- && FREENET_INSTALL_DIR=/usr/local/bin FREENET_NO_SERVICE=1 bash /tmp/install.sh && rm /tmp/install.sh
-CMD ["sh", "-c", "while true; do freenet; code=$?; if [ \"$code\" -eq 42 ]; then echo 'freenet update detected (exit 42), running freenet update...'; freenet update || exit 1; continue; fi; exit \"$code\"; done"]
+ && FREENET_INSTALL_DIR=/root/.local/bin FREENET_NO_SERVICE=1 bash /tmp/install.sh && rm /tmp/install.sh
+# Bootstrap /root/.local/bin from image defaults if an empty volume is mounted over it, then run with exit-42 self-update loop
+RUN cp -a /root/.local/bin /opt/freenet-bin
+CMD ["sh", "-c", "[ -x /root/.local/bin/freenet ] || cp -a /opt/freenet-bin/. /root/.local/bin/; while true; do freenet; code=$?; if [ \"$code\" -eq 42 ]; then echo 'freenet update detected (exit 42), running freenet update...'; freenet update || exit 1; continue; fi; exit \"$code\"; done"]
