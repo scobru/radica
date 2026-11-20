@@ -12363,6 +12363,8 @@ function applyTextSize(v: string | null) {
   if (textSizeSelect) textSizeSelect.value = pct;
 }
 applyTextSize(safeStorage.getItem(TEXT_SIZE_KEY));
+// after a node restart the page storage is empty: sign-in brings the durable key back from the node, apply it then
+void durable.ready.then(() => applyTextSize(safeStorage.getItem(TEXT_SIZE_KEY)));
 textSizeSelect?.addEventListener("change", () => {
   safeStorage.setItem(TEXT_SIZE_KEY, textSizeSelect.value);
   applyTextSize(textSizeSelect.value);
