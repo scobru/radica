@@ -26,6 +26,9 @@ fs.mkdirSync(out, { recursive: true });
 for (const pair of pairs) {
   fs.mkdirSync(path.join(out, pair), { recursive: true });
   for (const f of Object.values(registry[pair])) {
+    if (typeof f?.name !== "string" || !/^[A-Za-z0-9._-]+$/.test(f.name) || f.name.includes("..")) {
+      throw new Error(`Unsafe model filename in registry: ${String(f?.name)}`);
+    }
     const dest = path.join(out, pair, f.name);
     const sha = (b) => createHash("sha256").update(b).digest("hex");
     if (fs.existsSync(dest) && sha(fs.readFileSync(dest)) === f.expectedSha256Hash) continue;

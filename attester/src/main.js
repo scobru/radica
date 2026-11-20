@@ -1,6 +1,6 @@
 // Radica attester bot: reads supporter claims (ZK proofs) from a Freenet log, checks them on-chain, and publishes a
 // signed supporter receipt for each valid one. Its key must be listed in ui/src/supporter.ts RECEIPT_ISSUERS.
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import * as ed from "@noble/ed25519";
@@ -70,6 +70,13 @@ async function loadKey(name = "attester.key") {
   return hexToBytes((await readFile(file, "utf8")).trim());
 }
 
+// ponytail: atomic tmp+rename prevents truncated JSON state on power loss or container restart
+async function writeJsonAtomic(file, data) {
+  const tmp = `${file}.tmp.${process.pid}`;
+  await writeFile(tmp, JSON.stringify(data), { mode: 0o600 });
+  await rename(tmp, file);
+}
+
 const stateFile = join(DATA, "attested.json");
 const TIER_RANK = { sprout: 1, root: 2, oak: 3 };
 async function loadState() {
@@ -93,7 +100,7 @@ async function loadState() {
   }
   return { done: new Set(s.done ?? []), seen, tiers };
 }
-const saveState = (st) => writeFile(stateFile, JSON.stringify({ done: [...st.done], seen: Object.fromEntries(st.seen), tiers: Object.fromEntries(st.tiers) }));
+const saveState = (st) => writeJsonAtomic(stateFile, { done: [...st.done], seen: Object.fromEntries(st.seen), tiers: Object.fromEntries(st.tiers) });
 
 const code = new Uint8Array(await readFile(LOG_WASM));
 const codeHash = blake3(code);
@@ -175,7 +182,7 @@ async function sweepPass(api) {
       const r = await sweep({ ids: ids.filter((i) => i.startsWith(`${kind}:`)), done: sweepDone, tries: sweepTries, legacy: legacyOf[kind], get, put, limit: SWEEP_PER_PASS });
       moved += r.moved, checked += r.checked, failed += r.failed;
     }
-    await writeFile(sweepFile, JSON.stringify([...sweepDone]));
+    await writeJsonAtomic(sweepFile, [...sweepDone]);
     if (checked) log(`[sweep] ${checked} checked, ${moved} carried forward, ${failed} to retry, ${sweepDone.size}/${ids.length} done`);
   } finally {
     sweeping = false;
@@ -267,7 +274,7 @@ const loadMod = async () => {
   const base = existsSync(modFile) ? JSON.parse(await readFile(modFile, "utf8")) : {};
   return { judged: [], used: null, heldTargets: {}, categoryStats: {}, seenChat: [], chatStrikes: {}, mirroredSeeds: [], lastGhSha: "", ...base };
 };
-const saveMod = (state) => writeFile(modFile, JSON.stringify(state));
+const saveMod = (state) => writeJsonAtomic(modFile, state);
 
 async function askRaw(messages) {
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -525,7 +532,7 @@ async function ftPass(api, antSk) {
   const done = new Set(saved.done ?? []);
   const day = new Date().toISOString().slice(0, 10);
   const used = saved.used?.day === day ? saved.used : { day, lookups: 0, reports: 0 };
-  const save = () => writeFile(ftFile, JSON.stringify({ done: [...done], used }));
+  const save = () => writeJsonAtomic(ftFile, { done: [...done], used });
   const releases = liveReleases(JSON.parse((await getFt(api, FT_DIRECTORY)).text));
   let reports = null, reported = null, looked = 0, filed = 0;
   for (const rel of releases) {

@@ -353,9 +353,14 @@ export function getStoredSession(): StoredSession | null {
 /** Sign out from current identity */
 export async function signOut(): Promise<void> {
   // awaited: a restart before the node forgot the session would sign me straight back in
-  await import("./delegate.ts").then((m) => Promise.all([m.nodePut("local-seed", ""), m.nodePut("viso-session", "")]), () => {});
+  await import("./delegate.ts").then(
+    (m) => Promise.all([m.nodePut("local-seed", ""), m.nodePut("viso-session", ""), m.nodePut("signin-pending", ""), m.nodePut("viso-epriv", "")]),
+    () => {},
+  );
   safeStorage.removeItem("radica_session");
   safeStorage.removeItem("radica_ed25519_seed");
+  safeStorage.removeItem("radica_signin_pending");
+  safeStorage.removeItem("radica_viso_epriv");
   safeStorage.removeItem("spruce_session");
   safeStorage.removeItem("spruce_ed25519_seed");
 }
@@ -367,7 +372,8 @@ export const restart = (): void => goTo(linkBase());
 /** Open external or node-shell page safely */
 export const goTo = (href: string) => {
   if (window.parent !== window) {
-    parent.postMessage({ __freenet_shell__: true, type: "navigate", href }, "*");
+    const targetOrigin = typeof location !== "undefined" && location.origin && location.origin !== "null" ? location.origin : "*";
+    parent.postMessage({ __freenet_shell__: true, type: "navigate", href }, targetOrigin);
   } else {
     location.href = href;
   }

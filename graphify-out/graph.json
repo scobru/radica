@@ -3274,10 +3274,20 @@
       "norm_label": "loadkey()"
     },
     {
+      "label": "writeJsonAtomic()",
+      "file_type": "code",
+      "source_file": "attester/src/main.js",
+      "source_location": "L74",
+      "_origin": "ast",
+      "id": "attester_src_main_writejsonatomic",
+      "community": 22,
+      "norm_label": "writejsonatomic()"
+    },
+    {
       "label": "stateFile",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L73",
+      "source_location": "L80",
       "_origin": "ast",
       "id": "attester_src_main_statefile",
       "community": 22,
@@ -3287,7 +3297,7 @@
       "label": "TIER_RANK",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L74",
+      "source_location": "L81",
       "_origin": "ast",
       "id": "attester_src_main_tier_rank",
       "community": 22,
@@ -3297,7 +3307,7 @@
       "label": "loadState()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L75",
+      "source_location": "L82",
       "_origin": "ast",
       "id": "attester_src_main_loadstate",
       "community": 22,
@@ -3307,17 +3317,17 @@
       "label": "saveState()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L96",
+      "source_location": "L103",
       "_origin": "ast",
       "id": "attester_src_main_savestate",
-      "community": 95,
+      "community": 22,
       "norm_label": "savestate()"
     },
     {
       "label": "code",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L98",
+      "source_location": "L105",
       "_origin": "ast",
       "id": "attester_src_main_code",
       "community": 22,
@@ -3327,7 +3337,7 @@
       "label": "codeHash",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L99",
+      "source_location": "L106",
       "_origin": "ast",
       "id": "attester_src_main_codehash",
       "community": 22,
@@ -3337,7 +3347,7 @@
       "label": "paramsOf()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L100",
+      "source_location": "L107",
       "_origin": "ast",
       "id": "attester_src_main_paramsof",
       "community": 133,
@@ -3347,7 +3357,7 @@
       "label": "keyOf()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L101",
+      "source_location": "L108",
       "_origin": "ast",
       "id": "attester_src_main_keyof",
       "community": 133,
@@ -3357,7 +3367,7 @@
       "label": "connect()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L103",
+      "source_location": "L110",
       "_origin": "ast",
       "id": "attester_src_main_connect",
       "community": 22,
@@ -3367,7 +3377,7 @@
       "label": "feedCode",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L116",
+      "source_location": "L123",
       "_origin": "ast",
       "id": "attester_src_main_feedcode",
       "community": 22,
@@ -3377,7 +3387,7 @@
       "label": "feedHash",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L117",
+      "source_location": "L124",
       "_origin": "ast",
       "id": "attester_src_main_feedhash",
       "community": 22,
@@ -3387,7 +3397,7 @@
       "label": "feedParams()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L118",
+      "source_location": "L125",
       "_origin": "ast",
       "id": "attester_src_main_feedparams",
       "community": 22,
@@ -3397,7 +3407,7 @@
       "label": "feedKey()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L119",
+      "source_location": "L126",
       "_origin": "ast",
       "id": "attester_src_main_feedkey",
       "community": 22,
@@ -3407,7 +3417,7 @@
       "label": "SHARED_LOGS",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L123",
+      "source_location": "L130",
       "_origin": "ast",
       "id": "attester_src_main_shared_logs",
       "community": 22,
@@ -3417,7 +3427,7 @@
       "label": "OWNED_LOGS",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L124",
+      "source_location": "L131",
       "_origin": "ast",
       "id": "attester_src_main_owned_logs",
       "community": 22,
@@ -3427,7 +3437,7 @@
       "label": "parts()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L125",
+      "source_location": "L132",
       "_origin": "ast",
       "id": "attester_src_main_parts",
       "community": 22,
@@ -3437,7 +3447,7 @@
       "label": "keyFor()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L129",
+      "source_location": "L136",
       "_origin": "ast",
       "id": "attester_src_main_keyfor",
       "community": 22,
@@ -3447,7 +3457,7 @@
       "label": "stateOf()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L136",
+      "source_location": "L143",
       "_origin": "ast",
       "id": "attester_src_main_stateof",
       "community": 22,
@@ -3457,7 +3467,7 @@
       "label": "sweepFile",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L147",
+      "source_location": "L154",
       "_origin": "ast",
       "id": "attester_src_main_sweepfile",
       "community": 22,
@@ -3467,7 +3477,7 @@
       "label": "sweepDone",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L148",
+      "source_location": "L155",
       "_origin": "ast",
       "id": "attester_src_main_sweepdone",
       "community": 22,
@@ -3477,7 +3487,7 @@
       "label": "sweepTries",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L149",
+      "source_location": "L156",
       "_origin": "ast",
       "id": "attester_src_main_sweeptries",
       "community": 22,
@@ -3487,7 +3497,7 @@
       "label": "legacyOf",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L151",
+      "source_location": "L158",
       "_origin": "ast",
       "id": "attester_src_main_legacyof",
       "community": 22,
@@ -3497,7 +3507,7 @@
       "label": "sweepPass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L154",
+      "source_location": "L161",
       "_origin": "ast",
       "id": "attester_src_main_sweeppass",
       "community": 22,
@@ -3507,7 +3517,7 @@
       "label": "getFeed()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L185",
+      "source_location": "L192",
       "_origin": "ast",
       "id": "attester_src_main_getfeed",
       "community": 22,
@@ -3517,7 +3527,7 @@
       "label": "getEntries()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L195",
+      "source_location": "L202",
       "_origin": "ast",
       "id": "attester_src_main_getentries",
       "community": 133,
@@ -3527,7 +3537,7 @@
       "label": "append()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L206",
+      "source_location": "L213",
       "_origin": "ast",
       "id": "attester_src_main_append",
       "community": 133,
@@ -3537,7 +3547,7 @@
       "label": "pub",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L218",
+      "source_location": "L225",
       "_origin": "ast",
       "id": "attester_src_main_pub",
       "community": 22,
@@ -3547,7 +3557,7 @@
       "label": "semaphoreAbi",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L219",
+      "source_location": "L226",
       "_origin": "ast",
       "id": "attester_src_main_semaphoreabi",
       "community": 22,
@@ -3557,7 +3567,7 @@
       "label": "verifyOnChain()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L223",
+      "source_location": "L230",
       "_origin": "ast",
       "id": "attester_src_main_verifyonchain",
       "community": 95,
@@ -3567,7 +3577,7 @@
       "label": "pass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L229",
+      "source_location": "L236",
       "_origin": "ast",
       "id": "attester_src_main_pass",
       "community": 95,
@@ -3577,7 +3587,7 @@
       "label": "modFile",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L265",
+      "source_location": "L272",
       "_origin": "ast",
       "id": "attester_src_main_modfile",
       "community": 22,
@@ -3587,7 +3597,7 @@
       "label": "loadMod()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L266",
+      "source_location": "L273",
       "_origin": "ast",
       "id": "attester_src_main_loadmod",
       "community": 3,
@@ -3597,27 +3607,27 @@
       "label": "saveMod()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L270",
+      "source_location": "L277",
       "_origin": "ast",
       "id": "attester_src_main_savemod",
-      "community": 3,
+      "community": 22,
       "norm_label": "savemod()"
     },
     {
       "label": "askRaw()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L272",
+      "source_location": "L279",
       "_origin": "ast",
       "id": "attester_src_main_askraw",
-      "community": 3,
+      "community": 133,
       "norm_label": "askraw()"
     },
     {
       "label": "askModel()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L282",
+      "source_location": "L289",
       "_origin": "ast",
       "id": "attester_src_main_askmodel",
       "community": 3,
@@ -3627,7 +3637,7 @@
       "label": "globalProtectedSet()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L284",
+      "source_location": "L291",
       "_origin": "ast",
       "id": "attester_src_main_globalprotectedset",
       "community": 133,
@@ -3637,7 +3647,7 @@
       "label": "signCommunityChat()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L289",
+      "source_location": "L296",
       "_origin": "ast",
       "id": "attester_src_main_signcommunitychat",
       "community": 3,
@@ -3647,7 +3657,7 @@
       "label": "chatModPass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L300",
+      "source_location": "L307",
       "_origin": "ast",
       "id": "attester_src_main_chatmodpass",
       "community": 3,
@@ -3657,27 +3667,27 @@
       "label": "ghFetch()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L357",
+      "source_location": "L364",
       "_origin": "ast",
       "id": "attester_src_main_ghfetch",
-      "community": 3,
+      "community": 133,
       "norm_label": "ghfetch()"
     },
     {
       "label": "greenhousePass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L365",
+      "source_location": "L372",
       "_origin": "ast",
       "id": "attester_src_main_greenhousepass",
-      "community": 3,
+      "community": 133,
       "norm_label": "greenhousepass()"
     },
     {
       "label": "resolveHeldOutcomes()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L412",
+      "source_location": "L419",
       "_origin": "ast",
       "id": "attester_src_main_resolveheldoutcomes",
       "community": 133,
@@ -3687,7 +3697,7 @@
       "label": "modPass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L431",
+      "source_location": "L438",
       "_origin": "ast",
       "id": "attester_src_main_modpass",
       "community": 3,
@@ -3697,7 +3707,7 @@
       "label": "ftFile",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L511",
+      "source_location": "L518",
       "_origin": "ast",
       "id": "attester_src_main_ftfile",
       "community": 22,
@@ -3707,7 +3717,7 @@
       "label": "sleep()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L512",
+      "source_location": "L519",
       "_origin": "ast",
       "id": "attester_src_main_sleep",
       "community": 67,
@@ -3717,7 +3727,7 @@
       "label": "getFt()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L515",
+      "source_location": "L522",
       "_origin": "ast",
       "id": "attester_src_main_getft",
       "community": 22,
@@ -3727,7 +3737,7 @@
       "label": "ftPass()",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L522",
+      "source_location": "L529",
       "_origin": "ast",
       "id": "attester_src_main_ftpass",
       "community": 67,
@@ -3737,7 +3747,7 @@
       "label": "attesterPk",
       "file_type": "code",
       "source_file": "attester/src/main.js",
-      "source_location": "L577",
+      "source_location": "L584",
       "_origin": "ast",
       "id": "attester_src_main_attesterpk",
       "community": 22,
@@ -3980,7 +3990,7 @@
       "source_location": "L313",
       "_origin": "ast",
       "id": "attester_src_moderator_parsegithubmatches",
-      "community": 3,
+      "community": 133,
       "norm_label": "parsegithubmatches()"
     },
     {
@@ -9762,7 +9772,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_scripts_heavy",
-      "community": 56,
+      "community": 24,
       "norm_label": "heavy.mjs"
     },
     {
@@ -9772,7 +9782,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_scripts_heavy_containers",
-      "community": 56,
+      "community": 24,
       "norm_label": "containers"
     },
     {
@@ -9782,7 +9792,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_scripts_heavy_containerof",
-      "community": 56,
+      "community": 24,
       "norm_label": "containerof()"
     },
     {
@@ -9792,7 +9802,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ui_scripts_heavy_isheavy",
-      "community": 56,
+      "community": 24,
       "norm_label": "isheavy()"
     },
     {
@@ -9802,7 +9812,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_scripts_heavy_limits",
-      "community": 56,
+      "community": 24,
       "norm_label": "limits"
     },
     {
@@ -9812,7 +9822,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist",
-      "community": 56,
+      "community": 24,
       "norm_label": "split-freenet-dist.mjs"
     },
     {
@@ -9822,7 +9832,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_ui",
-      "community": 56,
+      "community": 24,
       "norm_label": "ui"
     },
     {
@@ -9832,7 +9842,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_dist",
-      "community": 56,
+      "community": 24,
       "norm_label": "dist"
     },
     {
@@ -9842,7 +9852,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_cfgpath",
-      "community": 56,
+      "community": 24,
       "norm_label": "cfgpath"
     },
     {
@@ -9852,7 +9862,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_cfg",
-      "community": 56,
+      "community": 24,
       "norm_label": "cfg"
     },
     {
@@ -9862,7 +9872,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_key_field",
-      "community": 56,
+      "community": 24,
       "norm_label": "key_field"
     },
     {
@@ -9882,7 +9892,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_copy",
-      "community": 56,
+      "community": 24,
       "norm_label": "copy()"
     },
     {
@@ -9892,7 +9902,7 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_fingerprintof",
-      "community": 56,
+      "community": 24,
       "norm_label": "fingerprintof()"
     },
     {
@@ -9902,7 +9912,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_checklimits",
-      "community": 56,
+      "community": 24,
       "norm_label": "checklimits()"
     },
     {
@@ -9912,7 +9922,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "ui_scripts_split_freenet_dist_all",
-      "community": 56,
+      "community": 24,
       "norm_label": "all"
     },
     {
@@ -10032,7 +10042,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ui_src_ante_decodeproof",
-      "community": 59,
+      "community": 30,
       "norm_label": "decodeproof()"
     },
     {
@@ -10362,7 +10372,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "ui_src_articlespage_articlespagedeps",
-      "community": 35,
+      "community": 96,
       "norm_label": "articlespagedeps"
     },
     {
@@ -10702,7 +10712,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_audioplayer",
-      "community": 36,
+      "community": 107,
       "norm_label": "audioplayer.ts"
     },
     {
@@ -10712,7 +10722,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "ui_src_audioplayer_audioqueuetrack",
-      "community": 36,
+      "community": 107,
       "norm_label": "audioqueuetrack"
     },
     {
@@ -10722,7 +10732,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "ui_src_audioplayer_audioqueuestate",
-      "community": 36,
+      "community": 107,
       "norm_label": "audioqueuestate"
     },
     {
@@ -10732,7 +10742,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "ui_src_audioplayer_createaudioqueuestate",
-      "community": 36,
+      "community": 107,
       "norm_label": "createaudioqueuestate()"
     },
     {
@@ -10742,7 +10752,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ui_src_audioplayer_trackkey",
-      "community": 36,
+      "community": 107,
       "norm_label": "trackkey()"
     },
     {
@@ -10752,7 +10762,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "ui_src_audioplayer_playinqueue",
-      "community": 36,
+      "community": 107,
       "norm_label": "playinqueue()"
     },
     {
@@ -10762,7 +10772,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "ui_src_audioplayer_enqueueinqueue",
-      "community": 36,
+      "community": 107,
       "norm_label": "enqueueinqueue()"
     },
     {
@@ -10772,7 +10782,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "ui_src_audioplayer_nextqueueindex",
-      "community": 36,
+      "community": 107,
       "norm_label": "nextqueueindex()"
     },
     {
@@ -10782,7 +10792,7 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "ui_src_audioplayer_prevqueueindex",
-      "community": 36,
+      "community": 107,
       "norm_label": "prevqueueindex()"
     },
     {
@@ -10792,7 +10802,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "ui_src_audioplayer_formataudiotime",
-      "community": 36,
+      "community": 107,
       "norm_label": "formataudiotime()"
     },
     {
@@ -10802,7 +10812,7 @@
       "source_location": "L82",
       "_origin": "ast",
       "id": "ui_src_audioplayer_trackwaveformbars",
-      "community": 36,
+      "community": 107,
       "norm_label": "trackwaveformbars()"
     },
     {
@@ -10812,7 +10822,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "ui_src_audioplayer_filterfreetunesreleases",
-      "community": 36,
+      "community": 107,
       "norm_label": "filterfreetunesreleases()"
     },
     {
@@ -11202,7 +11212,7 @@
       "source_location": "L184",
       "_origin": "ast",
       "id": "ui_src_boards_renderboardsummarycardhtml",
-      "community": 63,
+      "community": 122,
       "norm_label": "renderboardsummarycardhtml()"
     },
     {
@@ -11252,7 +11262,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ui_src_caption_mentionsin",
-      "community": 35,
+      "community": 145,
       "norm_label": "mentionsin()"
     },
     {
@@ -11262,7 +11272,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_caption_plainmentions",
-      "community": 9,
+      "community": 93,
       "norm_label": "plainmentions()"
     },
     {
@@ -11292,7 +11302,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "ui_src_caption_setmaskbadwords",
-      "community": 9,
+      "community": 145,
       "norm_label": "setmaskbadwords()"
     },
     {
@@ -11412,7 +11422,7 @@
       "source_location": "L278",
       "_origin": "ast",
       "id": "ui_src_caption_safeurl",
-      "community": 9,
+      "community": 122,
       "norm_label": "safeurl()"
     },
     {
@@ -11432,7 +11442,7 @@
       "source_location": "L300",
       "_origin": "ast",
       "id": "ui_src_caption_rendercomment",
-      "community": 9,
+      "community": 28,
       "norm_label": "rendercomment()"
     },
     {
@@ -11532,7 +11542,7 @@
       "source_location": "L373",
       "_origin": "ast",
       "id": "ui_src_caption_trendingtags",
-      "community": 9,
+      "community": 145,
       "norm_label": "trendingtags()"
     },
     {
@@ -11542,7 +11552,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_cbor",
-      "community": 59,
+      "community": 30,
       "norm_label": "cbor.ts"
     },
     {
@@ -11552,7 +11562,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "ui_src_cbor_cborvalue",
-      "community": 59,
+      "community": 30,
       "norm_label": "cborvalue"
     },
     {
@@ -11562,7 +11572,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ui_src_cbor_cborencode",
-      "community": 59,
+      "community": 5,
       "norm_label": "cborencode()"
     },
     {
@@ -11572,7 +11582,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_cbor_writehead",
-      "community": 59,
+      "community": 30,
       "norm_label": "writehead()"
     },
     {
@@ -11582,7 +11592,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "ui_src_cbor_writevalue",
-      "community": 59,
+      "community": 30,
       "norm_label": "writevalue()"
     },
     {
@@ -11642,7 +11652,7 @@
       "source_location": "L142",
       "_origin": "ast",
       "id": "ui_src_cbor_cbordecode",
-      "community": 59,
+      "community": 30,
       "norm_label": "cbordecode()"
     },
     {
@@ -11662,7 +11672,7 @@
       "source_location": "L187",
       "_origin": "ast",
       "id": "ui_src_cbor_mapget",
-      "community": 59,
+      "community": 30,
       "norm_label": "mapget()"
     },
     {
@@ -11672,7 +11682,7 @@
       "source_location": "L193",
       "_origin": "ast",
       "id": "ui_src_cbor_enumvariant",
-      "community": 59,
+      "community": 30,
       "norm_label": "enumvariant()"
     },
     {
@@ -11682,7 +11692,7 @@
       "source_location": "L203",
       "_origin": "ast",
       "id": "ui_src_cbor_asbytes",
-      "community": 59,
+      "community": 30,
       "norm_label": "asbytes()"
     },
     {
@@ -11692,7 +11702,7 @@
       "source_location": "L211",
       "_origin": "ast",
       "id": "ui_src_cbor_asnumber",
-      "community": 59,
+      "community": 30,
       "norm_label": "asnumber()"
     },
     {
@@ -11702,7 +11712,7 @@
       "source_location": "L216",
       "_origin": "ast",
       "id": "ui_src_cbor_asstring",
-      "community": 59,
+      "community": 30,
       "norm_label": "asstring()"
     },
     {
@@ -11742,7 +11752,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "ui_src_chatmedia_preparedchatmedia",
-      "community": 48,
+      "community": 101,
       "norm_label": "preparedchatmedia"
     },
     {
@@ -11812,7 +11822,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "ui_src_chatmedia_defaultwaveform",
-      "community": 48,
+      "community": 136,
       "norm_label": "defaultwaveform()"
     },
     {
@@ -11872,7 +11882,7 @@
       "source_location": "L254",
       "_origin": "ast",
       "id": "ui_src_chatmedia_maskchatmediatokens",
-      "community": 48,
+      "community": 136,
       "norm_label": "maskchatmediatokens()"
     },
     {
@@ -11892,7 +11902,7 @@
       "source_location": "L298",
       "_origin": "ast",
       "id": "ui_src_chatmedia_sealchatmedia",
-      "community": 48,
+      "community": 136,
       "norm_label": "sealchatmedia()"
     },
     {
@@ -11902,7 +11912,7 @@
       "source_location": "L333",
       "_origin": "ast",
       "id": "ui_src_chatmedia_openchatmedia",
-      "community": 48,
+      "community": 136,
       "norm_label": "openchatmedia()"
     },
     {
@@ -11952,7 +11962,7 @@
       "source_location": "L388",
       "_origin": "ast",
       "id": "ui_src_chatmedia_keepchatmediaurl",
-      "community": 48,
+      "community": 136,
       "norm_label": "keepchatmediaurl()"
     },
     {
@@ -11992,7 +12002,7 @@
       "source_location": "L469",
       "_origin": "ast",
       "id": "ui_src_chatmedia_sealchatmediachunked",
-      "community": 48,
+      "community": 136,
       "norm_label": "sealchatmediachunked()"
     },
     {
@@ -12002,7 +12012,7 @@
       "source_location": "L512",
       "_origin": "ast",
       "id": "ui_src_chatmedia_uploadchatmedia",
-      "community": 48,
+      "community": 136,
       "norm_label": "uploadchatmedia()"
     },
     {
@@ -12012,7 +12022,7 @@
       "source_location": "L535",
       "_origin": "ast",
       "id": "ui_src_chatmedia_sendchatattachment",
-      "community": 48,
+      "community": 136,
       "norm_label": "sendchatattachment()"
     },
     {
@@ -12022,7 +12032,7 @@
       "source_location": "L557",
       "_origin": "ast",
       "id": "ui_src_chatmedia_sealwithkey",
-      "community": 48,
+      "community": 136,
       "norm_label": "sealwithkey()"
     },
     {
@@ -12042,7 +12052,7 @@
       "source_location": "L571",
       "_origin": "ast",
       "id": "ui_src_chatmedia_fetchchatmedia",
-      "community": 48,
+      "community": 136,
       "norm_label": "fetchchatmedia()"
     },
     {
@@ -12072,7 +12082,7 @@
       "source_location": "L723",
       "_origin": "ast",
       "id": "ui_src_chatmedia_normalizepeakstobars",
-      "community": 48,
+      "community": 136,
       "norm_label": "normalizepeakstobars()"
     },
     {
@@ -12082,7 +12092,7 @@
       "source_location": "L743",
       "_origin": "ast",
       "id": "ui_src_chatmedia_analyzeaudioblob",
-      "community": 48,
+      "community": 136,
       "norm_label": "analyzeaudioblob()"
     },
     {
@@ -12242,7 +12252,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_commenthistory",
-      "community": 35,
+      "community": 96,
       "norm_label": "commenthistory.ts"
     },
     {
@@ -12252,7 +12262,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_src_commenthistory_commententry",
-      "community": 35,
+      "community": 96,
       "norm_label": "commententry"
     },
     {
@@ -12262,7 +12272,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "ui_src_commenthistory_commentfilters",
-      "community": 35,
+      "community": 96,
       "norm_label": "commentfilters"
     },
     {
@@ -12272,7 +12282,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ui_src_commenthistory_commentsby",
-      "community": 35,
+      "community": 96,
       "norm_label": "commentsby()"
     },
     {
@@ -12532,7 +12542,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "ui_src_conversationstate_burnatof",
-      "community": 128,
+      "community": 20,
       "norm_label": "burnatof()"
     },
     {
@@ -12552,7 +12562,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "ui_src_conversationstate_dmpeerof",
-      "community": 26,
+      "community": 128,
       "norm_label": "dmpeerof()"
     },
     {
@@ -12612,7 +12622,7 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "ui_src_conversationstate_keyvalue",
-      "community": 26,
+      "community": 128,
       "norm_label": "keyvalue"
     },
     {
@@ -12622,7 +12632,7 @@
       "source_location": "L96",
       "_origin": "ast",
       "id": "ui_src_conversationstate_localreadmarks",
-      "community": 26,
+      "community": 128,
       "norm_label": "localreadmarks()"
     },
     {
@@ -12632,7 +12642,7 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "ui_src_conversationstate_seedreadmark",
-      "community": 25,
+      "community": 128,
       "norm_label": "seedreadmark()"
     },
     {
@@ -12652,7 +12662,7 @@
       "source_location": "L130",
       "_origin": "ast",
       "id": "ui_src_conversationstate_conversationstate",
-      "community": 101,
+      "community": 128,
       "norm_label": "conversationstate"
     },
     {
@@ -12692,7 +12702,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "ui_src_crypto_getidentity",
-      "community": 61,
+      "community": 1,
       "norm_label": "getidentity()"
     },
     {
@@ -12722,7 +12732,7 @@
       "source_location": "L103",
       "_origin": "ast",
       "id": "ui_src_crypto_verifyauthorsignature",
-      "community": 43,
+      "community": 61,
       "norm_label": "verifyauthorsignature()"
     },
     {
@@ -12732,7 +12742,7 @@
       "source_location": "L127",
       "_origin": "ast",
       "id": "ui_src_crypto_formatlogentrymessage",
-      "community": 10,
+      "community": 61,
       "norm_label": "formatlogentrymessage()"
     },
     {
@@ -12742,7 +12752,7 @@
       "source_location": "L134",
       "_origin": "ast",
       "id": "ui_src_crypto_logmsg2",
-      "community": 10,
+      "community": 61,
       "norm_label": "logmsg2()"
     },
     {
@@ -12812,7 +12822,7 @@
       "source_location": "L191",
       "_origin": "ast",
       "id": "ui_src_crypto_lp",
-      "community": 35,
+      "community": 61,
       "norm_label": "lp()"
     },
     {
@@ -12832,7 +12842,7 @@
       "source_location": "L195",
       "_origin": "ast",
       "id": "ui_src_crypto_postmsg3",
-      "community": 35,
+      "community": 61,
       "norm_label": "postmsg3()"
     },
     {
@@ -12842,7 +12852,7 @@
       "source_location": "L197",
       "_origin": "ast",
       "id": "ui_src_crypto_commentmsg3",
-      "community": 35,
+      "community": 61,
       "norm_label": "commentmsg3()"
     },
     {
@@ -12852,7 +12862,7 @@
       "source_location": "L199",
       "_origin": "ast",
       "id": "ui_src_crypto_likemsg3",
-      "community": 35,
+      "community": 61,
       "norm_label": "likemsg3()"
     },
     {
@@ -12862,7 +12872,7 @@
       "source_location": "L201",
       "_origin": "ast",
       "id": "ui_src_crypto_profilemsg4",
-      "community": 35,
+      "community": 61,
       "norm_label": "profilemsg4()"
     },
     {
@@ -12872,7 +12882,7 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "ui_src_crypto_followingmsg3",
-      "community": 35,
+      "community": 61,
       "norm_label": "followingmsg3()"
     },
     {
@@ -12882,7 +12892,7 @@
       "source_location": "L206",
       "_origin": "ast",
       "id": "ui_src_crypto_deletemsg3",
-      "community": 35,
+      "community": 61,
       "norm_label": "deletemsg3()"
     },
     {
@@ -12912,7 +12922,7 @@
       "source_location": "L225",
       "_origin": "ast",
       "id": "ui_src_crypto_formatchatmessagesignaturemessage",
-      "community": 25,
+      "community": 61,
       "norm_label": "formatchatmessagesignaturemessage()"
     },
     {
@@ -12982,7 +12992,7 @@
       "source_location": "L310",
       "_origin": "ast",
       "id": "ui_src_crypto_addreadkeys",
-      "community": 26,
+      "community": 61,
       "norm_label": "addreadkeys()"
     },
     {
@@ -13392,7 +13402,7 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "ui_src_delta_sitekey",
-      "community": 28,
+      "community": 109,
       "norm_label": "sitekey()"
     },
     {
@@ -13402,7 +13412,7 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "ui_src_delta_pagehref",
-      "community": 122,
+      "community": 109,
       "norm_label": "pagehref()"
     },
     {
@@ -13492,7 +13502,7 @@
       "source_location": "L191",
       "_origin": "ast",
       "id": "ui_src_delta_deltacard",
-      "community": 122,
+      "community": 109,
       "norm_label": "deltacard()"
     },
     {
@@ -13512,7 +13522,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_durable",
-      "community": 121,
+      "community": 138,
       "norm_label": "durable.ts"
     },
     {
@@ -13522,7 +13532,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_src_durable_durable_prefixes",
-      "community": 121,
+      "community": 138,
       "norm_label": "durable_prefixes"
     },
     {
@@ -13532,7 +13542,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "ui_src_durable_isdurable",
-      "community": 121,
+      "community": 138,
       "norm_label": "isdurable()"
     },
     {
@@ -13542,7 +13552,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "ui_src_durable_packagekey",
-      "community": 121,
+      "community": 138,
       "norm_label": "packagekey()"
     },
     {
@@ -13552,7 +13562,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "ui_src_durable_durablestore",
-      "community": 121,
+      "community": 138,
       "norm_label": "durablestore"
     },
     {
@@ -13562,7 +13572,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "ui_src_durable_durablestore_getitem",
-      "community": 121,
+      "community": 138,
       "norm_label": ".getitem()"
     },
     {
@@ -13572,7 +13582,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "ui_src_durable_durablestore_setitem",
-      "community": 121,
+      "community": 138,
       "norm_label": ".setitem()"
     },
     {
@@ -13582,7 +13592,7 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "ui_src_durable_durablestore_keys",
-      "community": 121,
+      "community": 138,
       "norm_label": ".keys()"
     },
     {
@@ -13592,7 +13602,7 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "ui_src_durable_durablenode",
-      "community": 121,
+      "community": 138,
       "norm_label": "durablenode"
     },
     {
@@ -13602,7 +13612,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "ui_src_durable_durablenode_get",
-      "community": 121,
+      "community": 138,
       "norm_label": ".get()"
     },
     {
@@ -13612,7 +13622,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "ui_src_durable_durablenode_put",
-      "community": 121,
+      "community": 138,
       "norm_label": ".put()"
     },
     {
@@ -13622,7 +13632,7 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "ui_src_durable_createdurable",
-      "community": 121,
+      "community": 138,
       "norm_label": "createdurable()"
     },
     {
@@ -13632,7 +13642,7 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "ui_src_durable_durable",
-      "community": 121,
+      "community": 138,
       "norm_label": "durable"
     },
     {
@@ -13902,7 +13912,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_feedmerge",
-      "community": 89,
+      "community": 96,
       "norm_label": "feedmerge.ts"
     },
     {
@@ -13912,7 +13922,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "ui_src_feedmerge_overlayfeed",
-      "community": 89,
+      "community": 96,
       "norm_label": "overlayfeed()"
     },
     {
@@ -13982,7 +13992,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_fh",
-      "community": 36,
+      "community": 94,
       "norm_label": "fh.ts"
     },
     {
@@ -13992,7 +14002,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_src_fh_enc",
-      "community": 36,
+      "community": 94,
       "norm_label": "enc"
     },
     {
@@ -14002,7 +14012,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_fh_dec",
-      "community": 36,
+      "community": 94,
       "norm_label": "dec"
     },
     {
@@ -14012,7 +14022,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "ui_src_fh_fhsite",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhsite"
     },
     {
@@ -14022,7 +14032,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_fh_fhlistdata",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhlistdata"
     },
     {
@@ -14032,7 +14042,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "ui_src_fh_fhprofileinput",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhprofileinput"
     },
     {
@@ -14042,7 +14052,7 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "ui_src_fh_fhpersonahex",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhpersonahex()"
     },
     {
@@ -14052,7 +14062,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "ui_src_fh_fhlistkey",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhlistkey()"
     },
     {
@@ -14062,7 +14072,7 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "ui_src_fh_cleanhash",
-      "community": 36,
+      "community": 94,
       "norm_label": "cleanhash()"
     },
     {
@@ -14072,7 +14082,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "ui_src_fh_parsefhsitesjson",
-      "community": 36,
+      "community": 94,
       "norm_label": "parsefhsitesjson()"
     },
     {
@@ -14082,7 +14092,7 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "ui_src_fh_parsefhliststate",
-      "community": 36,
+      "community": 94,
       "norm_label": "parsefhliststate()"
     },
     {
@@ -14092,7 +14102,7 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "ui_src_fh_fhshareref",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhshareref"
     },
     {
@@ -14102,7 +14112,7 @@
       "source_location": "L135",
       "_origin": "ast",
       "id": "ui_src_fh_fhlink",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhlink()"
     },
     {
@@ -14112,7 +14122,7 @@
       "source_location": "L164",
       "_origin": "ast",
       "id": "ui_src_fh_parsefhprofileinput",
-      "community": 36,
+      "community": 94,
       "norm_label": "parsefhprofileinput()"
     },
     {
@@ -14122,7 +14132,7 @@
       "source_location": "L186",
       "_origin": "ast",
       "id": "ui_src_fh_fhsitehref",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhsitehref()"
     },
     {
@@ -14132,7 +14142,7 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "ui_src_fh_fhsharehref",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhsharehref()"
     },
     {
@@ -14142,7 +14152,7 @@
       "source_location": "L197",
       "_origin": "ast",
       "id": "ui_src_fh_rendersitegroupshtml",
-      "community": 36,
+      "community": 94,
       "norm_label": "rendersitegroupshtml()"
     },
     {
@@ -14152,7 +14162,7 @@
       "source_location": "L246",
       "_origin": "ast",
       "id": "ui_src_fh_fhprofilecard",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhprofilecard()"
     },
     {
@@ -14162,7 +14172,7 @@
       "source_location": "L277",
       "_origin": "ast",
       "id": "ui_src_fh_fhcard",
-      "community": 36,
+      "community": 94,
       "norm_label": "fhcard()"
     },
     {
@@ -14182,7 +14192,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_filterwasm",
-      "community": 94,
+      "community": 24,
       "norm_label": "filterwasm.ts"
     },
     {
@@ -14192,7 +14202,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "ui_src_filterwasm_filterwasmresponse",
-      "community": 94,
+      "community": 24,
       "norm_label": "filterwasmresponse()"
     },
     {
@@ -14322,7 +14332,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "ui_src_freenames_namehref",
-      "community": 9,
+      "community": 50,
       "norm_label": "namehref()"
     },
     {
@@ -14402,7 +14412,7 @@
       "source_location": "L187",
       "_origin": "ast",
       "id": "ui_src_freenames_getresolvedfreename",
-      "community": 9,
+      "community": 50,
       "norm_label": "getresolvedfreename()"
     },
     {
@@ -14422,7 +14432,7 @@
       "source_location": "L195",
       "_origin": "ast",
       "id": "ui_src_freenames_clearresolvedfreenames",
-      "community": 50,
+      "community": 145,
       "norm_label": "clearresolvedfreenames()"
     },
     {
@@ -14452,7 +14462,7 @@
       "source_location": "L257",
       "_origin": "ast",
       "id": "ui_src_freenames_shortkey",
-      "community": 9,
+      "community": 50,
       "norm_label": "shortkey()"
     },
     {
@@ -14472,7 +14482,7 @@
       "source_location": "L270",
       "_origin": "ast",
       "id": "ui_src_freenames_freenamescard",
-      "community": 9,
+      "community": 50,
       "norm_label": "freenamescard()"
     },
     {
@@ -14492,7 +14502,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_freenet",
-      "community": 39,
+      "community": 61,
       "norm_label": "freenet.ts"
     },
     {
@@ -14512,7 +14522,7 @@
       "source_location": "L149",
       "_origin": "ast",
       "id": "ui_src_freenet_genesis",
-      "community": 39,
+      "community": 61,
       "norm_label": "genesis"
     },
     {
@@ -14562,7 +14572,7 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_rivers",
-      "community": 25,
+      "community": 98,
       "norm_label": ".rivers()"
     },
     {
@@ -14572,7 +14582,7 @@
       "source_location": "L224",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_cachepeerpost",
-      "community": 35,
+      "community": 26,
       "norm_label": ".cachepeerpost()"
     },
     {
@@ -14592,7 +14602,7 @@
       "source_location": "L288",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_announceidentity",
-      "community": 89,
+      "community": 35,
       "norm_label": ".announceidentity()"
     },
     {
@@ -14642,7 +14652,7 @@
       "source_location": "L511",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_notifylisteners",
-      "community": 25,
+      "community": 10,
       "norm_label": ".notifylisteners()"
     },
     {
@@ -14662,7 +14672,7 @@
       "source_location": "L549",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_refresh",
-      "community": 89,
+      "community": 10,
       "norm_label": ".refresh()"
     },
     {
@@ -14672,7 +14682,7 @@
       "source_location": "L566",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_feedchanged",
-      "community": 89,
+      "community": 10,
       "norm_label": ".feedchanged()"
     },
     {
@@ -14682,7 +14692,7 @@
       "source_location": "L586",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_takefeed",
-      "community": 89,
+      "community": 10,
       "norm_label": ".takefeed()"
     },
     {
@@ -14692,7 +14702,7 @@
       "source_location": "L616",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_requeuelostdeletions",
-      "community": 89,
+      "community": 10,
       "norm_label": ".requeuelostdeletions()"
     },
     {
@@ -14702,7 +14712,7 @@
       "source_location": "L641",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_setidentity",
-      "community": 26,
+      "community": 10,
       "norm_label": ".setidentity()"
     },
     {
@@ -14722,7 +14732,7 @@
       "source_location": "L688",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_migrateownfeed",
-      "community": 35,
+      "community": 61,
       "norm_label": ".migrateownfeed()"
     },
     {
@@ -14742,7 +14752,7 @@
       "source_location": "L739",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_peerposts",
-      "community": 35,
+      "community": 10,
       "norm_label": ".peerposts()"
     },
     {
@@ -14882,7 +14892,7 @@
       "source_location": "L881",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_pushpending",
-      "community": 89,
+      "community": 10,
       "norm_label": ".pushpending()"
     },
     {
@@ -14892,7 +14902,7 @@
       "source_location": "L897",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_readjson",
-      "community": 26,
+      "community": 10,
       "norm_label": ".readjson()"
     },
     {
@@ -14912,7 +14922,7 @@
       "source_location": "L920",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_storedprivaterooms",
-      "community": 25,
+      "community": 98,
       "norm_label": ".storedprivaterooms()"
     },
     {
@@ -14942,7 +14952,7 @@
       "source_location": "L940",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_foldedcommunities",
-      "community": 107,
+      "community": 35,
       "norm_label": ".foldedcommunities()"
     },
     {
@@ -15002,7 +15012,7 @@
       "source_location": "L1004",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_pohproofs",
-      "community": 10,
+      "community": 151,
       "norm_label": ".pohproofs()"
     },
     {
@@ -15452,7 +15462,7 @@
       "source_location": "L1555",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_fhlist",
-      "community": 36,
+      "community": 94,
       "norm_label": ".fhlist()"
     },
     {
@@ -15512,7 +15522,7 @@
       "source_location": "L1649",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_blockedby",
-      "community": 26,
+      "community": 10,
       "norm_label": ".blockedby()"
     },
     {
@@ -15582,7 +15592,7 @@
       "source_location": "L1762",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_refreshlog",
-      "community": 25,
+      "community": 10,
       "norm_label": ".refreshlog()"
     },
     {
@@ -15592,7 +15602,7 @@
       "source_location": "L1776",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_logchanged",
-      "community": 89,
+      "community": 10,
       "norm_label": ".logchanged()"
     },
     {
@@ -15622,7 +15632,7 @@
       "source_location": "L1971",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_writechat",
-      "community": 26,
+      "community": 144,
       "norm_label": ".writechat()"
     },
     {
@@ -15642,7 +15652,7 @@
       "source_location": "L1996",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_devicekeys",
-      "community": 25,
+      "community": 10,
       "norm_label": ".devicekeys()"
     },
     {
@@ -15652,7 +15662,7 @@
       "source_location": "L2010",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_encpubsof",
-      "community": 25,
+      "community": 10,
       "norm_label": ".encpubsof()"
     },
     {
@@ -15662,7 +15672,7 @@
       "source_location": "L2016",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_announcedevice",
-      "community": 25,
+      "community": 10,
       "norm_label": ".announcedevice()"
     },
     {
@@ -15672,7 +15682,7 @@
       "source_location": "L2026",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_chatappend",
-      "community": 26,
+      "community": 98,
       "norm_label": ".chatappend()"
     },
     {
@@ -15692,7 +15702,7 @@
       "source_location": "L2067",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_movelocallogs",
-      "community": 26,
+      "community": 10,
       "norm_label": ".movelocallogs()"
     },
     {
@@ -15702,7 +15712,7 @@
       "source_location": "L2084",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_keepdmhistory",
-      "community": 26,
+      "community": 10,
       "norm_label": ".keepdmhistory()"
     },
     {
@@ -15732,7 +15742,7 @@
       "source_location": "L2112",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_loaddmhistory",
-      "community": 26,
+      "community": 10,
       "norm_label": ".loaddmhistory()"
     },
     {
@@ -15742,7 +15752,7 @@
       "source_location": "L2124",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_logofroom",
-      "community": 26,
+      "community": 10,
       "norm_label": ".logofroom()"
     },
     {
@@ -15772,7 +15782,7 @@
       "source_location": "L2209",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_mediarefof",
-      "community": 126,
+      "community": 35,
       "norm_label": ".mediarefof()"
     },
     {
@@ -15792,7 +15802,7 @@
       "source_location": "L2232",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_visoghostkey",
-      "community": 59,
+      "community": 30,
       "norm_label": ".visoghostkey()"
     },
     {
@@ -15852,7 +15862,7 @@
       "source_location": "L2320",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_verifiedpohauthors",
-      "community": 10,
+      "community": 151,
       "norm_label": ".verifiedpohauthors()"
     },
     {
@@ -15882,7 +15892,7 @@
       "source_location": "L2348",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_putmedia",
-      "community": 48,
+      "community": 136,
       "norm_label": ".putmedia()"
     },
     {
@@ -15922,7 +15932,7 @@
       "source_location": "L2445",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_signcomment",
-      "community": 35,
+      "community": 61,
       "norm_label": ".signcomment()"
     },
     {
@@ -15962,7 +15972,7 @@
       "source_location": "L2525",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_hellopow",
-      "community": 89,
+      "community": 35,
       "norm_label": ".hellopow()"
     },
     {
@@ -15972,7 +15982,7 @@
       "source_location": "L2546",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getexploretimeline",
-      "community": 35,
+      "community": 39,
       "norm_label": ".getexploretimeline()"
     },
     {
@@ -15982,7 +15992,7 @@
       "source_location": "L2560",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getcommunityparticipants",
-      "community": 10,
+      "community": 144,
       "norm_label": ".getcommunityparticipants()"
     },
     {
@@ -15992,7 +16002,7 @@
       "source_location": "L2566",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getdiscoveredpeers",
-      "community": 36,
+      "community": 94,
       "norm_label": ".getdiscoveredpeers()"
     },
     {
@@ -16002,7 +16012,7 @@
       "source_location": "L2578",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getroomid",
-      "community": 25,
+      "community": 98,
       "norm_label": ".getroomid()"
     },
     {
@@ -16012,7 +16022,7 @@
       "source_location": "L2585",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sharedriverroom",
-      "community": 25,
+      "community": 98,
       "norm_label": ".sharedriverroom()"
     },
     {
@@ -16022,7 +16032,7 @@
       "source_location": "L2596",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendriverdm",
-      "community": 25,
+      "community": 98,
       "norm_label": ".sendriverdm()"
     },
     {
@@ -16042,7 +16052,7 @@
       "source_location": "L2625",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_synccommentedposts",
-      "community": 35,
+      "community": 26,
       "norm_label": ".synccommentedposts()"
     },
     {
@@ -16052,7 +16062,7 @@
       "source_location": "L2681",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_syncriverrooms",
-      "community": 25,
+      "community": 98,
       "norm_label": ".syncriverrooms()"
     },
     {
@@ -16062,7 +16072,7 @@
       "source_location": "L2731",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_syncriverdms",
-      "community": 25,
+      "community": 98,
       "norm_label": ".syncriverdms()"
     },
     {
@@ -16072,7 +16082,7 @@
       "source_location": "L2767",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverdmthread",
-      "community": 25,
+      "community": 98,
       "norm_label": ".riverdmthread()"
     },
     {
@@ -16082,7 +16092,7 @@
       "source_location": "L2793",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendchatmessage",
-      "community": 25,
+      "community": 98,
       "norm_label": ".sendchatmessage()"
     },
     {
@@ -16092,7 +16102,7 @@
       "source_location": "L2859",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_plain",
-      "community": 61,
+      "community": 144,
       "norm_label": ".plain()"
     },
     {
@@ -16102,7 +16112,7 @@
       "source_location": "L2868",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getchatmessages",
-      "community": 61,
+      "community": 144,
       "norm_label": ".getchatmessages()"
     },
     {
@@ -16122,7 +16132,7 @@
       "source_location": "L2927",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getchatpeers",
-      "community": 26,
+      "community": 10,
       "norm_label": ".getchatpeers()"
     },
     {
@@ -16222,7 +16232,7 @@
       "source_location": "L3016",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendsecretchatmessage",
-      "community": 25,
+      "community": 144,
       "norm_label": ".sendsecretchatmessage()"
     },
     {
@@ -16232,7 +16242,7 @@
       "source_location": "L3028",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getsecretchatmessages",
-      "community": 25,
+      "community": 10,
       "norm_label": ".getsecretchatmessages()"
     },
     {
@@ -16252,7 +16262,7 @@
       "source_location": "L3038",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendtyping",
-      "community": 10,
+      "community": 25,
       "norm_label": ".sendtyping()"
     },
     {
@@ -16292,7 +16302,7 @@
       "source_location": "L3065",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendcommunitychatmessage",
-      "community": 25,
+      "community": 35,
       "norm_label": ".sendcommunitychatmessage()"
     },
     {
@@ -16302,7 +16312,7 @@
       "source_location": "L3104",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_computelogjoins",
-      "community": 10,
+      "community": 144,
       "norm_label": ".computelogjoins()"
     },
     {
@@ -16312,7 +16322,7 @@
       "source_location": "L3108",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getcommunitychatmessages",
-      "community": 10,
+      "community": 144,
       "norm_label": ".getcommunitychatmessages()"
     },
     {
@@ -16332,7 +16342,7 @@
       "source_location": "L3122",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_markroomread",
-      "community": 26,
+      "community": 128,
       "norm_label": ".markroomread()"
     },
     {
@@ -16342,7 +16352,7 @@
       "source_location": "L3134",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_unreadcount",
-      "community": 10,
+      "community": 144,
       "norm_label": ".unreadcount()"
     },
     {
@@ -16352,7 +16362,7 @@
       "source_location": "L3141",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_visiblechat",
-      "community": 10,
+      "community": 144,
       "norm_label": ".visiblechat()"
     },
     {
@@ -16362,7 +16372,7 @@
       "source_location": "L3153",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverroomof",
-      "community": 25,
+      "community": 98,
       "norm_label": ".riverroomof()"
     },
     {
@@ -16372,7 +16382,7 @@
       "source_location": "L3158",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_deletechatmessage",
-      "community": 25,
+      "community": 98,
       "norm_label": ".deletechatmessage()"
     },
     {
@@ -16382,7 +16392,7 @@
       "source_location": "L3180",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_editchatmessage",
-      "community": 25,
+      "community": 98,
       "norm_label": ".editchatmessage()"
     },
     {
@@ -16392,7 +16402,7 @@
       "source_location": "L3241",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_reacttochatmessage",
-      "community": 25,
+      "community": 98,
       "norm_label": ".reacttochatmessage()"
     },
     {
@@ -16402,7 +16412,7 @@
       "source_location": "L3266",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_clearchatroom",
-      "community": 25,
+      "community": 10,
       "norm_label": ".clearchatroom()"
     },
     {
@@ -16422,7 +16432,7 @@
       "source_location": "L3290",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_warmpeers",
-      "community": 89,
+      "community": 10,
       "norm_label": ".warmpeers()"
     },
     {
@@ -16432,7 +16442,7 @@
       "source_location": "L3306",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_namefromstoredfeed",
-      "community": 89,
+      "community": 10,
       "norm_label": ".namefromstoredfeed()"
     },
     {
@@ -16452,7 +16462,7 @@
       "source_location": "L3323",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_addchatpeer",
-      "community": 26,
+      "community": 98,
       "norm_label": ".addchatpeer()"
     },
     {
@@ -16552,7 +16562,7 @@
       "source_location": "L3421",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_marknotificationread",
-      "community": 10,
+      "community": 35,
       "norm_label": ".marknotificationread()"
     },
     {
@@ -16562,7 +16572,7 @@
       "source_location": "L3426",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_marknotificationsreadwhere",
-      "community": 10,
+      "community": 35,
       "norm_label": ".marknotificationsreadwhere()"
     },
     {
@@ -16602,7 +16612,7 @@
       "source_location": "L3463",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getcommunities",
-      "community": 107,
+      "community": 35,
       "norm_label": ".getcommunities()"
     },
     {
@@ -16612,7 +16622,7 @@
       "source_location": "L3476",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_restorejoined",
-      "community": 26,
+      "community": 10,
       "norm_label": ".restorejoined()"
     },
     {
@@ -16632,7 +16642,7 @@
       "source_location": "L3501",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getcommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".getcommunity()"
     },
     {
@@ -16642,7 +16652,7 @@
       "source_location": "L3509",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_createcommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".createcommunity()"
     },
     {
@@ -16652,7 +16662,7 @@
       "source_location": "L3535",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_updatecommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".updatecommunity()"
     },
     {
@@ -16662,7 +16672,7 @@
       "source_location": "L3559",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_communityevent",
-      "community": 107,
+      "community": 35,
       "norm_label": ".communityevent()"
     },
     {
@@ -16672,7 +16682,7 @@
       "source_location": "L3565",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_togglejoincommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".togglejoincommunity()"
     },
     {
@@ -16682,7 +16692,7 @@
       "source_location": "L3573",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_addcommunitymoderator",
-      "community": 107,
+      "community": 35,
       "norm_label": ".addcommunitymoderator()"
     },
     {
@@ -16692,7 +16702,7 @@
       "source_location": "L3588",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_removecommunitymoderator",
-      "community": 107,
+      "community": 35,
       "norm_label": ".removecommunitymoderator()"
     },
     {
@@ -16702,7 +16712,7 @@
       "source_location": "L3607",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_banmemberfromcommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".banmemberfromcommunity()"
     },
     {
@@ -16712,7 +16722,7 @@
       "source_location": "L3624",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_unbanmemberfromcommunity",
-      "community": 107,
+      "community": 35,
       "norm_label": ".unbanmemberfromcommunity()"
     },
     {
@@ -16722,7 +16732,7 @@
       "source_location": "L3638",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_moddeletepost",
-      "community": 107,
+      "community": 35,
       "norm_label": ".moddeletepost()"
     },
     {
@@ -16752,7 +16762,7 @@
       "source_location": "L3684",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverkey",
-      "community": 25,
+      "community": 98,
       "norm_label": ".riverkey()"
     },
     {
@@ -16772,7 +16782,7 @@
       "source_location": "L3702",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverjoin",
-      "community": 25,
+      "community": 98,
       "norm_label": ".riverjoin()"
     },
     {
@@ -16782,7 +16792,7 @@
       "source_location": "L3710",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_nickname",
-      "community": 25,
+      "community": 98,
       "norm_label": ".nickname()"
     },
     {
@@ -16852,7 +16862,7 @@
       "source_location": "L3861",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_setroompinnedmessage",
-      "community": 25,
+      "community": 10,
       "norm_label": ".setroompinnedmessage()"
     },
     {
@@ -16902,7 +16912,7 @@
       "source_location": "L4001",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getprivateroomdecryptedname",
-      "community": 25,
+      "community": 98,
       "norm_label": ".getprivateroomdecryptedname()"
     },
     {
@@ -16942,7 +16952,7 @@
       "source_location": "L4099",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_restoreroomsfromnode",
-      "community": 25,
+      "community": 10,
       "norm_label": ".restoreroomsfromnode()"
     },
     {
@@ -17002,7 +17012,7 @@
       "source_location": "L4304",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_restoreriveronly",
-      "community": 26,
+      "community": 10,
       "norm_label": ".restoreriveronly()"
     },
     {
@@ -17012,7 +17022,7 @@
       "source_location": "L4312",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverroster",
-      "community": 25,
+      "community": 10,
       "norm_label": ".riverroster()"
     },
     {
@@ -17022,7 +17032,7 @@
       "source_location": "L4317",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_riverstate",
-      "community": 25,
+      "community": 98,
       "norm_label": ".riverstate()"
     },
     {
@@ -17032,7 +17042,7 @@
       "source_location": "L4325",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_rivermessages",
-      "community": 25,
+      "community": 98,
       "norm_label": ".rivermessages()"
     },
     {
@@ -17042,7 +17052,7 @@
       "source_location": "L4406",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_computeriverjoins",
-      "community": 25,
+      "community": 144,
       "norm_label": ".computeriverjoins()"
     },
     {
@@ -17092,7 +17102,7 @@
       "source_location": "L4569",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_exportriveridentity",
-      "community": 25,
+      "community": 98,
       "norm_label": ".exportriveridentity()"
     },
     {
@@ -17112,7 +17122,7 @@
       "source_location": "L4585",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getprivateroominvitelink",
-      "community": 61,
+      "community": 25,
       "norm_label": ".getprivateroominvitelink()"
     },
     {
@@ -17132,7 +17142,7 @@
       "source_location": "L4691",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_sendprivateroomchatmessage",
-      "community": 25,
+      "community": 98,
       "norm_label": ".sendprivateroomchatmessage()"
     },
     {
@@ -17142,7 +17152,7 @@
       "source_location": "L4763",
       "_origin": "ast",
       "id": "ui_src_freenet_freenetclient_getprivateroomchatmessages",
-      "community": 25,
+      "community": 144,
       "norm_label": ".getprivateroomchatmessages()"
     },
     {
@@ -17752,7 +17762,7 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "ui_src_freepolls_antecall",
-      "community": 59,
+      "community": 30,
       "norm_label": "antecall()"
     },
     {
@@ -18042,7 +18052,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ui_src_freetunes_id_re",
-      "community": 36,
+      "community": 94,
       "norm_label": "id_re"
     },
     {
@@ -18072,7 +18082,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "ui_src_freetunes_ftreleaseitem",
-      "community": 36,
+      "community": 107,
       "norm_label": "ftreleaseitem"
     },
     {
@@ -18162,7 +18172,7 @@
       "source_location": "L165",
       "_origin": "ast",
       "id": "ui_src_freetunes_freetunesreleasehref",
-      "community": 36,
+      "community": 107,
       "norm_label": "freetunesreleasehref()"
     },
     {
@@ -18172,7 +18182,7 @@
       "source_location": "L177",
       "_origin": "ast",
       "id": "ui_src_freetunes_freetuneslink",
-      "community": 42,
+      "community": 93,
       "norm_label": "freetuneslink()"
     },
     {
@@ -18182,7 +18192,7 @@
       "source_location": "L187",
       "_origin": "ast",
       "id": "ui_src_freetunes_releasetreeposts",
-      "community": 42,
+      "community": 146,
       "norm_label": "releasetreeposts()"
     },
     {
@@ -18202,7 +18212,7 @@
       "source_location": "L220",
       "_origin": "ast",
       "id": "ui_src_freetunes_freetunesartistlink",
-      "community": 36,
+      "community": 93,
       "norm_label": "freetunesartistlink()"
     },
     {
@@ -18242,7 +18252,7 @@
       "source_location": "L261",
       "_origin": "ast",
       "id": "ui_src_freetunes_freetunescard",
-      "community": 36,
+      "community": 122,
       "norm_label": "freetunescard()"
     },
     {
@@ -18392,7 +18402,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_ghostkey",
-      "community": 31,
+      "community": 143,
       "norm_label": "ghostkey.ts"
     },
     {
@@ -18402,7 +18412,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ui_src_ghostkey_ghostkey",
-      "community": 31,
+      "community": 143,
       "norm_label": "ghostkey()"
     },
     {
@@ -18412,7 +18422,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_src_ghostkey_checkghostkey",
-      "community": 31,
+      "community": 143,
       "norm_label": "checkghostkey()"
     },
     {
@@ -18422,7 +18432,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "ui_src_ghostkey_refusals",
-      "community": 31,
+      "community": 143,
       "norm_label": "refusals"
     },
     {
@@ -18432,7 +18442,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ui_src_ghostkey_requestghostkeyproof",
-      "community": 31,
+      "community": 143,
       "norm_label": "requestghostkeyproof()"
     },
     {
@@ -18442,7 +18452,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "ui_src_ghostkey_checked",
-      "community": 31,
+      "community": 143,
       "norm_label": "checked"
     },
     {
@@ -18452,7 +18462,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "ui_src_ghostkey_verifiedghostkeys",
-      "community": 31,
+      "community": 143,
       "norm_label": "verifiedghostkeys()"
     },
     {
@@ -18462,7 +18472,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_gifpicker",
-      "community": 93,
+      "community": 24,
       "norm_label": "gifpicker.ts"
     },
     {
@@ -18472,7 +18482,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_src_gifpicker_gifitem",
-      "community": 93,
+      "community": 24,
       "norm_label": "gifitem"
     },
     {
@@ -18482,7 +18492,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_gifpicker_curated_gifs",
-      "community": 93,
+      "community": 24,
       "norm_label": "curated_gifs"
     },
     {
@@ -18492,7 +18502,7 @@
       "source_location": "L234",
       "_origin": "ast",
       "id": "ui_src_gifpicker_opengifpicker",
-      "community": 93,
+      "community": 24,
       "norm_label": "opengifpicker()"
     },
     {
@@ -18502,7 +18512,7 @@
       "source_location": "L420",
       "_origin": "ast",
       "id": "ui_src_gifpicker_closegifpicker",
-      "community": 93,
+      "community": 24,
       "norm_label": "closegifpicker()"
     },
     {
@@ -18902,7 +18912,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_heavyassets",
-      "community": 94,
+      "community": 24,
       "norm_label": "heavyassets.ts"
     },
     {
@@ -18912,7 +18922,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "ui_src_heavyassets_heavyurl",
-      "community": 94,
+      "community": 24,
       "norm_label": "heavyurl()"
     },
     {
@@ -18922,7 +18932,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_heavyassets_heavyurlfor",
-      "community": 94,
+      "community": 24,
       "norm_label": "heavyurlfor()"
     },
     {
@@ -18932,7 +18942,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_html",
-      "community": 124,
+      "community": 93,
       "norm_label": "html.ts"
     },
     {
@@ -18962,7 +18972,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_html_shortenkey",
-      "community": 102,
+      "community": 93,
       "norm_label": "shortenkey()"
     },
     {
@@ -19162,7 +19172,7 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "ui_src_linfa_gains",
-      "community": 122,
+      "community": 140,
       "norm_label": "gains()"
     },
     {
@@ -19172,7 +19182,7 @@
       "source_location": "L103",
       "_origin": "ast",
       "id": "ui_src_linfa_linfaof",
-      "community": 122,
+      "community": 140,
       "norm_label": "linfaof()"
     },
     {
@@ -19322,7 +19332,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ui_src_logfold_ispostdeletedincommunity",
-      "community": 39,
+      "community": 28,
       "norm_label": "ispostdeletedincommunity()"
     },
     {
@@ -19352,7 +19362,7 @@
       "source_location": "L189",
       "_origin": "ast",
       "id": "ui_src_logfold_dedupechat",
-      "community": 39,
+      "community": 144,
       "norm_label": "dedupechat()"
     },
     {
@@ -22422,7 +22432,7 @@
       "source_location": "L514",
       "_origin": "ast",
       "id": "ui_src_main_hiddenusers",
-      "community": 28,
+      "community": 122,
       "norm_label": "hiddenusers()"
     },
     {
@@ -22432,7 +22442,7 @@
       "source_location": "L522",
       "_origin": "ast",
       "id": "ui_src_main_setuserhidden",
-      "community": 28,
+      "community": 122,
       "norm_label": "setuserhidden()"
     },
     {
@@ -22442,7 +22452,7 @@
       "source_location": "L527",
       "_origin": "ast",
       "id": "ui_src_main_savelist",
-      "community": 28,
+      "community": 122,
       "norm_label": "savelist()"
     },
     {
@@ -22472,7 +22482,7 @@
       "source_location": "L542",
       "_origin": "ast",
       "id": "ui_src_main_setwotmoderationenabled",
-      "community": 28,
+      "community": 122,
       "norm_label": "setwotmoderationenabled()"
     },
     {
@@ -22512,7 +22522,7 @@
       "source_location": "L555",
       "_origin": "ast",
       "id": "ui_src_main_ghostkeykey",
-      "community": 31,
+      "community": 143,
       "norm_label": "ghostkeykey()"
     },
     {
@@ -22562,7 +22572,7 @@
       "source_location": "L564",
       "_origin": "ast",
       "id": "ui_src_main_pohkey",
-      "community": 31,
+      "community": 143,
       "norm_label": "pohkey()"
     },
     {
@@ -22572,7 +22582,7 @@
       "source_location": "L565",
       "_origin": "ast",
       "id": "ui_src_main_githubpohbadgehtml",
-      "community": 122,
+      "community": 102,
       "norm_label": "githubpohbadgehtml()"
     },
     {
@@ -22582,7 +22592,7 @@
       "source_location": "L569",
       "_origin": "ast",
       "id": "ui_src_main_googlepohbadgehtml",
-      "community": 122,
+      "community": 102,
       "norm_label": "googlepohbadgehtml()"
     },
     {
@@ -22592,7 +22602,7 @@
       "source_location": "L573",
       "_origin": "ast",
       "id": "ui_src_main_pohproviderbadgeshtml",
-      "community": 122,
+      "community": 102,
       "norm_label": "pohproviderbadgeshtml()"
     },
     {
@@ -22642,7 +22652,7 @@
       "source_location": "L611",
       "_origin": "ast",
       "id": "ui_src_main_refreshsupporters",
-      "community": 31,
+      "community": 143,
       "norm_label": "refreshsupporters()"
     },
     {
@@ -22652,7 +22662,7 @@
       "source_location": "L703",
       "_origin": "ast",
       "id": "ui_src_main_amvouched",
-      "community": 31,
+      "community": 143,
       "norm_label": "amvouched()"
     },
     {
@@ -22672,7 +22682,7 @@
       "source_location": "L710",
       "_origin": "ast",
       "id": "ui_src_main_trustedcurators",
-      "community": 28,
+      "community": 122,
       "norm_label": "trustedcurators()"
     },
     {
@@ -22682,7 +22692,7 @@
       "source_location": "L722",
       "_origin": "ast",
       "id": "ui_src_main_setcuratortrusted",
-      "community": 28,
+      "community": 122,
       "norm_label": "setcuratortrusted()"
     },
     {
@@ -22732,7 +22742,7 @@
       "source_location": "L750",
       "_origin": "ast",
       "id": "ui_src_main_ishiddenauthor",
-      "community": 102,
+      "community": 122,
       "norm_label": "ishiddenauthor()"
     },
     {
@@ -22752,7 +22762,7 @@
       "source_location": "L789",
       "_origin": "ast",
       "id": "ui_src_main_hidebuttonhtml",
-      "community": 122,
+      "community": 102,
       "norm_label": "hidebuttonhtml()"
     },
     {
@@ -24362,7 +24372,7 @@
       "source_location": "L1474",
       "_origin": "ast",
       "id": "ui_src_main_updatepublishstate",
-      "community": 94,
+      "community": 24,
       "norm_label": "updatepublishstate()"
     },
     {
@@ -24392,7 +24402,7 @@
       "source_location": "L1562",
       "_origin": "ast",
       "id": "ui_src_main_stagemediafile",
-      "community": 94,
+      "community": 24,
       "norm_label": "stagemediafile()"
     },
     {
@@ -24472,7 +24482,7 @@
       "source_location": "L1717",
       "_origin": "ast",
       "id": "ui_src_main_renderwelcomesuggestions",
-      "community": 114,
+      "community": 122,
       "norm_label": "renderwelcomesuggestions()"
     },
     {
@@ -24492,7 +24502,7 @@
       "source_location": "L1796",
       "_origin": "ast",
       "id": "ui_src_main_networkcounts",
-      "community": 131,
+      "community": 114,
       "norm_label": "networkcounts()"
     },
     {
@@ -24532,7 +24542,7 @@
       "source_location": "L1826",
       "_origin": "ast",
       "id": "ui_src_main_checkmilestones",
-      "community": 131,
+      "community": 114,
       "norm_label": "checkmilestones()"
     },
     {
@@ -24552,7 +24562,7 @@
       "source_location": "L1887",
       "_origin": "ast",
       "id": "ui_src_main_renderblocklists",
-      "community": 28,
+      "community": 122,
       "norm_label": "renderblocklists()"
     },
     {
@@ -25172,7 +25182,7 @@
       "source_location": "L2869",
       "_origin": "ast",
       "id": "ui_src_main_moderationsets",
-      "community": 107,
+      "community": 34,
       "norm_label": "moderationsets"
     },
     {
@@ -25202,7 +25212,7 @@
       "source_location": "L2911",
       "_origin": "ast",
       "id": "ui_src_main_buildpostcardoptions",
-      "community": 35,
+      "community": 96,
       "norm_label": "buildpostcardoptions"
     },
     {
@@ -25442,7 +25452,7 @@
       "source_location": "L3973",
       "_origin": "ast",
       "id": "ui_src_main_starteditpost",
-      "community": 63,
+      "community": 28,
       "norm_label": "starteditpost()"
     },
     {
@@ -25572,7 +25582,7 @@
       "source_location": "L4140",
       "_origin": "ast",
       "id": "ui_src_main_stagerepost",
-      "community": 122,
+      "community": 140,
       "norm_label": "stagerepost()"
     },
     {
@@ -25642,7 +25652,7 @@
       "source_location": "L4577",
       "_origin": "ast",
       "id": "ui_src_main_paintcommentlikebutton",
-      "community": 122,
+      "community": 102,
       "norm_label": "paintcommentlikebutton()"
     },
     {
@@ -25762,7 +25772,7 @@
       "source_location": "L4866",
       "_origin": "ast",
       "id": "ui_src_main_reactionsbyhtml",
-      "community": 28,
+      "community": 122,
       "norm_label": "reactionsbyhtml()"
     },
     {
@@ -26472,7 +26482,7 @@
       "source_location": "L7091",
       "_origin": "ast",
       "id": "ui_src_main_withpageloading",
-      "community": 28,
+      "community": 122,
       "norm_label": "withpageloading()"
     },
     {
@@ -26532,7 +26542,7 @@
       "source_location": "L7296",
       "_origin": "ast",
       "id": "ui_src_main_reconcile",
-      "community": 121,
+      "community": 148,
       "norm_label": "reconcile()"
     },
     {
@@ -26852,7 +26862,7 @@
       "source_location": "L8956",
       "_origin": "ast",
       "id": "ui_src_main_sendactivechattext",
-      "community": 102,
+      "community": 28,
       "norm_label": "sendactivechattext()"
     },
     {
@@ -26942,7 +26952,7 @@
       "source_location": "L9878",
       "_origin": "ast",
       "id": "ui_src_main_opensharepostmodal",
-      "community": 28,
+      "community": 122,
       "norm_label": "opensharepostmodal()"
     },
     {
@@ -26992,7 +27002,7 @@
       "source_location": "L10227",
       "_origin": "ast",
       "id": "ui_src_main_updatenotifssoundbtn",
-      "community": 121,
+      "community": 147,
       "norm_label": "updatenotifssoundbtn()"
     },
     {
@@ -27022,7 +27032,7 @@
       "source_location": "L10251",
       "_origin": "ast",
       "id": "ui_src_main_toshell",
-      "community": 0,
+      "community": 28,
       "norm_label": "toshell()"
     },
     {
@@ -27042,7 +27052,7 @@
       "source_location": "L10263",
       "_origin": "ast",
       "id": "ui_src_main_alertunread",
-      "community": 0,
+      "community": 28,
       "norm_label": "alertunread()"
     },
     {
@@ -27102,7 +27112,7 @@
       "source_location": "L10347",
       "_origin": "ast",
       "id": "ui_src_main_updatenotificationsbadge",
-      "community": 0,
+      "community": 28,
       "norm_label": "updatenotificationsbadge()"
     },
     {
@@ -27122,7 +27132,7 @@
       "source_location": "L10369",
       "_origin": "ast",
       "id": "ui_src_main_rendertrending",
-      "community": 9,
+      "community": 114,
       "norm_label": "rendertrending()"
     },
     {
@@ -27132,7 +27142,7 @@
       "source_location": "L10388",
       "_origin": "ast",
       "id": "ui_src_main_settagfilter",
-      "community": 122,
+      "community": 114,
       "norm_label": "settagfilter()"
     },
     {
@@ -27192,7 +27202,7 @@
       "source_location": "L10857",
       "_origin": "ast",
       "id": "ui_src_main_updatescopebtnactive",
-      "community": 122,
+      "community": 114,
       "norm_label": "updatescopebtnactive()"
     },
     {
@@ -27492,7 +27502,7 @@
       "source_location": "L11554",
       "_origin": "ast",
       "id": "ui_src_main_loadmusicpage",
-      "community": 28,
+      "community": 122,
       "norm_label": "loadmusicpage()"
     },
     {
@@ -27572,7 +27582,7 @@
       "source_location": "L12127",
       "_origin": "ast",
       "id": "ui_src_main_showfeed",
-      "community": 122,
+      "community": 114,
       "norm_label": "showfeed()"
     },
     {
@@ -27602,7 +27612,7 @@
       "source_location": "L12206",
       "_origin": "ast",
       "id": "ui_src_main_switchtomypostsscope",
-      "community": 122,
+      "community": 114,
       "norm_label": "switchtomypostsscope()"
     },
     {
@@ -27702,7 +27712,7 @@
       "source_location": "L12329",
       "_origin": "ast",
       "id": "ui_src_main_applymaskbadwords",
-      "community": 9,
+      "community": 145,
       "norm_label": "applymaskbadwords()"
     },
     {
@@ -27792,7 +27802,7 @@
       "source_location": "L12449",
       "_origin": "ast",
       "id": "ui_src_main_renderidentitymodal",
-      "community": 114,
+      "community": 0,
       "norm_label": "renderidentitymodal()"
     },
     {
@@ -27802,7 +27812,7 @@
       "source_location": "L12523",
       "_origin": "ast",
       "id": "ui_src_main_openidentitymodal",
-      "community": 114,
+      "community": 0,
       "norm_label": "openidentitymodal()"
     },
     {
@@ -27812,7 +27822,7 @@
       "source_location": "L12530",
       "_origin": "ast",
       "id": "ui_src_main_opensettingsmodal",
-      "community": 121,
+      "community": 147,
       "norm_label": "opensettingsmodal()"
     },
     {
@@ -27952,7 +27962,7 @@
       "source_location": "L13727",
       "_origin": "ast",
       "id": "ui_src_main_handlesignout",
-      "community": 47,
+      "community": 149,
       "norm_label": "handlesignout()"
     },
     {
@@ -28052,7 +28062,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_src_media_mediahashof",
-      "community": 48,
+      "community": 136,
       "norm_label": "mediahashof()"
     },
     {
@@ -28132,7 +28142,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_mentionpicker",
-      "community": 9,
+      "community": 145,
       "norm_label": "mentionpicker.ts"
     },
     {
@@ -28142,7 +28152,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "ui_src_mentionpicker_person",
-      "community": 9,
+      "community": 145,
       "norm_label": "person"
     },
     {
@@ -28152,7 +28162,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_src_mentionpicker_namestokeys",
-      "community": 9,
+      "community": 145,
       "norm_label": "namestokeys()"
     },
     {
@@ -28162,7 +28172,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ui_src_mentionpicker_picked",
-      "community": 9,
+      "community": 145,
       "norm_label": "picked"
     },
     {
@@ -28172,7 +28182,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_mentionpicker_withmentionkeys",
-      "community": 9,
+      "community": 145,
       "norm_label": "withmentionkeys()"
     },
     {
@@ -28182,7 +28192,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "ui_src_mentionpicker_attachmentionpicker",
-      "community": 9,
+      "community": 145,
       "norm_label": "attachmentionpicker()"
     },
     {
@@ -28222,7 +28232,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "ui_src_messengerchat_messengeractivestate",
-      "community": 25,
+      "community": 144,
       "norm_label": "messengeractivestate"
     },
     {
@@ -28232,7 +28242,7 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "ui_src_messengerchat_messengerdeps",
-      "community": 101,
+      "community": 35,
       "norm_label": "messengerdeps"
     },
     {
@@ -28242,7 +28252,7 @@
       "source_location": "L119",
       "_origin": "ast",
       "id": "ui_src_messengerchat_unifiedconversation",
-      "community": 107,
+      "community": 35,
       "norm_label": "unifiedconversation"
     },
     {
@@ -28382,7 +28392,7 @@
       "source_location": "L261",
       "_origin": "ast",
       "id": "ui_src_messengerchat_createmessengerchat",
-      "community": 48,
+      "community": 101,
       "norm_label": "createmessengerchat()"
     },
     {
@@ -28642,7 +28652,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "ui_src_milestones_countsof",
-      "community": 131,
+      "community": 114,
       "norm_label": "countsof()"
     },
     {
@@ -28732,7 +28742,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_moderation",
-      "community": 94,
+      "community": 24,
       "norm_label": "moderation.ts"
     },
     {
@@ -28742,7 +28752,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_moderation_getmoderator",
-      "community": 94,
+      "community": 24,
       "norm_label": "getmoderator()"
     },
     {
@@ -28752,7 +28762,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "ui_src_moderation_imagemoderationresult",
-      "community": 94,
+      "community": 24,
       "norm_label": "imagemoderationresult"
     },
     {
@@ -28762,7 +28772,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "ui_src_moderation_analyzeimagefile",
-      "community": 94,
+      "community": 24,
       "norm_label": "analyzeimagefile()"
     },
     {
@@ -28772,7 +28782,7 @@
       "source_location": "L103",
       "_origin": "ast",
       "id": "ui_src_moderation_textcensorshipresult",
-      "community": 94,
+      "community": 24,
       "norm_label": "textcensorshipresult"
     },
     {
@@ -28782,7 +28792,7 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "ui_src_moderation_textmoderationresult",
-      "community": 94,
+      "community": 24,
       "norm_label": "textmoderationresult"
     },
     {
@@ -28792,7 +28802,7 @@
       "source_location": "L124",
       "_origin": "ast",
       "id": "ui_src_moderation_bad_words",
-      "community": 94,
+      "community": 24,
       "norm_label": "bad_words"
     },
     {
@@ -28802,7 +28812,7 @@
       "source_location": "L138",
       "_origin": "ast",
       "id": "ui_src_moderation_bad_words_re",
-      "community": 94,
+      "community": 24,
       "norm_label": "bad_words_re"
     },
     {
@@ -28812,7 +28822,7 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "ui_src_moderation_url_or_bad_re",
-      "community": 94,
+      "community": 24,
       "norm_label": "url_or_bad_re"
     },
     {
@@ -28822,7 +28832,7 @@
       "source_location": "L144",
       "_origin": "ast",
       "id": "ui_src_moderation_maskprofanity",
-      "community": 63,
+      "community": 24,
       "norm_label": "maskprofanity()"
     },
     {
@@ -28832,7 +28842,7 @@
       "source_location": "L148",
       "_origin": "ast",
       "id": "ui_src_moderation_personaldatain",
-      "community": 94,
+      "community": 24,
       "norm_label": "personaldatain()"
     },
     {
@@ -28842,7 +28852,7 @@
       "source_location": "L154",
       "_origin": "ast",
       "id": "ui_src_moderation_censortextandpii",
-      "community": 94,
+      "community": 24,
       "norm_label": "censortextandpii()"
     },
     {
@@ -28852,7 +28862,7 @@
       "source_location": "L231",
       "_origin": "ast",
       "id": "ui_src_moderation_analyzetextcontent",
-      "community": 94,
+      "community": 24,
       "norm_label": "analyzetextcontent()"
     },
     {
@@ -28862,7 +28872,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_musicpage",
-      "community": 36,
+      "community": 107,
       "norm_label": "musicpage.ts"
     },
     {
@@ -28872,7 +28882,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "ui_src_musicpage_musicpagedeps",
-      "community": 36,
+      "community": 107,
       "norm_label": "musicpagedeps"
     },
     {
@@ -28882,7 +28892,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "ui_src_musicpage_createmusicpage",
-      "community": 36,
+      "community": 107,
       "norm_label": "createmusicpage()"
     },
     {
@@ -29422,7 +29432,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "ui_src_orto_defaultnodeorigin",
-      "community": 85,
+      "community": 104,
       "norm_label": "defaultnodeorigin()"
     },
     {
@@ -29722,7 +29732,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_src_pow_powproof",
-      "community": 35,
+      "community": 96,
       "norm_label": "powproof"
     },
     {
@@ -30012,7 +30022,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "ui_src_reelsplayer_reelsplayerdeps",
-      "community": 11,
+      "community": 96,
       "norm_label": "reelsplayerdeps"
     },
     {
@@ -30042,7 +30052,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "ui_src_refresh_shouldfetch",
-      "community": 89,
+      "community": 16,
       "norm_label": "shouldfetch()"
     },
     {
@@ -30052,7 +30062,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "ui_src_refresh_change",
-      "community": 89,
+      "community": 16,
       "norm_label": "change"
     },
     {
@@ -30082,7 +30092,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_repost",
-      "community": 122,
+      "community": 140,
       "norm_label": "repost.ts"
     },
     {
@@ -30092,7 +30102,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_repost_repostref",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostref"
     },
     {
@@ -30102,7 +30112,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_repost_reposttext",
-      "community": 122,
+      "community": 140,
       "norm_label": "reposttext()"
     },
     {
@@ -30112,7 +30122,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ui_src_repost_repostlink",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostlink()"
     },
     {
@@ -30122,7 +30132,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "ui_src_repost_repostcaption",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostcaption()"
     },
     {
@@ -30132,7 +30142,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_repost_repostcountsof",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostcountsof()"
     },
     {
@@ -30142,7 +30152,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ui_src_repost_hasuserreposted",
-      "community": 122,
+      "community": 140,
       "norm_label": "hasuserreposted()"
     },
     {
@@ -30152,7 +30162,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "ui_src_repost_repostcard",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostcard()"
     },
     {
@@ -30162,7 +30172,7 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "ui_src_repost_repostview",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostview"
     },
     {
@@ -30172,7 +30182,7 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "ui_src_repost_repostbody",
-      "community": 122,
+      "community": 140,
       "norm_label": "repostbody()"
     },
     {
@@ -30222,7 +30232,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_river_loadjsonwasm",
-      "community": 31,
+      "community": 143,
       "norm_label": "loadjsonwasm()"
     },
     {
@@ -30242,7 +30252,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_riverpointer",
-      "community": 96,
+      "community": 103,
       "norm_label": "riverpointer.ts"
     },
     {
@@ -30252,7 +30262,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_riverpointer_zero",
-      "community": 96,
+      "community": 103,
       "norm_label": "zero"
     },
     {
@@ -30262,7 +30272,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "ui_src_riverpointer_instanceof",
-      "community": 96,
+      "community": 103,
       "norm_label": "instanceof()"
     },
     {
@@ -30272,7 +30282,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "ui_src_riverpointer_keyof",
-      "community": 96,
+      "community": 103,
       "norm_label": "keyof()"
     },
     {
@@ -30282,7 +30292,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "ui_src_riverpointer_pointerparams",
-      "community": 96,
+      "community": 103,
       "norm_label": "pointerparams()"
     },
     {
@@ -30292,7 +30302,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_riverpointer_pointerid",
-      "community": 96,
+      "community": 103,
       "norm_label": "pointerid()"
     },
     {
@@ -30302,7 +30312,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ui_src_riverpointer_pointerkey",
-      "community": 96,
+      "community": 103,
       "norm_label": "pointerkey()"
     },
     {
@@ -30322,7 +30332,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "ui_src_riverpointer_nextfloor",
-      "community": 96,
+      "community": 103,
       "norm_label": "nextfloor()"
     },
     {
@@ -30342,7 +30352,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "ui_src_riverpointer_anchorof",
-      "community": 96,
+      "community": 103,
       "norm_label": "anchorof()"
     },
     {
@@ -30352,7 +30362,7 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "ui_src_riverpointer_knownanchor",
-      "community": 96,
+      "community": 103,
       "norm_label": "knownanchor()"
     },
     {
@@ -30362,7 +30372,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "ui_src_riverpointer_resolveroomcontract",
-      "community": 96,
+      "community": 103,
       "norm_label": "resolveroomcontract()"
     },
     {
@@ -30372,7 +30382,7 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "ui_src_riverpointer_roomkey",
-      "community": 96,
+      "community": 103,
       "norm_label": "roomkey()"
     },
     {
@@ -30472,7 +30482,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "ui_src_riverrooms_vkof",
-      "community": 25,
+      "community": 98,
       "norm_label": "vkof()"
     },
     {
@@ -30532,7 +30542,7 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "ui_src_riverrooms_riverrooms_cached",
-      "community": 25,
+      "community": 98,
       "norm_label": ".cached()"
     },
     {
@@ -30632,7 +30642,7 @@
       "source_location": "L208",
       "_origin": "ast",
       "id": "ui_src_riverrooms_riverrooms_accept",
-      "community": 98,
+      "community": 25,
       "norm_label": ".accept()"
     },
     {
@@ -30722,7 +30732,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_roombackup",
-      "community": 89,
+      "community": 25,
       "norm_label": "roombackup.ts"
     },
     {
@@ -30732,7 +30742,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_src_roombackup_mergeroombackup",
-      "community": 89,
+      "community": 25,
       "norm_label": "mergeroombackup()"
     },
     {
@@ -30842,7 +30852,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_savedposts",
-      "community": 121,
+      "community": 148,
       "norm_label": "savedposts.ts"
     },
     {
@@ -30852,7 +30862,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "ui_src_savedposts_keyof",
-      "community": 121,
+      "community": 148,
       "norm_label": "keyof()"
     },
     {
@@ -30862,7 +30872,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "ui_src_savedposts_savedid",
-      "community": 121,
+      "community": 148,
       "norm_label": "savedid()"
     },
     {
@@ -30872,7 +30882,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "ui_src_savedposts_memo",
-      "community": 121,
+      "community": 148,
       "norm_label": "memo"
     },
     {
@@ -30882,7 +30892,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_savedposts_load",
-      "community": 121,
+      "community": 148,
       "norm_label": "load()"
     },
     {
@@ -30892,7 +30902,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "ui_src_savedposts_savedposts",
-      "community": 121,
+      "community": 148,
       "norm_label": "savedposts()"
     },
     {
@@ -30902,7 +30912,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "ui_src_savedposts_issaved",
-      "community": 121,
+      "community": 148,
       "norm_label": "issaved()"
     },
     {
@@ -30912,7 +30922,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ui_src_savedposts_togglesaved",
-      "community": 121,
+      "community": 148,
       "norm_label": "togglesaved()"
     },
     {
@@ -31022,7 +31032,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "ui_src_secretchat_issecretroomid",
-      "community": 26,
+      "community": 128,
       "norm_label": "issecretroomid()"
     },
     {
@@ -31032,7 +31042,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ui_src_secretchat_peerfromsecretroomid",
-      "community": 26,
+      "community": 128,
       "norm_label": "peerfromsecretroomid()"
     },
     {
@@ -32082,7 +32092,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_sound",
-      "community": 121,
+      "community": 147,
       "norm_label": "sound.ts"
     },
     {
@@ -32092,7 +32102,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_sound_getaudiocontext",
-      "community": 121,
+      "community": 147,
       "norm_label": "getaudiocontext()"
     },
     {
@@ -32102,7 +32112,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_sound_preloadpopsound",
-      "community": 121,
+      "community": 147,
       "norm_label": "preloadpopsound()"
     },
     {
@@ -32112,7 +32122,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "ui_src_sound_issoundenabled",
-      "community": 121,
+      "community": 147,
       "norm_label": "issoundenabled()"
     },
     {
@@ -32122,7 +32132,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "ui_src_sound_setsoundenabled",
-      "community": 121,
+      "community": 147,
       "norm_label": "setsoundenabled()"
     },
     {
@@ -32132,7 +32142,7 @@
       "source_location": "L81",
       "_origin": "ast",
       "id": "ui_src_sound_togglesoundenabled",
-      "community": 121,
+      "community": 147,
       "norm_label": "togglesoundenabled()"
     },
     {
@@ -32142,7 +32152,7 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "ui_src_sound_playbufferpop",
-      "community": 121,
+      "community": 147,
       "norm_label": "playbufferpop()"
     },
     {
@@ -32152,7 +32162,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "ui_src_sound_playsynthesizedpop",
-      "community": 121,
+      "community": 147,
       "norm_label": "playsynthesizedpop()"
     },
     {
@@ -32162,7 +32172,7 @@
       "source_location": "L154",
       "_origin": "ast",
       "id": "ui_src_sound_playpopsound",
-      "community": 121,
+      "community": 147,
       "norm_label": "playpopsound()"
     },
     {
@@ -32532,7 +32542,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_supporter",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporter.ts"
     },
     {
@@ -32542,7 +32552,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_supporter_enc",
-      "community": 31,
+      "community": 56,
       "norm_label": "enc"
     },
     {
@@ -32552,7 +32562,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_supporter_dec",
-      "community": 31,
+      "community": 56,
       "norm_label": "dec"
     },
     {
@@ -32572,7 +32582,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_src_supporter_supportedchain",
-      "community": 31,
+      "community": 56,
       "norm_label": "supportedchain"
     },
     {
@@ -32582,7 +32592,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "ui_src_supporter_supporterreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporterreceipt"
     },
     {
@@ -32592,7 +32602,7 @@
       "source_location": "L287",
       "_origin": "ast",
       "id": "ui_src_supporter_supporterbadge",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporterbadge"
     },
     {
@@ -32602,7 +32612,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "ui_src_supporter_receipt_issuers",
-      "community": 31,
+      "community": 56,
       "norm_label": "receipt_issuers"
     },
     {
@@ -32612,7 +32622,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "ui_src_supporter_receiptmessage",
-      "community": 31,
+      "community": 56,
       "norm_label": "receiptmessage()"
     },
     {
@@ -32622,7 +32632,7 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "ui_src_supporter_tobase64",
-      "community": 31,
+      "community": 56,
       "norm_label": "tobase64()"
     },
     {
@@ -32632,7 +32642,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "ui_src_supporter_frombase64",
-      "community": 31,
+      "community": 56,
       "norm_label": "frombase64()"
     },
     {
@@ -32642,7 +32652,7 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "ui_src_supporter_serializereceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "serializereceipt()"
     },
     {
@@ -32652,7 +32662,7 @@
       "source_location": "L89",
       "_origin": "ast",
       "id": "ui_src_supporter_parsereceipttoken",
-      "community": 31,
+      "community": 56,
       "norm_label": "parsereceipttoken()"
     },
     {
@@ -32662,7 +32672,7 @@
       "source_location": "L131",
       "_origin": "ast",
       "id": "ui_src_supporter_issuereceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "issuereceipt()"
     },
     {
@@ -32672,7 +32682,7 @@
       "source_location": "L161",
       "_origin": "ast",
       "id": "ui_src_supporter_verifiedreceiptcache",
-      "community": 31,
+      "community": 56,
       "norm_label": "verifiedreceiptcache"
     },
     {
@@ -32682,7 +32692,7 @@
       "source_location": "L167",
       "_origin": "ast",
       "id": "ui_src_supporter_verifyreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "verifyreceipt()"
     },
     {
@@ -32692,7 +32702,7 @@
       "source_location": "L228",
       "_origin": "ast",
       "id": "ui_src_supporter_foldsupporters",
-      "community": 31,
+      "community": 56,
       "norm_label": "foldsupporters()"
     },
     {
@@ -32702,7 +32712,7 @@
       "source_location": "L245",
       "_origin": "ast",
       "id": "ui_src_supporter_supporterstoragekey",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporterstoragekey()"
     },
     {
@@ -32712,7 +32722,7 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "ui_src_supporter_getstoredreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "getstoredreceipt()"
     },
     {
@@ -32722,7 +32732,7 @@
       "source_location": "L260",
       "_origin": "ast",
       "id": "ui_src_supporter_removedreceiptskey",
-      "community": 31,
+      "community": 56,
       "norm_label": "removedreceiptskey()"
     },
     {
@@ -32732,7 +32742,7 @@
       "source_location": "L261",
       "_origin": "ast",
       "id": "ui_src_supporter_removedreceipts",
-      "community": 31,
+      "community": 56,
       "norm_label": "removedreceipts()"
     },
     {
@@ -32742,7 +32752,7 @@
       "source_location": "L268",
       "_origin": "ast",
       "id": "ui_src_supporter_isreceiptremoved",
-      "community": 31,
+      "community": 56,
       "norm_label": "isreceiptremoved()"
     },
     {
@@ -32752,7 +32762,7 @@
       "source_location": "L270",
       "_origin": "ast",
       "id": "ui_src_supporter_unremovereceipts",
-      "community": 31,
+      "community": 56,
       "norm_label": "unremovereceipts()"
     },
     {
@@ -32762,7 +32772,7 @@
       "source_location": "L273",
       "_origin": "ast",
       "id": "ui_src_supporter_savestoredreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "savestoredreceipt()"
     },
     {
@@ -32772,7 +32782,7 @@
       "source_location": "L279",
       "_origin": "ast",
       "id": "ui_src_supporter_clearstoredreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "clearstoredreceipt()"
     },
     {
@@ -32782,7 +32792,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_supporterpanel",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporterpanel.ts"
     },
     {
@@ -32792,7 +32802,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_whoami",
-      "community": 31,
+      "community": 56,
       "norm_label": "whoami()"
     },
     {
@@ -32802,7 +32812,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_displayname",
-      "community": 31,
+      "community": 56,
       "norm_label": "displayname()"
     },
     {
@@ -32812,7 +32822,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_onbadgechange",
-      "community": 31,
+      "community": 56,
       "norm_label": "onbadgechange()"
     },
     {
@@ -32822,7 +32832,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_ghostkeykey",
-      "community": 31,
+      "community": 56,
       "norm_label": "ghostkeykey()"
     },
     {
@@ -32832,7 +32842,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_pohkey",
-      "community": 31,
+      "community": 56,
       "norm_label": "pohkey()"
     },
     {
@@ -32842,7 +32852,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_delegationkey",
-      "community": 31,
+      "community": 56,
       "norm_label": "delegationkey()"
     },
     {
@@ -32852,7 +32862,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_renderghostkeystatus",
-      "community": 31,
+      "community": 56,
       "norm_label": "renderghostkeystatus()"
     },
     {
@@ -32862,7 +32872,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_renderpohstatus",
-      "community": 31,
+      "community": 56,
       "norm_label": "renderpohstatus()"
     },
     {
@@ -32872,7 +32882,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_renderdelegationstatus",
-      "community": 31,
+      "community": 56,
       "norm_label": "renderdelegationstatus()"
     },
     {
@@ -32882,7 +32892,7 @@
       "source_location": "L88",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_rendersupporterstatus",
-      "community": 31,
+      "community": 56,
       "norm_label": "rendersupporterstatus()"
     },
     {
@@ -32892,7 +32902,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_adoptattestedreceipt",
-      "community": 31,
+      "community": 56,
       "norm_label": "adoptattestedreceipt()"
     },
     {
@@ -32902,7 +32912,7 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_awaitattestation",
-      "community": 31,
+      "community": 56,
       "norm_label": "awaitattestation()"
     },
     {
@@ -32912,7 +32922,7 @@
       "source_location": "L159",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_rendersupporterwall",
-      "community": 31,
+      "community": 56,
       "norm_label": "rendersupporterwall()"
     },
     {
@@ -32922,7 +32932,7 @@
       "source_location": "L194",
       "_origin": "ast",
       "id": "ui_src_supporterpanel_initsupporterpanel",
-      "community": 31,
+      "community": 56,
       "norm_label": "initsupporterpanel()"
     },
     {
@@ -33142,7 +33152,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_treegraph",
-      "community": 42,
+      "community": 93,
       "norm_label": "treegraph.ts"
     },
     {
@@ -33172,7 +33182,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_treegraph_treepeerinput",
-      "community": 42,
+      "community": 146,
       "norm_label": "treepeerinput"
     },
     {
@@ -33182,7 +33192,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "ui_src_treegraph_treestageinfo",
-      "community": 42,
+      "community": 93,
       "norm_label": "treestageinfo"
     },
     {
@@ -33192,7 +33202,7 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "ui_src_treegraph_treeboughnode",
-      "community": 42,
+      "community": 93,
       "norm_label": "treeboughnode"
     },
     {
@@ -33202,7 +33212,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "ui_src_treegraph_treecommentleafnode",
-      "community": 42,
+      "community": 93,
       "norm_label": "treecommentleafnode"
     },
     {
@@ -33212,7 +33222,7 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "ui_src_treegraph_treepostbranchnode",
-      "community": 42,
+      "community": 93,
       "norm_label": "treepostbranchnode"
     },
     {
@@ -33222,7 +33232,7 @@
       "source_location": "L97",
       "_origin": "ast",
       "id": "ui_src_treegraph_treerootnode",
-      "community": 42,
+      "community": 93,
       "norm_label": "treerootnode"
     },
     {
@@ -33252,7 +33262,7 @@
       "source_location": "L144",
       "_origin": "ast",
       "id": "ui_src_treegraph_buildtreegraphinput",
-      "community": 42,
+      "community": 96,
       "norm_label": "buildtreegraphinput"
     },
     {
@@ -33262,7 +33272,7 @@
       "source_location": "L168",
       "_origin": "ast",
       "id": "ui_src_treegraph_tree_stages",
-      "community": 42,
+      "community": 93,
       "norm_label": "tree_stages"
     },
     {
@@ -33272,7 +33282,7 @@
       "source_location": "L177",
       "_origin": "ast",
       "id": "ui_src_treegraph_category_boughs",
-      "community": 42,
+      "community": 93,
       "norm_label": "category_boughs"
     },
     {
@@ -33282,7 +33292,7 @@
       "source_location": "L182",
       "_origin": "ast",
       "id": "ui_src_treegraph_article_bough",
-      "community": 42,
+      "community": 93,
       "norm_label": "article_bough"
     },
     {
@@ -33292,7 +33302,7 @@
       "source_location": "L183",
       "_origin": "ast",
       "id": "ui_src_treegraph_music_bough",
-      "community": 42,
+      "community": 93,
       "norm_label": "music_bough"
     },
     {
@@ -33302,7 +33312,7 @@
       "source_location": "L185",
       "_origin": "ast",
       "id": "ui_src_treegraph_clamp",
-      "community": 42,
+      "community": 93,
       "norm_label": "clamp()"
     },
     {
@@ -33312,7 +33322,7 @@
       "source_location": "L186",
       "_origin": "ast",
       "id": "ui_src_treegraph_round1",
-      "community": 42,
+      "community": 93,
       "norm_label": "round1()"
     },
     {
@@ -33322,7 +33332,7 @@
       "source_location": "L187",
       "_origin": "ast",
       "id": "ui_src_treegraph_cut",
-      "community": 42,
+      "community": 93,
       "norm_label": "cut()"
     },
     {
@@ -33332,7 +33342,7 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "ui_src_treegraph_mulberry32",
-      "community": 42,
+      "community": 93,
       "norm_label": "mulberry32()"
     },
     {
@@ -33342,7 +33352,7 @@
       "source_location": "L202",
       "_origin": "ast",
       "id": "ui_src_treegraph_quadpoint",
-      "community": 42,
+      "community": 93,
       "norm_label": "quadpoint()"
     },
     {
@@ -33352,7 +33362,7 @@
       "source_location": "L211",
       "_origin": "ast",
       "id": "ui_src_treegraph_computenetworktreestage",
-      "community": 42,
+      "community": 93,
       "norm_label": "computenetworktreestage()"
     },
     {
@@ -33362,7 +33372,7 @@
       "source_location": "L252",
       "_origin": "ast",
       "id": "ui_src_treegraph_leaft",
-      "community": 42,
+      "community": 93,
       "norm_label": "leaft()"
     },
     {
@@ -33372,7 +33382,7 @@
       "source_location": "L254",
       "_origin": "ast",
       "id": "ui_src_treegraph_leafsvgpath",
-      "community": 42,
+      "community": 93,
       "norm_label": "leafsvgpath()"
     },
     {
@@ -33382,7 +33392,7 @@
       "source_location": "L259",
       "_origin": "ast",
       "id": "ui_src_treegraph_buildtreegraph",
-      "community": 42,
+      "community": 93,
       "norm_label": "buildtreegraph()"
     },
     {
@@ -33392,7 +33402,7 @@
       "source_location": "L841",
       "_origin": "ast",
       "id": "ui_src_treegraph_spreadpostends",
-      "community": 42,
+      "community": 93,
       "norm_label": "spreadpostends()"
     },
     {
@@ -33422,7 +33432,7 @@
       "source_location": "L905",
       "_origin": "ast",
       "id": "ui_src_treegraph_rendertreesvg",
-      "community": 42,
+      "community": 93,
       "norm_label": "rendertreesvg()"
     },
     {
@@ -33432,7 +33442,7 @@
       "source_location": "L1123",
       "_origin": "ast",
       "id": "ui_src_treegraph_rendertreeinspectorhtml",
-      "community": 102,
+      "community": 93,
       "norm_label": "rendertreeinspectorhtml()"
     },
     {
@@ -33452,7 +33462,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ui_src_treepage_treepagedeps",
-      "community": 42,
+      "community": 146,
       "norm_label": "treepagedeps"
     },
     {
@@ -33752,7 +33762,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_types",
-      "community": 89,
+      "community": 96,
       "norm_label": "types.ts"
     },
     {
@@ -33762,7 +33772,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "ui_src_types_postcategory",
-      "community": 42,
+      "community": 93,
       "norm_label": "postcategory"
     },
     {
@@ -33772,7 +33782,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_src_types_profileinfo",
-      "community": 89,
+      "community": 35,
       "norm_label": "profileinfo"
     },
     {
@@ -33782,7 +33792,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "ui_src_types_comment",
-      "community": 35,
+      "community": 96,
       "norm_label": "comment"
     },
     {
@@ -33792,7 +33802,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "ui_src_types_like",
-      "community": 89,
+      "community": 96,
       "norm_label": "like"
     },
     {
@@ -33802,7 +33812,7 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "ui_src_types_post",
-      "community": 35,
+      "community": 96,
       "norm_label": "post"
     },
     {
@@ -33812,7 +33822,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "ui_src_types_radica_default_mods",
-      "community": 89,
+      "community": 96,
       "norm_label": "radica_default_mods"
     },
     {
@@ -33832,7 +33842,7 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "ui_src_types_community",
-      "community": 107,
+      "community": 35,
       "norm_label": "community"
     },
     {
@@ -33842,7 +33852,7 @@
       "source_location": "L85",
       "_origin": "ast",
       "id": "ui_src_types_feedstate",
-      "community": 89,
+      "community": 96,
       "norm_label": "feedstate"
     },
     {
@@ -33862,7 +33872,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "ui_src_types_useridentity",
-      "community": 25,
+      "community": 35,
       "norm_label": "useridentity"
     },
     {
@@ -33872,7 +33882,7 @@
       "source_location": "L111",
       "_origin": "ast",
       "id": "ui_src_types_chatmessage",
-      "community": 25,
+      "community": 144,
       "norm_label": "chatmessage"
     },
     {
@@ -33902,7 +33912,7 @@
       "source_location": "L172",
       "_origin": "ast",
       "id": "ui_src_types_roomstate",
-      "community": 89,
+      "community": 96,
       "norm_label": "roomstate"
     },
     {
@@ -33942,7 +33952,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_versioncheck",
-      "community": 47,
+      "community": 149,
       "norm_label": "versioncheck.ts"
     },
     {
@@ -33952,7 +33962,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_versioncheck_shortnote",
-      "community": 47,
+      "community": 149,
       "norm_label": "shortnote()"
     },
     {
@@ -33962,7 +33972,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ui_src_versioncheck_newnotes",
-      "community": 47,
+      "community": 149,
       "norm_label": "newnotes()"
     },
     {
@@ -33972,7 +33982,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "ui_src_versioncheck_showreloadmodal",
-      "community": 47,
+      "community": 149,
       "norm_label": "showreloadmodal()"
     },
     {
@@ -33982,7 +33992,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "ui_src_versioncheck_check",
-      "community": 47,
+      "community": 149,
       "norm_label": "check()"
     },
     {
@@ -33992,7 +34002,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "ui_src_versioncheck_startversioncheck",
-      "community": 47,
+      "community": 149,
       "norm_label": "startversioncheck()"
     },
     {
@@ -34072,7 +34082,7 @@
       "source_location": "L95",
       "_origin": "ast",
       "id": "ui_src_video_publishvideo",
-      "community": 48,
+      "community": 136,
       "norm_label": "publishvideo()"
     },
     {
@@ -34202,7 +34212,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ui_src_viso_visoghostkeyof",
-      "community": 59,
+      "community": 30,
       "norm_label": "visoghostkeyof()"
     },
     {
@@ -34272,7 +34282,7 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "ui_src_viso_visopohrawof",
-      "community": 59,
+      "community": 30,
       "norm_label": "visopohrawof()"
     },
     {
@@ -34282,7 +34292,7 @@
       "source_location": "L111",
       "_origin": "ast",
       "id": "ui_src_viso_verifyvisopoh",
-      "community": 59,
+      "community": 30,
       "norm_label": "verifyvisopoh()"
     },
     {
@@ -34292,7 +34302,7 @@
       "source_location": "L141",
       "_origin": "ast",
       "id": "ui_src_viso_visopohof",
-      "community": 59,
+      "community": 30,
       "norm_label": "visopohof()"
     },
     {
@@ -34302,7 +34312,7 @@
       "source_location": "L165",
       "_origin": "ast",
       "id": "ui_src_viso_pohlogentry",
-      "community": 10,
+      "community": 151,
       "norm_label": "pohlogentry"
     },
     {
@@ -34382,7 +34392,7 @@
       "source_location": "L233",
       "_origin": "ast",
       "id": "ui_src_viso_isdelegationproofshape",
-      "community": 10,
+      "community": 151,
       "norm_label": "isdelegationproofshape()"
     },
     {
@@ -34432,7 +34442,7 @@
       "source_location": "L325",
       "_origin": "ast",
       "id": "ui_src_viso_serializestoredpoh",
-      "community": 31,
+      "community": 143,
       "norm_label": "serializestoredpoh()"
     },
     {
@@ -34482,7 +34492,7 @@
       "source_location": "L404",
       "_origin": "ast",
       "id": "ui_src_viso_verifiedpohs",
-      "community": 30,
+      "community": 31,
       "norm_label": "verifiedpohs()"
     },
     {
@@ -34542,7 +34552,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_src_visoseal",
-      "community": 121,
+      "community": 150,
       "norm_label": "visoseal.ts"
     },
     {
@@ -34552,7 +34562,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_src_visoseal_info",
-      "community": 121,
+      "community": 150,
       "norm_label": "info"
     },
     {
@@ -34562,7 +34572,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_src_visoseal_hex",
-      "community": 121,
+      "community": 150,
       "norm_label": "hex()"
     },
     {
@@ -34572,7 +34582,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_src_visoseal_unhex",
-      "community": 121,
+      "community": 150,
       "norm_label": "unhex()"
     },
     {
@@ -34582,7 +34592,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ui_src_visoseal_newepk",
-      "community": 121,
+      "community": 150,
       "norm_label": "newepk()"
     },
     {
@@ -34592,7 +34602,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_src_visoseal_openesk",
-      "community": 121,
+      "community": 150,
       "norm_label": "openesk()"
     },
     {
@@ -34712,7 +34722,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_whoiam_personaname",
-      "community": 36,
+      "community": 94,
       "norm_label": "personaname()"
     },
     {
@@ -34812,7 +34822,7 @@
       "source_location": "L134",
       "_origin": "ast",
       "id": "ui_src_whoiam_apppath",
-      "community": 43,
+      "community": 61,
       "norm_label": "apppath()"
     },
     {
@@ -34882,7 +34892,7 @@
       "source_location": "L338",
       "_origin": "ast",
       "id": "ui_src_whoiam_localidentitykey",
-      "community": 114,
+      "community": 43,
       "norm_label": "localidentitykey()"
     },
     {
@@ -34902,24 +34912,24 @@
       "source_location": "L354",
       "_origin": "ast",
       "id": "ui_src_whoiam_signout",
-      "community": 47,
+      "community": 149,
       "norm_label": "signout()"
     },
     {
       "label": "restart()",
       "file_type": "code",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L365",
+      "source_location": "L370",
       "_origin": "ast",
       "id": "ui_src_whoiam_restart",
-      "community": 47,
+      "community": 149,
       "norm_label": "restart()"
     },
     {
       "label": "goTo()",
       "file_type": "code",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L368",
+      "source_location": "L373",
       "_origin": "ast",
       "id": "ui_src_whoiam_goto",
       "community": 63,
@@ -35092,7 +35102,7 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "ui_src_wot_weboftrust_istrusted",
-      "community": 28,
+      "community": 54,
       "norm_label": ".istrusted()"
     },
     {
@@ -35222,7 +35232,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_audioplayer_test",
-      "community": 36,
+      "community": 107,
       "norm_label": "audioplayer.test.ts"
     },
     {
@@ -35232,7 +35242,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_tests_audioplayer_test_tracka",
-      "community": 36,
+      "community": 107,
       "norm_label": "tracka"
     },
     {
@@ -35242,7 +35252,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ui_tests_audioplayer_test_trackb",
-      "community": 36,
+      "community": 107,
       "norm_label": "trackb"
     },
     {
@@ -35272,7 +35282,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_caption_test",
-      "community": 9,
+      "community": 145,
       "norm_label": "caption.test.ts"
     },
     {
@@ -35282,7 +35292,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_chatmedia_test",
-      "community": 48,
+      "community": 136,
       "norm_label": "chatmedia.test.ts"
     },
     {
@@ -35292,7 +35302,7 @@
       "source_location": "L346",
       "_origin": "ast",
       "id": "ui_tests_chatmedia_test_appendchild",
-      "community": 48,
+      "community": 136,
       "norm_label": "appendchild()"
     },
     {
@@ -35302,7 +35312,7 @@
       "source_location": "L357",
       "_origin": "ast",
       "id": "ui_tests_chatmedia_test_getelementbyid",
-      "community": 48,
+      "community": 136,
       "norm_label": "getelementbyid()"
     },
     {
@@ -35312,7 +35322,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_commenthistory_test",
-      "community": 35,
+      "community": 96,
       "norm_label": "commenthistory.test.ts"
     },
     {
@@ -35322,7 +35332,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_tests_commenthistory_test_pk",
-      "community": 35,
+      "community": 96,
       "norm_label": "pk()"
     },
     {
@@ -35332,7 +35342,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_tests_commenthistory_test_me_bob_eve",
-      "community": 35,
+      "community": 96,
       "norm_label": "[me, bob, eve]"
     },
     {
@@ -35342,7 +35352,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_tests_commenthistory_test_post",
-      "community": 35,
+      "community": 96,
       "norm_label": "post()"
     },
     {
@@ -35562,7 +35572,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_durable_test",
-      "community": 121,
+      "community": 138,
       "norm_label": "durable.test.ts"
     },
     {
@@ -35572,7 +35582,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "ui_tests_durable_test_memstore",
-      "community": 121,
+      "community": 138,
       "norm_label": "memstore()"
     },
     {
@@ -35582,7 +35592,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ui_tests_durable_test_memnode",
-      "community": 121,
+      "community": 138,
       "norm_label": "memnode()"
     },
     {
@@ -35642,7 +35652,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_feedmerge_test",
-      "community": 89,
+      "community": 96,
       "norm_label": "feedmerge.test.ts"
     },
     {
@@ -35652,7 +35662,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_tests_feedmerge_test_post",
-      "community": 89,
+      "community": 96,
       "norm_label": "post()"
     },
     {
@@ -35682,7 +35692,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_fh_test",
-      "community": 36,
+      "community": 94,
       "norm_label": "fh.test.ts"
     },
     {
@@ -35692,7 +35702,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_tests_fh_test_persona_b58",
-      "community": 36,
+      "community": 94,
       "norm_label": "persona_b58"
     },
     {
@@ -35832,7 +35842,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_ghostkey_test",
-      "community": 31,
+      "community": 143,
       "norm_label": "ghostkey.test.ts"
     },
     {
@@ -35842,7 +35852,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "ui_tests_ghostkey_test_wasm",
-      "community": 31,
+      "community": 143,
       "norm_label": "wasm()"
     },
     {
@@ -35892,7 +35902,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_heavyassets_test",
-      "community": 94,
+      "community": 24,
       "norm_label": "heavyassets.test.ts"
     },
     {
@@ -35902,7 +35912,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_tests_heavyassets_test_keys",
-      "community": 94,
+      "community": 24,
       "norm_label": "keys"
     },
     {
@@ -35912,7 +35922,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_html_test",
-      "community": 122,
+      "community": 93,
       "norm_label": "html.test.ts"
     },
     {
@@ -36112,7 +36122,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_moderation_test",
-      "community": 94,
+      "community": 24,
       "norm_label": "moderation.test.ts"
     },
     {
@@ -36152,7 +36162,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "ui_tests_nativerooms_test_makeidentity",
-      "community": 61,
+      "community": 94,
       "norm_label": "makeidentity()"
     },
     {
@@ -36332,7 +36342,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_repost_test",
-      "community": 122,
+      "community": 140,
       "norm_label": "repost.test.ts"
     },
     {
@@ -36342,7 +36352,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_tests_repost_test_author",
-      "community": 122,
+      "community": 140,
       "norm_label": "author"
     },
     {
@@ -36352,7 +36362,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_tests_repost_test_ref",
-      "community": 122,
+      "community": 140,
       "norm_label": "ref"
     },
     {
@@ -36382,7 +36392,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_riverpointer_test",
-      "community": 96,
+      "community": 103,
       "norm_label": "riverpointer.test.ts"
     },
     {
@@ -36422,7 +36432,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_roombackup_test",
-      "community": 89,
+      "community": 25,
       "norm_label": "roombackup.test.ts"
     },
     {
@@ -36432,7 +36442,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "ui_tests_roombackup_test_room",
-      "community": 25,
+      "community": 98,
       "norm_label": "room()"
     },
     {
@@ -36462,7 +36472,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_savedposts_test",
-      "community": 121,
+      "community": 148,
       "norm_label": "savedposts.test.ts"
     },
     {
@@ -36472,7 +36482,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "ui_tests_savedposts_test_post",
-      "community": 121,
+      "community": 148,
       "norm_label": "post()"
     },
     {
@@ -36632,7 +36642,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_sound_test",
-      "community": 121,
+      "community": 147,
       "norm_label": "sound.test.ts"
     },
     {
@@ -36682,7 +36692,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_supporter_test",
-      "community": 31,
+      "community": 56,
       "norm_label": "supporter.test.ts"
     },
     {
@@ -36802,7 +36812,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test",
-      "community": 42,
+      "community": 146,
       "norm_label": "treegraph.test.ts"
     },
     {
@@ -36812,7 +36822,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_me",
-      "community": 42,
+      "community": 146,
       "norm_label": "me"
     },
     {
@@ -36822,7 +36832,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_alice",
-      "community": 42,
+      "community": 146,
       "norm_label": "alice"
     },
     {
@@ -36832,7 +36842,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_bob",
-      "community": 42,
+      "community": 146,
       "norm_label": "bob"
     },
     {
@@ -36842,7 +36852,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_stranger",
-      "community": 42,
+      "community": 146,
       "norm_label": "stranger"
     },
     {
@@ -36852,7 +36862,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_makepost",
-      "community": 42,
+      "community": 146,
       "norm_label": "makepost()"
     },
     {
@@ -36862,7 +36872,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_comm",
-      "community": 42,
+      "community": 146,
       "norm_label": "comm"
     },
     {
@@ -36872,7 +36882,7 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_peers",
-      "community": 42,
+      "community": 146,
       "norm_label": "peers"
     },
     {
@@ -36882,7 +36892,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "ui_tests_treegraph_test_posts",
-      "community": 42,
+      "community": 146,
       "norm_label": "posts"
     },
     {
@@ -36922,7 +36932,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_versioncheck_test",
-      "community": 47,
+      "community": 149,
       "norm_label": "versioncheck.test.ts"
     },
     {
@@ -36962,7 +36972,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ui_tests_visoseal_test",
-      "community": 121,
+      "community": 150,
       "norm_label": "visoseal.test.ts"
     },
     {
@@ -36972,7 +36982,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "ui_tests_visoseal_test_hex",
-      "community": 121,
+      "community": 150,
       "norm_label": "hex()"
     },
     {
@@ -36982,7 +36992,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "ui_tests_visoseal_test_un",
-      "community": 121,
+      "community": 150,
       "norm_label": "un()"
     },
     {
@@ -36992,7 +37002,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "ui_tests_visoseal_test_seal",
-      "community": 121,
+      "community": 150,
       "norm_label": "seal()"
     },
     {
@@ -38782,7 +38792,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "ui_src_wormhole_wormhole_site",
-      "community": 104,
+      "community": 69,
       "norm_label": "wormhole_site"
     },
     {
@@ -38792,7 +38802,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ui_src_wormhole_wormhole_repo",
-      "community": 104,
+      "community": 69,
       "norm_label": "wormhole_repo"
     },
     {
@@ -45955,7 +45965,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L335",
+      "source_location": "L342",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_core_signentry",
@@ -45966,7 +45976,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L370",
+      "source_location": "L377",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_core_signentry",
@@ -45977,7 +45987,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L481",
+      "source_location": "L488",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_core_signentry",
@@ -45988,7 +45998,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L250",
+      "source_location": "L257",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_core_signentry",
@@ -46021,7 +46031,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L249",
+      "source_location": "L256",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_core_issuereceipt",
@@ -46087,7 +46097,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L235",
+      "source_location": "L242",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_core_judgeclaim",
@@ -46501,7 +46511,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L529",
+      "source_location": "L536",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_livereleases",
@@ -46534,7 +46544,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L537",
+      "source_location": "L544",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_tracktitles",
@@ -46578,7 +46588,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L547",
+      "source_location": "L554",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_mburl",
@@ -46611,7 +46621,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L549",
+      "source_location": "L556",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_mbmatch",
@@ -46644,7 +46654,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L564",
+      "source_location": "L571",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_reportof",
@@ -46864,7 +46874,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L564",
+      "source_location": "L571",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_freetunes_reportdelta",
@@ -46874,7 +46884,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L206",
+      "source_location": "L213",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_append",
@@ -46884,7 +46894,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L282",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_askmodel",
@@ -46894,7 +46904,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L272",
+      "source_location": "L279",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_askraw",
@@ -46904,7 +46914,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L577",
+      "source_location": "L584",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_attesterpk",
@@ -46914,7 +46924,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L300",
+      "source_location": "L307",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_chatmodpass",
@@ -46924,7 +46934,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L98",
+      "source_location": "L105",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_code",
@@ -46934,7 +46944,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L99",
+      "source_location": "L106",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_codehash",
@@ -46944,7 +46954,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L103",
+      "source_location": "L110",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_connect",
@@ -46954,7 +46964,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L116",
+      "source_location": "L123",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_feedcode",
@@ -46964,7 +46974,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L117",
+      "source_location": "L124",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_feedhash",
@@ -46974,7 +46984,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L119",
+      "source_location": "L126",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_feedkey",
@@ -46984,7 +46994,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L118",
+      "source_location": "L125",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_feedparams",
@@ -47024,7 +47034,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L511",
+      "source_location": "L518",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_ftfile",
@@ -47034,7 +47044,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L522",
+      "source_location": "L529",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_ftpass",
@@ -47044,7 +47054,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L195",
+      "source_location": "L202",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_getentries",
@@ -47054,7 +47064,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L185",
+      "source_location": "L192",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_getfeed",
@@ -47064,7 +47074,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L515",
+      "source_location": "L522",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_getft",
@@ -47084,7 +47094,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L357",
+      "source_location": "L364",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_ghfetch",
@@ -47094,7 +47104,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L284",
+      "source_location": "L291",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_globalprotectedset",
@@ -47104,7 +47114,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L365",
+      "source_location": "L372",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_greenhousepass",
@@ -47114,7 +47124,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L129",
+      "source_location": "L136",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_keyfor",
@@ -47124,7 +47134,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L101",
+      "source_location": "L108",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_keyof",
@@ -47134,7 +47144,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L151",
+      "source_location": "L158",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_legacyof",
@@ -47154,7 +47164,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L266",
+      "source_location": "L273",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_loadmod",
@@ -47164,7 +47174,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L75",
+      "source_location": "L82",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_loadstate",
@@ -47204,7 +47214,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L265",
+      "source_location": "L272",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_modfile",
@@ -47214,7 +47224,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L431",
+      "source_location": "L438",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_modpass",
@@ -47224,7 +47234,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L124",
+      "source_location": "L131",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_owned_logs",
@@ -47234,7 +47244,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L100",
+      "source_location": "L107",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_paramsof",
@@ -47244,7 +47254,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L125",
+      "source_location": "L132",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_parts",
@@ -47254,7 +47264,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L229",
+      "source_location": "L236",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_pass",
@@ -47274,7 +47284,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L218",
+      "source_location": "L225",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_pub",
@@ -47284,7 +47294,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L412",
+      "source_location": "L419",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_resolveheldoutcomes",
@@ -47294,7 +47304,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L270",
+      "source_location": "L277",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_savemod",
@@ -47304,7 +47314,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L96",
+      "source_location": "L103",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_savestate",
@@ -47314,7 +47324,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L219",
+      "source_location": "L226",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_semaphoreabi",
@@ -47324,7 +47334,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L123",
+      "source_location": "L130",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_shared_logs",
@@ -47334,7 +47344,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L289",
+      "source_location": "L296",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_signcommunitychat",
@@ -47344,7 +47354,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L512",
+      "source_location": "L519",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_sleep",
@@ -47354,7 +47364,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L73",
+      "source_location": "L80",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_statefile",
@@ -47364,7 +47374,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L136",
+      "source_location": "L143",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_stateof",
@@ -47384,7 +47394,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L148",
+      "source_location": "L155",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_sweepdone",
@@ -47394,7 +47404,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L147",
+      "source_location": "L154",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_sweepfile",
@@ -47404,7 +47414,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L154",
+      "source_location": "L161",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_sweeppass",
@@ -47414,7 +47424,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L149",
+      "source_location": "L156",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_sweeptries",
@@ -47424,7 +47434,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L74",
+      "source_location": "L81",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_tier_rank",
@@ -47434,7 +47444,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L223",
+      "source_location": "L230",
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_verifyonchain",
@@ -47448,6 +47458,16 @@
       "weight": 1.0,
       "source": "attester_src_main",
       "target": "attester_src_main_withtimeout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "attester/src/main.js",
+      "source_location": "L74",
+      "weight": 1.0,
+      "source": "attester_src_main",
+      "target": "attester_src_main_writejsonatomic",
       "confidence_score": 1.0
     },
     {
@@ -47752,7 +47772,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L315",
+      "source_location": "L322",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_main_log",
@@ -47763,7 +47783,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L108",
+      "source_location": "L115",
       "weight": 1.0,
       "source": "attester_src_main_connect",
       "target": "attester_src_main_log",
@@ -47774,7 +47794,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L551",
+      "source_location": "L558",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_main_log",
@@ -47785,7 +47805,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L371",
+      "source_location": "L378",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_main_log",
@@ -47796,7 +47816,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L440",
+      "source_location": "L447",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_log",
@@ -47807,7 +47827,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L237",
+      "source_location": "L244",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_main_log",
@@ -47818,7 +47838,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L179",
+      "source_location": "L186",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_main_log",
@@ -47829,7 +47849,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L210",
+      "source_location": "L217",
       "weight": 1.0,
       "source": "attester_src_main_append",
       "target": "attester_src_main_withtimeout",
@@ -47840,7 +47860,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L104",
+      "source_location": "L111",
       "weight": 1.0,
       "source": "attester_src_main_connect",
       "target": "attester_src_main_withtimeout",
@@ -47851,7 +47871,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L565",
+      "source_location": "L572",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_main_withtimeout",
@@ -47862,7 +47882,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L197",
+      "source_location": "L204",
       "weight": 1.0,
       "source": "attester_src_main_getentries",
       "target": "attester_src_main_withtimeout",
@@ -47873,7 +47893,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L188",
+      "source_location": "L195",
       "weight": 1.0,
       "source": "attester_src_main_getfeed",
       "target": "attester_src_main_withtimeout",
@@ -47884,7 +47904,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L516",
+      "source_location": "L523",
       "weight": 1.0,
       "source": "attester_src_main_getft",
       "target": "attester_src_main_withtimeout",
@@ -47895,7 +47915,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L138",
+      "source_location": "L145",
       "weight": 1.0,
       "source": "attester_src_main_stateof",
       "target": "attester_src_main_withtimeout",
@@ -47906,7 +47926,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L168",
+      "source_location": "L175",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_main_withtimeout",
@@ -47917,7 +47937,51 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L261",
+      "source_location": "L535",
+      "weight": 1.0,
+      "source": "attester_src_main_ftpass",
+      "target": "attester_src_main_writejsonatomic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "attester/src/main.js",
+      "source_location": "L277",
+      "weight": 1.0,
+      "source": "attester_src_main_savemod",
+      "target": "attester_src_main_writejsonatomic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "attester/src/main.js",
+      "source_location": "L103",
+      "weight": 1.0,
+      "source": "attester_src_main_savestate",
+      "target": "attester_src_main_writejsonatomic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "attester/src/main.js",
+      "source_location": "L185",
+      "weight": 1.0,
+      "source": "attester_src_main_sweeppass",
+      "target": "attester_src_main_writejsonatomic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "attester/src/main.js",
+      "source_location": "L268",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_main_savestate",
@@ -47928,7 +47992,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L209",
+      "source_location": "L216",
       "weight": 1.0,
       "source": "attester_src_main_append",
       "target": "attester_src_main_paramsof",
@@ -47939,7 +48003,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L101",
+      "source_location": "L108",
       "weight": 1.0,
       "source": "attester_src_main_keyof",
       "target": "attester_src_main_paramsof",
@@ -47950,7 +48014,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L127",
+      "source_location": "L134",
       "weight": 1.0,
       "source": "attester_src_main_parts",
       "target": "attester_src_main_paramsof",
@@ -47961,7 +48025,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L209",
+      "source_location": "L216",
       "weight": 1.0,
       "source": "attester_src_main_append",
       "target": "attester_src_main_keyof",
@@ -47972,7 +48036,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L197",
+      "source_location": "L204",
       "weight": 1.0,
       "source": "attester_src_main_getentries",
       "target": "attester_src_main_keyof",
@@ -47983,7 +48047,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L119",
+      "source_location": "L126",
       "weight": 1.0,
       "source": "attester_src_main_feedkey",
       "target": "attester_src_main_feedparams",
@@ -47994,7 +48058,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L127",
+      "source_location": "L134",
       "weight": 1.0,
       "source": "attester_src_main_parts",
       "target": "attester_src_main_feedparams",
@@ -48005,7 +48069,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L130",
+      "source_location": "L137",
       "weight": 1.0,
       "source": "attester_src_main_keyfor",
       "target": "attester_src_main_parts",
@@ -48016,7 +48080,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L166",
+      "source_location": "L173",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_main_parts",
@@ -48027,7 +48091,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L138",
+      "source_location": "L145",
       "weight": 1.0,
       "source": "attester_src_main_stateof",
       "target": "attester_src_main_keyfor",
@@ -48038,7 +48102,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L167",
+      "source_location": "L174",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_main_keyfor",
@@ -48049,7 +48113,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L159",
+      "source_location": "L166",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_main_stateof",
@@ -48060,7 +48124,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L175",
+      "source_location": "L182",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "attester_src_sweep_sweep",
@@ -48072,7 +48136,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "attester/src/main.js",
-      "source_location": "L159",
+      "source_location": "L166",
       "weight": 1.0,
       "source": "attester_src_main_sweeppass",
       "target": "ui_tests_freenames_test_h"
@@ -48082,7 +48146,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L449",
+      "source_location": "L456",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_getfeed",
@@ -48093,7 +48157,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L208",
+      "source_location": "L215",
       "weight": 1.0,
       "source": "attester_src_main_append",
       "target": "attester_src_main_getentries",
@@ -48104,7 +48168,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L301",
+      "source_location": "L308",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_main_getentries",
@@ -48115,7 +48179,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L285",
+      "source_location": "L292",
       "weight": 1.0,
       "source": "attester_src_main_globalprotectedset",
       "target": "attester_src_main_getentries",
@@ -48126,7 +48190,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L367",
+      "source_location": "L374",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_main_getentries",
@@ -48137,7 +48201,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L446",
+      "source_location": "L453",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_getentries",
@@ -48148,7 +48212,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L230",
+      "source_location": "L237",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_main_getentries",
@@ -48159,7 +48223,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L415",
+      "source_location": "L422",
       "weight": 1.0,
       "source": "attester_src_main_resolveheldoutcomes",
       "target": "attester_src_main_getentries",
@@ -48170,7 +48234,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L335",
+      "source_location": "L342",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_main_append",
@@ -48181,7 +48245,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L370",
+      "source_location": "L377",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_main_append",
@@ -48192,7 +48256,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L481",
+      "source_location": "L488",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_append",
@@ -48203,7 +48267,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L250",
+      "source_location": "L257",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_main_append",
@@ -48214,7 +48278,7 @@
       "context": "collection",
       "confidence": "INFERRED",
       "source_file": "attester/src/main.js",
-      "source_location": "L235",
+      "source_location": "L242",
       "weight": 1.0,
       "source": "attester_src_main_pass",
       "target": "attester_src_main_verifyonchain",
@@ -48225,7 +48289,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L432",
+      "source_location": "L439",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_loadmod",
@@ -48236,7 +48300,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L442",
+      "source_location": "L449",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_savemod",
@@ -48247,7 +48311,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L282",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "attester_src_main_askmodel",
       "target": "attester_src_main_askraw",
@@ -48258,7 +48322,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L401",
+      "source_location": "L408",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_main_askraw",
@@ -48269,7 +48333,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L282",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "attester_src_main_askmodel",
       "target": "attester_src_moderator_buildmessages",
@@ -48280,7 +48344,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L315",
+      "source_location": "L322",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_main_askmodel",
@@ -48291,7 +48355,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L458",
+      "source_location": "L465",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_askmodel",
@@ -48302,7 +48366,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L286",
+      "source_location": "L293",
       "weight": 1.0,
       "source": "attester_src_main_globalprotectedset",
       "target": "attester_src_moderator_modsof",
@@ -48313,7 +48377,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L434",
+      "source_location": "L441",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_globalprotectedset",
@@ -48324,7 +48388,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L334",
+      "source_location": "L341",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_main_signcommunitychat",
@@ -48335,7 +48399,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L325",
+      "source_location": "L332",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_moderator_confirmshold",
@@ -48346,7 +48410,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L327",
+      "source_location": "L334",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_moderator_decidechataction",
@@ -48357,7 +48421,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L301",
+      "source_location": "L308",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_moderator_foldcommunitiesstate",
@@ -48368,7 +48432,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L309",
+      "source_location": "L316",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_moderator_freshchatmessages",
@@ -48379,7 +48443,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L315",
+      "source_location": "L322",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "attester_src_moderator_parseverdicts",
@@ -48391,7 +48455,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "attester/src/main.js",
-      "source_location": "L309",
+      "source_location": "L316",
       "weight": 1.0,
       "source": "attester_src_main_chatmodpass",
       "target": "ui_tests_communityfinder_test_comm"
@@ -48401,7 +48465,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L505",
+      "source_location": "L512",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_chatmodpass",
@@ -48412,7 +48476,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L375",
+      "source_location": "L382",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_main_ghfetch",
@@ -48423,7 +48487,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L401",
+      "source_location": "L408",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_moderator_buildgithubsyncmessages",
@@ -48434,7 +48498,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L367",
+      "source_location": "L374",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_moderator_opengreenhouseseeds",
@@ -48445,7 +48509,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L400",
+      "source_location": "L407",
       "weight": 1.0,
       "source": "attester_src_main_greenhousepass",
       "target": "attester_src_moderator_parsegithubmatches",
@@ -48456,7 +48520,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L506",
+      "source_location": "L513",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_greenhousepass",
@@ -48467,7 +48531,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L435",
+      "source_location": "L442",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_main_resolveheldoutcomes",
@@ -48478,7 +48542,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L424",
+      "source_location": "L431",
       "weight": 1.0,
       "source": "attester_src_main_resolveheldoutcomes",
       "target": "attester_src_moderator_applyholdoutcomes",
@@ -48489,7 +48553,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L417",
+      "source_location": "L424",
       "weight": 1.0,
       "source": "attester_src_main_resolveheldoutcomes",
       "target": "attester_src_moderator_modsof",
@@ -48500,7 +48564,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L450",
+      "source_location": "L457",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_budget",
@@ -48511,7 +48575,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L438",
+      "source_location": "L445",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_categorydisabled",
@@ -48522,7 +48586,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L477",
+      "source_location": "L484",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_confirmshold",
@@ -48533,7 +48597,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L449",
+      "source_location": "L456",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_freshposts",
@@ -48544,7 +48608,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L458",
+      "source_location": "L465",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_parseverdicts",
@@ -48555,7 +48619,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L447",
+      "source_location": "L454",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_postedits",
@@ -48566,7 +48630,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L446",
+      "source_location": "L453",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_recentauthors",
@@ -48577,7 +48641,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L481",
+      "source_location": "L488",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_reportbody",
@@ -48588,7 +48652,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L495",
+      "source_location": "L502",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_retractbody",
@@ -48599,7 +48663,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L467",
+      "source_location": "L474",
       "weight": 1.0,
       "source": "attester_src_main_modpass",
       "target": "attester_src_moderator_shouldhold",
@@ -48610,7 +48674,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L555",
+      "source_location": "L562",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_main_sleep",
@@ -48621,7 +48685,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "attester/src/main.js",
-      "source_location": "L529",
+      "source_location": "L536",
       "weight": 1.0,
       "source": "attester_src_main_ftpass",
       "target": "attester_src_main_getft",
@@ -147069,7 +147133,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L368",
+      "source_location": "L373",
       "weight": 1.0,
       "source": "ui_src_whoiam",
       "target": "ui_src_whoiam_goto",
@@ -147139,7 +147203,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L365",
+      "source_location": "L370",
       "weight": 1.0,
       "source": "ui_src_whoiam",
       "target": "ui_src_whoiam_restart",
@@ -147529,7 +147593,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L365",
+      "source_location": "L370",
       "weight": 1.0,
       "source": "ui_src_whoiam_restart",
       "target": "ui_src_whoiam_linkbase",
@@ -147683,7 +147747,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "ui/src/whoiam.ts",
-      "source_location": "L365",
+      "source_location": "L370",
       "weight": 1.0,
       "source": "ui_src_whoiam_restart",
       "target": "ui_src_whoiam_goto",
@@ -150798,5 +150862,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "c2ece7072d54d8a289997d87c3244ca74690729e"
+  "built_at_commit": "4a8c795c1cb81df6dd07a0f38c70a4f8eb2d4f55"
 }
