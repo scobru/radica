@@ -34,7 +34,18 @@ So the v2 contract must **accept every record v1 accepts today** (old signatures
 - Every contract call (`validate_state`, `update_state`, …) gets `max_execution_seconds = 5.0` (`wasm_runtime/runtime.rs`) and `DEFAULT_MAX_MEMORY_PAGES = 4096`, that is 256 MiB (`wasm_runtime/engine.rs`).
 - The client WebSocket caps one message at 64 MiB.
 
-The 5 s limit can bind before the 50 MiB one: `validate_state` re-verifies every signature in the state. A feed with tens of thousands of signed records can time out, and then every update is refused. The count caps below have to keep a full re-validation well under 5 s, so benchmark Ed25519 verification in the node's WASM before fixing the numbers.
+**The 5 s limit binds first.** `validate_state` re-verifies every signature in the state. `update_state` verifies only the incoming delta, but a first PUT (including every carry-forward from `LEGACY`) goes through `validate_state`.
+
+Benchmark (2026-11-20, `contract/bench/`): today's `contract` built `opt-level = "z"` for `wasm32-unknown-unknown`, with `validate` (parse + full re-validation) run in Node 22 (V8) on a 4-core container. Feeds of 200-byte posts and comments, likes and comments by distinct keys:
+
+| Signed records | State | Full validation | Per record |
+|---|---|---|---|
+| 2,100 | 0.8 MiB | 0.42 s | 202 µs |
+| 10,100 | 3.7 MiB | 1.97 s | 195 µs |
+| 20,200 | 7.4 MiB | 3.90 s | 193 µs |
+| 40,100 | 14.6 MiB | 7.78 s | 194 µs |
+
+About **195 µs per signed record**, almost all of it Ed25519 `verify_strict`. The 5 s limit is reached at about 25k records, or about 9 MiB of ordinary text, long before 50 MiB. The node runs wasmtime with fuel metering on CPUs that may be slower than this one, so the real ceiling is lower. **This is already true for v1**: a feed with more than about 25k records cannot be PUT, and so cannot be carried forward either.
 
 **Why caps are needed even with PoW.** Without caps:
 - **The feed gets bricked.** Once a feed or log is near the limit, every update that grows it is refused, so the owner can no longer post. Anyone can trigger this with comments or likes, because keys and ids are free.
@@ -45,12 +56,13 @@ Proposal (PoW approved by the maintainer, 2026-11-20):
 - **Third-party records carry a proof of work.** `ui/src/pow.ts` already exists. The contract checks `leading_zero_bits(blake3(sig)) >= POW_BITS` for comments, likes and log entries written by anyone other than the owner (feed) or by anyone at all (log). `POW_BITS = 12`.
 - **Byte budgets, not only counts.** The node limits bytes, so the caps are in bytes, with a margin under the node limit:
   - feed: `MAX_STATE_BYTES = 40 MiB` in total, of which `MAX_THIRD_PARTY_BYTES = 8 MiB` for comments and likes from others;
-  - each post: `MAX_COMMENTS = 500`, `MAX_LIKES = 5_000`;
-  - each log: `MAX_STATE_BYTES = 40 MiB` and `MAX_ENTRIES = 20_000`;
-  - total signed records per state: a ceiling set from the 5 s benchmark.
+  - each post: `MAX_COMMENTS = 500`, `MAX_LIKES = 2_000`;
+  - each log: `MAX_STATE_BYTES = 40 MiB`;
+  - **`MAX_RECORDS = 10_000` signed records per state** (about 2 s measured, a 2.5× margin for slower nodes and fuel metering): at most 4,000 by the owner (posts, profile, following, deletions; `MAX_POSTS` drops from 10,000 to 4,000) and 6,000 by others (comments + likes). Each log gets the same 10,000 (`MAX_ENTRIES` drops from 20,000).
+  - Optional speed-up: Ed25519 batch verification (`ed25519-dalek` `batch` feature) is about 2× faster on large states. It needs its own benchmark, and a fallback to single verification to find which record is bad.
 - **The owner's own content is never evicted by third parties.** It counts toward `MAX_STATE_BYTES`; the owner hits their own limit (already partly bounded by `MAX_POSTS`, `MAX_MEDIA`) and the UI warns before publishing.
 - **Deterministic eviction.** When a merge goes over a budget, keep the records with the most PoW bits, then the lowest `(ts, sig)`. Every peer computes the same set.
-- **Legacy records** (v1-signed, no PoW) are **exempt from eviction**: nobody can sign new v1 records, so they cannot be used to spam, and every legacy record is carried. They still count toward the byte limits.
+- **Legacy records** (v1-signed, no PoW) are **exempt from eviction**: nobody can sign new v1 records, so they cannot be used to spam, and every legacy record is carried. They still count toward the byte and record limits.
 - Logs written by the system (inbox, `blocklist/*`, `reports`) keep the same caps. The readers' fold already drops what it does not trust.
 
 ### 3. Hex and delta fixes
@@ -91,7 +103,7 @@ This is a one-way security migration: no return to v1. The aim is that **no v1 d
 1. ~~PoW on third-party writes~~: yes, `POW_BITS = 12` (decided 2026-11-20).
 2. ~~Node state limit~~: 50 MiB (`MAX_STATE_SIZE`), budgets at 40 MiB.
 3. ~~Rollback~~: none; one-way migration that carries every v1 record (decided 2026-11-20).
-4. The count ceiling per state: set from the Ed25519-in-WASM benchmark against the 5 s execution limit.
+4. ~~Count ceiling~~: `MAX_RECORDS = 10_000` per state, from the benchmark above. Before release, measure today's largest real feeds and logs (attester node): a legacy state over 10,000 records cannot be both carried and kept under 5 s, and would need splitting (for example, moving older log entries to an archive log).
 
 ## Status
 ⚪ **TODO** (2026-11-20)
