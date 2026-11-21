@@ -172,7 +172,7 @@ import { keepMedia, dataUrlBytes, mediaRef, mediaUrl, mediaUris, MEDIA_PREFIX } 
 import { playVideo, prepareVideo, publishVideo, videoPosterUrl, videoRef } from "./video.ts";
 import { LANGS, READER_LANG_KEY, availableLangs, readerLang, translatableFrom, translateText } from "./translate.ts";
 import { openGifPicker } from "./gifPicker.ts";
-import { cleanWallets, normalizeWallet, WALLET_KINDS, walletUri, type Wallets } from "./wallets.ts";
+import { cleanWallets, validateWalletForSave, WALLET_KINDS, walletUri, type Wallets } from "./wallets.ts";
 import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField } from "./profileExtras.ts";
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
@@ -5830,9 +5830,15 @@ modalSaveBtn.addEventListener("click", async () => {
   const asocialRaw = modalAsocialInput?.value.trim() || "";
   const asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
   if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
+  const existingSavedWallets = freenet.walletsOf(me);
   const walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
-  const badWallet = walletFields.find((f) => f.raw && !normalizeWallet(f.kind, f.raw));
-  if (badWallet) return alert(`That is not a valid ${WALLET_KINDS.find((w) => w.kind === badWallet.kind)!.label} address.`);
+  for (const f of walletFields) {
+    if (!f.raw) continue;
+    // Allow keeping an untouched legacy Monero 4… address while rejecting any new or edited primary address on save
+    if (f.kind === "xmr" && !modalDirtyFields.has("wallet:xmr") && f.raw === (existingSavedWallets.xmr ?? "")) continue;
+    const err = validateWalletForSave(f.kind, f.raw);
+    if (err) return alert(err);
+  }
 
   modalSaveBtn.disabled = true;
   modalSaveBtn.textContent = "Signing & Saving...";
