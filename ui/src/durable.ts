@@ -11,6 +11,8 @@ export const DURABLE_PREFIXES = [
   "radica_secret_peers_",
   "radica_secret_removed_", // when I removed a Secret Chat from the list: old inbox entries must not bring it back
   "radica_secret_plain_", // Secret Chat v2 plain texts: a Double Ratchet key opens a message once
+  "radica_secret_burned_", // Secret Chat locally expired message IDs: auto-burned messages must not resurrect
+  "radica_profile_extras_", // Own signed wallets and ecosystem profile links so Edit Profile & Own Profile stay instant & persistent
   "radica_pinned_chats_",
   "radica_verified_chats_",
   "river_key_",

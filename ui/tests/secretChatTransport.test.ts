@@ -7,6 +7,7 @@ import {
   removeSecretChatPeer,
   burnSecretMessage,
   editSecretMessage,
+  readBurnedSecretIds,
   readSecretChat,
   secretChatPeers,
   sendSecretChatMessage,
@@ -234,4 +235,51 @@ test("secretChatTransport: a timed message's plain text is forgotten once its ti
     Date.now = realNow;
   }
   assert.doesNotMatch(tb.store.getItem(`radica_secret_plain_${bob.pubkey}`) ?? "", /brucia/);
+});
+
+test("secretChatTransport: recipient gets full disappearing countdown on open even after transit delay and burns locally", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const wire: object[] = [];
+  const [ta, tb] = [device(network, [], wire), device(network, [], wire)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "delayed hello", 10);
+  const realNow = Date.now;
+  let bobOpenTime = realNow() + 15_000; // 15s later (> 10s sender TTL!)
+  Date.now = () => bobOpenTime;
+  try {
+    const msgs = await readSecretChat(tb, bob, alice.pubkey);
+    assert.equal(msgs.length, 1, "unopened message must not pre-burn before recipient decrypts it");
+    assert.equal(msgs[0].text, "delayed hello");
+    assert.equal(msgs[0].ttl_seconds, 10);
+    assert.equal(msgs[0].burn_started, true);
+    assert.ok(msgs[0].burn_at && msgs[0].burn_at >= bobOpenTime + 9_000, "burn_at starts from recipient open time");
+
+    // 5s after opening: still visible with ~5s left
+    bobOpenTime += 5_000;
+    const mid = await readSecretChat(tb, bob, alice.pubkey);
+    assert.equal(mid.length, 1);
+    assert.equal(mid[0].burn_at, msgs[0].burn_at);
+
+    // After full 10s on recipient side: expires cleanly
+    bobOpenTime += 6_000;
+    const expired = await readSecretChat(tb, bob, alice.pubkey);
+    assert.equal(expired.length, 0);
+  } finally {
+    Date.now = realNow;
+  }
+
+  // Auto-burn (localOnly) removes locally & records burned id without emitting chat_burn to peer
+  const sent2 = await sendSecretChatMessage(ta, alice, bob.pubkey, "second msg", 10);
+  wire.length = 0;
+  burnSecretMessage(ta, sent.room_id, sent2.id, alice.pubkey, bob.pubkey, { localOnly: true });
+  assert.equal(wire.some((w: any) => w.type === "chat_burn"), false, "auto-burn stays local");
+  assert.ok(readBurnedSecretIds(ta.store, alice.pubkey).has(sent2.id));
+  assert.equal((await readSecretChat(ta, alice, bob.pubkey)).some((m) => m.id === sent2.id), false);
+
+  // Manual delete on either side still emits chat_burn to peer
+  burnSecretMessage(tb, sent.room_id, sent2.id, bob.pubkey, alice.pubkey);
+  assert.ok(wire.some((w: any) => w.type === "chat_burn"), "manual delete informs peer");
 });

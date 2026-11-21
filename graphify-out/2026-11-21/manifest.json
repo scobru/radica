@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795260023.6502643,
-    "ast_hash": "48ddab18e875bf1ab8b3deef4e0d2c59",
+    "mtime": 1795267603.901289,
+    "ast_hash": "4cda3d2e51bec21f1df8c13dc43d32f1",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795260161.728928,
-    "ast_hash": "b0436bb63e5d77ea2632aabc967c1c26",
+    "mtime": 1795267621.9766185,
+    "ast_hash": "6baddc7f53c0a70f45718477affc636b",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795260310.564937,
-    "ast_hash": "40639c0498b57c278843d6f1daca40c0",
+    "mtime": 1795267636.882465,
+    "ast_hash": "29642f794729695f0e18002a50d8dc55",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795260307.7010543,
-    "ast_hash": "3d13e6b91356881e960e4a531598b3a5",
+    "mtime": 1795267609.25193,
+    "ast_hash": "cac569ec32298a455536650937d4c0ab",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795260301.7532697,
-    "ast_hash": "744104f37cb3eb85f8c27aebfe892719",
+    "mtime": 1795267632.9629555,
+    "ast_hash": "47553c86342c682e7d64957b9e43825f",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,13 +285,13 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795212952.944852,
-    "ast_hash": "2fb30f9c8c095b7e92dfa6cbffca9719",
+    "mtime": 1795261633.1300514,
+    "ast_hash": "7d0a3e1b5c98f743fd7e357cbe79600b",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
-    "mtime": 1794822665.6684716,
-    "ast_hash": "30b4a00a6102e8a1ab823b1b22cac667",
+    "mtime": 1795261431.061815,
+    "ast_hash": "4634370efe7b48a8b9389a9dba82fc08",
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795260332.6144927,
-    "ast_hash": "bb2c865ba93258aa27abaed527c0cd2f",
+    "mtime": 1795267641.1311028,
+    "ast_hash": "fec57e13ee580bd6cf06e972a527d2c4",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1005,8 +1005,8 @@
     "semantic_hash": ""
   },
   "ui/tests/messengerChat.test.ts": {
-    "mtime": 1795207264.3664896,
-    "ast_hash": "0a6c677f1a12aae3c501d96e4a58cc64",
+    "mtime": 1795261656.9360356,
+    "ast_hash": "1f2c8399c0d8a29d34bab01622b0302f",
     "semantic_hash": ""
   },
   "ui/tests/milestones.test.ts": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795023026.8103967,
-    "ast_hash": "260df31793e2a686c1491209c8a0047d",
+    "mtime": 1795263004.6016235,
+    "ast_hash": "ff382dda310e9592a186e5b7c1b36ed9",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1455,13 +1455,13 @@
     "semantic_hash": ""
   },
   "ui/src/nativeRooms.ts": {
-    "mtime": 1794616961.64625,
-    "ast_hash": "512c0f9442623bbfa40a6a42868cd789",
+    "mtime": 1795267590.3192625,
+    "ast_hash": "9fe96e7c39e7110cc9ca0ac13460efa8",
     "semantic_hash": ""
   },
   "ui/tests/nativeRooms.test.ts": {
-    "mtime": 1794616974.440717,
-    "ast_hash": "135c9631e1d9e711a57546a5652db9bc",
+    "mtime": 1795267629.4465733,
+    "ast_hash": "9e7a5434595fb7351cf40be8c5c63b30",
     "semantic_hash": ""
   },
   "ui/src/communitiesPage.ts": {

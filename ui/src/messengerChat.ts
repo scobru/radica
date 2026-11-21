@@ -1680,7 +1680,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       : `<div class="rm-e2ee-banner">
             <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("lock", { size: 13, className: "icon-xs" })} <span>${
               isRoomGardenerActive(st.privateRoom)
-                ? "End-to-end encrypted group · 🌱 Moderated by The Gardener (owner's AI helper scans messages for spam/abuse)."
+                ? "End-to-end encrypted group · 🌱 Moderated by The Gardener (AI moderation helper scans messages for spam/abuse)."
                 : "Messages in this conversation are end-to-end encrypted on your Freenet node."
             }</span></span>
             <button type="button" id="rm-inline-verify-btn">Verify safety number</button>
@@ -2294,7 +2294,8 @@ export function createMessengerChat(deps: MessengerDeps) {
           const isCreator = mPk === creator;
           const isYou = mPk === me;
           const isMod = roomMods.includes(mPk);
-          const canKick = !isYou && !isCreator && (isRoomCreator || (iAmRoomMod && !isMod));
+          const isGardenerRow = !!GARDENER_PK && mPk.toLowerCase() === GARDENER_PK;
+          const canKick = !isYou && !isCreator && (isRoomCreator || (iAmRoomMod && (!isMod || isGardenerRow)));
           const mName = deps.getAuthorDisplayName(mPk);
           const mAvatar = deps.getAuthorAvatarUrl(mPk);
           const mFallback = generateDefaultAvatar(mPk);
@@ -2385,7 +2386,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span></button>
             <button type="button" class="rm-tile-btn" data-copy-room-link="1">${renderIcon("link", { size: 18 })}<span>Link</span></button>
             ${
-              isRadicaOwner && isRoomCreator && !room.river && !isChannel && GARDENER_PK
+              isRadicaOwner && isOwnerOrMod && !room.river && !isChannel && GARDENER_PK
                 ? `<button type="button" class="rm-tile-btn" data-room-gardener="${hasGardener ? "0" : "1"}"><span>${hasGardener ? "🗑️" : "🌱"}</span><span>${hasGardener ? "Remove Gardener" : "Add Gardener"}</span></button>`
                 : ""
             }
@@ -2408,7 +2409,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             </div>
             ${
               !room.river && !isChannel && gardenerInMembers
-                ? `<p style="margin:6px 0 4px;font-size:0.76rem;color:var(--rm-text-secondary);line-height:1.4;">🌱 <b>The Gardener</b> (owner's AI helper) is a moderator in this group and decrypts messages to filter spam/abuse.</p>`
+                ? `<p style="margin:6px 0 4px;font-size:0.76rem;color:var(--rm-text-secondary);line-height:1.4;">🌱 <b>The Gardener</b> (AI moderation helper) is a moderator in this group and decrypts messages to filter spam/abuse.</p>`
                 : ""
             }
             <div class="rm-safety-code">${escapeHtml(safetyPreview)}</div>
@@ -3367,25 +3368,23 @@ export function createMessengerChat(deps: MessengerDeps) {
       st.privateRoom &&
       GARDENER_PK &&
       identity.pubkey.toLowerCase() === RADICA_MAINTAINER.toLowerCase() &&
-      st.privateRoom.creator === identity.pubkey &&
+      (st.privateRoom.creator.toLowerCase() === identity.pubkey.toLowerCase() ||
+        (st.privateRoom.moderators ?? []).some((m) => m.toLowerCase() === identity.pubkey.toLowerCase())) &&
       !st.privateRoom.river &&
       !st.privateRoom.is_channel
     ) {
       const add = gardenerRoomBtn.dataset.roomGardener === "1";
       if (!add && !confirm("Remove 🌱 The Gardener from this group and rotate the encryption key?")) return;
       try {
-        let updated: PrivateRoom;
-        if (add) {
-          const room = st.privateRoom;
-          if (!room.members.some((m) => m.toLowerCase() === GARDENER_PK)) {
-            await freenet.inviteMemberToPrivateRoom(identity, room.id, GARDENER_PK);
-          }
-          updated = await freenet.setPrivateRoomModerator(identity, room.id, GARDENER_PK, true);
-          deps.showToast("🌱 The Gardener added as AI moderator for this group.", "info");
-        } else {
-          updated = await freenet.kickMemberFromPrivateRoom(identity, st.privateRoom.id, GARDENER_PK);
-          deps.showToast("🌱 The Gardener removed and room key rotated.", "info");
-        }
+        const updated: PrivateRoom = add
+          ? await freenet.addGardenerToPrivateRoom(identity, st.privateRoom.id)
+          : await freenet.kickMemberFromPrivateRoom(identity, st.privateRoom.id, GARDENER_PK);
+        deps.showToast(
+          add
+            ? "🌱 The Gardener added as AI moderator for this group."
+            : "🌱 The Gardener removed and room key rotated.",
+          "info"
+        );
         await deps.onSelectPrivateRoom(updated);
       } catch (err: any) {
         alert(`Could not update Gardener: ${err.message || err}`);

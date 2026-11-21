@@ -336,8 +336,9 @@ async function roomModPass(api, modSk, modPk, mod, globalProtected, b) {
     if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
     const roomEntries = await getEntries(api, `room/${roomId}`);
     if (!roomEntries) continue;
-    const room = foldRoomState(roomEntries, roomId);
-    if (!room || room.creator !== ownerLow || room.river || room.is_channel || !room.members.includes(botLow) || !room.moderators.includes(botLow)) {
+    const room = foldRoomState(roomEntries, roomId, botLow);
+    const ownerAuthorized = !!room && (room.creator === ownerLow || room.moderators.includes(ownerLow));
+    if (!room || !ownerAuthorized || room.river || room.is_channel || !room.members.includes(botLow) || !room.moderators.includes(botLow)) {
       continue;
     }
     let roomKey = await decryptRoomKey(modSk, botLow, room);

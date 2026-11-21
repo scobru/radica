@@ -103,3 +103,8 @@ test("durable: a Curated Board created in one session still shows up in the next
   assert.deepEqual(JSON.parse(store2.getItem("radica_boards_alice")!), [{ id: "brd_1", title: "Favorites", items: [] }]);
 });
 
+test("durable: profile extras snapshot and secret burned ids use durable prefixes", () => {
+  assert.ok(isDurable("radica_profile_extras_alice"));
+  assert.ok(isDurable("radica_secret_burned_alice"));
+});
+

@@ -14,8 +14,10 @@ import {
 import {
   buildPrivateRoomInviteLink,
   createNativeRoomDescriptor,
+  extractLinkedRoomIds,
   filterChannelMessages,
   parseRoomInviteParams,
+  upsertLinkedRoomInDescription,
 } from "../src/nativeRooms.ts";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
 
@@ -114,4 +116,46 @@ test("nativeRooms: filterChannelMessages enforces creator/moderator posting in n
     groupMessages.map((m) => m.id),
     ["m1", "m2", "m3"]
   );
+});
+
+test("nativeRooms: extractLinkedRoomIds and upsertLinkedRoomInDescription manage linked room invites cleanly", () => {
+  const linkA = "http://127.0.0.1:7509/v1/contract/web/abc/#join_room=privroom_alpha&name=Radica&key=" + "a".repeat(64);
+  const linkB = "#river_invite=InvCodeXYZ&room_id=river_beta&name=Coffee&chan=1";
+
+  assert.deepEqual(extractLinkedRoomIds(`Rules here\n${linkA}\nMore text ${linkB}\n${linkA}`), [
+    "privroom_alpha",
+    "river_beta",
+  ]);
+
+  // Appending to existing text
+  const added = upsertLinkedRoomInDescription("Decentralized social commons.", linkA, { nextRoomId: "privroom_alpha" });
+  assert.equal(added, `Decentralized social commons.\n${linkA}`);
+
+  // Switching selection replaces the prior linked room instead of accumulating stale links
+  const replaced = upsertLinkedRoomInDescription(added, linkB, {
+    replaceRoomId: "privroom_alpha",
+    nextRoomId: "river_beta",
+  });
+  assert.equal(replaced, `Decentralized social commons.\n${linkB}`);
+
+  // Re-inserting the same room does not duplicate
+  const deduped = upsertLinkedRoomInDescription(replaced, linkB, { nextRoomId: "river_beta" });
+  assert.equal(deduped, `Decentralized social commons.\n${linkB}`);
+
+  // Clearing selection removes the previously linked invite while keeping the prose intact
+  const cleared = upsertLinkedRoomInDescription(replaced, null, { replaceRoomId: "river_beta" });
+  assert.equal(cleared, "Decentralized social commons.");
+});
+
+test("nativeRooms: buildPrivateRoomInviteLink uses portable #fragment under opaque sandboxed origins", async () => {
+  const alice = await makeIdentity(4);
+  const { room, roomKey } = await createNativeRoomDescriptor(alice, "Sandbox Room", "privroom_sbx", alice.encPub);
+  const prevWin = (globalThis as any).window;
+  try {
+    (globalThis as any).window = { location: { origin: "null", pathname: "srcdoc" } };
+    const frag = buildPrivateRoomInviteLink(room, roomKey, "Sandbox Room");
+    assert.ok(frag.startsWith("#join_room=privroom_sbx"), `Expected bare fragment, got: ${frag}`);
+  } finally {
+    (globalThis as any).window = prevWin;
+  }
 });

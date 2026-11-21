@@ -6,7 +6,7 @@ import {
   openGreenhouseSeeds, buildGithubSyncMessages, parseGithubMatches,
   ownerInvitedRoomIds, foldRoomState, roomJoinProofs, freshRoomMessages, decideRoomAction,
 } from "./moderator.js";
-import { encryptWithSymmetricKey, decryptWithSymmetricKey } from "./roomCrypto.js";
+import { decryptRoomKey, encryptRoomKeyForPeer, encryptWithSymmetricKey, decryptWithSymmetricKey } from "./roomCrypto.js";
 
 const NOW = 1_800_000_000_000;
 const A = "ab".repeat(32), B = "cd".repeat(32);
@@ -194,8 +194,8 @@ test("openGreenhouseSeeds + parseGithubMatches: honors maintainer/bot statuses a
   assert.deepEqual(openGreenhouseSeeds([{ author: A, id: "bad\n`id`", ts: 5, body: JSON.stringify({ type: "seed", title: "x" }) }], B, []), []);
 });
 
-test("ownerInvitedRoomIds accepts only owner-signed native non-channel room invites", () => {
-  const owner = A, stranger = B;
+test("ownerInvitedRoomIds accepts owner-signed native non-channel room invites when owner is creator or moderator", () => {
+  const owner = A, stranger = B, otherCreator = "cc".repeat(32);
   const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
   const inbox = [
     le(owner, 1, { type: "room_invite", room: { id: "privroom_ok1", creator: owner, members: [owner] } }),
@@ -203,7 +203,8 @@ test("ownerInvitedRoomIds accepts only owner-signed native non-channel room invi
     le(stranger, 3, { type: "room_invite", room: { id: "privroom_spoofed", creator: owner, members: [owner] } }), // author != owner
     le(owner, 4, { type: "room_invite", room: { id: "privroom_chan", creator: owner, is_channel: true, members: [owner] } }),
     le(owner, 5, { type: "room_invite", room: { id: "privroom_river", creator: owner, river: { owner }, members: [owner] } }),
-    le(owner, 6, { type: "room_invite", room: { id: "privroom_ok2", creator: owner, members: [owner] } }),
+    le(owner, 6, { type: "room_invite", room: { id: "privroom_ok2", creator: otherCreator, moderators: [owner], members: [otherCreator, owner] } }),
+    le(owner, 7, { type: "room_invite", room: { id: "privroom_nonmod", creator: otherCreator, moderators: [], members: [otherCreator, owner] } }),
   ];
   assert.deepEqual(ownerInvitedRoomIds(inbox, owner), ["privroom_ok2", "privroom_ok1"]);
 });
@@ -248,4 +249,51 @@ test("foldRoomState + roomJoinProofs + freshRoomMessages + decideRoomAction: own
   assert.equal(first.action, "warn");
   const second = decideRoomAction(first.nextStrikes, "privroom_1", user, "spam", prot);
   assert.equal(second.action, "kick");
+});
+
+test("foldRoomState + roomJoinProofs + decryptRoomKey support moderator-invited and moderator-kicked Gardener", async () => {
+  const { randomBytes } = await import("node:crypto");
+  const ed = await import("@noble/ed25519");
+  const creator = A, modPk = B, user = "11".repeat(32);
+  const botSk = randomBytes(32);
+  const modSk = randomBytes(32);
+  const botPk = Buffer.from(await ed.getPublicKeyAsync(botSk)).toString("hex");
+  const modEncPub = Buffer.from(await ed.getPublicKeyAsync(modSk)).toString("hex");
+  const roomKey = new Uint8Array(32).fill(7);
+  const sealedForBot = await encryptRoomKeyForPeer(modSk, botPk, roomKey);
+  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
+
+  const entries = [
+    le(creator, 1, {
+      type: "private_room",
+      room: { id: "privroom_modg", creator, members: [creator, modPk, user], moderators: [modPk], encrypted_keys: {} },
+    }),
+    le(modPk, 2, {
+      type: "room_gardener",
+      roomId: "privroom_modg",
+      on: true,
+      target: botPk,
+      encrypted_key: sealedForBot,
+      inviter_enc_pub: modEncPub,
+    }),
+  ];
+
+  const folded = foldRoomState(entries, "privroom_modg", botPk);
+  assert.ok(folded);
+  assert.equal(folded.members.includes(botPk), true);
+  assert.equal(folded.moderators.includes(botPk), true);
+  assert.equal(folded.gardener_enc_pub, modEncPub);
+
+  const proofs = roomJoinProofs(entries, "privroom_modg");
+  assert.equal(proofs.creatorListed.has(botPk), true);
+
+  const opened = await decryptRoomKey(botSk, botPk, folded);
+  assert.deepEqual(opened, roomKey);
+
+  const kicked = foldRoomState([
+    ...entries,
+    le(modPk, 3, { type: "room_kick", roomId: "privroom_modg", target: botPk, name_encrypted: "n", encrypted_keys: { [creator]: "c", [modPk]: "m" }, keys_enc_pub: modEncPub }),
+  ], "privroom_modg", botPk);
+  assert.ok(kicked && !kicked.members.includes(botPk) && !kicked.moderators.includes(botPk));
+  assert.equal(kicked.gardener_enc_pub, undefined);
 });

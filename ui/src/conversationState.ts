@@ -65,6 +65,20 @@ export function triggerRowBurnAnimation(row: HTMLElement, onDone?: () => void): 
   }, 650);
 }
 
+/** Format remaining burn time as compact human-readable text (`5s`, `1m 30s`, `1h 5m`). */
+export function formatBurnRemaining(ms: number): string {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return rem ? `${m}m ${rem}s` : `${m}m`;
+  }
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 /** Refresh every countdown ([data-burn-at]) under `root`; a run-out message fades out of the page. Removing it from
  *  storage is the job of `sweepBurns`, which runs whether or not the conversation is open. */
 export function tickBurnCountdowns(root: ParentNode, now = Date.now()): void {
@@ -72,7 +86,7 @@ export function tickBurnCountdowns(root: ParentNode, now = Date.now()): void {
     const left = Number(tag.dataset.burnAt) - now;
     if (left > 0) {
       const val = tag.querySelector(".rm-ttl-val, .rv-ttl-val");
-      if (val) val.textContent = `${Math.ceil(left / 1000)}s`;
+      if (val) val.textContent = formatBurnRemaining(left);
       if (left <= 3500) {
         tag.classList.add("urgent");
       } else {
@@ -80,6 +94,8 @@ export function tickBurnCountdowns(root: ParentNode, now = Date.now()): void {
       }
       return;
     }
+    const val = tag.querySelector(".rm-ttl-val, .rv-ttl-val");
+    if (val) val.textContent = "0s";
     const row = tag.closest<HTMLElement>(".rm-msg-row, .chat-bubble");
     if (row && !row.dataset.burning) {
       triggerRowBurnAnimation(row);
@@ -168,10 +184,15 @@ export function createConversationState(deps: ConversationDeps) {
     },
 
     /** Schedule every stored message with a TTL to burn at its time; those already past burn now. Safe to call
-     *  often (at sign-in and on every sync): a message is burned once. */
+     *  often (at sign-in and on every sync): a message is burned once. Unopened incoming Secret Chat messages start
+     *  their burn timer when decrypted by the recipient rather than burning on the sender's clock in transit. */
     sweepBurns(): void {
+      const me = deps.me();
       for (const { roomId, messages } of deps.secretRooms()) {
         for (const m of messages) {
+          if (me && m.sender !== me && (m.text?.startsWith("secret:v2:") || m.text?.startsWith("secret:v1:")) && !m.burn_started) {
+            continue;
+          }
           const at = burnAtOf(m);
           if (!at || burning.has(m.id)) continue;
           scheduleMessageBurn(m.id, at, () => {

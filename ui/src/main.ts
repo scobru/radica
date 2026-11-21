@@ -1,7 +1,7 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces";
 import { UPDATES } from "./updates";
-import { parseRoomInviteParams } from "./nativeRooms.ts";
+import { extractLinkedRoomIds, parseRoomInviteParams, upsertLinkedRoomInDescription } from "./nativeRooms.ts";
 import {
   ECOSYSTEM,
   LAUNCHER_APPS,
@@ -173,6 +173,7 @@ import { playVideo, prepareVideo, publishVideo, videoPosterUrl, videoRef } from 
 import { LANGS, READER_LANG_KEY, availableLangs, readerLang, translatableFrom, translateText } from "./translate.ts";
 import { openGifPicker } from "./gifPicker.ts";
 import { cleanWallets, normalizeWallet, WALLET_KINDS, walletUri, type Wallets } from "./wallets.ts";
+import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField } from "./profileExtras.ts";
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
 import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
@@ -5631,7 +5632,29 @@ publishBtn.addEventListener("click", async () => {
 });
 
 // Profile Modal Interactions
+const modalDirtyFields = new Set<string>();
+let modalOpenGen = 0;
+let freetunesAutoSuggested = false;
+
+modalDeltaInput?.addEventListener("input", () => { modalDirtyFields.add("delta"); });
+modalOrtoInput?.addEventListener("input", () => { modalDirtyFields.add("orto"); });
+modalAsocialInput?.addEventListener("input", () => { modalDirtyFields.add("asocial"); });
+modalFreetunesInput?.addEventListener("input", () => {
+  modalDirtyFields.add("freetunes");
+  freetunesAutoSuggested = false;
+});
+modalFhInput?.addEventListener("input", () => { modalDirtyFields.add("fh"); });
+modalFreetreeInput?.addEventListener("input", () => { modalDirtyFields.add("freetree"); });
+modalWallets?.addEventListener("input", (e) => {
+  const kind = (e.target as HTMLElement).closest<HTMLInputElement>("input[data-wallet]")?.dataset.wallet;
+  if (kind) modalDirtyFields.add(`wallet:${kind}`);
+});
+
 editProfileBtn.addEventListener("click", () => {
+  modalDirtyFields.clear();
+  const gen = ++modalOpenGen;
+  freetunesAutoSuggested = false;
+
   modalNameInput.value = currentProfile?.display_name || "";
   modalBioInput.value = currentProfile?.bio || "";
   if (modalBioInput) {
@@ -5640,42 +5663,55 @@ editProfileBtn.addEventListener("click", () => {
   }
   const me = currentIdentity?.pubkey;
   modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
-  if (me) void freenet.refreshLog(`delta/${me}`).then(() => (modalDeltaInput.value ||= freenet.deltaSiteOf(me) ?? ""));
-  if (me) {
-    fillWalletInputs(freenet.walletsOf(me));
-    void freenet.refreshLog(`wallets/${me}`).then(() => walletInputs().every((i) => !i.value) && fillWalletInputs(freenet.walletsOf(me)));
-  }
-  if (modalOrtoInput) {
-    modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
-    if (me) void freenet.refreshLog(`orto/${me}`).then(() => (modalOrtoInput.value ||= freenet.ortoBlogOf(me) ?? ""));
-  }
-  if (modalAsocialInput) {
-    modalAsocialInput.value = (me && freenet.asocialKeyOf(me)) || "";
-    if (me) void freenet.refreshLog(`asocial/${me}`).then(() => (modalAsocialInput.value ||= freenet.asocialKeyOf(me) ?? ""));
-  }
+  fillWalletInputs(me ? freenet.walletsOf(me) : {});
+  if (modalOrtoInput) modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
+  if (modalAsocialInput) modalAsocialInput.value = (me && freenet.asocialKeyOf(me)) || "";
   if (modalFreetunesInput) {
     const existing = (me && freenet.freetunesOf(me)) || "";
     if (existing) {
       modalFreetunesInput.value = existing;
     } else {
+      modalFreetunesInput.value = "";
       const local = localFreetunesArtist();
       const localRels = localFreetunesReleases();
       if (localRels.length > 0) {
         modalFreetunesInput.value = localRels.map((r) => `#/r/${r.id}.${r.params}`).join(" ");
+        freetunesAutoSuggested = true;
       } else if (local.artistHex) {
         modalFreetunesInput.value = `#/a/${local.artistHex}`;
+        freetunesAutoSuggested = true;
       }
     }
-    if (me) void freenet.refreshLog(`freetunes/${me}`).then(() => (modalFreetunesInput.value ||= freenet.freetunesOf(me) ?? ""));
   }
-  if (modalFhInput) {
-    modalFhInput.value = (me && freenet.fhOf(me)) || "";
-    if (me) void freenet.refreshLog(`fh/${me}`).then(() => (modalFhInput.value ||= freenet.fhOf(me) ?? ""));
+  if (modalFhInput) modalFhInput.value = (me && freenet.fhOf(me)) || "";
+  if (modalFreetreeInput) modalFreetreeInput.value = (me && freenet.freetreeOf(me)) || "";
+
+  if (me) {
+    void freenet.refreshProfileExtras(me, { urgent: true }).then(() => {
+      if (gen !== modalOpenGen || profileModal.style.display === "none") return;
+      const touchedWallets = new Set(WALLET_KINDS.map((w) => w.kind).filter((k) => modalDirtyFields.has(`wallet:${k}`)));
+      const curWallets = Object.fromEntries(walletInputs().map((i) => [i.dataset.wallet!, i.value]));
+      const mergedWallets = mergeLoadedWalletInputs(curWallets, touchedWallets, freenet.walletsOf(me));
+      walletInputs().forEach((i) => {
+        const k = i.dataset.wallet as keyof Wallets;
+        if (k && !touchedWallets.has(k)) i.value = mergedWallets[k] ?? "";
+      });
+      if (!modalDirtyFields.has("delta")) modalDeltaInput.value = freenet.deltaSiteOf(me) ?? "";
+      if (modalOrtoInput && !modalDirtyFields.has("orto")) modalOrtoInput.value = freenet.ortoBlogOf(me) ?? "";
+      if (modalAsocialInput && !modalDirtyFields.has("asocial")) modalAsocialInput.value = freenet.asocialKeyOf(me) ?? "";
+      if (modalFhInput && !modalDirtyFields.has("fh")) modalFhInput.value = freenet.fhOf(me) ?? "";
+      if (modalFreetreeInput && !modalDirtyFields.has("freetree")) modalFreetreeInput.value = freenet.freetreeOf(me) ?? "";
+      if (modalFreetunesInput && !modalDirtyFields.has("freetunes")) {
+        const loadedFt = freenet.freetunesOf(me);
+        if (loadedFt || !freetunesAutoSuggested) {
+          modalFreetunesInput.value = loadedFt ?? "";
+          if (loadedFt) freetunesAutoSuggested = false;
+        }
+      }
+      refreshOpenProfileExtrasUI();
+    });
   }
-  if (modalFreetreeInput) {
-    modalFreetreeInput.value = (me && freenet.freetreeOf(me)) || "";
-    if (me) void freenet.refreshLog(`freetree/${me}`).then(() => (modalFreetreeInput.value ||= freenet.freetreeOf(me) ?? ""));
-  }
+
   modalAvatarInput.value = currentProfile?.avatar_url || "";
   const currentAvatar = currentProfile?.avatar_url || generateDefaultAvatar(currentIdentity?.pubkey || "radica");
   modalAvatarPreview.src = currentAvatar;
@@ -5768,6 +5804,7 @@ function applyProfile(updated: ProfileInfo) {
   if (profilePage && !profilePage.hidden) {
     document.getElementById("pp-name")!.textContent = updated.display_name;
     setProfileBio(document.getElementById("pp-bio"), updated.bio, "No bio yet.");
+    renderMyProfilePageWallets();
   }
   renderMyPohBadges();
   sidebarAvatar.src = composerAvatar.src = updated.avatar_url || generateDefaultAvatar(currentIdentity.pubkey);
@@ -5783,48 +5820,127 @@ function applyProfile(updated: ProfileInfo) {
 
 modalSaveBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
-  const name = modalNameInput.value.trim() || `Persona @${shortenKey(personaName(currentIdentity.pubkey))}`;
+  const me = currentIdentity.pubkey;
+  const name = modalNameInput.value.trim() || `Persona @${shortenKey(personaName(me))}`;
   const bio = modalBioInput.value.trim();
   const avatar = modalAvatarInput.value.trim();
   const deltaRaw = modalDeltaInput.value.trim();
   const delta = deltaRaw ? deltaPrefixOf(deltaRaw) : null;
   if (deltaRaw && !delta) return alert("That is not a Delta site address: paste the address of your site in Delta.");
+  const asocialRaw = modalAsocialInput?.value.trim() || "";
+  const asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
+  if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
   const walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
   const badWallet = walletFields.find((f) => f.raw && !normalizeWallet(f.kind, f.raw));
   if (badWallet) return alert(`That is not a valid ${WALLET_KINDS.find((w) => w.kind === badWallet.kind)!.label} address.`);
-  const wallets = cleanWallets(Object.fromEntries(walletFields.map((f) => [f.kind, f.raw])));
 
   modalSaveBtn.disabled = true;
   modalSaveBtn.textContent = "Signing & Saving...";
 
   try {
     const updated = await freenet.updateProfile(currentIdentity, name, bio, avatar);
-    if (delta !== freenet.deltaSiteOf(currentIdentity.pubkey)) await freenet.setDeltaSite(delta);
-    if (JSON.stringify(wallets) !== JSON.stringify(freenet.walletsOf(currentIdentity.pubkey))) await freenet.setWallets(wallets);
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("delta"),
+        loaded: freenet.hasLoadedLog(`delta/${me}`),
+        nextValue: delta ?? "",
+        currentValue: freenet.deltaSiteOf(me) ?? "",
+      })
+    ) {
+      await freenet.setDeltaSite(delta);
+    }
+
+    const existingWallets = freenet.walletsOf(me);
+    const walletsLoaded = freenet.hasLoadedLog(`wallets/${me}`);
+    const mergedWalletsRaw = Object.fromEntries(
+      walletFields.map((f) => [
+        f.kind,
+        modalDirtyFields.has(`wallet:${f.kind}`) || walletsLoaded ? f.raw : (existingWallets[f.kind] ?? ""),
+      ])
+    );
+    const wallets = cleanWallets(mergedWalletsRaw);
+    if (
+      JSON.stringify(wallets) !== JSON.stringify(existingWallets) &&
+      (walletsLoaded || walletFields.some((f) => modalDirtyFields.has(`wallet:${f.kind}`)))
+    ) {
+      await freenet.setWallets(wallets);
+    }
+
     const ortoRaw = modalOrtoInput?.value.trim() || "";
-    if (ortoRaw !== (freenet.ortoBlogOf(currentIdentity.pubkey) || "")) await freenet.setOrtoBlog(ortoRaw || null);
-    const asocialRaw = modalAsocialInput?.value.trim() || "";
-    const asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
-    if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
-    if (asocialKey !== (freenet.asocialKeyOf(currentIdentity.pubkey) || null)) await freenet.setAsocialKey(asocialKey);
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("orto"),
+        loaded: freenet.hasLoadedLog(`orto/${me}`),
+        nextValue: ortoRaw,
+        currentValue: freenet.ortoBlogOf(me) || "",
+      })
+    ) {
+      await freenet.setOrtoBlog(ortoRaw || null);
+    }
+
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("asocial"),
+        loaded: freenet.hasLoadedLog(`asocial/${me}`),
+        nextValue: asocialKey ?? "",
+        currentValue: freenet.asocialKeyOf(me) || "",
+      })
+    ) {
+      await freenet.setAsocialKey(asocialKey);
+    }
+
     const ftRaw = modalFreetunesInput?.value.trim() || "";
-    if (ftRaw !== (freenet.freetunesOf(currentIdentity.pubkey) || "")) {
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("freetunes") || freetunesAutoSuggested,
+        loaded: freenet.hasLoadedLog(`freetunes/${me}`),
+        nextValue: ftRaw,
+        currentValue: freenet.freetunesOf(me) || "",
+      })
+    ) {
       await freenet.setFreetunes(ftRaw || null);
-      if (userProfileModal.style.display !== "none" && uviewKey.textContent === currentIdentity.pubkey) {
-        void renderFreetunes(currentIdentity.pubkey);
+      if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
+        void renderFreetunes(me);
       }
     }
+
     const fhRaw = modalFhInput?.value.trim() || "";
-    if (fhRaw !== (freenet.fhOf(currentIdentity.pubkey) || "")) await freenet.setFh(fhRaw || null);
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("fh"),
+        loaded: freenet.hasLoadedLog(`fh/${me}`),
+        nextValue: fhRaw,
+        currentValue: freenet.fhOf(me) || "",
+      })
+    ) {
+      await freenet.setFh(fhRaw || null);
+    }
+
     const freetreeRaw = modalFreetreeInput?.value.trim() || "";
-    if (freetreeRaw !== (freenet.freetreeOf(currentIdentity.pubkey) || "")) {
+    if (
+      shouldPersistProfileField({
+        dirty: modalDirtyFields.has("freetree"),
+        loaded: freenet.hasLoadedLog(`freetree/${me}`),
+        nextValue: freetreeRaw,
+        currentValue: freenet.freetreeOf(me) || "",
+      })
+    ) {
       await freenet.setFreetree(freetreeRaw || null);
-      if (userProfileModal.style.display !== "none" && uviewKey.textContent === currentIdentity.pubkey) {
-        void renderFreetree(currentIdentity.pubkey);
+      if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
+        void renderFreetree(me);
       }
     }
+
     applyProfile(updated);
+    refreshOpenProfileExtrasUI();
     profileModal.style.display = "none";
+    const hasQueued = PROFILE_EXTRA_LOGS.some((k) => freenet.hasUnsentLog(`${k}/${me}`));
+    showToast(
+      hasQueued
+        ? "Profile saved locally — node offline or busy, will sync automatically."
+        : "Profile & details saved and synced to node.",
+      hasQueued ? "warning" : "info"
+    );
   } catch (err) {
     console.error("Error updating profile:", err);
     alert("Could not save profile.");
@@ -5908,33 +6024,60 @@ async function renderNames(pubkey: string) {
 /** The Delta blog a persona named (set in Edit Profile): a card with its name and all its pages, opening in Delta. */
 
 /** The Orto blog of a persona (from their Orto vault on Freenet or custom URL): a card with its posts. */
+/** Build wallet chip markup for `#uview-wallets` and `#pp-wallets`. */
+function renderWalletChipsHtml(w: Wallets): string {
+  return WALLET_KINDS.filter((k) => w[k.kind])
+    .map((k) => {
+      const addr = escapeHtml(w[k.kind]!);
+      return `<span class="wallet-chip" role="button" tabindex="0" data-copy="${addr}" title="${escapeHtml(k.label)}: ${addr} (tap to copy)">${k.icon} ${escapeHtml(k.label)} <code>${addr}</code><a href="${escapeHtml(walletUri(k.kind, w[k.kind]!))}" title="Open in a wallet app" rel="noopener">↗</a></span>`;
+    })
+    .join("");
+}
+
+function wireWalletChipClicks(el: HTMLElement | null): void {
+  el?.addEventListener("click", (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>(".wallet-chip");
+    if (!chip || (e.target as HTMLElement).closest("a")) return;
+    void navigator.clipboard.writeText(chip.dataset.copy ?? "").then(
+      () => showToast("Address copied", "info"),
+      () => showToast("Could not copy the address", "error")
+    );
+  });
+}
+
+function renderMyProfilePageWallets(): void {
+  const el = document.getElementById("pp-wallets");
+  if (!el || !currentIdentity) return;
+  const html = renderWalletChipsHtml(freenet.walletsOf(currentIdentity.pubkey));
+  if (el.innerHTML !== html) el.innerHTML = html;
+}
+
+function refreshOpenProfileExtrasUI(): void {
+  if (profilePage && !profilePage.hidden) renderMyProfilePageWallets();
+  if (userProfileModal && userProfileModal.style.display !== "none" && uviewKey.textContent) {
+    const el = document.getElementById("uview-wallets");
+    if (el) {
+      const html = renderWalletChipsHtml(freenet.walletsOf(uviewKey.textContent));
+      if (el.innerHTML !== html) el.innerHTML = html;
+    }
+  }
+}
+
 /** A persona's wallets under their bio: one chip each, a tap copies the address, ↗ opens the wallet app. */
 async function renderWallets(pubkey: string) {
   const el = document.getElementById("uview-wallets");
   if (!el) return;
   const draw = () => {
     if (uviewKey.textContent !== pubkey) return;
-    const w = freenet.walletsOf(pubkey);
-    el.innerHTML = WALLET_KINDS.filter((k) => w[k.kind])
-      .map((k) => {
-        const addr = escapeHtml(w[k.kind]!);
-        return `<span class="wallet-chip" role="button" tabindex="0" data-copy="${addr}" title="${escapeHtml(k.label)}: ${addr} (tap to copy)">${k.icon} ${escapeHtml(k.label)} <code>${addr}</code><a href="${escapeHtml(walletUri(k.kind, w[k.kind]!))}" title="Open in a wallet app" rel="noopener">↗</a></span>`;
-      })
-      .join("");
+    const html = renderWalletChipsHtml(freenet.walletsOf(pubkey));
+    if (el.innerHTML !== html) el.innerHTML = html;
   };
-  el.innerHTML = "";
   draw();
-  await freenet.refreshLog(`wallets/${pubkey}`);
+  await freenet.refreshLog(`wallets/${pubkey}`, false, true);
   draw();
 }
-document.getElementById("uview-wallets")?.addEventListener("click", (e) => {
-  const chip = (e.target as HTMLElement).closest<HTMLElement>(".wallet-chip");
-  if (!chip || (e.target as HTMLElement).closest("a")) return;
-  void navigator.clipboard.writeText(chip.dataset.copy ?? "").then(
-    () => showToast("Address copied", "info"),
-    () => showToast("Could not copy the address", "error")
-  );
-});
+wireWalletChipClicks(document.getElementById("uview-wallets"));
+wireWalletChipClicks(document.getElementById("pp-wallets"));
 
 async function renderOrtoBlog(pubkey: string) {
   if (!uviewOrtoBlog) return;
@@ -5971,7 +6114,7 @@ async function renderOrtoBlog(pubkey: string) {
       `</div>`;
   };
   await draw();
-  await freenet.refreshLog(`orto/${pubkey}`);
+  await freenet.refreshLog(`orto/${pubkey}`, false, true);
   if (stillHere()) await draw();
 }
 
@@ -5997,7 +6140,7 @@ async function renderAsocial(pubkey: string) {
     }
   };
   await draw();
-  await freenet.refreshLog(`asocial/${pubkey}`);
+  await freenet.refreshLog(`asocial/${pubkey}`, false, true);
   if (stillHere()) await draw();
 }
 
@@ -6018,7 +6161,7 @@ async function renderFreetunes(pubkey: string) {
     fillFreetunesProfile(uviewFreetunes, (id) => freenet.appContract(id));
   };
   await draw();
-  await freenet.refreshLog(`freetunes/${pubkey}`);
+  await freenet.refreshLog(`freetunes/${pubkey}`, false, true);
   freenet.clearFreetunesArtistCache(pubkey);
   if (stillHere()) await draw();
 }
@@ -6039,7 +6182,7 @@ async function renderFh(pubkey: string) {
     if (wasCollapsed) uviewFh.querySelector(".blog-card")?.classList.add("collapsed");
   };
   await draw();
-  await freenet.refreshLog(`fh/${pubkey}`);
+  await freenet.refreshLog(`fh/${pubkey}`, false, true);
   if (stillHere()) await draw();
 }
 
@@ -6060,7 +6203,7 @@ async function renderFreetree(pubkey: string) {
     if (wasCollapsed) uviewFreetree.querySelector(".blog-card")?.classList.add("collapsed");
   };
   await draw();
-  await freenet.refreshLog(`freetree/${pubkey}`);
+  await freenet.refreshLog(`freetree/${pubkey}`, false, true);
   if (stillHere()) await draw();
 }
 
@@ -6100,7 +6243,7 @@ async function renderBlog(pubkey: string) {
       `</div>`;
   };
   await draw();
-  await freenet.refreshLog(`delta/${pubkey}`);
+  await freenet.refreshLog(`delta/${pubkey}`, false, true);
   if (stillHere()) await draw();
 }
 
@@ -7558,7 +7701,7 @@ const conversation = createConversationState({
     if (row && !row.dataset.burning) {
       triggerRowBurnAnimation(row);
     }
-    await freenet.burnSecretMessage(roomId, msgId, dmPeerOf(roomId, currentIdentity?.pubkey ?? "") ?? undefined);
+    await freenet.burnSecretMessage(roomId, msgId, dmPeerOf(roomId, currentIdentity?.pubkey ?? "") ?? undefined, { localOnly: true });
     void messengerChat.refreshInbox();
   },
   sendTyping: (roomId) => freenet.sendTyping(roomId),
@@ -8438,7 +8581,7 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   const badgeHtml = (isChannel
     ? `<span class="chat-security-badge e2ee btn-icon-text" title="Broadcast Channel (Read-Only for Subscribers)"><span>📢</span> <span>Broadcast Channel</span></span>`
     : `<span class="chat-security-badge e2ee btn-icon-text" title="On-device AES-256-GCM + X25519 ECIES">${renderIcon("lock", { className: "icon-xs" })} <span>E2EE Group</span></span>`) +
-    (gardenerActive ? ` <span class="chat-security-badge" title="Moderated by 🌱 The Gardener (owner's AI helper)">🌱 AI Mod</span>` : "");
+    (gardenerActive ? ` <span class="chat-security-badge" title="Moderated by 🌱 The Gardener (AI moderation helper)">🌱 AI Mod</span>` : "");
   let linkedBtnHtml = "";
   if (room.linked_room_id) {
     linkedBtnHtml = ` <button type="button" class="btn-secondary btn-sm" id="chat-linked-comments-btn" style="padding: 2px 8px; font-size: 0.72rem; margin-left: 6px; cursor: pointer;">${isChannel ? "💬 Comments Room" : "📢 Main Channel"}</button>`;
@@ -8626,6 +8769,7 @@ function appendChatMessageToView(opts: {
   if (currentChatLayout() === "classic") {
     chatMessagesList.querySelector(".empty-state")?.remove();
     chatMessagesList.insertAdjacentHTML("beforeend", renderChatMessage(opts));
+    tickBurnCountdowns(chatMessagesList);
     fillChatMedia(chatMessagesList, (h) => freenet.getMedia(h));
     fillFreepolls(chatMessagesList, pollNet);
     fillFreetunes(chatMessagesList, (id) => freenet.appContract(id), nodeOrigin(), (pk) => freenet.freetunesArtist(pk));
@@ -8697,6 +8841,7 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
     ? await freenet.getSecretChatMessages(currentIdentity, peerPubkey)
     : await freenet.getChatMessages(currentIdentity, peerPubkey);
   shownMessages = messages;
+  if (isSecret) conversation.sweepBurns();
 
   if (!isMessenger) {
     const wasNearBottom = chatMessagesList.scrollHeight - chatMessagesList.scrollTop - chatMessagesList.clientHeight < 90;
@@ -8717,6 +8862,7 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
           })
         )
         .join(""));
+      tickBurnCountdowns(chatMessagesList);
     }
     attachBubbleDeleteListeners();
     chatMessageInput.disabled = false;
@@ -8881,6 +9027,9 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
 
     sendPromise.then((sentMsg) => {
       resolveOptimistic(optId, sentMsg, roomKey);
+      if (activeChatSecret && effectiveTtl && effectiveTtl > 0) {
+        conversation.sweepBurns();
+      }
     }).catch((err) => {
       console.error(activeChatSecret ? "Secret chat error:" : "Direct chat error:", err);
       showToast(`Could not send message: ${err.message || err}`, "error");
@@ -10497,22 +10646,31 @@ addModForm.addEventListener("submit", async (e) => {
 // The slug is never typed here: it was chosen in the search (so it is known to be free) or belongs to the community being edited.
 let editingCommunityId: string | null = null;
 let dialogSlug = "";
-async function populateCommunityRoomPicker() {
+let linkedPickerRoomId: string | null = null;
+let commRoomPickerSeq = 0;
+let commRoomLinkSeq = 0;
+async function populateCommunityRoomPicker(currentDesc = commDescInput.value) {
   if (!commLinkRoomBox || !commLinkRoomSelect || !commInsertRoomBtn) return;
   if (!currentIdentity) {
     commLinkRoomBox.style.display = "none";
+    linkedPickerRoomId = null;
     return;
   }
+  const seq = ++commRoomPickerSeq;
   commLinkRoomBox.style.display = "";
   const identity = currentIdentity;
   if (allPrivateRooms.length === 0) {
     allPrivateRooms = await freenet.getPrivateRooms(identity).catch(() => []);
   }
-  const myRooms = allPrivateRooms.filter((r) => r.creator === identity.pubkey || r.members.includes(identity.pubkey));
+  const myRooms = allPrivateRooms.filter((r) =>
+    r.river ? r.creator === identity.pubkey : r.creator === identity.pubkey || r.members.includes(identity.pubkey)
+  );
+  if (seq !== commRoomPickerSeq || currentIdentity?.pubkey !== identity.pubkey) return;
   if (myRooms.length === 0) {
     commLinkRoomSelect.innerHTML = `<option value="">No private groups or channels yet — create one in Chat</option>`;
     commLinkRoomSelect.disabled = true;
     commInsertRoomBtn.disabled = true;
+    linkedPickerRoomId = null;
     return;
   }
   const entries = await Promise.all(
@@ -10523,18 +10681,23 @@ async function populateCommunityRoomPicker() {
       return { id: r.id, label: `${r.is_channel ? "📢" : "💬"} ${name}` };
     }),
   );
-  if (currentIdentity?.pubkey !== identity.pubkey) return;
+  if (seq !== commRoomPickerSeq || currentIdentity?.pubkey !== identity.pubkey) return;
   commLinkRoomSelect.disabled = false;
   commInsertRoomBtn.disabled = false;
-  commLinkRoomSelect.innerHTML = `<option value="">Choose one of your groups or channels…</option>${entries
+  commLinkRoomSelect.innerHTML = `<option value="">None (no linked chat)</option>${entries
     .map((e) => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.label)}</option>`)
     .join("")}`;
+  const linkedIds = extractLinkedRoomIds(currentDesc);
+  const matched = linkedIds.find((id) => entries.some((e) => e.id === id)) ?? "";
+  commLinkRoomSelect.value = matched;
+  linkedPickerRoomId = matched || null;
 }
 function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
   editingCommunityId = edit?.id ?? null;
   dialogSlug = edit ? edit.slug : slug;
+  const initialDesc = edit ? edit.description : "";
   commNameInput.value = edit ? edit.name : name;
-  commDescInput.value = edit ? edit.description : "";
+  commDescInput.value = initialDesc;
   if (commRequireTrustedInput) {
     commRequireTrustedInput.checked = edit ? !!edit.require_trusted_to_post : false;
   }
@@ -10548,9 +10711,30 @@ function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
     : "As the creator, you become the founder and primary moderator with powers to manage mods and remove posts.";
   createCommSaveBtn.textContent = edit ? "Save" : "Create Community";
   createCommModal.style.display = "flex";
-  void populateCommunityRoomPicker();
+  void populateCommunityRoomPicker(initialDesc);
   commNameInput.focus();
 }
+commLinkRoomSelect?.addEventListener("change", async () => {
+  if (!currentIdentity || !commLinkRoomSelect) return;
+  const roomId = commLinkRoomSelect.value;
+  const seq = ++commRoomLinkSeq;
+  if (!roomId) {
+    if (linkedPickerRoomId) {
+      commDescInput.value = upsertLinkedRoomInDescription(commDescInput.value, null, { replaceRoomId: linkedPickerRoomId });
+      linkedPickerRoomId = null;
+    }
+    return;
+  }
+  const room = allPrivateRooms.find((r) => r.id === roomId);
+  if (!room) return;
+  const link = await inviteLinkOf(room);
+  if (seq !== commRoomLinkSeq || commLinkRoomSelect.value !== roomId || !link) return;
+  commDescInput.value = upsertLinkedRoomInDescription(commDescInput.value, link, {
+    replaceRoomId: linkedPickerRoomId,
+    nextRoomId: roomId,
+  });
+  linkedPickerRoomId = roomId;
+});
 commInsertRoomBtn?.addEventListener("click", async () => {
   if (!currentIdentity || !commLinkRoomSelect) return;
   const roomId = commLinkRoomSelect.value;
@@ -10570,10 +10754,11 @@ commInsertRoomBtn?.addEventListener("click", async () => {
       showToast("Could not generate an invite link for this room.", "error");
       return;
     }
-    const cur = commDescInput.value.trimEnd();
-    if (!cur.includes(link)) {
-      commDescInput.value = cur ? `${cur}\n${link}` : link;
-    }
+    commDescInput.value = upsertLinkedRoomInDescription(commDescInput.value, link, {
+      replaceRoomId: linkedPickerRoomId,
+      nextRoomId: room.id,
+    });
+    linkedPickerRoomId = room.id;
     commDescInput.focus();
     showToast("Invite link added to description.", "info");
   } finally {
@@ -10592,18 +10777,39 @@ createCommSaveBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
   const name = commNameInput.value.trim();
   const slug = dialogSlug;
-  const desc = commDescInput.value.trim();
+  let desc = commDescInput.value.trim();
 
   if (!name) {
     alert("Please provide a title.");
     return;
   }
-  if (!okToPublish(`${name}\n${desc}`)) return;
 
   const editing = editingCommunityId;
   const idle = editing ? "Save" : "Create Community";
   createCommSaveBtn.disabled = true;
   createCommSaveBtn.textContent = editing ? "Saving..." : "Creating...";
+
+  const selectedRoomId = commLinkRoomSelect && !commLinkRoomSelect.disabled ? commLinkRoomSelect.value : "";
+  if (selectedRoomId && !extractLinkedRoomIds(desc).includes(selectedRoomId)) {
+    const room = allPrivateRooms.find((r) => r.id === selectedRoomId);
+    if (room) {
+      const link = await inviteLinkOf(room);
+      if (link) {
+        desc = upsertLinkedRoomInDescription(desc, link, {
+          replaceRoomId: linkedPickerRoomId,
+          nextRoomId: selectedRoomId,
+        });
+        commDescInput.value = desc;
+        linkedPickerRoomId = selectedRoomId;
+      }
+    }
+  }
+
+  if (!okToPublish(`${name}\n${desc}`)) {
+    createCommSaveBtn.disabled = false;
+    createCommSaveBtn.textContent = idle;
+    return;
+  }
 
   const reqTrusted = commRequireTrustedInput ? commRequireTrustedInput.checked : false;
 
@@ -10624,6 +10830,11 @@ createCommSaveBtn.addEventListener("click", async () => {
     } else {
       renderCommunities();
       selectCommunity(savedComm);
+    }
+    if (freenet.hasUnsentLog("communities")) {
+      showToast("Saved locally — syncing to Freenet node when connected.", "warning");
+    } else {
+      showToast(editing ? "Community saved!" : "Community created!", "info");
     }
   } catch (err: any) {
     console.error("Error saving community:", err);
@@ -11909,8 +12120,12 @@ function showProfilePage(show: boolean) {
     document.getElementById("pp-meta")!.textContent = sidebarHandle?.textContent ?? "";
     renderMyPohBadges();
     setProfileBio(ppBio, currentProfile?.bio, "No bio yet.");
+    renderMyProfilePageWallets();
     renderRoots();
-    if (currentIdentity) void showLinfa(document.getElementById("pp-linfa"), currentIdentity.pubkey);
+    if (currentIdentity) {
+      void showLinfa(document.getElementById("pp-linfa"), currentIdentity.pubkey);
+      void freenet.refreshLog(`wallets/${currentIdentity.pubkey}`, false, true).then(() => renderMyProfilePageWallets());
+    }
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -13652,7 +13867,7 @@ initSupporterPanel({
 /** The invite link to a private room: a River room mints one (its owner only), a native room carries its key. */
 async function inviteLinkOf(room: PrivateRoom): Promise<string | null> {
   const name = await freenet.getPrivateRoomDecryptedName(currentIdentity!, room);
-  if (room.river) return freenet.getRiverInviteLink(currentIdentity!, room).catch((e) => (alert(e.message || e), null));
+  if (room.river) return freenet.getRiverInviteLink(currentIdentity!, room, name).catch((e) => (alert(e.message || e), null));
   const key = await freenet.getPrivateRoomKey(currentIdentity!, room);
   if (!key) return null;
   let linkedKey: Uint8Array | null = null;
@@ -13898,6 +14113,7 @@ async function init() {
   await durable.ready; // renderIdentityModal derives & caches the Freenet Mail identity from the saved alias,
   // which lives in durable storage: rendering it before this resolves poisons the cache with the "user_…" fallback
   reapplyDurablePreferences();
+  refreshOpenProfileExtrasUI();
   renderIdentityModal();
   updateNotificationsBadge();
   void maybeShowWelcome();
@@ -13930,6 +14146,7 @@ async function init() {
       void freenet.announceIdentity(currentIdentity!, mine.profile);
       if (welcomeModal.style.display !== "none" && !hasDefaultName()) finishWelcome(); // a returning user: their name came late
     }
+    refreshOpenProfileExtrasUI();
     void refreshSupporters(); // the supporters wall may have changed
     if (mine.following?.length && mine.following.length !== followingKeys.length) {
       followingKeys = [...new Set([...followingKeys, ...mine.following])];
@@ -13996,6 +14213,9 @@ async function init() {
   const connected = await freenet.connect();
   if (connected) {
     void freenet.syncOwnFeed(currentIdentity!); // in background: publish my feed, pick up what my other devices wrote
+    void freenet.refreshProfileExtras(currentIdentity!.pubkey, { force: true, urgent: true }).then(() => refreshOpenProfileExtrasUI());
+    void freenet.freenamesOf(currentIdentity!.pubkey);
+    void freenet.freenameSites(currentIdentity!.pubkey);
     freenetDot.classList.add("online");
     freenetStatusLabel.textContent = "Your node is online";
     setChatStatus(true);
@@ -14010,6 +14230,9 @@ async function init() {
   // Load Timeline (Explore by default so all posts on network are immediately visible)
   bootStep("Loading posts…");
   await reloadPosts();
+  if (connected) {
+    freenet.warmPeerWallets([...followingKeys, ...timelinePosts.map((p) => p.author)]);
+  }
   if (!timelinePosts.length && connected) {
     bootStep("Fetching new posts from the network…");
     const t0 = Date.now();

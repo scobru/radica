@@ -307,8 +307,9 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
       const t = norm(b.target);
       const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
+      const targetIsGardener = AI_REPORTERS.some((g) => norm(g) === t);
       const allowed = byCreator || mods.includes(a);
-      if (!allowed || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t))) continue;
+      if (!allowed || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t) && !targetIsGardener)) continue;
       room.members = room.members.filter((m) => m !== t);
       room.moderators = mods.filter((m) => m !== t);
       kicked.add(t);
@@ -317,6 +318,25 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
       room.encrypted_keys = Object.fromEntries(Object.entries(keys).filter(([m]) => room!.members.includes(m)));
       if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
       room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? b.keys_enc_pub : undefined;
+      room.gardener_enc_pub = undefined;
+    } else if (b.type === "room_gardener" && b.roomId === roomId && room && typeof b.target === "string") {
+      const t = norm(b.target);
+      const byCreator = a === room.creator;
+      const mods = room.moderators ?? [];
+      if (!(byCreator || mods.includes(a)) || !AI_REPORTERS.some((g) => norm(g) === t)) continue;
+      if (b.on === true) {
+        kicked.delete(t);
+        if (!room.members.includes(t)) room.members.push(t);
+        room.moderators = mods;
+        if (t !== room.creator && !room.moderators.includes(t)) room.moderators.push(t);
+        if (typeof b.encrypted_key === "string" && b.encrypted_key) {
+          room.encrypted_keys = { ...room.encrypted_keys, [t]: b.encrypted_key };
+        }
+        room.gardener_enc_pub =
+          typeof b.inviter_enc_pub === "string" && /^[0-9a-f]{64}$/i.test(b.inviter_enc_pub)
+            ? norm(b.inviter_enc_pub)
+            : a;
+      }
     } else if (b.type === "room_avatar" && b.roomId === roomId && room) {
       const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
@@ -340,6 +360,7 @@ export function roomJoinProofs(
   roomId: string,
 ): { creatorListed: Set<string>; joinProofs: Map<string, string> } {
   const creatorListed = new Set<string>();
+  const moderators = new Set<string>();
   const joinProofs = new Map<string, string>();
   let creator = "";
   for (const { e, b } of bodies(entries)) {
@@ -347,6 +368,11 @@ export function roomJoinProofs(
     if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && norm(b.room.creator) === a) {
       creator = a;
       creatorListed.add(a);
+      moderators.clear();
+      for (const m of b.room.moderators ?? []) {
+        const ml = norm(m);
+        if (ml && ml !== creator) moderators.add(ml);
+      }
       for (const m of b.room.members ?? []) {
         const ml = norm(m);
         if (ml) creatorListed.add(ml);
@@ -355,12 +381,20 @@ export function roomJoinProofs(
       if (typeof b.key_proof === "string" && /^[0-9a-f]{64}$/i.test(b.key_proof)) {
         joinProofs.set(a, b.key_proof.toLowerCase());
       }
+    } else if (b.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (a === creator || moderators.has(a)) && typeof b.target === "string") {
+      const t = norm(b.target);
+      if (AI_REPORTERS.some((g) => norm(g) === t)) {
+        creatorListed.add(t);
+        if (t !== creator) moderators.add(t);
+      }
     } else if (b.type === "room_leave" && b.roomId === roomId) {
       creatorListed.delete(a);
+      moderators.delete(a);
       joinProofs.delete(a);
     } else if (b.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
       const t = norm(b.target);
       creatorListed.delete(t);
+      moderators.delete(t);
       joinProofs.delete(t);
     }
   }

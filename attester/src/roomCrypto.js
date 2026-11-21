@@ -127,7 +127,7 @@ export async function decryptRoomKey(mySk, myPkHex, room) {
   }
   if (typeof encKey !== "string") return null;
   const candidates = [];
-  for (const cand of [room.keys_enc_pub, room.creator_enc_pub, room.creator]) {
+  for (const cand of [room.gardener_enc_pub, room.keys_enc_pub, room.creator_enc_pub, room.creator]) {
     if (typeof cand === "string" && HEX64_RE.test(cand)) {
       const low = cand.toLowerCase();
       if (!candidates.includes(low)) candidates.push(low);

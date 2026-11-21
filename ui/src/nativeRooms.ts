@@ -70,7 +70,68 @@ export function buildPrivateRoomInviteLink(
     params.set("lr", room.linked_room_id);
     if (linkedRoomKey) params.set("lr_key", bytesToHex(linkedRoomKey));
   }
-  return `${origin}${pathname}#${params.toString()}`;
+  const prefix = /^https?:\/\//i.test(origin) ? `${origin}${pathname}` : "";
+  return `${prefix}#${params.toString()}`;
+}
+
+const ROOM_INVITE_TOKEN_RE = /(?:https?:\/\/[^\s<>"')]*|\/v[12]\/contract\/[^\s<>"')]*)?#[^\s<>"')]*(?:join_room|river_invite)=[^\s<>"')]*/gi;
+
+function extractTokenRoomId(token: string): string | null {
+  const hashIdx = token.indexOf("#");
+  if (hashIdx < 0) return null;
+  const params = new URLSearchParams(token.slice(hashIdx + 1));
+  return params.get("join_room") || params.get("room_id") || null;
+}
+
+/** Extract unique linked room IDs referenced by native or River invite links inside a community description. */
+export function extractLinkedRoomIds(description: string): string[] {
+  const seen = new Set<string>();
+  for (const m of description.matchAll(ROOM_INVITE_TOKEN_RE)) {
+    const id = extractTokenRoomId(m[0]);
+    if (id) seen.add(id);
+  }
+  return [...seen];
+}
+
+/**
+ * Insert, replace, or remove a private group / broadcast channel invite link in a community description
+ * without disturbing surrounding description text or creating duplicate links.
+ */
+export function upsertLinkedRoomInDescription(
+  description: string,
+  nextLink: string | null,
+  opts?: { replaceRoomId?: string | null; nextRoomId?: string | null }
+): string {
+  const dropIds = new Set<string>();
+  if (opts?.replaceRoomId) dropIds.add(opts.replaceRoomId);
+  if (opts?.nextRoomId) dropIds.add(opts.nextRoomId);
+  const nextTokenId = nextLink ? extractTokenRoomId(nextLink) : null;
+  if (nextTokenId) dropIds.add(nextTokenId);
+
+  const lines = description.split(/\r?\n/);
+  const keptLines: string[] = [];
+  for (const line of lines) {
+    const cleaned = dropIds.size
+      ? line.replace(ROOM_INVITE_TOKEN_RE, (tok) => {
+          const id = extractTokenRoomId(tok);
+          return id && dropIds.has(id) ? "" : tok;
+        })
+      : line;
+    const collapsed = cleaned.replace(/[ \t]{2,}/g, " ").trim();
+    if (collapsed) {
+      keptLines.push(collapsed);
+    } else if (line.trim() === "" && keptLines.length > 0 && keptLines[keptLines.length - 1] !== "") {
+      keptLines.push("");
+    }
+  }
+  while (keptLines.length > 0 && keptLines[keptLines.length - 1] === "") {
+    keptLines.pop();
+  }
+  const cleanNext = nextLink?.trim();
+  if (cleanNext) {
+    keptLines.push(cleanNext);
+  }
+  return keptLines.join("\n");
 }
 
 /** Parse a room invite fragment's URLSearchParams into structured join parameters, or null if invalid. */

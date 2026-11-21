@@ -133,9 +133,18 @@ import { dmPeerOf, localReadMarks, seedReadMark } from "./conversationState.ts";
 import { durable } from "./durable.ts";
 import { mergeRoomBackup } from "./roomBackup.ts";
 import {
+  backupOwnProfileExtras,
+  isProfileExtraLog,
+  latestOwnLogEntry,
+  profileExtraLogNames,
+  restoreOwnProfileExtras,
+  type ProfileExtraKind,
+} from "./profileExtras.ts";
+import {
   addSecretChatPeer,
   editSecretMessage,
   burnSecretMessage,
+  readBurnedSecretIds,
   readSecretChat,
   removeSecretChatPeer,
   secretChatPeers,
@@ -219,6 +228,8 @@ export class FreenetClient {
   private bc: BroadcastChannel | null = null;
   private listeners: (() => void)[] = [];
   private typingListeners: ((roomId: string, sender: string) => void)[] = [];
+  private loadedLogs = new Set<string>();
+  private warmedWallets = new Set<string>();
   private static readonly MAX_PEER_CACHE = 400;
   public peerCache: Record<string, Post> = {};
   public cachePeerPost(id: string, post: Post): void {
@@ -641,6 +652,7 @@ export class FreenetClient {
   public setIdentity(identity: UserIdentity): void {
     this.identity = identity;
     this.me = identity.pubkey;
+    restoreOwnProfileExtras(localStorage, identity.pubkey);
     this.moveLocalLogs();
     this.applyDmHistory();
     void this.loadDmHistory();
@@ -656,7 +668,10 @@ export class FreenetClient {
       this.notifyListeners();
     }, () => {});
     this.roomsReady = this.restoreRoomsFromNode();
-    this.secretReady = durable.start(identity.pubkey).then(() => this.restoreSecretFromNode());
+    this.secretReady = durable.start(identity.pubkey).then(() => {
+      if (restoreOwnProfileExtras(localStorage, identity.pubkey)) this.notifyListeners();
+      return this.restoreSecretFromNode();
+    });
     this.riverOnlyReady = this.restoreRiverOnly();
     this.joinedReady = this.restoreJoined();
     // communities I created before they lived on the network: publish them once
@@ -948,7 +963,7 @@ export class FreenetClient {
   }
 
   /** Sign `body` as a new entry of log `name`, apply it here and send it to the network. */
-  private async logAppend(name: string, body: object): Promise<void> {
+  private async logAppend(name: string, body: object, opts?: { flush?: boolean }): Promise<void> {
     const me = this.identity;
     if (!me) throw new Error("No identity to sign with");
     // state (a read mark, a hidden room…) goes under one id per subject: the log keeps only the newest
@@ -960,10 +975,56 @@ export class FreenetClient {
     if (me.cert) e.cert = me.cert;
     this.saveLog(name, [...this.logEntries(name), e]);
     this.applyLog(name);
-    if (this.isConnected) void this.pushLog(name, [e]);
-    else {
+    if (this.isConnected) {
+      if (opts?.flush) await this.pushLog(name, [e]);
+      else void this.pushLog(name, [e]);
+    } else {
       this.unsentLogs.add(name); // offline: sent once the node is back
       this.retryUnsent(name);
+    }
+  }
+
+  public hasUnsentLog(name: string): boolean {
+    return this.unsentLogs.has(name);
+  }
+
+  public hasLoadedLog(name: string): boolean {
+    return this.loadedLogs.has(name);
+  }
+
+  private async writeOwnProfileExtra(kind: ProfileExtraKind, body: object): Promise<void> {
+    if (!this.me) throw new Error("No identity to sign with");
+    const logName = `${kind}/${this.me}`;
+    await this.logAppend(logName, body, { flush: true });
+    this.loadedLogs.add(logName);
+    backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
+    void durable.flush();
+    this.notifyListeners();
+  }
+
+  /** Eagerly fetch all personal profile-extra logs (`wallets/`, `delta/`, `orto/`, `asocial/`, `freetunes/`, `freetree/`, `fh/`) for `pubkey`. */
+  public async refreshProfileExtras(pubkey: string, opts?: { force?: boolean; urgent?: boolean }): Promise<void> {
+    if (!this.isConnected || !pubkey) return;
+    const force = !!opts?.force;
+    const urgent = !!opts?.urgent;
+    await Promise.allSettled(profileExtraLogNames(pubkey).map((n) => this.refreshLog(n, force, urgent)));
+  }
+
+  /** Warm `wallets/<pk>` in background for visible timeline/followed authors so opening their profile is instant. */
+  public warmPeerWallets(pubkeys: string[], limit = 16): void {
+    if (!this.isConnected) return;
+    const targets: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of pubkeys) {
+      const pk = typeof raw === "string" ? raw.trim() : "";
+      if (!pk || pk === this.me || seen.has(pk) || this.warmedWallets.has(pk)) continue;
+      seen.add(pk);
+      this.warmedWallets.add(pk);
+      targets.push(pk);
+      if (targets.length >= limit) break;
+    }
+    for (const pk of targets) {
+      void this.refreshLog(`wallets/${pk}`, false, false);
     }
   }
 
@@ -1194,12 +1255,12 @@ export class FreenetClient {
 
   /** Name my Delta blog (its site prefix) on my profile, or none. */
   public setDeltaSite(prefix: string | null): Promise<void> {
-    return this.logAppend(`delta/${this.me}`, { type: "site", prefix });
+    return this.writeOwnProfileExtra("delta", { type: "site", prefix });
   }
 
   /** The Delta blog `pubkey` named, from their own newest entry, as last fetched (refreshLog(`delta/<pubkey>`) to update). */
   public deltaSiteOf(pubkey: string): string | null {
-    const mine = this.logEntries(`delta/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`delta/${pubkey}`), pubkey);
     try {
       const prefix = mine && JSON.parse(mine.body).prefix;
       return typeof prefix === "string" ? prefix : null;
@@ -1233,12 +1294,12 @@ export class FreenetClient {
   }
 
   public setWallets(wallets: Wallets): Promise<void> {
-    return this.logAppend(`wallets/${this.me}`, { type: "wallets", ...wallets });
+    return this.writeOwnProfileExtra("wallets", { type: "wallets", ...wallets });
   }
 
   /** The wallet addresses pubkey published, each checked by format (anyone can write to a log: only theirs count). */
   public walletsOf(pubkey: string): Wallets {
-    const mine = this.logEntries(`wallets/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`wallets/${pubkey}`), pubkey);
     try {
       return mine ? cleanWallets(JSON.parse(mine.body)) : {};
     } catch {
@@ -1247,12 +1308,12 @@ export class FreenetClient {
   }
 
   public setOrtoBlog(url: string | null): Promise<void> {
-    return this.logAppend(`orto/${this.me}`, { type: "blog", url });
+    return this.writeOwnProfileExtra("orto", { type: "blog", url });
   }
 
   /** The Orto blog url/setting pubkey named, or null. */
   public ortoBlogOf(pubkey: string): string | null {
-    const mine = this.logEntries(`orto/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`orto/${pubkey}`), pubkey);
     try {
       const url = mine && JSON.parse(mine.body).url;
       // ponytail: allow only http(s), freenet:, or #fblog= to block javascript:/data: injection
@@ -1312,12 +1373,12 @@ export class FreenetClient {
   /** FreeNames' registry, read once per session (tried again after a failed read). */
   /** Set the user's Asocial author key or profile link in their personal log. */
   public setAsocialKey(key: string | null): Promise<void> {
-    return this.logAppend(`asocial/${this.me}`, { type: "profile", key });
+    return this.writeOwnProfileExtra("asocial", { type: "profile", key });
   }
 
   /** The Asocial author key/profile link pubkey named, or null. */
   public asocialKeyOf(pubkey: string): string | null {
-    const mine = this.logEntries(`asocial/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`asocial/${pubkey}`), pubkey);
     try {
       const key = mine && JSON.parse(mine.body).key;
       return typeof key === "string" ? key : null;
@@ -1388,7 +1449,7 @@ export class FreenetClient {
   /** Set the user's FreeTunes artist link, persona key or release links in their personal log. */
   public setFreetunes(input: string | null): Promise<void> {
     this.clearFreetunesArtistCache(this.me);
-    return this.logAppend(`freetunes/${this.me}`, { type: "profile", input });
+    return this.writeOwnProfileExtra("freetunes", { type: "profile", input });
   }
 
   public clearFreetunesArtistCache(pubkey?: string): void {
@@ -1401,7 +1462,7 @@ export class FreenetClient {
 
   /** The FreeTunes setting pubkey configured in their profile, or null. */
   public freetunesOf(pubkey: string): string | null {
-    const mine = this.logEntries(`freetunes/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`freetunes/${pubkey}`), pubkey);
     try {
       const input = mine && JSON.parse(mine.body).input;
       return typeof input === "string" ? input : null;
@@ -1517,12 +1578,12 @@ export class FreenetClient {
 
   /** Set the user's Freetree hub prefix/link in their personal log. */
   public setFreetree(prefix: string | null): Promise<void> {
-    return this.logAppend(`freetree/${this.me}`, { type: "hub", prefix });
+    return this.writeOwnProfileExtra("freetree", { type: "hub", prefix });
   }
 
   /** The Freetree hub prefix configured in their profile, or null. */
   public freetreeOf(pubkey: string): string | null {
-    const mine = this.logEntries(`freetree/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`freetree/${pubkey}`), pubkey);
     try {
       const prefix = mine && JSON.parse(mine.body).prefix;
       return typeof prefix === "string" ? prefix : null;
@@ -1535,12 +1596,12 @@ export class FreenetClient {
 
   /** Set the user's Fisherman's Horizon share link, persona, or JSON in their personal log. */
   public setFh(input: string | null): Promise<void> {
-    return this.logAppend(`fh/${this.me}`, { type: "profile", input });
+    return this.writeOwnProfileExtra("fh", { type: "profile", input });
   }
 
   /** The Fisherman's Horizon setting pubkey configured in their profile, or null. */
   public fhOf(pubkey: string): string | null {
-    const mine = this.logEntries(`fh/${pubkey}`).filter((e) => e.author === pubkey).sort((a, b) => b.ts - a.ts)[0];
+    const mine = latestOwnLogEntry(this.logEntries(`fh/${pubkey}`), pubkey);
     try {
       const input = mine && JSON.parse(mine.body).input;
       return typeof input === "string" ? input : null;
@@ -1759,15 +1820,21 @@ export class FreenetClient {
   }
 
   /** Fetch a log (and subscribe to it), send it what only we have, then rebuild the state it feeds. */
-  public async refreshLog(name: string, force = false): Promise<void> {
+  public async refreshLog(name: string, force = false, urgent = false): Promise<void> {
     if (!this.isConnected) return;
     const last = this.lastRefresh.get(`log:${name}`) ?? 0;
     if (!shouldFetch({ force, sinceLast: Date.now() - last, liveAge: this.net.liveAge(`log:${name}`), unsent: this.unsentLogs.has(name) })) return;
     this.lastRefresh.set(`log:${name}`, Date.now());
     try {
-      const remote = (await this.net.get<{ entries: Record<string, LogEntry> }>(`log:${name}`))?.entries ?? {};
+      const remote = (await this.net.get<{ entries: Record<string, LogEntry> }>(`log:${name}`, urgent))?.entries ?? {};
       await this.takeLog(name, remote);
+      this.loadedLogs.add(name);
+      if (this.me && isProfileExtraLog(name) && name.endsWith(`/${this.me}`)) {
+        backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
+      }
     } catch (e) {
+      // Allow quick retry after a transient fetch timeout instead of hiding wallets/links for a full minute.
+      this.lastRefresh.set(`log:${name}`, Date.now() - REFRESH_EVERY_MS + 5_000);
       console.warn("[Freenet] Could not fetch log", name, e);
     }
   }
@@ -1782,7 +1849,12 @@ export class FreenetClient {
           : undefined;
       if (remote) {
         this.lastRefresh.set(`log:${name}`, Date.now());
-        return await this.takeLog(name, remote);
+        this.loadedLogs.add(name);
+        await this.takeLog(name, remote);
+        if (this.me && isProfileExtraLog(name) && name.endsWith(`/${this.me}`)) {
+          backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
+        }
+        return;
       }
     } catch (e) {
       console.warn("[Freenet] Could not apply the change of log", name, e);
@@ -1944,6 +2016,7 @@ export class FreenetClient {
           ...room,
           avatar_url: room.avatar_url !== undefined ? (room.avatar_url || undefined) : existing?.avatar_url,
           pinned_message_id: room.pinned_message_id !== undefined ? (room.pinned_message_id || undefined) : existing?.pinned_message_id,
+          gardener_enc_pub: room.gardener_enc_pub,
           members: mergedMembers,
           encrypted_keys: mergedKeys,
           is_channel: existing?.is_channel ?? room.is_channel,
@@ -1966,7 +2039,18 @@ export class FreenetClient {
   private writeChat(roomId: string, fromLog: ChatMessage[], entries: LogEntry[]): void {
     const inLog = new Set(entries.map((e) => /"id":"([^"]+)"/.exec(e.body)?.[1]).filter(Boolean)); // ids of the messages entries carry
     const local = this.readJson<ChatMessage[]>(`freenet_chat_${roomId}`, "[]");
-    const merged = dedupeChat([...fromLog, ...local.filter((m) => !inLog.has(m.id))]);
+    const localById = new Map(local.map((m) => [m.id, m]));
+    const burned = isSecretRoomId(roomId) && this.me ? readBurnedSecretIds(localStorage, this.me) : null;
+    const adjustedFromLog = fromLog
+      .filter((m) => !burned?.has(m.id))
+      .map((m) => {
+        const cur = localById.get(m.id);
+        if (cur?.burn_started && cur.burn_at) {
+          return { ...m, ttl_seconds: cur.ttl_seconds ?? m.ttl_seconds, burn_at: cur.burn_at, burn_started: true };
+        }
+        return m;
+      });
+    const merged = dedupeChat([...adjustedFromLog, ...local.filter((m) => !inLog.has(m.id) && !burned?.has(m.id))]);
     localStorage.setItem(`freenet_chat_${roomId}`, JSON.stringify(merged));
   }
 
@@ -3013,13 +3097,20 @@ export class FreenetClient {
   }
 
   public async getSecretChatMessages(identity: UserIdentity, peerPubkey: string): Promise<ChatMessage[]> {
+    const roomId = getSecretRoomId(identity.pubkey, peerPubkey);
     void this.refreshLog(`inbox/${identity.pubkey}`);
+    void this.refreshLog(`dm/${roomId}`);
     await this.secretReady;
     return readSecretChat(this.secretTransport, identity, peerPubkey);
   }
 
-  public async burnSecretMessage(roomId: string, messageId: string, peerPubkey?: string): Promise<void> {
-    burnSecretMessage(this.secretTransport, roomId, messageId, this.identity?.pubkey, peerPubkey);
+  public async burnSecretMessage(
+    roomId: string,
+    messageId: string,
+    peerPubkey?: string,
+    opts?: { localOnly?: boolean }
+  ): Promise<void> {
+    burnSecretMessage(this.secretTransport, roomId, messageId, this.identity?.pubkey, peerPubkey, opts);
   }
 
   public sendTyping(roomId: string): void {
@@ -3075,17 +3166,20 @@ export class FreenetClient {
     return this.visibleChat(roomId).filter((m) => m.sender !== me && m.timestamp > since).length;
   }
 
-  private visibleChatCache = new Map<string, { stored: ChatMessage[]; cleared: number; visible: ChatMessage[] }>();
+  private visibleChatCache = new Map<string, { stored: ChatMessage[]; cleared: number; burnedRaw: string | null; visible: ChatMessage[] }>();
 
   /** Do not change the returned list: it is shared until the room's stored messages or its clear mark change. */
   public visibleChat(roomId: string): ChatMessage[] {
     const cleared = Number(localStorage.getItem(`freenet_chat_cleared_${roomId}`) || 0);
     const stored = this.readJson<ChatMessage[]>(`freenet_chat_${roomId}`, "[]"); // the same array until the stored text changes
+    const secret = isSecretRoomId(roomId) && this.me;
+    const burnedRaw = secret ? localStorage.getItem(`radica_secret_burned_${this.me}`) : null;
     // the unread badge and the chat list ask for every conversation on each redraw: dedupe and sort once per change
     const hit = this.visibleChatCache.get(roomId);
-    if (hit?.stored === stored && hit.cleared === cleared) return hit.visible;
-    const visible = dedupeChat(stored).filter((m) => m.timestamp > cleared);
-    this.visibleChatCache.set(roomId, { stored, cleared, visible });
+    if (hit?.stored === stored && hit.cleared === cleared && hit.burnedRaw === burnedRaw) return hit.visible;
+    const burned = burnedRaw && secret ? readBurnedSecretIds(localStorage, this.me) : null;
+    const visible = dedupeChat(stored).filter((m) => m.timestamp > cleared && !burned?.has(m.id));
+    this.visibleChatCache.set(roomId, { stored, cleared, burnedRaw, visible });
     return visible;
   }
 
@@ -3458,16 +3552,20 @@ export class FreenetClient {
     const id = `c_${slug}`;
     if (!slug) throw new Error("Choose a name made of letters, digits or _.");
     if (await this.getCommunity(id)) throw new Error(`r/${slug} already exists.`);
-    await this.logAppend("communities", {
-      type: "community_create",
-      community: {
-        id,
-        name: name.trim(),
-        description: description.trim(),
-        avatar_url: avatarUrl,
-        require_trusted_to_post: requireTrustedToPost,
+    await this.logAppend(
+      "communities",
+      {
+        type: "community_create",
+        community: {
+          id,
+          name: name.trim(),
+          description: description.trim(),
+          avatar_url: avatarUrl,
+          require_trusted_to_post: requireTrustedToPost,
+        },
       },
-    });
+      { flush: true }
+    );
     return (await this.getCommunity(id))!;
   }
 
@@ -3484,16 +3582,20 @@ export class FreenetClient {
     if (!canEditCommunity(comm, identity.pubkey)) {
       throw new Error("Only the community's founder or moderators can edit it.");
     }
-    await this.logAppend("communities", {
-      type: "community_create",
-      community: {
-        id: comm.id,
-        name: name.trim(),
-        description: description.trim(),
-        ...(comm.avatar_url ? { avatar_url: comm.avatar_url } : {}),
-        require_trusted_to_post: requireTrustedToPost,
+    await this.logAppend(
+      "communities",
+      {
+        type: "community_create",
+        community: {
+          id: comm.id,
+          name: name.trim(),
+          description: description.trim(),
+          ...(comm.avatar_url ? { avatar_url: comm.avatar_url } : {}),
+          require_trusted_to_post: requireTrustedToPost,
+        },
       },
-    });
+      { flush: true }
+    );
     this.notifyListeners();
     return (await this.getCommunity(comm.id))!;
   }
@@ -3929,9 +4031,10 @@ export class FreenetClient {
     if (cached && this.privateRoomKeyCache.has(cacheKey)) return cached;
     await this.readKeysReady;
 
-    // Encrypted by the moderator who last rotated the keys, by the creator, or by myself when I joined through an invite link
+    // Encrypted by the moderator who last rotated/shared keys, by the creator, or by myself when I joined through an invite link
     const key =
       (room.keys_enc_pub ? await decryptRoomKeyFromPeer(identity.secretKey, room.keys_enc_pub, myEncryptedKey) : null) ??
+      (room.gardener_enc_pub ? await decryptRoomKeyFromPeer(identity.secretKey, room.gardener_enc_pub, myEncryptedKey) : null) ??
       (await decryptRoomKeyFromPeer(identity.secretKey, room.creator_enc_pub || room.creator, myEncryptedKey)) ??
       (await decryptRoomKeyFromPeer(identity.secretKey, identity.encPub, myEncryptedKey));
     if (key) {
@@ -4077,6 +4180,53 @@ export class FreenetClient {
     this.saveRoomsToNode();
   }
 
+  /** Invite & promote 🌱 The Gardener in a native E2EE group (creator or any active room moderator). */
+  public async addGardenerToPrivateRoom(
+    identity: UserIdentity,
+    roomId: string
+  ): Promise<PrivateRoom> {
+    const gardener = AI_REPORTERS[0]?.toLowerCase();
+    if (!gardener) throw new Error("The Gardener key is not configured");
+    if (identity.pubkey.toLowerCase() !== RADICA_MAINTAINER.toLowerCase()) {
+      throw new Error("Only Radica's maintainer can enable The Gardener");
+    }
+    await this.refreshLog(`room/${roomId}`, true);
+    const rooms = await this.getPrivateRooms(identity);
+    const room = rooms.find((r) => r.id === roomId);
+    if (!room) throw new Error("Private room not found or unauthorized");
+    if (room.river || room.is_channel) throw new Error("The Gardener only supports native E2EE groups");
+
+    const meLow = identity.pubkey.toLowerCase();
+    const byCreator = room.creator.toLowerCase() === meLow;
+    const isMod = (room.moderators ?? []).some((m) => m.toLowerCase() === meLow);
+    if (!byCreator && !isMod) {
+      throw new Error("Only the room creator or a room moderator can add The Gardener");
+    }
+
+    const roomKey = await this.getPrivateRoomKey(identity, room);
+    if (!roomKey) throw new Error("Cannot decrypt room key to add The Gardener");
+
+    const encKey = await encryptRoomKeyForPeer(identity.secretKey, await this.encPubOf(gardener), roomKey);
+    room.encrypted_keys = { ...(room.encrypted_keys ?? {}), [gardener]: encKey };
+    if (!room.members.some((m) => m.toLowerCase() === gardener)) room.members = [...room.members, gardener];
+    const mods = room.moderators ?? [];
+    if (!mods.some((m) => m.toLowerCase() === gardener)) room.moderators = [...mods, gardener];
+    room.gardener_enc_pub = identity.encPub;
+
+    this.replacePrivateRoom(room);
+    this.broadcast({ type: "private_room", room });
+    if (byCreator) await this.logAppend(`room/${room.id}`, { type: "private_room", room }, { flush: true });
+    await this.logAppend(
+      `room/${room.id}`,
+      { type: "room_gardener", roomId: room.id, on: true, target: gardener, encrypted_key: encKey, inviter_enc_pub: identity.encPub },
+      { flush: true }
+    );
+    await this.logAppend(`inbox/${gardener}`, { type: "room_invite", room }, { flush: true });
+
+    this.notifyListeners();
+    return room;
+  }
+
   /** The creator, or a moderator the creator named, removes a member and rotates the room key for the others. */
   public async kickMemberFromPrivateRoom(
     identity: UserIdentity,
@@ -4106,9 +4256,10 @@ export class FreenetClient {
 
     const byCreator = room.creator === identity.pubkey;
     const mods = room.moderators ?? [];
+    const targetIsGardener = AI_REPORTERS.some((g) => g.toLowerCase() === targetPubkey.toLowerCase());
     if (!byCreator && !mods.includes(identity.pubkey)) throw new Error("Only the room creator or a moderator can kick members");
     if (targetPubkey === room.creator) throw new Error("The room creator cannot be kicked");
-    if (!byCreator && mods.includes(targetPubkey)) throw new Error("Only the room creator can kick a moderator");
+    if (!byCreator && mods.includes(targetPubkey) && !targetIsGardener) throw new Error("Only the room creator can kick a moderator");
 
     // 1. Remove kicked target, drop unverified room_joiners who lack key possession proof, and clear their keys
     const targetLower = targetPubkey.toLowerCase();
@@ -4157,13 +4308,14 @@ export class FreenetClient {
     }
     room.encrypted_keys = updatedKeys;
     room.keys_enc_pub = byCreator ? undefined : identity.encPub;
+    room.gardener_enc_pub = undefined;
     const newSelfEnc = updatedKeys[identity.pubkey];
     if (newSelfEnc) this.privateRoomKeyCache.set(`${room.id}:${newSelfEnc}:${room.keys_enc_pub ?? ""}`, newRoomKey);
 
     this.replacePrivateRoom(room);
     this.broadcast({ type: "private_room_kick", roomId, kicked: targetPubkey, room });
     // Always publish room_kick so foldRoom records target in kicked and prevents uninvited rejoin via stale room_join
-    if (byCreator) await this.logAppend(`room/${room.id}`, { type: "private_room", room });
+    if (byCreator) await this.logAppend(`room/${room.id}`, { type: "private_room", room }, { flush: true });
     await this.logAppend(`room/${room.id}`, {
       type: "room_kick",
       roomId,
@@ -4171,7 +4323,7 @@ export class FreenetClient {
       name_encrypted: room.name_encrypted,
       encrypted_keys: room.encrypted_keys,
       keys_enc_pub: room.keys_enc_pub,
-    });
+    }, { flush: true });
     this.notifyListeners();
     return room;
   }
@@ -4400,13 +4552,14 @@ export class FreenetClient {
   /** An invite link to a River room, carrying a River invitation code: Radica, River and riverctl all accept it.
    *  Whoever holds it can join (as with the older rooms' links). Only the owner can make one. In a private room it is one
    *  member's key, so share one per person; in a public room each holder joins as their own member (`inviteUnder`). */
-  public async getRiverInviteLink(identity: UserIdentity, room: PrivateRoom): Promise<string> {
+  public async getRiverInviteLink(identity: UserIdentity, room: PrivateRoom, roomName?: string): Promise<string> {
     if (room.creator !== identity.pubkey || !room.river) throw new Error("Only the room owner can make an invite link");
     const code = await (await this.rivers()).invitation(this.riverOwnerKey(identity, room), room.river.owner);
     const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
     const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
     const params = new URLSearchParams({ river_invite: code });
     params.set("room_id", room.id);
+    if (roomName) params.set("name", roomName);
     params.set("creator", room.creator);
     if (room.is_channel) params.set("chan", "1");
     if (room.linked_room_id) {
@@ -4416,7 +4569,8 @@ export class FreenetClient {
       if (linked?.river && linked.creator === identity.pubkey)
         await (await this.rivers()).invitation(this.riverOwnerKey(identity, linked), linked.river.owner).then((c) => params.set("lr_invite", c), (e) => console.warn("[River] linked room invitation:", e));
     }
-    return `${origin}${pathname}#${params.toString()}`;
+    const prefix = /^https?:\/\//i.test(origin) ? `${origin}${pathname}` : "";
+    return `${prefix}#${params.toString()}`;
   }
 
   /** Joining (again) a room I removed: it comes back here and on my other devices. */

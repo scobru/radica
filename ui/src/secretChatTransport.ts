@@ -27,8 +27,33 @@ const UNREADABLE = "[Secret message - unable to decrypt or forward secrecy key e
 
 const peersKey = (me: string) => `radica_secret_peers_${me}`;
 const removedKey = (me: string, peer: string) => `radica_secret_removed_${me}_${peer}`;
+const burnedKey = (me: string) => `radica_secret_burned_${me}`;
 const roomKey = (roomId: string) => `freenet_chat_${roomId}`;
+const MAX_BURNED_IDS = 500;
 const readList = <T>(t: SecretChatTransport, key: string): T[] => JSON.parse(t.store.getItem(key) || "[]");
+
+/** IDs of Secret Chat messages already expired/burned on this device, so a room resync never resurrects them. */
+export function readBurnedSecretIds(store: { getItem(key: string): string | null }, me: string): Set<string> {
+  if (!me) return new Set();
+  try {
+    const raw = JSON.parse(store.getItem(burnedKey(me)) || "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markBurnedSecretId(t: SecretChatTransport, me: string, id: string): void {
+  if (!me || !id) return;
+  let list: string[] = [];
+  try {
+    const raw = JSON.parse(t.store.getItem(burnedKey(me)) || "[]");
+    if (Array.isArray(raw)) list = raw.filter((x): x is string => typeof x === "string" && x !== id);
+  } catch {}
+  list.push(id);
+  if (list.length > MAX_BURNED_IDS) list = list.slice(-MAX_BURNED_IDS);
+  t.store.setItem(burnedKey(me), JSON.stringify(list));
+}
 
 // A v2 message key is deleted once used, so a message opens once: its plain text is kept here, on this device only.
 interface Plain {
@@ -39,6 +64,8 @@ interface Plain {
   text: string;
   ttl: number;
   sentAt: number;
+  /** Recipient-local (or sender) expiration epoch ms anchored when the timer started on this device. */
+  burnAt?: number;
 }
 const plainKey = (me: string) => `radica_secret_plain_${me}`;
 // shortcut: the newest plain texts within 64 KB, so the durable package (256 KB cap) is never refused; older ones read as unreadable after a reload
@@ -109,7 +136,8 @@ export async function sendSecretChatMessage(
   const ciphertext = await serial(`${identity.pubkey}|${recipient}`, () =>
     drEncrypt(t.store, identity.secretKey, identity.pubkey, recipient, toEncPub, { text, ttl, sentAt: timestamp })
   );
-  keepPlain(t, identity.pubkey, id, { r: roomId, c: tagOf(ciphertext), text, ttl, sentAt: timestamp });
+  const burnAt = ttl > 0 ? timestamp + ttl * 1000 : undefined;
+  keepPlain(t, identity.pubkey, id, { r: roomId, c: tagOf(ciphertext), text, ttl, sentAt: timestamp, ...(burnAt ? { burnAt } : {}) });
   const sig = await identity.sign(formatChatMessageSignatureMessage(id, roomId, identity.pubkey, recipient, ciphertext, timestamp));
 
   const message: ChatMessage = {
@@ -124,7 +152,7 @@ export async function sendSecretChatMessage(
     enc_pub: identity.encPub,
     to_enc_pub: toEncPub,
     ttl_seconds: ttl,
-    burn_at: ttl > 0 ? timestamp + ttl * 1000 : undefined,
+    burn_at: burnAt,
     ...(replyTo ? { reply_to: replyTo } : {}),
   };
 
@@ -158,14 +186,30 @@ export async function editSecretMessage(t: SecretChatTransport, identity: UserId
 
 const secretPlainCache = new Map<string, { text: string; ttl: number }>();
 
+const isSealedSecret = (m: Pick<ChatMessage, "text">): boolean =>
+  !!m.text && (m.text.startsWith(PREFIX_V2) || m.text.startsWith("secret:v1:"));
+
 /** The Secret Chat with `peer`, decrypted; messages past their burn time are dropped from storage. */
 export async function readSecretChat(t: SecretChatTransport, identity: UserIdentity, peer: string): Promise<ChatMessage[]> {
   const me = identity.pubkey;
   const roomId = getSecretRoomId(me, peer);
   const messages = t.visibleChat(roomId);
   const now = Date.now();
-  const live = messages.filter((m) => !m.burn_at || m.burn_at > now);
-  if (live.length !== messages.length) t.store.setItem(roomKey(roomId), JSON.stringify(live));
+  const burned = readBurnedSecretIds(t.store, me);
+  const existingPlain = readPlain(t, me);
+  const live = messages.filter((m) => {
+    if (burned.has(m.id)) return false;
+    // Incoming sealed messages start their burn countdown on the recipient's device once decrypted,
+    // never on the sender's clock while waiting in the log across transit latency or clock skew.
+    if (m.sender !== me && isSealedSecret(m)) {
+      const p = existingPlain[m.id];
+      if (p?.burnAt !== undefined) return p.burnAt > now;
+      if (p && p.ttl > 0 && p.sentAt + p.ttl * 1000 <= now) return false;
+      if (m.burn_started && m.burn_at && m.burn_at <= now) return false;
+      return true;
+    }
+    return !m.burn_at || m.burn_at > now;
+  });
 
   // v2: one at a time and oldest first, since each message moves the ratchet
   const plain = await serial(`${me}|${peer}`, async () => {
@@ -176,7 +220,7 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
     // shortcut: a message the peer deleted keeps its plain text here until PLAIN_MAX_BYTES evicts it; drop it in the
     // chat_delete handler if that matters.
     for (const [id, p] of Object.entries(plain))
-      if (p.r === roomId && p.ttl > 0 && p.sentAt + p.ttl * 1000 <= now) {
+      if (p.r === roomId && p.ttl > 0 && (p.burnAt ?? p.sentAt + p.ttl * 1000) <= now) {
         delete plain[id];
         plainChanged = true;
       }
@@ -185,8 +229,17 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
       if (msg.sender === me) continue; // mine from another device: its key never was here
       try {
         const d = (await drDecrypt(t.store, identity.secretKey, me, peer, msg.enc_pub || peer, msg.text)) as Partial<Plain>;
-        const ttl = typeof d.ttl === "number" ? d.ttl : 0;
-        plain[msg.id] = { r: roomId, c: tagOf(msg.text), text: typeof d.text === "string" ? d.text : "", ttl, sentAt: typeof d.sentAt === "number" ? d.sentAt : msg.timestamp };
+        const ttl = typeof d.ttl === "number" ? d.ttl : (msg.ttl_seconds ?? 0);
+        const readNow = Date.now();
+        const burnAt = ttl > 0 ? (plain[msg.id]?.burnAt ?? (readNow + ttl * 1000)) : undefined;
+        plain[msg.id] = {
+          r: roomId,
+          c: tagOf(msg.text),
+          text: typeof d.text === "string" ? d.text : "",
+          ttl,
+          sentAt: typeof d.sentAt === "number" ? d.sentAt : msg.timestamp,
+          ...(burnAt ? { burnAt } : {}),
+        };
         plainChanged = true;
       } catch {
         // not ours, damaged, or its key already used: shown as unreadable below
@@ -197,46 +250,107 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
   });
 
   const sessionEphem = getSecretChatSession(me, peer)?.ephemeralPub ?? "";
+  const v1Anchors: { id: string; c: string; text: string; ttl: number; sentAt: number; burnAt: number }[] = [];
 
-  return Promise.all(
+  const result = await Promise.all(
     live.map(async (msg) => {
       if (msg.text?.startsWith(PREFIX_V2)) {
         const p = plain[msg.id];
         if (!p || p.c !== tagOf(msg.text)) return { ...msg, text: UNREADABLE };
-        return { ...msg, text: p.text, ttl_seconds: p.ttl, burn_at: burnAtOf({ ...msg, ttl_seconds: p.ttl }) };
+        const burnAt = p.ttl > 0 ? (p.burnAt ?? burnAtOf({ ...msg, ttl_seconds: p.ttl })) : undefined;
+        const burnStarted = msg.sender !== me && !!burnAt;
+        return {
+          ...msg,
+          text: p.text,
+          ttl_seconds: p.ttl,
+          burn_at: burnAt,
+          ...(burnStarted ? { burn_started: true } : {}),
+        };
       }
       if (!msg.text?.startsWith("secret:v1:")) return { ...msg, text: UNREADABLE };
       // v1, before the Double Ratchet: still opened from the identity key, for the messages sent with it
       const outgoing = msg.sender === me;
       const cacheKey = `${me}|${peer}|${outgoing ? sessionEphem : "in"}|${msg.text}`;
       const hit = secretPlainCache.get(cacheKey);
+      const resolveV1 = (text: string, ttl: number, sentAt: number): ChatMessage => {
+        if (ttl <= 0) return { ...msg, text, ttl_seconds: ttl, burn_at: undefined };
+        if (!outgoing) {
+          const existing = plain[msg.id];
+          const burnAt = existing?.burnAt ?? (msg.burn_started && msg.burn_at ? msg.burn_at : Date.now() + ttl * 1000);
+          if (!existing?.burnAt) {
+            v1Anchors.push({ id: msg.id, c: tagOf(msg.text), text, ttl, sentAt, burnAt });
+          }
+          return { ...msg, text, ttl_seconds: ttl, burn_at: burnAt, burn_started: true };
+        }
+        return { ...msg, text, ttl_seconds: ttl, burn_at: burnAtOf({ ...msg, ttl_seconds: ttl }) };
+      };
       if (hit) {
-        return { ...msg, text: hit.text, ttl_seconds: hit.ttl, burn_at: burnAtOf({ ...msg, ttl_seconds: hit.ttl }) };
+        return resolveV1(hit.text, hit.ttl, msg.timestamp);
       }
       try {
         const peerEnc = (outgoing ? msg.to_enc_pub : msg.enc_pub) || peer;
         const dec = await decryptSecretMessage(identity.secretKey, me, peer, msg.text, outgoing, peerEnc);
         if (secretPlainCache.size >= 1024) secretPlainCache.clear();
         secretPlainCache.set(cacheKey, { text: dec.text, ttl: dec.ttl });
-        return { ...msg, text: dec.text, ttl_seconds: dec.ttl, burn_at: burnAtOf({ ...msg, ttl_seconds: dec.ttl }) };
+        return resolveV1(dec.text, dec.ttl, dec.sentAt);
       } catch {
         return { ...msg, text: UNREADABLE };
       }
     })
   );
+
+  if (v1Anchors.length > 0) {
+    await serial(`${me}|${peer}`, async () => {
+      const latestPlain = readPlain(t, me);
+      for (const a of v1Anchors) {
+        if (!latestPlain[a.id]?.burnAt) {
+          latestPlain[a.id] = { r: roomId, c: a.c, text: a.text, ttl: a.ttl, sentAt: a.sentAt, burnAt: a.burnAt };
+        }
+      }
+      writePlain(t, me, latestPlain);
+    });
+  }
+
+  let burnMetaChanged = false;
+  const byId = new Map(result.map((m) => [m.id, m]));
+  const updatedStored = live.map((m) => {
+    const dec = byId.get(m.id);
+    if (dec && dec.sender !== me && dec.burn_started && dec.burn_at) {
+      if (!m.burn_started || m.burn_at !== dec.burn_at || m.ttl_seconds !== dec.ttl_seconds) {
+        burnMetaChanged = true;
+        return { ...m, ttl_seconds: dec.ttl_seconds, burn_at: dec.burn_at, burn_started: true };
+      }
+    }
+    return m;
+  });
+  if (live.length !== messages.length || burnMetaChanged) {
+    t.store.setItem(roomKey(roomId), JSON.stringify(updatedStored));
+  }
+
+  return result;
 }
 
-/** Remove a message here and tell my other devices and the peer to remove it too. */
-export function burnSecretMessage(t: SecretChatTransport, roomId: string, messageId: string, me?: string, peer?: string): void {
+/** Remove a message locally (recording its burned id so resyncs keep it gone) and optionally tell the peer.
+ *  Automatic TTL expiry passes `localOnly: true` so the sender's clock never burns the recipient's unread copy. */
+export function burnSecretMessage(
+  t: SecretChatTransport,
+  roomId: string,
+  messageId: string,
+  me?: string,
+  peer?: string,
+  opts?: { localOnly?: boolean }
+): void {
   cancelMessageBurn(messageId);
   t.store.setItem(roomKey(roomId), JSON.stringify(readList<ChatMessage>(t, roomKey(roomId)).filter((m) => m.id !== messageId)));
   if (me) {
+    markBurnedSecretId(t, me, messageId);
     const plain = readPlain(t, me);
     if (plain[messageId]) {
       delete plain[messageId];
       writePlain(t, me, plain);
     }
   }
+  if (opts?.localOnly) return;
   const inboxes = [me, peer].filter((k): k is string => !!k);
   void t.deliver({ type: "chat_burn", roomId, messageId }, inboxes).catch(() => {});
 }

@@ -127,6 +127,7 @@ export interface ChatMessage {
   is_secret?: boolean; // secret chat message (single-device only, ephemeral ratchet keys)
   ttl_seconds?: number; // disappearing message countdown duration in seconds (0 = off)
   burn_at?: number; // exact timestamp when this message expires and must be destroyed
+  burn_started?: boolean; // local-only flag: true once recipient has opened/started counting down a disappearing message
   is_read?: boolean; // true when peer has read the message
   system_event?: "join" | "leave"; // room events (e.g. user joined notice like River)
   join_members?: string[]; // author pubkeys or names who joined
@@ -162,6 +163,7 @@ export interface PrivateRoom {
   moderators?: string[]; // members the creator let kick others (not the creator, not each other)
   encrypted_keys: Record<string, string>; // memberPubkey -> e2e:iv:cipher(roomKeyHex)
   keys_enc_pub?: string; // the key those were encrypted with, when a moderator rotated them (else creator_enc_pub)
+  gardener_enc_pub?: string; // the key used to encrypt The Gardener's room key copy when added via room_gardener
   created_at: number;
   sig: string;
   river?: { owner: string }; // the room lives on River's room contract under this owner key (riverRooms.ts)

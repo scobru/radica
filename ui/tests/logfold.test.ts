@@ -748,3 +748,48 @@ test("logfold: founders, active community moderators, and RADICA_MAINTAINER (for
   assert.equal(canEditCommunity(afterMaintainer[0], RADICA_MAINTAINER), true);
   assert.equal(canEditCommunity(afterMaintainer[0], mallory), false);
 });
+
+test("logfold: room moderator can add and kick The Gardener via room_gardener/room_kick without affecting human mods", () => {
+  const bot = AI_REPORTERS[0].toLowerCase();
+  const inviterEnc = "ee".repeat(32);
+  const baseRoom = {
+    id: "privroom_g",
+    creator: owner,
+    name_encrypted: "sym:name",
+    members: [owner, mod, user],
+    moderators: [mod],
+    encrypted_keys: { [owner]: "ko", [mod]: "km", [user]: "ku" },
+    created_at: 1,
+    sig: "",
+  };
+  const added = [
+    entry(owner, 1, { type: "private_room", room: baseRoom }),
+    entry(user, 2, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }), // non-mod ignored
+    entry(mod, 3, { type: "room_gardener", roomId: "privroom_g", on: true, target: mallory, encrypted_key: "kx" }), // non-Gardener target ignored
+    entry(mod, 4, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
+  ];
+  const rAdded = foldRoom(added, "privroom_g")!;
+  assert.equal(rAdded.members.includes(bot), true);
+  assert.equal(rAdded.members.includes(mallory), false);
+  assert.equal(rAdded.moderators?.includes(bot), true);
+  assert.equal(rAdded.encrypted_keys[bot], "kb");
+  assert.equal(rAdded.gardener_enc_pub, inviterEnc);
+
+  const proofs = roomJoinProofs(added, "privroom_g");
+  assert.equal(proofs.creatorListed.has(bot), true);
+  assert.equal(proofs.creatorListed.has(mallory), false);
+
+  // Moderator can kick The Gardener (rotating keys & clearing gardener_enc_pub), still cannot kick another human moderator
+  const anotherMod = "99".repeat(32);
+  const kickedLog = [
+    entry(owner, 1, { type: "private_room", room: { ...baseRoom, members: [owner, mod, anotherMod, user], moderators: [mod, anotherMod] } }),
+    entry(mod, 2, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
+    entry(mod, 3, { type: "room_kick", roomId: "privroom_g", target: anotherMod, name_encrypted: "n", encrypted_keys: {}, keys_enc_pub: mod }), // ignored
+    entry(mod, 4, { type: "room_kick", roomId: "privroom_g", target: bot, name_encrypted: "n2", encrypted_keys: { [owner]: "ko2", [mod]: "km2", [anotherMod]: "ka2", [user]: "ku2" }, keys_enc_pub: mod }),
+  ];
+  const rKicked = foldRoom(kickedLog, "privroom_g")!;
+  assert.equal(rKicked.members.includes(anotherMod), true);
+  assert.equal(rKicked.members.includes(bot), false);
+  assert.equal(rKicked.moderators?.includes(bot), false);
+  assert.equal(rKicked.gardener_enc_pub, undefined);
+});

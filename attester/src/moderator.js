@@ -294,7 +294,7 @@ export function budget(used, limits, now = Date.now()) {
 const HEX64_RE = /^[0-9a-f]{64}$/i;
 const normHex = (s) => (typeof s === "string" ? s.toLowerCase() : "");
 
-/** Native non-channel private rooms that `ownerPk` (signed author + creator) explicitly invited this bot to. */
+/** Native non-channel private rooms that `ownerPk` (as creator or room moderator) explicitly invited this bot to. */
 export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
   const owner = normHex(ownerPk);
   if (!HEX64_RE.test(owner)) return [];
@@ -306,7 +306,9 @@ export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
     if (normHex(e?.author) !== owner) continue;
     if (b?.type !== "room_invite" || !b.room || typeof b.room.id !== "string") continue;
     if (!b.room.id.startsWith("privroom_") || b.room.river || b.room.is_channel) continue;
-    if (normHex(b.room.creator) !== owner) continue;
+    const isCreator = normHex(b.room.creator) === owner;
+    const isMod = (b.room.moderators ?? []).some((m) => normHex(m) === owner);
+    if (!isCreator && !isMod) continue;
     if (!seen.has(b.room.id)) {
       seen.add(b.room.id);
       invited.push(b.room.id);
@@ -316,10 +318,12 @@ export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
 }
 
 /** Fold `room/<id>` entries into the authoritative native PrivateRoom roster + encrypted_keys (mirrors ui/src/logfold.ts foldRoom). */
-export function foldRoomState(entries, roomId) {
+export function foldRoomState(entries, roomId, gardenerPk = "") {
   let room = null;
   const kicked = new Set();
   const joined = {};
+  const gardenerNorm = normHex(gardenerPk);
+  const gardenerSet = new Set(HEX64_RE.test(gardenerNorm) ? [gardenerNorm] : []);
   for (const { e, b } of sortedParsed(entries)) {
     const a = normHex(e?.author);
     if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
@@ -327,6 +331,7 @@ export function foldRoomState(entries, roomId) {
       room.creator = a;
       if (typeof room.creator_enc_pub === "string") room.creator_enc_pub = room.creator_enc_pub.toLowerCase();
       if (typeof room.keys_enc_pub === "string") room.keys_enc_pub = room.keys_enc_pub.toLowerCase();
+      if (typeof room.gardener_enc_pub === "string") room.gardener_enc_pub = room.gardener_enc_pub.toLowerCase();
       room.members = (room.members ?? []).map((m) => normHex(m)).filter(Boolean);
       room.moderators = (room.moderators ?? []).map((m) => normHex(m)).filter((m) => m !== room.creator && room.members.includes(m));
       const ek = {};
@@ -342,6 +347,20 @@ export function foldRoomState(entries, roomId) {
       room.members.push(a);
       joined[a] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
       if (typeof b.encrypted_key === "string") room.encrypted_keys[a] = b.encrypted_key;
+    } else if (b?.type === "room_gardener" && b.roomId === roomId && room && typeof b.target === "string") {
+      const t = normHex(b.target);
+      const byCreator = a === room.creator;
+      const mods = room.moderators ?? [];
+      if (!(byCreator || mods.includes(a)) || !HEX64_RE.test(t) || (gardenerNorm && t !== gardenerNorm)) continue;
+      if (b.on === true) {
+        gardenerSet.add(t);
+        kicked.delete(t);
+        if (!room.members.includes(t)) room.members.push(t);
+        room.moderators = mods;
+        if (t !== room.creator && !room.moderators.includes(t)) room.moderators.push(t);
+        if (typeof b.encrypted_key === "string" && b.encrypted_key) room.encrypted_keys[t] = b.encrypted_key;
+        room.gardener_enc_pub = HEX64_RE.test(String(b.inviter_enc_pub ?? "")) ? normHex(b.inviter_enc_pub) : a;
+      }
     } else if (b?.type === "room_leave" && b.roomId === roomId && room && a !== room.creator && room.members.includes(a)) {
       room.members = room.members.filter((m) => m !== a);
       delete joined[a];
@@ -351,7 +370,7 @@ export function foldRoomState(entries, roomId) {
       const t = normHex(b.target);
       const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      if (!(byCreator || mods.includes(a)) || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t))) continue;
+      if (!(byCreator || mods.includes(a)) || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t) && !gardenerSet.has(t))) continue;
       room.members = room.members.filter((m) => m !== t);
       room.moderators = mods.filter((m) => m !== t);
       kicked.add(t);
@@ -366,6 +385,7 @@ export function foldRoomState(entries, roomId) {
       room.encrypted_keys = keys;
       if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
       room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? normHex(b.keys_enc_pub) : undefined;
+      delete room.gardener_enc_pub;
     }
   }
   return room;
@@ -374,6 +394,7 @@ export function foldRoomState(entries, roomId) {
 /** Creator-listed members and HMAC `key_proof` values from `room/<id>` entries (mirrors ui/src/logfold.ts roomJoinProofs). */
 export function roomJoinProofs(entries, roomId) {
   const creatorListed = new Set();
+  const moderators = new Set();
   const joinProofs = new Map();
   let creator = "";
   for (const { e, b } of sortedParsed(entries)) {
@@ -381,18 +402,31 @@ export function roomJoinProofs(entries, roomId) {
     if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
       creator = a;
       creatorListed.add(a);
+      moderators.clear();
+      for (const m of b.room.moderators ?? []) {
+        const ml = normHex(m);
+        if (ml && ml !== creator) moderators.add(ml);
+      }
       for (const m of b.room.members ?? []) {
         const ml = normHex(m);
         if (ml) creatorListed.add(ml);
       }
     } else if (b?.type === "room_join" && b.roomId === roomId && creator) {
       if (HEX64_RE.test(String(b.key_proof ?? ""))) joinProofs.set(a, String(b.key_proof).toLowerCase());
+    } else if (b?.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (a === creator || moderators.has(a)) && typeof b.target === "string") {
+      const t = normHex(b.target);
+      if (HEX64_RE.test(t)) {
+        creatorListed.add(t);
+        if (t !== creator) moderators.add(t);
+      }
     } else if (b?.type === "room_leave" && b.roomId === roomId) {
       creatorListed.delete(a);
+      moderators.delete(a);
       joinProofs.delete(a);
     } else if (b?.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
       const t = normHex(b.target);
       creatorListed.delete(t);
+      moderators.delete(t);
       joinProofs.delete(t);
     }
   }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { burnAtOf, checksHtml, createConversationState, deliveryOf, dmPeerOf, localReadMarks, nextTtl, READ_MARKS_KEY, seedReadMark, tickBurnCountdowns, triggerRowBurnAnimation, TYPING_SHOWN_MS, type ConversationDeps } from "../src/conversationState.ts";
+import { burnAtOf, checksHtml, createConversationState, deliveryOf, dmPeerOf, formatBurnRemaining, localReadMarks, nextTtl, READ_MARKS_KEY, seedReadMark, tickBurnCountdowns, triggerRowBurnAnimation, TYPING_SHOWN_MS, type ConversationDeps } from "../src/conversationState.ts";
 import type { ChatMessage } from "../src/types.ts";
 
 const A = "a".repeat(64);
@@ -174,4 +174,30 @@ test("conversationState: triggerRowBurnAnimation adds burning class and removes 
   await new Promise((r) => setTimeout(r, 700));
   assert.equal(removed, true);
   assert.equal(done, true);
+});
+
+test("conversationState: formatBurnRemaining formats seconds, minutes, and hours cleanly", () => {
+  assert.equal(formatBurnRemaining(500), "1s");
+  assert.equal(formatBurnRemaining(9400), "10s");
+  assert.equal(formatBurnRemaining(90_000), "1m 30s");
+  assert.equal(formatBurnRemaining(120_000), "2m");
+  assert.equal(formatBurnRemaining(3_900_000), "1h 5m");
+});
+
+test("conversationState: sweepBurns skips unopened incoming sealed secret messages until burn_started is true", () => {
+  const burned: string[] = [];
+  const sealedUnread = msg("in1", { sender: B, text: "secret:v2:abc:iv:ct", burn_at: Date.now() - 1000 });
+  const sealedOpened = msg("in2", { sender: B, text: "secret:v2:abc:iv:ct", burn_at: Date.now() - 1000, burn_started: true });
+  const room = { roomId: `secret_${A}_${B}`, messages: [sealedUnread, sealedOpened] };
+  const state = createConversationState({
+    me: () => A,
+    secretRooms: () => [room],
+    burn: async (_roomId, id) => {
+      burned.push(id);
+    },
+    sendTyping: () => {},
+    ...readDeps(),
+  });
+  state.sweepBurns();
+  assert.deepEqual(burned, ["in2"]);
 });
