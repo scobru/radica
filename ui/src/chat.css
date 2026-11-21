@@ -151,12 +151,20 @@
   font-weight: 400;
 }
 
-#chat-modal .chat-peer-item:hover,
-#chat-modal .chat-comm-item:hover,
-#chat-modal .chat-privroom-item:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .chat-peer-item:hover,
+  #chat-modal .chat-comm-item:hover,
+  #chat-modal .chat-privroom-item:hover {
+    background: var(--rv-surface-hover);
+    color: var(--rv-text);
+    font-weight: 400;
+  }
+}
+
+#chat-modal .chat-peer-item:active,
+#chat-modal .chat-comm-item:active,
+#chat-modal .chat-privroom-item:active {
   background: var(--rv-surface-hover);
-  color: var(--rv-text);
-  font-weight: 400;
 }
 
 #chat-modal .chat-peer-item.active,
@@ -861,7 +869,12 @@
   transition: background 0.12s;
   border-left: 2px solid transparent;
 }
-#chat-modal .chat-secret-item:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .chat-secret-item:hover {
+    background: var(--rv-surface-hover);
+  }
+}
+#chat-modal .chat-secret-item:active {
   background: var(--rv-surface-hover);
 }
 #chat-modal .chat-secret-item.active {

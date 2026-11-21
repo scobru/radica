@@ -43,6 +43,19 @@ function bodies(entries: LogEntry[]): { e: LogEntry; b: any }[] {
 const isMod = (c: Community, pk: string) => pk === c.creator || c.moderators.includes(pk);
 const norm = (s: unknown): string => (typeof s === "string" ? s.toLowerCase() : "");
 
+/** Whether `pubkey` is authorized to edit `c`'s title, description, and settings (founder, active moderator, or RADICA_MAINTAINER on system genesis communities). */
+export function canEditCommunity(
+  c: Pick<Community, "creator" | "moderators">,
+  pubkey: string,
+): boolean {
+  const a = norm(pubkey);
+  if (!a) return false;
+  if (a === norm(c.creator)) return true;
+  if (c.moderators.some((m) => norm(m) === a)) return true;
+  if (norm(c.creator) === "system" && a === norm(RADICA_MAINTAINER)) return true;
+  return false;
+}
+
 /** Whether `post` was deleted in `comm` (mod deletion stores bare `post.id`; author self-delete stores `<author>:<id>`). */
 export function isPostDeletedInCommunity(
   comm: Pick<Community, "deleted_post_ids"> | null | undefined,
@@ -58,6 +71,11 @@ export function isPostDeletedInCommunity(
 /** Communities from the `communities` log, on top of `base` (the built-in ones). */
 export function foldCommunities(entries: LogEntry[], base: Community[]): Community[] {
   const map = new Map<string, Community>(base.map((c) => [c.id, structuredClone(c)]));
+  for (const c of map.values()) {
+    if ((c.id === "c_radica" || c.slug === "radica") && !c.moderators.includes(RADICA_MAINTAINER)) {
+      c.moderators.push(RADICA_MAINTAINER);
+    }
+  }
   const appointedBy = new Map<string, Map<string, string>>(); // commId -> (mod -> appointer)
   const creatorRevoked = new Map<string, Set<string>>(); // commId -> mods removed by creator (only creator can re-appoint)
   for (const { e, b } of bodies(entries)) {
@@ -65,11 +83,11 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
     if (b.type === "community_create") {
       const m = b.community ?? {};
       if (typeof m.id !== "string" || !/^c_[a-z0-9_]{1,40}$/.test(m.id)) continue;
-      // ponytail: if community id embeds an 8..64 hex creator prefix (c_<hex>_...), bind creation to that author to block ts=0 front-running
-      const prefixMatch = /^c_([0-9a-f]{8,64})(?:_|$)/.exec(m.id);
-      if (prefixMatch && !a.startsWith(prefixMatch[1])) continue;
       const cur = map.get(m.id);
       if (!cur) {
+        // ponytail: if community id embeds an 8..64 hex creator prefix (c_<hex>_...), bind creation to that author to block ts=0 front-running
+        const prefixMatch = /^c_([0-9a-f]{8,64})(?:_|$)/.exec(m.id);
+        if (prefixMatch && !a.startsWith(prefixMatch[1])) continue;
         map.set(m.id, {
           id: m.id,
           slug: m.id.slice(2),
@@ -85,7 +103,7 @@ export function foldCommunities(entries: LogEntry[], base: Community[]): Communi
           require_trusted_to_post: typeof m.require_trusted_to_post === "boolean" ? m.require_trusted_to_post : undefined,
           sig: e.sig,
         });
-      } else if (cur.creator === a) {
+      } else if (canEditCommunity(cur, a)) {
         cur.name = String(m.name ?? cur.name).slice(0, 100);
         cur.description = String(m.description ?? cur.description).slice(0, 2000);
         if (typeof m.avatar_url === "string") cur.avatar_url = m.avatar_url;

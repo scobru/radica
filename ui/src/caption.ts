@@ -93,8 +93,8 @@ const short = (id: string) => (id.length > 12 ? `${id.slice(0, 6)}\u2026${id.sli
 // Markdown links: [label](url), with optional spaces/newlines between ] and (
 // Excludes @[Name](rv:...) (River mentions) and ![alt](url) (images) via negative lookbehind
 const MD_LINK_RE = /(?<![@!])\[([^\]\r\n]{1,256})\][ \t\r\n]*\(([^)\s]+)\)/;
-// Raw URLs: web links, freenet: links (contract IDs or FreeNames), fn: links, or relative node contract paths
-const RAW_URL_RE = /(?:https?:\/\/|freenet:[1-9A-HJ-NP-Za-km-z]{8,}|freenet:(?:\/\/)?[a-z0-9-]+\/[a-z0-9-@]+|freenet:(?:\/\/)?[0-9a-f]{64}\/[a-z0-9-@]+|fn:[a-z0-9-@]+|spore:(?:radio:)?[a-zA-Z0-9_-]{3,64}|\/v[12]\/contract\/(?:web\/)?[1-9A-HJ-NP-Za-km-z]{8,})[^\s<>"']*/;
+// Raw URLs: web links, freenet: links (contract IDs or FreeNames), fn: links, bare room/River invite fragments, or relative node contract paths
+const RAW_URL_RE = /(?:https?:\/\/|freenet:[1-9A-HJ-NP-Za-km-z]{8,}|freenet:(?:\/\/)?[a-z0-9-]+\/[a-z0-9-@]+|freenet:(?:\/\/)?[0-9a-f]{64}\/[a-z0-9-@]+|fn:[a-z0-9-@]+|spore:(?:radio:)?[a-zA-Z0-9_-]{3,64}|\/v[12]\/contract\/(?:web\/)?[1-9A-HJ-NP-Za-km-z]{8,}|#[a-zA-Z0-9_=&%+-]*(?:join_room|river_invite)=)[^\s<>"']*/;
 const LINK_RE = new RegExp(`(${MD_LINK_RE.source})|(${RAW_URL_RE.source})`, "g");
 const TRAILING_PUNCT = /[.,;:!?)\]]+$/;
 

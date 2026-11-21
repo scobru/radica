@@ -7,6 +7,7 @@ import {
   isStageBackSwipe,
   resolveMessageSwipeStep,
   resolveThreadScrollAction,
+  shouldDeferBackgroundRender,
   detectMentionTrigger,
   filterMentionCandidates,
   type MessageSwipePhase,
@@ -299,6 +300,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   let inboxRunning = false;
   let inboxQueued = false;
   let lastConvListHtml = "";
+  let hasRenderedBurnTags = false;
   const convRowInner = new WeakMap<HTMLElement, string>();
 
   const isVisible = () => (deps.isVisible ? deps.isVisible() : true);
@@ -694,6 +696,13 @@ export function createMessengerChat(deps: MessengerDeps) {
   let isScrollerTouching = false;
   let isScrollerMomentum = false;
   let scrollerIdleTimer = 0;
+  let pendingThreadRender = false;
+  const flushPendingThreadRender = () => {
+    if (pendingThreadRender && !isScrollerTouching && !isScrollerMomentum) {
+      pendingThreadRender = false;
+      renderThread(false);
+    }
+  };
   messagesScrollerEl.addEventListener(
     "touchstart",
     () => {
@@ -703,6 +712,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   );
   const endScrollerTouch = () => {
     isScrollerTouching = false;
+    if (!isScrollerMomentum) flushPendingThreadRender();
   };
   messagesScrollerEl.addEventListener("touchend", endScrollerTouch, { passive: true });
   messagesScrollerEl.addEventListener("touchcancel", endScrollerTouch, { passive: true });
@@ -713,10 +723,43 @@ export function createMessengerChat(deps: MessengerDeps) {
       clearTimeout(scrollerIdleTimer);
       scrollerIdleTimer = window.setTimeout(() => {
         isScrollerMomentum = false;
+        flushPendingThreadRender();
       }, 160);
     },
     { passive: true }
   );
+
+  const clearInboxRowFocus = () => {
+    if (document.activeElement instanceof HTMLElement && convListEl.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+  };
+  let isInboxTouching = false;
+  let isInboxMomentum = false;
+  let inboxIdleTimer = 0;
+  let pendingInboxRefresh = false;
+  let pendingInboxSkipHydrate = true;
+  const flushPendingInboxRefresh = () => {
+    if (pendingInboxRefresh && !isInboxTouching && !isInboxMomentum) {
+      const skip = pendingInboxSkipHydrate;
+      pendingInboxRefresh = false;
+      pendingInboxSkipHydrate = true;
+      void refreshInbox(skip, false);
+    }
+  };
+  convListEl.addEventListener(
+    "touchstart",
+    () => {
+      isInboxTouching = true;
+    },
+    { passive: true }
+  );
+  const endInboxTouch = () => {
+    isInboxTouching = false;
+    if (!isInboxMomentum) flushPendingInboxRefresh();
+  };
+  convListEl.addEventListener("touchend", endInboxTouch, { passive: true });
+  convListEl.addEventListener("touchcancel", endInboxTouch, { passive: true });
 
   const replyBannerEl = rootEl.querySelector("#rm-reply-banner") as HTMLElement;
   const replyBannerTextEl = rootEl.querySelector("#rm-reply-banner-text") as HTMLElement;
@@ -1206,8 +1249,14 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (changed && isVisible()) void refreshInbox(true);
   }
 
-  async function refreshInbox(skipHydrate = false) {
+  async function refreshInbox(skipHydrate = false, immediate = false) {
     if (!isVisible()) return;
+    if (immediate) pendingInboxRefresh = false;
+    if (shouldDeferBackgroundRender({ isTouching: isInboxTouching, isMomentum: isInboxMomentum, forceImmediate: immediate })) {
+      pendingInboxSkipHydrate = pendingInboxRefresh ? pendingInboxSkipHydrate && skipHydrate : skipHydrate;
+      pendingInboxRefresh = true;
+      return;
+    }
     if (inboxRunning) {
       inboxQueued = true;
       return;
@@ -1242,6 +1291,12 @@ export function createMessengerChat(deps: MessengerDeps) {
           }
           return true;
         });
+
+        if (shouldDeferBackgroundRender({ isTouching: isInboxTouching, isMomentum: isInboxMomentum, forceImmediate: immediate })) {
+          pendingInboxSkipHydrate = pendingInboxRefresh ? pendingInboxSkipHydrate && skipHydrate : skipHydrate;
+          pendingInboxRefresh = true;
+          return;
+        }
 
         if (filtered.length === 0) {
           const emptyHtml = `
@@ -1564,6 +1619,12 @@ export function createMessengerChat(deps: MessengerDeps) {
     const st = deps.getActiveState();
     const curKey = activeConvKey() || "";
     const switchedConv = curKey !== lastRenderedConvKey;
+    if (shouldDeferBackgroundRender({ isTouching: isScrollerTouching, isMomentum: isScrollerMomentum, forceImmediate: scrollToBottom || switchedConv })) {
+      pendingThreadRender = true;
+      return;
+    }
+    pendingThreadRender = false;
+    hasRenderedBurnTags = false;
     if (switchedConv) {
       visibleMsgLimit = CHAT_PAGE_SIZE;
       setStagedMedia(null);
@@ -1904,6 +1965,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         : "";
 
       const burnAt = burnAtOf(m);
+      if (burnAt) hasRenderedBurnTags = true;
       const ttlTagHtml = burnAt
         ? `<span class="rm-msg-ttl-tag" data-burn-at="${burnAt}" data-msg-id="${escapeHtml(m.id)}" title="Disappearing message">⏱️ <span class="rm-ttl-val"></span></span>`
         : "";
@@ -1939,7 +2001,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     }
 
     const rowsChanged = reconcileRows(messagesTrackEl, rowItems);
-    tickBurnCountdowns(messagesTrackEl);
+    if (hasRenderedBurnTags) tickBurnCountdowns(messagesTrackEl);
 
     // Hydrate any embedded FreeTunes / FreePolls / Encrypted Media cards inside chat bubbles only when present & changed
     if (rowsChanged && hasEmbeddedCards) {
@@ -2387,7 +2449,7 @@ export function createMessengerChat(deps: MessengerDeps) {
               await deps.onSelectPrivateRoom(updated);
               deps.showToast("Group image updated!", "info");
               refreshDrawer();
-              void refreshInbox();
+              void refreshInbox(false, true);
             }
           } catch (err: any) {
             deps.showToast(`Could not update image: ${err.message || err}`, "error");
@@ -2533,7 +2595,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     inboxQuery = inboxSearchEl.value;
     inboxSearchClearEl.classList.toggle("visible", inboxQuery.length > 0);
     clearTimeout(inboxSearchTimer);
-    inboxSearchTimer = window.setTimeout(() => void refreshInbox(true), 120);
+    inboxSearchTimer = window.setTimeout(() => void refreshInbox(true, true), 120);
   });
 
   inboxSearchClearEl.addEventListener("click", () => {
@@ -2541,7 +2603,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     inboxSearchEl.value = "";
     inboxQuery = "";
     inboxSearchClearEl.classList.remove("visible");
-    void refreshInbox(true);
+    void refreshInbox(true, true);
     inboxSearchEl.focus();
   });
 
@@ -2550,7 +2612,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (!chip) return;
     activeFilter = (chip.dataset.filter as typeof activeFilter) || "all";
     filterBarEl.querySelectorAll(".rm-filter-chip").forEach((c) => c.classList.toggle("active", c === chip));
-    void refreshInbox();
+    void refreshInbox(false, true);
   });
 
   // Long press (touch or mouse) or right click on a conversation: Pin, Clear, Remove / Leave, without opening it
@@ -2591,7 +2653,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       } else if (act === "leave" && c.privateRoom) {
         await deps.onLeavePrivateRoom(c.privateRoom);
       }
-      void refreshInbox();
+      void refreshInbox(false, true);
     });
   };
   convListEl.addEventListener("pointerdown", (e) => {
@@ -2608,6 +2670,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   const cancelPress = () => {
     clearTimeout(pressTimer);
     pressAt = null;
+    clearInboxRowFocus();
   };
   convListEl.addEventListener("pointermove", (e) => {
     if (pressAt && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) > 10) cancelPress(); // scrolling, not pressing
@@ -2681,7 +2744,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       closeReactPicker();
     }
   });
-  convListEl.addEventListener("scroll", closeConvMenu, { passive: true });
+  convListEl.addEventListener(
+    "scroll",
+    () => {
+      closeConvMenu();
+      isInboxMomentum = true;
+      clearTimeout(inboxIdleTimer);
+      inboxIdleTimer = window.setTimeout(() => {
+        isInboxMomentum = false;
+        flushPendingInboxRefresh();
+      }, 180);
+    },
+    { passive: true }
+  );
   messagesScrollerEl.addEventListener("scroll", closeReactPicker, { passive: true });
 
   // Conversation click in unified inbox
@@ -2699,6 +2774,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     // Immediate visual feedback (<16ms) on the inbox row; the box gets focus only when I tap it
     convListEl.querySelectorAll(".rm-conv-item.active").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
+    (row as HTMLElement).blur();
     row.classList.remove("unread");
     row.querySelector(".rm-unread-pill")?.remove();
 
@@ -2724,6 +2800,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   });
 
   const goBackToInboxOnMobile = () => {
+    clearInboxRowFocus();
     // the conversation's Back step is on top: go back through it, so the next Back gesture is one step, not a skipped one
     if (history.state?.radica === "thread") {
       history.back();
@@ -2731,6 +2808,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         if (mobileShowThread) {
           mobileShowThread = false;
           workspaceEl.classList.remove("mobile-thread-open");
+          clearInboxRowFocus();
           syncMiniPlayerSlot();
         }
       }, 45);
@@ -3161,7 +3239,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const on = togglePinned(pinBtn.dataset.togglePin);
       deps.showToast(on ? "Conversation pinned" : "Conversation unpinned", "info");
       refreshDrawer();
-      void refreshInbox();
+      void refreshInbox(false, true);
       return;
     }
 
@@ -3188,7 +3266,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           await deps.onSelectPrivateRoom(updated);
           deps.showToast("Group image removed", "info");
           refreshDrawer();
-          void refreshInbox();
+          void refreshInbox(false, true);
         }
       } catch (err: any) {
         deps.showToast(`Could not remove image: ${err.message || err}`, "error");
@@ -3779,7 +3857,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const bannerTtl = rootEl.querySelector("#rm-secret-banner-ttl");
     if (bannerTtl) bannerTtl.textContent = nextPreset.label;
     deps.showToast(`Disappearing messages set to ${nextPreset.label}`, "info");
-    void refreshInbox(true);
+    void refreshInbox(true, true);
   });
 
 
@@ -3851,12 +3929,15 @@ export function createMessengerChat(deps: MessengerDeps) {
     renderReplyBanner,
     updateStatusBanner,
     onViewportResize,
+    hasBurnCountdowns: () => hasRenderedBurnTags,
     showInboxOnMobileIfEmpty: () => {
       if (!activeConvKey()) {
         mobileShowThread = false;
         workspaceEl.classList.remove("mobile-thread-open");
+        clearInboxRowFocus();
       } else {
         workspaceEl.classList.toggle("mobile-thread-open", mobileShowThread);
+        if (!mobileShowThread) clearInboxRowFocus();
       }
       syncMiniPlayerSlot();
     },
@@ -3870,6 +3951,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     showInboxOnMobile: () => {
       mobileShowThread = false;
       workspaceEl.classList.remove("mobile-thread-open");
+      clearInboxRowFocus();
       syncMiniPlayerSlot();
     },
     isThreadOpenOnMobile: () => workspaceEl.classList.contains("mobile-thread-open") && getComputedStyle(workspaceEl.querySelector(".rm-inbox")!).display === "none",
@@ -3900,6 +3982,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (workspaceEl.classList.contains("mobile-thread-open") && getComputedStyle(workspaceEl.querySelector(".rm-inbox")!).display === "none") {
         mobileShowThread = false;
         workspaceEl.classList.remove("mobile-thread-open");
+        clearInboxRowFocus();
         syncMiniPlayerSlot();
         return true;
       }

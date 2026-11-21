@@ -304,3 +304,33 @@ test("ui improvements: clean Mail header, camera input, smooth tree, Markdown pr
   // 6. Anchored scroll in showMyPost
   assert.match(mainTs, /anchorElementInViewport\s*\(\(\)\s*=>\s*document\.getElementById/);
 });
+
+test("mobile polish: no sticky touch hover/active highlights and smooth mobile scrolling", () => {
+  const chatCss = read("../src/messengerChat.css");
+  const styleCss = read("../src/style.css");
+  const mainTs = read("../src/main.ts");
+
+  assert.match(
+    chatCss,
+    /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)\s*\{\s*#chat-modal\s+\.rm-conv-item:hover\s*\{[^}]*background:\s*var\(--rm-bg-hover\)/
+  );
+  assert.match(
+    chatCss,
+    /#chat-modal\s+\.rm-workspace:not\(\.mobile-thread-open\)\s+\.rm-conv-item\.active\s*\{\s*background:\s*transparent;/
+  );
+  assert.match(
+    chatCss,
+    /@media\s*\(max-width:\s*860px\),\s*\(pointer:\s*coarse\)[\s\S]*?#chat-modal\s+\.rm-conv-item\s*\{[^}]*content-visibility:\s*visible;/
+  );
+
+  assert.doesNotMatch(styleCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?\.rail\s*\{[^}]*backdrop-filter:/);
+  assert.match(
+    styleCss,
+    /@media\s*\(max-width:\s*768px\),\s*\(pointer:\s*coarse\)[\s\S]*?\.gram-card[\s\S]*?content-visibility:\s*visible;/
+  );
+
+  const syncFn = mainTs.match(/function\s+syncMobileViewport\(\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.ok(syncFn.length > 0, "Expected syncMobileViewport() in main.ts");
+  assert.match(syncFn, /currentUiZoom/);
+  assert.doesNotMatch(syncFn, /getComputedStyle\s*\(/);
+});

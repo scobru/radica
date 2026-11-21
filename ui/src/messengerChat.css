@@ -404,9 +404,11 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
-#chat-modal .rm-icon-btn:hover {
-  background: var(--rm-bg-subtle);
-  color: var(--rm-text-main);
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-icon-btn:hover {
+    background: var(--rm-bg-subtle);
+    color: var(--rm-text-main);
+  }
 }
 
 #chat-modal .rm-icon-btn.active {
@@ -501,7 +503,14 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   transition: all 0.14s ease;
 }
 
-#chat-modal .rm-filter-chip:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-filter-chip:hover {
+    background: var(--rm-bg-subtle);
+    color: var(--rm-text-main);
+  }
+}
+
+#chat-modal .rm-filter-chip:active {
   background: var(--rm-bg-subtle);
   color: var(--rm-text-main);
 }
@@ -544,13 +553,25 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   width: 100%;
   font-family: inherit;
   color: inherit;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.12s ease;
   content-visibility: auto;
   contain-intrinsic-size: auto 64px;
 }
 
-#chat-modal .rm-conv-item:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-conv-item:hover {
+    background: var(--rm-bg-hover);
+  }
+}
+
+#chat-modal .rm-conv-item:active {
   background: var(--rm-bg-hover);
+}
+
+#chat-modal .rm-conv-item:focus-visible {
+  outline: 2px solid var(--rm-accent);
+  outline-offset: -2px;
 }
 
 #chat-modal .rm-conv-item.active {
@@ -970,7 +991,6 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  will-change: scroll-position;
   contain: layout style;
   padding: 18px 22px 16px;
   display: flex;
@@ -2015,8 +2035,10 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   border-radius: 10px;
 }
 
-#chat-modal .rm-member-row:hover {
-  background: var(--rm-bg-subtle);
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-member-row:hover {
+    background: var(--rm-bg-subtle);
+  }
 }
 
 #chat-modal .rm-member-row.banned {
@@ -2162,7 +2184,13 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   width: 100%;
 }
 
-#chat-modal .rm-contact-pick-row:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-contact-pick-row:hover {
+    background: var(--rm-bg-hover);
+  }
+}
+
+#chat-modal .rm-contact-pick-row:active {
   background: var(--rm-bg-hover);
 }
 
@@ -2208,6 +2236,10 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 
   #chat-modal .rm-workspace:not(.mobile-thread-open) .rm-stage {
     display: none;
+  }
+
+  #chat-modal .rm-workspace:not(.mobile-thread-open) .rm-conv-item.active {
+    background: transparent;
   }
 
   #chat-modal .rm-mobile-back,
@@ -2281,6 +2313,10 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 
   #chat-modal .rm-workspace:not(.mobile-thread-open) .rm-stage {
     display: none;
+  }
+
+  #chat-modal .rm-workspace:not(.mobile-thread-open) .rm-conv-item.active {
+    background: transparent;
   }
 
   #chat-modal .rm-mobile-back,
@@ -2761,8 +2797,10 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   transition: background 0.15s ease;
 }
 
-#chat-modal .rm-pinned-bar:hover {
-  background: var(--rm-bg-hover, rgba(255, 255, 255, 0.04));
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-pinned-bar:hover {
+    background: var(--rm-bg-hover, rgba(255, 255, 255, 0.04));
+  }
 }
 
 #chat-modal .rm-pinned-content {
@@ -2911,7 +2949,13 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   transition: background 0.15s ease;
 }
 
-#chat-modal .rm-shared-file-row:hover {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-shared-file-row:hover {
+    background: var(--rm-bg-hover, rgba(255, 255, 255, 0.05));
+  }
+}
+
+#chat-modal .rm-shared-file-row:active {
   background: var(--rm-bg-hover, rgba(255, 255, 255, 0.05));
 }
 
@@ -3225,8 +3269,15 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   cursor: pointer;
 }
 
-#chat-modal .rm-menu-item:hover,
-#chat-modal .rm-menu-item:focus-visible {
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-menu-item:hover {
+    background: var(--rm-bg-hover);
+    outline: none;
+  }
+}
+
+#chat-modal .rm-menu-item:focus-visible,
+#chat-modal .rm-menu-item:active {
   background: var(--rm-bg-hover);
   outline: none;
 }
@@ -3414,4 +3465,27 @@ html[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
   --rm-bg-active: color-mix(in srgb, var(--primary) 18%, transparent);
   --rm-border: color-mix(in srgb, var(--primary) 14%, #2a241b);
   --rm-border-subtle: color-mix(in srgb, var(--primary) 10%, #211c15);
+}
+
+/* Mobile & touch scroll smoothness: drop content-visibility jitter, gradient repainting, bubble shadows and blurs */
+@media (max-width: 860px), (pointer: coarse) {
+  #chat-modal .rm-conv-item {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+    transition: none;
+  }
+
+  #chat-modal .rm-stage {
+    background-image: none;
+  }
+
+  #chat-modal .rm-bubble {
+    box-shadow: none;
+  }
+
+  #chat-modal .rm-hover-bar,
+  #chat-modal .rm-react-picker,
+  #chat-modal .rm-modal-backdrop {
+    backdrop-filter: none;
+  }
 }

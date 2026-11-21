@@ -66,7 +66,7 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 
 function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
@@ -342,7 +342,7 @@ export class FreenetClient {
       if (c.id === "c_spruce" || c.id === "c_radica") {
         const mods = new Set(c.moderators || []);
         mods.add(RADICA_MAINTAINER);
-        return { ...c, id: "c_radica", name: "Radica Hub", slug: "radica", moderators: Array.from(mods) };
+        return { ...c, id: "c_radica", name: c.name || "Radica Hub", slug: "radica", moderators: Array.from(mods) };
       }
       return c;
     });
@@ -3471,7 +3471,7 @@ export class FreenetClient {
     return (await this.getCommunity(id))!;
   }
 
-  /** Change a community's name and description. Only its creator can: the fold ignores a later `community_create` from anyone else. */
+  /** Change a community's name and description. Founder, active moderators, and maintainer (on system genesis communities) can edit. */
   public async updateCommunity(
     identity: UserIdentity,
     communityId: string,
@@ -3481,13 +3481,16 @@ export class FreenetClient {
   ): Promise<Community> {
     const comm = await this.getCommunity(communityId);
     if (!comm) throw new Error("Community not found");
-    if (comm.creator !== identity.pubkey) throw new Error("Only the community's creator can edit it.");
+    if (!canEditCommunity(comm, identity.pubkey)) {
+      throw new Error("Only the community's founder or moderators can edit it.");
+    }
     await this.logAppend("communities", {
       type: "community_create",
       community: {
         id: comm.id,
         name: name.trim(),
         description: description.trim(),
+        ...(comm.avatar_url ? { avatar_url: comm.avatar_url } : {}),
         require_trusted_to_post: requireTrustedToPost,
       },
     });

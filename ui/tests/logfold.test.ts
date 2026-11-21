@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "../src/types.ts";
-import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -694,4 +694,57 @@ test("logfold security: scoped community self-delete, cascading mod removal, hex
   assert.equal(cPref.creator, owner);
   assert.equal(cPref.name, "Real");
   assert.deepEqual(cPref.moderators, [owner, user]);
+});
+
+test("logfold: founders, active community moderators, and RADICA_MAINTAINER (for genesis communities) can update community description", () => {
+  const prefId = `c_${owner.slice(0, 8)}_hub`;
+  const log = [
+    entry(owner, 1, { type: "community_create", community: { id: prefId, name: "Hub", description: "Init" } }),
+    entry(mallory, 2, { type: "community_create", community: { id: prefId, name: "Hijack", description: "Spam" } }),
+    entry(owner, 3, { type: "community_mod_add", community_id: prefId, target: mod }),
+    entry(mod, 4, { type: "community_create", community: { id: prefId, name: "Hub v2", description: "Join chat #join_room=r1&key=" + "ab".repeat(32) } }),
+    entry(owner, 5, { type: "community_mod_remove", community_id: prefId, target: mod }),
+    entry(mod, 6, { type: "community_create", community: { id: prefId, name: "Revoked", description: "Should fail" } }),
+  ];
+  const [edited] = foldCommunities(log, []);
+  assert.equal(edited.name, "Hub v2");
+  assert.match(edited.description, /Join chat #join_room=r1/);
+  // order-independent across log entries
+  assert.deepEqual(foldCommunities([...log].reverse(), []), [edited]);
+
+  const genesisBase = [
+    {
+      id: "c_radica",
+      name: "Radica Hub",
+      slug: "radica",
+      description: "Old",
+      created_at: 1,
+      creator: "system",
+      moderators: ["system"],
+      members: [],
+      deleted_post_ids: [],
+      sig: "genesis",
+    },
+    {
+      id: "c_tech",
+      name: "Tech & P2P",
+      slug: "tech",
+      description: "Tech",
+      created_at: 1,
+      creator: "system",
+      moderators: ["system"],
+      members: [],
+      deleted_post_ids: [],
+      sig: "genesis",
+    },
+  ];
+  const afterMaintainer = foldCommunities([
+    entry(mallory, 10, { type: "community_create", community: { id: "c_radica", name: "Vandal", description: "bad" } }),
+    entry(RADICA_MAINTAINER, 11, { type: "community_create", community: { id: "c_radica", name: "Radica Hub", description: "Official group: #join_room=priv_rad&key=" + "11".repeat(32) } }),
+    entry(RADICA_MAINTAINER, 12, { type: "community_create", community: { id: "c_tech", name: "Tech & P2P", description: "Updated tech desc" } }),
+  ], genesisBase);
+  assert.equal(afterMaintainer[0].description, `Official group: #join_room=priv_rad&key=${"11".repeat(32)}`);
+  assert.equal(afterMaintainer[1].description, "Updated tech desc");
+  assert.equal(canEditCommunity(afterMaintainer[0], RADICA_MAINTAINER), true);
+  assert.equal(canEditCommunity(afterMaintainer[0], mallory), false);
 });

@@ -114,7 +114,7 @@ export interface TextModerationResult {
 }
 
 // ponytail: pre-compile regexes once at module load instead of 57 RegExp allocations + double .test/.replace passes per call
-const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+const URL_RE = /(?:\b(?:https?:\/\/|www\.)|(?:^|(?<=\s))(?:#(?:join_room|river_invite)=|\/v[12]\/contract\/))[^\s<>"']+/gi;
 const CC_RE = /\b(?:\d[ -]*?){13,19}\b/g;
 const IBAN_RE = /\b[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\b/gi;
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
@@ -142,7 +142,7 @@ const PROFANITY_DETAIL = "Inappropriate language / profanity";
 /** Bad words as asterisks: applied when reading (the reader's choice), never to what the author publishes. */
 const URL_OR_BAD_RE = new RegExp(`${URL_RE.source}|${BAD_WORDS_RE.source}`, "gi");
 export const maskProfanity = (text: string): string =>
-  text.replace(URL_OR_BAD_RE, (m) => (/^(?:https?:\/\/|www\.)/i.test(m) ? m : "*".repeat(m.length))); // a link stays whole
+  text.replace(URL_OR_BAD_RE, (m) => (/^(?:https?:\/\/|www\.|\/v[12]\/contract\/|#(?:join_room|river_invite)=)/i.test(m) ? m : "*".repeat(m.length))); // a link stays whole
 
 /** The kinds of personal data in a text (email, phone, card…), to ask the author before it is published. */
 export const personalDataIn = (text: string): string[] => censorTextAndPII(text).details.filter((d) => d !== PROFANITY_DETAIL);

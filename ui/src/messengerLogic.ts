@@ -204,6 +204,18 @@ export function resolveThreadScrollAction(opts: {
   return opts.wasNearBottom ? "bottom" : "preserve";
 }
 
+/**
+ * Defers background DOM re-renders while the user is actively touching or
+ * coasting in momentum scroll so native mobile scrolling is not interrupted.
+ */
+export function shouldDeferBackgroundRender(args: {
+  isTouching: boolean;
+  isMomentum: boolean;
+  forceImmediate: boolean;
+}): boolean {
+  return !args.forceImmediate && (args.isTouching || args.isMomentum);
+}
+
 /** An unterminated "@name" right before the caret, if any: "@" at the string's start or after whitespace, with no
  *  space typed yet after it. Returns the "@"'s index (to replace from) and the partial name typed so far. */
 export function detectMentionTrigger(textBeforeCaret: string): { at: number; query: string } | null {

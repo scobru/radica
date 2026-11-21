@@ -86,13 +86,18 @@ test("moderation: preserves safe content and provides correct analyzeTextContent
   assert.ok(flaggedAnalysis.warnings.includes("Inappropriate language / profanity"));
 });
 
-test("moderation: leaves links alone even when they contain long digit runs", () => {
+test("moderation: leaves links and room invite fragments alone even when keys contain long hex/digit runs", () => {
   const url = "https://www.yahoo.com/news/world/articles/black-october-why-bugs-discovered-180131955.html";
   const res = censorTextAndPII(`${url} e www.example.com/a/1234567890123`);
   assert.equal(res.hasCensoredPII, false);
   assert.equal(res.censoredText, `${url} e www.example.com/a/1234567890123`);
   // a bare number next to a link is still redacted
   assert.ok(censorTextAndPII(`${url} chiama 349 123 4567`).censoredText.includes("[📱 PHONE NUMBER REDACTED]"));
+  const bareInvite = `#join_room=privroom_123&key=${"1234567890abcdef".repeat(4)}&name=fuck`;
+  const inviteRes = censorTextAndPII(`Join ${bareInvite}`);
+  assert.equal(inviteRes.hasCensoredPII, false);
+  assert.equal(inviteRes.hasCensoredProfanity, false);
+  assert.equal(inviteRes.censoredText, `Join ${bareInvite}`);
 });
 
 test("personal data is listed for the author's warning; bad words are not", async () => {

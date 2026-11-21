@@ -295,6 +295,16 @@ test("caption: River and room invite links format into channel and room pills", 
   const html3 = renderCaption(mdInvite);
   assert.match(html3, /class="post-link channel-invite-pill"/);
   assert.match(html3, />Click here to join<\/a>/);
+
+  // 4. Bare #join_room= and #river_invite= fragments (e.g. pasted into a community description)
+  const bareGroup = linkify(`Discuss in #join_room=privroom_abc&name=Radica+Group&key=${"cd".repeat(32)} and keep #radica as text.`);
+  assert.match(bareGroup, /class="post-link channel-invite-pill" href="#join_room=privroom_abc/);
+  assert.match(bareGroup, />💬 Radica Group<\/a> and keep #radica as text\./);
+
+  const bareChannel = renderCaption(`#river_invite=QCYLRbLKZHCci4q4nMVlaFNXaHU1MH3C&chan=1 #community`);
+  assert.match(bareChannel, /class="post-link channel-invite-pill"/);
+  assert.match(bareChannel, /📢 Broadcast Channel<\/a>/);
+  assert.match(bareChannel, /data-tag="community"/);
 });
 
 test("renderComment: #tags are clickable filters, as in posts", () => {

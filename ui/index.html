@@ -115,6 +115,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
             <span>Full screen</span>
           </button>
+          <button class="rail-btn mobile-theme-btn" id="mobile-theme-btn" title="Switch Dark / Light Mode">
+            <span id="mobile-theme-icon"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
+            <span id="mobile-theme-label">Theme</span>
+          </button>
         </div>
         <button class="rail-btn rail-more-btn" id="rail-more-btn" title="More" aria-expanded="false" aria-controls="rail-more-group">
           <svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
@@ -239,7 +243,10 @@
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span>Reddit View</span>
             </button>
-            <button class="btn-secondary btn-sm" id="comm-edit-btn" style="display: none;">Edit</button>
+            <button class="btn-secondary btn-sm btn-icon-text" id="comm-edit-btn" style="display: none;" title="Edit community title, description &amp; linked private group">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Edit</span>
+            </button>
             <button class="btn-secondary btn-sm btn-icon-text" id="comm-mod-btn" style="display: none;">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               <span>Moderation</span>
@@ -1473,7 +1480,7 @@
         </details>
 
         <details><summary>🌿 Trust badges</summary>
-          <p>Badges are worked out on <i>your</i> device from who <i>you</i> follow, so two people can see different badges on the same person.</p>
+          <p>Badges are worked out on <i>your</i> device from who <i>you</i> follow, so two people can see different badges on the same person. On phones, post headers condense identity badges into compact pills (tap any badge to read its full meaning).</p>
           <ul>
             <li><b>🌿 Rooted</b>: you follow them, or they are a curator you trust. Most of the people you see are, so next to posts it is left out; their profile still shows it.</li>
             <li><b>🌱 Trusted</b>: someone you follow follows them (a friend of a friend).</li>
@@ -1502,7 +1509,7 @@
         </details>
 
         <details><summary>🏛️ Communities and moderators</summary>
-          <p>A community's creator and its moderators can remove a post <b>from that community</b> and ban people from it. They cannot touch your profile or your own feed: a removed post still exists there. Communities live in the Feed and Communities views; founders who want real-time chat or announcements can share an invite link to a Private Group or Broadcast Channel in the community description.</p>
+          <p>A community's creator and its moderators can remove a post <b>from that community</b>, ban people from it, and edit its title and description (using the <b>Edit</b> button in the Feed banner or Communities view, including picking one of your Private Groups or Broadcast Channels to link a clickable join pill right in the description). They cannot touch your profile or your own feed: a removed post still exists there. Communities live in the Feed and Communities views.</p>
           <p><b>An offensive community</b> is up to its own moderators, and, when they do nothing, to <b>Radica's moderators</b> (named by the maintainer): they can <b>hide a community</b> (the 🛡️ button in its header, or Moderation → Hidden communities) for everyone who follows Radica's moderation, and ban whoever runs it. A hidden community leaves their lists, their search and their timelines, and so do its posts. Nothing is deleted from the network: someone who stops following the maintainer's list sees it all again. r/radica cannot be hidden.</p>
         </details>
 
@@ -2621,8 +2628,19 @@
         <label style="font-size: 0.85rem; font-weight: 600;">Title</label>
         <input type="text" id="comm-name-input" class="composer-input" style="min-height: auto; margin-bottom: 12px;" placeholder="e.g. Freenet Developers" required />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Description & Rules</label>
-        <textarea id="comm-desc-input" class="composer-input" style="min-height: 70px; margin-bottom: 12px;" placeholder="What is this community about?"></textarea>
+        <label style="font-size: 0.85rem; font-weight: 600;">Description &amp; Rules</label>
+        <textarea id="comm-desc-input" class="composer-input" rows="4" maxlength="2000" style="min-height: 92px; margin-bottom: 10px;" placeholder="What is this community about? Paste a private group or broadcast channel invite link here to link a chat..."></textarea>
+
+        <div id="comm-link-room-box" class="comm-link-room-box">
+          <label for="comm-link-room-select" class="comm-link-room-label">Link a Private Group or Broadcast Channel (optional)</label>
+          <div class="comm-link-room-row">
+            <select id="comm-link-room-select" class="composer-input" style="min-height: auto; flex: 1; font-size: 0.82rem;">
+              <option value="">Choose one of your groups or channels…</option>
+            </select>
+            <button type="button" class="btn-secondary btn-sm" id="comm-insert-room-btn">Insert link</button>
+          </div>
+          <p class="comm-link-room-hint">Invite links in the description render as clickable join pills in the community banner and Communities view.</p>
+        </div>
 
         <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; margin-bottom: 20px; cursor: pointer; color: var(--text-main);">
           <input type="checkbox" id="comm-require-trusted-input" style="cursor: pointer;" />

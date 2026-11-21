@@ -96,6 +96,7 @@ import {
   type MailFolder,
 } from "./mailClient.ts";
 import { createMessengerChat, type ChatLayoutMode } from "./messengerChat.ts";
+import { shouldDeferBackgroundRender } from "./messengerLogic.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { burnAtOf, checksHtml, createConversationState, deliveryOf, dmPeerOf, nextTtl, tickBurnCountdowns, triggerRowBurnAnimation } from "./conversationState.ts";
@@ -129,7 +130,8 @@ import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
-import { CHAT_REACTIONS, isPostDeletedInCommunity } from "./logfold";
+import { CHAT_REACTIONS, canEditCommunity, isPostDeletedInCommunity } from "./logfold";
+import { renderAnteBadgeHtml, renderPohProviderBadgesHtml, renderPostSubMetaHtml, renderTrustBadgeHtml } from "./badges.ts";
 import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
 import { commentsBy, type CommentEntry } from "./commentHistory.ts";
 import { renderIcon, type IconName } from "./icons";
@@ -560,30 +562,23 @@ let googlePohKeys = new Set<string>();
 /** Verified Viso `ante` commitment bit counts keyed by persona pubkey. */
 let anteBitsByKey = new Map<string, number>();
 const pohKey = (pk: string) => `radica_poh_${pk}`;
-const githubPohBadgeHtml = (pubkey: string): string =>
-  githubPohKeys.has(pubkey)
-    ? ` <span class="gram-trust-badge badge-github-poh" title="Verified GitHub account (≥ 1 year old) via Anonymous Viso PoH">${renderIcon("github", { className: "icon-xs" })} <span>GitHub</span></span>`
-    : "";
-const googlePohBadgeHtml = (pubkey: string): string =>
-  googlePohKeys.has(pubkey)
-    ? ` <span class="gram-trust-badge badge-google-poh" title="Verified Google account via Anonymous Viso PoH">${renderIcon("google", { className: "icon-xs" })} <span>Google</span></span>`
-    : "";
-const pohProviderBadgesHtml = (pubkey: string): string => `${githubPohBadgeHtml(pubkey)}${googlePohBadgeHtml(pubkey)}`;
+const pohProviderBadgesHtml = (pubkey: string): string =>
+  renderPohProviderBadgesHtml({
+    github: githubPohKeys.has(pubkey),
+    google: googlePohKeys.has(pubkey),
+    githubIcon: renderIcon("github", { className: "icon-xs" }),
+    googleIcon: renderIcon("google", { className: "icon-xs" }),
+  });
 const anteBadgeHtml = (pubkey: string): string => {
   const bits = anteBitsByKey.get(pubkey);
   const tier = bits !== undefined ? anteTierOf(bits) : null;
-  return tier
-    ? ` <span class="gram-trust-badge badge-ante-${tier.id}" title="Verified Viso ante PoW commitment (${bits} bits)">⚡ <span>${escapeHtml(tier.label)} · ${bits}b</span></span>`
-    : "";
+  return renderAnteBadgeHtml(bits, tier);
 };
 function renderMyPohBadges(): void {
   const me = currentIdentity?.pubkey ?? "";
   const trust = me ? getWebOfTrust().trustBadge(me) : null;
-  const trustHtml =
-    trust && trust.label !== "Rooted"
-      ? `<span class="gram-trust-badge ${trust.badgeClass}" title="${escapeHtml(trust.description)}">${trust.icon} ${escapeHtml(trust.label)}</span> `
-      : "";
-  const html = me ? `${trustHtml}${pohProviderBadgesHtml(me)}${anteBadgeHtml(me)}`.trim() : "";
+  const trustHtml = trust ? renderTrustBadgeHtml(trust, { skipRooted: true }) : "";
+  const html = me ? [trustHtml, pohProviderBadgesHtml(me), anteBadgeHtml(me)].filter(Boolean).join("") : "";
   const sb = document.getElementById("sidebar-poh-badge");
   if (sb) sb.innerHTML = html;
   const pp = document.getElementById("pp-poh-badge");
@@ -2362,6 +2357,9 @@ const notifsSoundBtn = document.getElementById("notifs-sound-btn") as HTMLButton
 const createCommModal = document.getElementById("create-comm-modal") as HTMLElement;
 const commNameInput = document.getElementById("comm-name-input") as HTMLInputElement;
 const commDescInput = document.getElementById("comm-desc-input") as HTMLTextAreaElement;
+const commLinkRoomBox = document.getElementById("comm-link-room-box") as HTMLElement | null;
+const commLinkRoomSelect = document.getElementById("comm-link-room-select") as HTMLSelectElement | null;
+const commInsertRoomBtn = document.getElementById("comm-insert-room-btn") as HTMLButtonElement | null;
 const commRequireTrustedInput = document.getElementById("comm-require-trusted-input") as HTMLInputElement | null;
 const createCommCancelBtn = document.getElementById("create-comm-cancel-btn") as HTMLButtonElement;
 const createCommSaveBtn = document.getElementById("create-comm-save-btn") as HTMLButtonElement;
@@ -2675,7 +2673,7 @@ function refreshVisibleReactions(): void {
   for (const a of authors) void freenet.refreshLog(`reactions/${a}`);
 }
 
-async function reloadPosts() {
+async function reloadPosts(opts?: { background?: boolean }) {
   if (!currentIdentity) return;
   refreshTrustedBlocklists();
   refreshVisibleReactions();
@@ -2711,7 +2709,8 @@ async function reloadPosts() {
     void checkMilestones(timelinePosts);
   }
   await yieldToMain(); // gathering the posts and drawing them are separate tasks
-  renderTimeline();
+  if (opts?.background) scheduleRenderTimeline();
+  else renderTimeline();
   renderTrending();
   updateMyPostsAndScopeCounts();
   if (currentFeedScope === "explore") treeExplorePosts = timelinePosts;
@@ -2838,9 +2837,44 @@ function findFeedScrollAnchor(container: HTMLElement): { id: string; top: number
   return { id: bestCard.id, top: bestCard.getBoundingClientRect().top };
 }
 
+let isFeedTouching = false;
+let isFeedScrolling = false;
+let feedScrollIdleTimer = 0;
+let deferredTimelineRender = false;
+
+function flushDeferredTimelineRender() {
+  if (deferredTimelineRender && !isFeedTouching && !isFeedScrolling) {
+    deferredTimelineRender = false;
+    scheduleRenderTimeline();
+  }
+}
+
+window.addEventListener("touchstart", () => {
+  isFeedTouching = true;
+}, { passive: true });
+const endFeedTouch = () => {
+  isFeedTouching = false;
+  if (!isFeedScrolling) flushDeferredTimelineRender();
+};
+window.addEventListener("touchend", endFeedTouch, { passive: true });
+window.addEventListener("touchcancel", endFeedTouch, { passive: true });
+window.addEventListener(
+  "scroll",
+  () => {
+    isFeedScrolling = true;
+    clearTimeout(feedScrollIdleTimer);
+    feedScrollIdleTimer = window.setTimeout(() => {
+      isFeedScrolling = false;
+      flushDeferredTimelineRender();
+    }, 200);
+  },
+  { passive: true }
+);
+
 /** Restores the scroll offset so the anchored post stays at the exact same viewport position. */
 function restoreScrollAnchor(anchor: { id: string; top: number }) {
   const applyDelta = () => {
+    if (isFeedTouching || isFeedScrolling) return;
     const el = document.getElementById(anchor.id);
     if (!el) return;
     const currentTop = el.getBoundingClientRect().top;
@@ -2855,6 +2889,10 @@ function restoreScrollAnchor(anchor: { id: string; top: number }) {
 
 let timelineRenderRaf = 0;
 function scheduleRenderTimeline() {
+  if (shouldDeferBackgroundRender({ isTouching: isFeedTouching, isMomentum: isFeedScrolling, forceImmediate: false })) {
+    deferredTimelineRender = true;
+    return;
+  }
   if (timelineRenderRaf) return;
   timelineRenderRaf = requestAnimationFrame(() => {
     timelineRenderRaf = 0;
@@ -3000,6 +3038,25 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
     sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author)];
   }
 
+  const identityBadgesHtml = [
+    renderTrustBadgeHtml(authorTrust, { skipRooted: true }),
+    pohProviderBadgesHtml(post.author),
+    anteBadgeHtml(post.author),
+  ].filter(Boolean).join("");
+  const subMetaHtml = renderPostSubMetaHtml({
+    communityId: post.community_id,
+    communitySlug: postComm?.slug,
+    authorIsMod,
+    category: post.category,
+    categoryIconHtml:
+      post.category === "thought"
+        ? undefined
+        : renderIcon(CATEGORY_ICON[post.category] ?? "messageCircle", { className: "icon-xs", ariaLabel: post.category }),
+    isRepost: Boolean(repostRef(caption)),
+    repostIconHtml: repostRef(caption) ? renderIcon("repeat", { className: "icon-xs" }) : undefined,
+    isNsfw: Boolean(post.is_nsfw),
+  });
+
   const html = `
       <article class="gram-card${isWotShielded ? " wot-shielded" : ""}" id="${domPrefix}card-${post.id}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}">
         ${
@@ -3021,33 +3078,15 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
         <div class="gram-card-header">
           <div class="gram-author-info">
             <img src="${safeUrl(authorAvatar)}" loading="lazy" decoding="async" class="gram-author-img author-clickable" data-author="${escapeHtml(post.author)}" onerror="this.onerror=null; this.src='${generateDefaultAvatar(post.author)}'" style="cursor: pointer;" />
-            <div>
-              <span class="gram-author-name author-clickable" data-author="${escapeHtml(post.author)}" style="cursor: pointer;" title="Persona: ${post.author}">${escapeHtml(authorDisplayName)}</span>
-              ${
-                authorTrust.label === "Rooted"
-                  ? ""
-                  : `<span class="gram-trust-badge ${authorTrust.badgeClass}" title="${escapeHtml(authorTrust.description)}">${authorTrust.icon} ${escapeHtml(authorTrust.label)}</span>`
-              }${pohProviderBadgesHtml(post.author)}${anteBadgeHtml(post.author)}
-              ${
-                post.category === "thought"
-                  ? ""
-                  : `<span class="gram-category-tag ${escapeHtml(post.category)}" title="${escapeHtml(post.category)}">${renderIcon(CATEGORY_ICON[post.category] ?? "messageCircle", { className: "icon-xs", ariaLabel: post.category })}</span>`
-              }
-              ${authorIsMod ? `<span class="gram-trust-badge badge-mod" title="Moderator of r/${escapeHtml(postComm!.slug)}">mod</span>` : ""}
-              ${repostRef(caption) ? `<span class="gram-category-tag repost" title="Shares someone's post">${renderIcon("repeat", { className: "icon-xs" })} reposted</span>` : ""}
-              ${
-                post.is_nsfw
-                  ? `<span class="gram-category-tag nsfw" title="18+ Adult Content (Moderated On-Device)">NSFW</span>`
-                  : ""
-              }
-              ${
-                post.community_id
-                  ? `<span class="comm-badge community-link" data-community="${escapeHtml(post.community_id)}" title="View Community">r/${escapeHtml(post.community_id.replace(/^c_/, ""))}</span>`
-                  : ""
-              }
+            <div class="gram-author-main">
+              <div class="gram-author-row">
+                <span class="gram-author-name author-clickable" data-author="${escapeHtml(post.author)}" style="cursor: pointer;" title="Persona: ${post.author}">${escapeHtml(authorDisplayName)}</span>
+                ${identityBadgesHtml ? `<span class="gram-author-badges">${identityBadgesHtml}</span>` : ""}
+              </div>
+              ${subMetaHtml ? `<div class="gram-author-sub">${subMetaHtml}</div>` : ""}
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="gram-header-meta">
             ${
               singleView
                 ? `<span class="gram-time">${formatTimeAgo(post.timestamp)}</span>`
@@ -3253,7 +3292,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
                   ${draftTranslateHtml(`${domPrefix}comment-input-${post.id}`)}
                 </div>
               </div>
-              <button type="submit" class="btn-primary comment-submit-btn" style="padding: 4px 12px; font-size: 0.8rem;">Send</button>
+              <button type="submit" class="btn-primary comment-submit-btn">Send</button>
             </div>
             <input type="file" id="${domPrefix}comment-file-${post.id}" class="comment-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;" />
             <div class="comment-staging" id="${domPrefix}comment-staging-${post.id}" data-post-id="${escapeHtml(post.id)}" style="display: none;"></div>
@@ -3398,6 +3437,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 function renderTimeline() {
+  deferredTimelineRender = false;
   if (timelineRenderRaf) {
     cancelAnimationFrame(timelineRenderRaf);
     timelineRenderRaf = 0;
@@ -4200,6 +4240,9 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
     if (userProfileModal && userProfileModal.style.display !== "none") {
       userProfileModal.style.display = "none";
     }
+    if (communitiesModal && isOpen(communitiesModal)) {
+      communitiesModal.style.display = "none";
+    }
     void handleJoinFromInviteUrl(href);
     return;
   }
@@ -4358,6 +4401,10 @@ function bindPostCardListeners(container: HTMLElement) {
           btn.textContent = missingText();
         } else showToast(`The video stopped: ${missingText()}`, "warning"); // it streamed, then pieces were missing
       });
+    } else if ((el = hit(".gram-author-badges .gram-trust-badge[title], .gram-author-sub .gram-trust-badge[title]"))) {
+      e.stopPropagation();
+      const tip = el.getAttribute("title");
+      if (tip) showToast(tip, "info");
     } else if ((el = hit(".clickable-hashtag"))) {
       e.stopPropagation();
       closeSinglePostModal();
@@ -6152,7 +6199,8 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   const isSelf = pubkey === currentIdentity?.pubkey;
   const uviewNameHtml = (displayName: string) => {
     const b = getWebOfTrust().trustBadge(pubkey);
-    return `${escapeHtml(displayName)} <span class="gram-trust-badge ${b.badgeClass}" title="${escapeHtml(b.description)}">${b.icon} ${escapeHtml(b.label)}</span>${pohProviderBadgesHtml(pubkey)}${anteBadgeHtml(pubkey)}`;
+    const badges = [renderTrustBadgeHtml(b), pohProviderBadgesHtml(pubkey), anteBadgeHtml(pubkey)].filter(Boolean).join("");
+    return `${escapeHtml(displayName)}${badges ? ` <span class="uview-badges">${badges}</span>` : ""}`;
   };
   // open at once with what is known; the feed (bio, posts) may take a few seconds to come from the network
   uviewName.innerHTML = uviewNameHtml(getAuthorDisplayName(pubkey));
@@ -7694,11 +7742,27 @@ if (virtualKb) {
   virtualKb.addEventListener?.("geometrychange", syncMobileViewport);
 }
 
+let currentUiZoom = 1;
 let lastVvh: number | null = null;
 let lastVvt: number | null = null;
 let mobileViewportRaf = 0;
 
 function syncMobileViewport() {
+  const chatIsOpen = isOpen(chatModal);
+  const mailIsOpen = !!(mailModal && isOpen(mailModal));
+  const fsActive = !!document.fullscreenElement;
+  const textFocused = isMobileTextEntry(document.activeElement);
+  if (!chatIsOpen && !mailIsOpen && !fsActive && !textFocused) {
+    if (lastVvh !== null) {
+      document.documentElement.style.removeProperty("--rm-vvh");
+      lastVvh = null;
+    }
+    if (lastVvt !== null) {
+      document.documentElement.style.removeProperty("--rm-vvt");
+      lastVvt = null;
+    }
+    return;
+  }
   const vv = window.visualViewport;
   if (!vv || (vv.scale && Math.abs(vv.scale - 1) >= 0.05)) {
     if (lastVvh !== null) {
@@ -7713,8 +7777,6 @@ function syncMobileViewport() {
   }
   const kbH = virtualKb?.boundingRect ? Math.round(virtualKb.boundingRect.height || 0) : 0;
   let rawH = vv ? vv.height : window.innerHeight;
-  const fsActive = !!document.fullscreenElement;
-  const textFocused = isMobileTextEntry(document.activeElement);
   if (fsActive && textFocused && rawH >= window.innerHeight - 50) {
     const isLandscape = window.innerWidth > window.innerHeight;
     const ratio = isLandscape ? 0.50 : 0.42;
@@ -7723,8 +7785,9 @@ function syncMobileViewport() {
   }
   const h = Math.max(180, Math.round(kbH > 0 ? Math.min(rawH, window.innerHeight - kbH) : rawH));
   const t = Math.max(0, Math.round(vv.offsetTop));
-  const zoom = Number(getComputedStyle(document.documentElement).getPropertyValue("--ui-zoom")) || 1; // Text Size zooms px too
-  if (h !== lastVvh) {
+  const zoom = currentUiZoom || 1; // Text Size zooms px too (cached in applyTextSize to avoid style recalc during scroll)
+  const heightChanged = h !== lastVvh;
+  if (heightChanged) {
     document.documentElement.style.setProperty("--rm-vvh", `${h / zoom}px`);
     lastVvh = h;
   }
@@ -7732,8 +7795,8 @@ function syncMobileViewport() {
     document.documentElement.style.setProperty("--rm-vvt", `${t / zoom}px`);
     lastVvt = t;
   }
-  if (isOpen(chatModal) && window.scrollY !== 0) window.scrollTo(0, 0);
-  messengerChat.onViewportResize(h);
+  if (chatIsOpen && window.scrollY !== 0) window.scrollTo(0, 0);
+  if (chatIsOpen && heightChanged) messengerChat.onViewportResize(h);
 }
 
 function scheduleSyncMobileViewport() {
@@ -7744,15 +7807,16 @@ function scheduleSyncMobileViewport() {
   });
 }
 
-window.visualViewport?.addEventListener("resize", scheduleSyncMobileViewport);
-window.visualViewport?.addEventListener("scroll", scheduleSyncMobileViewport);
-window.addEventListener("resize", scheduleSyncMobileViewport);
+window.visualViewport?.addEventListener("resize", scheduleSyncMobileViewport, { passive: true });
+window.visualViewport?.addEventListener("scroll", scheduleSyncMobileViewport, { passive: true });
+window.addEventListener("resize", scheduleSyncMobileViewport, { passive: true });
 document.addEventListener("fullscreenchange", () => {
   syncMobileViewport();
   setTimeout(syncMobileViewport, 80);
   setTimeout(syncMobileViewport, 220);
 });
 new MutationObserver(scheduleSyncMobileViewport).observe(chatModal, { attributes: true, attributeFilter: ["style", "class"] });
+if (mailModal) new MutationObserver(scheduleSyncMobileViewport).observe(mailModal, { attributes: true, attributeFilter: ["style", "class"] });
 document.addEventListener("focusin", (e) => {
   const t = e.target as HTMLElement | null;
   if (!isMobileTextEntry(t)) return;
@@ -7787,6 +7851,7 @@ conversation.onTypingChange((roomId) => {
 // one countdown for both chat views; burning the messages themselves is conversation.sweepBurns()'s job
 setInterval(() => {
   if (chatModal && chatModal.style.display !== "none" && !document.hidden) {
+    if (currentChatLayout() === "messenger" && !messengerChat.hasBurnCountdowns()) return;
     tickBurnCountdowns(chatModal);
   }
 }, 500);
@@ -10106,13 +10171,15 @@ function selectCommunity(comm: Community | null, preserveFilter = false) {
     // links in the description are clickable (linkify escapes the text first)
     if (activeCommunity.description) commBannerDesc.innerHTML = linkify(activeCommunity.description);
     else commBannerDesc.textContent = "No description provided.";
-    commBannerName.textContent = activeCommunity.name;
+    const maskBad = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
+    commBannerName.textContent = maskBad ? maskProfanity(activeCommunity.name) : activeCommunity.name;
     commBannerName.style.display = activeCommunity.name ? "block" : "none";
     commMembersCount.textContent = activeCommunity.members.length.toString();
     commModsCount.textContent = activeCommunity.moderators.length.toString();
 
     const isOwner = currentIdentity && activeCommunity.creator === currentIdentity.pubkey;
     const isMod = currentIdentity && activeCommunity.moderators.includes(currentIdentity.pubkey);
+    const canEdit = Boolean(currentIdentity && canEditCommunity(activeCommunity, currentIdentity.pubkey));
     const isMember = currentIdentity && activeCommunity.members.includes(currentIdentity.pubkey);
 
     if (isOwner) {
@@ -10128,7 +10195,7 @@ function selectCommunity(comm: Community | null, preserveFilter = false) {
       commModBtn.style.display = "none";
     }
 
-    commEditBtn.style.display = isOwner ? "inline-block" : "none"; // only the creator's edits count (see foldCommunities)
+    commEditBtn.style.display = canEdit ? "inline-flex" : "none";
     commHideBtn.style.display = amGlobalMod() && activeCommunity.id !== "c_radica" ? "inline-block" : "none"; // Radica's own home cannot be hidden
     commJoinBtn.textContent = isMember ? "Joined" : "Join Community";
     commJoinBtn.className = isMember ? "btn-secondary btn-sm" : "btn-primary btn-sm";
@@ -10430,6 +10497,39 @@ addModForm.addEventListener("submit", async (e) => {
 // The slug is never typed here: it was chosen in the search (so it is known to be free) or belongs to the community being edited.
 let editingCommunityId: string | null = null;
 let dialogSlug = "";
+async function populateCommunityRoomPicker() {
+  if (!commLinkRoomBox || !commLinkRoomSelect || !commInsertRoomBtn) return;
+  if (!currentIdentity) {
+    commLinkRoomBox.style.display = "none";
+    return;
+  }
+  commLinkRoomBox.style.display = "";
+  const identity = currentIdentity;
+  if (allPrivateRooms.length === 0) {
+    allPrivateRooms = await freenet.getPrivateRooms(identity).catch(() => []);
+  }
+  const myRooms = allPrivateRooms.filter((r) => r.creator === identity.pubkey || r.members.includes(identity.pubkey));
+  if (myRooms.length === 0) {
+    commLinkRoomSelect.innerHTML = `<option value="">No private groups or channels yet — create one in Chat</option>`;
+    commLinkRoomSelect.disabled = true;
+    commInsertRoomBtn.disabled = true;
+    return;
+  }
+  const entries = await Promise.all(
+    myRooms.map(async (r) => {
+      const name = await freenet
+        .getPrivateRoomDecryptedName(identity, r)
+        .catch(() => (r.is_channel ? `Channel (${r.id.slice(9, 15)})` : `Group (${r.id.slice(9, 15)})`));
+      return { id: r.id, label: `${r.is_channel ? "📢" : "💬"} ${name}` };
+    }),
+  );
+  if (currentIdentity?.pubkey !== identity.pubkey) return;
+  commLinkRoomSelect.disabled = false;
+  commInsertRoomBtn.disabled = false;
+  commLinkRoomSelect.innerHTML = `<option value="">Choose one of your groups or channels…</option>${entries
+    .map((e) => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.label)}</option>`)
+    .join("")}`;
+}
 function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
   editingCommunityId = edit?.id ?? null;
   dialogSlug = edit ? edit.slug : slug;
@@ -10444,12 +10544,42 @@ function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
     titleSpan.textContent = `${edit ? "Edit" : "Create"} r/${dialogSlug}`;
   }
   document.getElementById("create-comm-intro")!.textContent = edit
-    ? "Only you, the founder, can change the title and description."
+    ? "Founders and community moderators can update the title, description, rules, and linked private group or broadcast channel."
     : "As the creator, you become the founder and primary moderator with powers to manage mods and remove posts.";
   createCommSaveBtn.textContent = edit ? "Save" : "Create Community";
   createCommModal.style.display = "flex";
+  void populateCommunityRoomPicker();
   commNameInput.focus();
 }
+commInsertRoomBtn?.addEventListener("click", async () => {
+  if (!currentIdentity || !commLinkRoomSelect) return;
+  const roomId = commLinkRoomSelect.value;
+  if (!roomId) {
+    showToast("Select a private group or broadcast channel first.", "warning");
+    return;
+  }
+  const room = allPrivateRooms.find((r) => r.id === roomId);
+  if (!room) {
+    showToast("Selected room not found.", "error");
+    return;
+  }
+  commInsertRoomBtn.disabled = true;
+  try {
+    const link = await inviteLinkOf(room);
+    if (!link) {
+      showToast("Could not generate an invite link for this room.", "error");
+      return;
+    }
+    const cur = commDescInput.value.trimEnd();
+    if (!cur.includes(link)) {
+      commDescInput.value = cur ? `${cur}\n${link}` : link;
+    }
+    commDescInput.focus();
+    showToast("Invite link added to description.", "info");
+  } finally {
+    commInsertRoomBtn.disabled = false;
+  }
+});
 commEditBtn.addEventListener("click", () => {
   if (activeCommunity) openCreateCommunityDialog("", "", activeCommunity);
 });
@@ -10468,6 +10598,7 @@ createCommSaveBtn.addEventListener("click", async () => {
     alert("Please provide a title.");
     return;
   }
+  if (!okToPublish(`${name}\n${desc}`)) return;
 
   const editing = editingCommunityId;
   const idle = editing ? "Save" : "Create Community";
@@ -10494,9 +10625,9 @@ createCommSaveBtn.addEventListener("click", async () => {
       renderCommunities();
       selectCommunity(savedComm);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error saving community:", err);
-    alert(editing ? "Could not save the community." : "Could not create community on Freenet.");
+    alert(err?.message || (editing ? "Could not save the community." : "Could not create community on Freenet."));
   } finally {
     createCommSaveBtn.disabled = false;
     createCommSaveBtn.textContent = idle;
@@ -10705,7 +10836,7 @@ function renderCommunitiesPage() {
   if (selectedRedditCommunity) {
     const c = selectedRedditCommunity;
     const joined = isJoined(c);
-    const isOwner = !!me && c.creator === me;
+    const canEdit = !!me && canEditCommunity(c, me);
     const isMod = !!me && c.moderators.includes(me);
     const commThreads = postCounts.get(c.id) ?? 0;
     setHtmlIfChanged(
@@ -10728,7 +10859,7 @@ function renderCommunitiesPage() {
       <div class="reddit-hero-actions">
         <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rhero-action="join">${joined ? "✓ Joined" : "+ Join"}</button>
         <button type="button" class="btn-secondary btn-sm" data-rhero-action="feed" title="View in main feed">Feed View</button>
-        ${isOwner ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community info">${renderIcon("edit", { className: "icon-xs" })} Edit</button>` : ""}
+        ${canEdit ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="edit" title="Edit community title, description & linked private group">${renderIcon("edit", { className: "icon-xs" })} Edit</button>` : ""}
         ${isMod ? `<button type="button" class="btn-secondary btn-sm" data-rhero-action="mod" title="Open community moderation tools">${renderIcon("shield", { className: "icon-xs" })} Mod</button>` : ""}
         ${amGlobalMod() ? `<button type="button" class="btn-secondary btn-sm danger" data-rhero-action="hide" title="Radica moderator: hide community">${renderIcon("ban", { className: "icon-xs" })} Hide</button>` : ""}
       </div>
@@ -10969,6 +11100,7 @@ function renderCommunitiesPage() {
     ? (() => {
         const c = selectedRedditCommunity!;
         const joined = isJoined(c);
+        const canEdit = !!me && canEditCommunity(c, me);
         return `
         <div class="reddit-sidebar-card">
           <h5>About Community</h5>
@@ -10981,6 +11113,7 @@ function renderCommunitiesPage() {
           </div>
           <div class="reddit-about-btns">
             <button type="button" class="${joined ? "btn-secondary" : "btn-primary"} btn-sm" data-rside-join="${escapeHtml(c.id)}">${joined ? "✓ Joined" : "Join Community"}</button>
+            ${canEdit ? `<button type="button" class="btn-secondary btn-sm" data-rside-edit="${escapeHtml(c.id)}">${renderIcon("edit", { className: "icon-xs" })} Edit description</button>` : ""}
           </div>
         </div>`;
       })()
@@ -11429,6 +11562,11 @@ commPagePills.addEventListener("click", (e) => {
 });
 
 redditSubHero.addEventListener("click", async (e) => {
+  const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.post-link");
+  if (link) {
+    openPostLink.call(link, e);
+    return;
+  }
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-rhero-action]");
   if (!btn) return;
   const action = btn.dataset.rheroAction;
@@ -11695,6 +11833,12 @@ redditThreadsContainer.addEventListener("keydown", (e) => {
 redditSidebarContent.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
 
+  const link = target.closest<HTMLAnchorElement>("a.post-link");
+  if (link) {
+    openPostLink.call(link, e);
+    return;
+  }
+
   const authorEl = target.closest<HTMLElement>(".author-clickable");
   if (authorEl?.dataset.author) {
     openUserProfile(authorEl.dataset.author);
@@ -11728,6 +11872,13 @@ redditSidebarContent.addEventListener("click", async (e) => {
       selectCommunity(activeCommunity, true);
     }
     renderCommunities();
+    return;
+  }
+
+  const editBtn = target.closest<HTMLElement>("[data-rside-edit]");
+  if (editBtn?.dataset.rsideEdit) {
+    const comm = allCommunities.find((c) => c.id === editBtn.dataset.rsideEdit);
+    if (comm) openCreateCommunityDialog("", "", comm);
     return;
   }
 
@@ -11890,6 +12041,16 @@ function applyTheme(theme: string) {
   if (themeToggleBtn) {
     themeToggleBtn.title = theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode";
   }
+  const mobileThemeIcon = document.getElementById("mobile-theme-icon");
+  if (mobileThemeIcon) {
+    mobileThemeIcon.innerHTML = theme === "dark"
+      ? renderIcon("sun", { className: "icon-md" })
+      : renderIcon("moon", { className: "icon-md" });
+  }
+  const mobileThemeLabel = document.getElementById("mobile-theme-label");
+  if (mobileThemeLabel) {
+    mobileThemeLabel.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+  }
   if (themeSelect) {
     themeSelect.value = theme === "dark" ? "dark" : "light";
   }
@@ -11907,6 +12068,11 @@ if (themeToggleBtn) {
     setThemeChoice(current === "dark" ? "light" : "dark");
   });
 }
+
+document.getElementById("mobile-theme-btn")?.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") || "light";
+  setThemeChoice(current === "dark" ? "light" : "dark");
+});
 
 if (themeSelect) {
   themeSelect.addEventListener("change", () => {
@@ -11996,9 +12162,15 @@ function applyTextSize(v: string | null) {
   const pct = v && TEXT_SIZES.includes(v) ? v : "100";
   // zoom, not font-size: most of style.css is in px, so only zoom scales text, buttons and spacing together
   document.documentElement.style.zoom = pct === "100" ? "" : `${pct}%`;
+  currentUiZoom = Number(pct) / 100 || 1;
   // zoom scales vh/vw and px lengths too: CSS divides viewport units by this, so full-height pages still fit the screen
-  document.documentElement.style.setProperty("--ui-zoom", String(Number(pct) / 100));
+  document.documentElement.style.setProperty("--ui-zoom", String(currentUiZoom));
   if (textSizeSelect) textSizeSelect.value = pct;
+  if (lastVvh !== null || lastVvt !== null) {
+    lastVvh = null;
+    lastVvt = null;
+    scheduleSyncMobileViewport();
+  }
 }
 applyTextSize(safeStorage.getItem(TEXT_SIZE_KEY));
 // after a node restart the page storage is empty: sign-in brings the durable key back from the node, apply it then
@@ -13802,7 +13974,7 @@ async function init() {
       }
     }
 
-    if (!chatOpen) await reloadPosts();
+    if (!chatOpen) await reloadPosts({ background: true });
   }
 
   // Load Communities & Private Rooms in parallel

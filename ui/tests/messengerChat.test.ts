@@ -8,6 +8,7 @@ import {
   isStageBackSwipe,
   resolveMessageSwipeStep,
   resolveThreadScrollAction,
+  shouldDeferBackgroundRender,
   roomMetaOf,
   shouldHydratePreview,
   shouldUpdateCachedPreview,
@@ -400,5 +401,13 @@ test("resolveThreadScrollAction: preserves native scroll momentum during active 
     }),
     "preserve"
   );
+});
+
+test("shouldDeferBackgroundRender: defers background redraws while touching or coasting, never when forced", () => {
+  assert.equal(shouldDeferBackgroundRender({ isTouching: true, isMomentum: false, forceImmediate: false }), true);
+  assert.equal(shouldDeferBackgroundRender({ isTouching: false, isMomentum: true, forceImmediate: false }), true);
+  assert.equal(shouldDeferBackgroundRender({ isTouching: true, isMomentum: true, forceImmediate: false }), true);
+  assert.equal(shouldDeferBackgroundRender({ isTouching: false, isMomentum: false, forceImmediate: false }), false);
+  assert.equal(shouldDeferBackgroundRender({ isTouching: true, isMomentum: true, forceImmediate: true }), false);
 });
 

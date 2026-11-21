@@ -705,11 +705,12 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  padding: 1px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
-  line-height: 1.3;
+  line-height: 1.25;
+  white-space: nowrap;
   vertical-align: middle;
   cursor: default;
   transition: opacity 0.15s ease;
@@ -959,9 +960,24 @@ body {
   .comment-input-wrap {
     padding: 0 4px 0 11px;
   }
+  .comment-btn-media {
+    padding: 4px;
+  }
+  .comment-gif-badge {
+    font-size: 0.6rem;
+    padding: 1px 3px;
+  }
+  .comment-actions .draft-translate {
+    width: 1.9rem;
+    font-size: 0.74rem;
+  }
+  .comment-input-wrap:not(:focus-within) .draft-translate {
+    display: none;
+  }
   .comment-submit-btn {
-    padding: 7px 12px;
-    font-size: 0.82rem;
+    padding: 6px 11px;
+    font-size: 0.8rem;
+    border-radius: 18px;
   }
 }
 
@@ -2204,6 +2220,46 @@ body.chat-fullscreen .rail {
 #comm-banner-desc .post-link {
   color: inherit;
   text-decoration: underline;
+}
+#comm-banner-desc .channel-invite-pill {
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  text-decoration: none;
+  margin: 4px 4px 0 0;
+  padding: 4px 11px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+#comm-banner-desc .channel-invite-pill:hover {
+  background: rgba(0, 0, 0, 0.38);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.comm-link-room-box {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.comm-link-room-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-main);
+}
+.comm-link-room-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.comm-link-room-hint {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
 .comm-stats {
@@ -3603,8 +3659,84 @@ body {
 }
 
 .gram-card-header {
-  padding: 14px 0 8px;
+  padding: 12px 0 8px;
   border-bottom: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.gram-author-info {
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.gram-author-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.gram-author-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.gram-author-badges {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gram-author-badges .gram-trust-badge {
+  cursor: pointer;
+}
+
+.gram-author-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.gram-author-sub .comm-badge {
+  padding: 0;
+}
+
+.gram-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#sidebar-poh-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+#pp-poh-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-theme-btn {
+  display: none;
 }
 
 .gram-author-img {
@@ -4463,46 +4595,187 @@ html[data-fullwidth="true"] #width-toggle-btn {
 
 @media (max-width: 768px) {
   .container {
-    margin-top: 12px;
+    margin-top: 8px;
+    padding: 0 12px;
   }
   .rail {
     overflow-x: auto;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
   }
   .rail-sep {
     display: none;
   }
   .rail-btn {
     min-width: 52px;
+    height: 52px;
   }
   /* the logo is the way back to the feed: on the bottom bar it sits with the other buttons */
   .rail-brand {
     flex: 1;
     min-width: 52px;
-    height: 56px;
+    height: 52px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .rail-brand svg {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
   }
-  /* the theme switch leaves the header alone: bottom right, above the bar */
+  .mobile-theme-btn {
+    display: flex;
+  }
+  /* phones: theme toggle lives in the More menu instead of a floating button over feed posts */
   .corner-btn {
-    top: auto;
-    bottom: 68px;
-    right: 12px;
+    display: none !important;
   }
   #width-toggle-btn {
     display: none !important;
   }
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
   .feed-head {
     flex-wrap: wrap;
-    align-items: stretch;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .feed-title {
+    font-size: 1.65rem;
+  }
+  .feed-sub {
+    font-size: 0.78rem;
+    margin-top: 2px;
   }
   .feed-head .nav-search-input {
+    order: 2;
     width: 100%;
+    padding: 7px 12px;
+    font-size: 0.88rem;
+  }
+  .head-panel-btn,
+  .head-avatar-btn {
+    order: 1;
+  }
+  .feed-sort-nav {
+    margin: 8px 0 6px;
+    gap: 14px;
+  }
+  .main-feed .cat-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 6px;
+    margin: 6px 0 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .main-feed .cat-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .main-feed .cat-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 5px 11px;
+    font-size: 0.78rem;
+  }
+  .composer-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .composer-tabs {
+    gap: 6px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+  .composer-tabs .composer-target-row {
+    width: 100%;
+    margin: 4px 0 0;
+  }
+  .composer-tabs .composer-target-row select {
+    width: 100%;
+  }
+  .gram-card {
+    padding: 6px 0 4px;
+  }
+  .gram-card-header {
+    padding: 8px 0 6px;
+    gap: 8px;
+  }
+  .gram-author-img {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .gram-author-name {
+    font-size: 0.96rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gram-author-badges {
+    gap: 3px;
+  }
+  .gram-author-badges .gram-trust-badge {
+    min-height: 20px;
+    padding: 0 5px;
+    font-size: 0.65rem;
+    gap: 2px;
+  }
+  .gram-author-badges .gram-trust-badge .badge-label,
+  .gram-author-badges .gram-trust-badge .badge-label-long {
+    display: none;
+  }
+  .gram-author-badges .gram-trust-badge.badge-github-poh,
+  .gram-author-badges .gram-trust-badge.badge-google-poh,
+  .gram-author-badges .gram-trust-badge.badge-trusted-supporter,
+  .gram-author-badges .gram-trust-badge.badge-ghostkey,
+  .gram-author-badges .gram-trust-badge.badge-poh-human {
+    min-width: 20px;
+    justify-content: center;
+  }
+  .gram-author-badges .gram-trust-badge .svg-icon {
+    width: 12px;
+    height: 12px;
+  }
+  .gram-header-meta {
+    gap: 4px;
+  }
+  .edit-post-btn,
+  .delete-post-btn {
+    padding: 4px;
+  }
+  .gram-caption {
+    font-size: 0.94rem;
+    line-height: 1.48;
+    margin-bottom: 8px;
+  }
+  .gram-actions {
+    padding: 4px 0 6px;
+    gap: 14px;
+  }
+  .gram-comments {
+    padding: 4px 0 10px;
+  }
+  .comm-banner-title-row h2 {
+    font-size: 1.2rem;
+  }
+  .comm-banner-actions {
+    gap: 6px;
+  }
+  .comm-banner-actions .btn-sm {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+  #toast-container {
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
+  }
+  .toast {
+    max-width: 100%;
   }
 }
 
@@ -4578,7 +4851,18 @@ html[data-fullwidth="true"] #width-toggle-btn {
   }
   .feed-scope-nav {
     overflow-x: auto; /* the feed tabs scroll instead of widening the page */
-    gap: 16px;
+    scrollbar-width: none;
+    gap: 14px;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .feed-scope-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .scope-btn {
+    padding: 9px 2px;
+    font-size: 0.84rem;
+    white-space: nowrap;
   }
   .chat-body.show-members .chat-participants-sidebar {
     display: flex !important;
@@ -5002,7 +5286,19 @@ html[data-fullwidth="true"] #width-toggle-btn {
 #uview-name,
 #identity-persona-name {
   overflow-wrap: anywhere;
-  word-break: break-all;
+  word-break: break-word;
+}
+#uview-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.uview-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 
 .gram-caption code,
@@ -6320,6 +6616,8 @@ html[data-fullwidth="true"] #width-toggle-btn {
     position: fixed;
     right: 8px;
     bottom: calc(68px + env(safe-area-inset-bottom));
+    max-height: calc(calc(100dvh / var(--ui-zoom, 1)) - 84px);
+    overflow-y: auto;
     grid-template-columns: repeat(3, 84px);
     gap: 4px;
     padding: 8px;
@@ -7101,6 +7399,8 @@ kbd {
   font-size: 0.85rem;
   color: var(--text-muted);
   line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .reddit-hero-meta {
@@ -7664,6 +7964,12 @@ kbd {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.reddit-hero-desc .channel-invite-pill,
+.reddit-about-desc .channel-invite-pill {
+  margin: 4px 4px 0 0;
 }
 
 .reddit-about-stats {
@@ -9897,7 +10203,23 @@ body.has-global-audio-player {
   color: var(--text-main);
 }
 
+.gram-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .gram-time.open-single-post-trigger {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  margin: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1.2;
+  border-radius: 4px;
   cursor: pointer;
 }
 
@@ -10151,5 +10473,37 @@ body.page-loading::before {
     width: 100%;
     animation: none;
     opacity: 0.6;
+  }
+}
+
+/* Mobile & touch scroll smoothness: avoid content-visibility height recalculation jitter and costly backdrop blurs while scrolling */
+@media (max-width: 768px), (pointer: coarse) {
+  .gram-card,
+  .article-feed-card,
+  .music-release-card,
+  .comm-thread-card,
+  .moment-tile {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+    transition: none;
+  }
+
+  #posts-container.media-grid .media-item,
+  #media-grid-container.media-grid .media-item {
+    transition: none;
+  }
+
+  #posts-container.media-grid .media-item .uview-post-thumb .video-load,
+  #media-grid-container.media-grid .uview-post-thumb .video-load,
+  #media-grid-container.media-grid .media-multi-badge,
+  #media-grid-container.media-grid .media-like-overlay,
+  .moments-preview-remove,
+  #comm-banner-desc .channel-invite-pill {
+    backdrop-filter: none;
+  }
+
+  #media-grid-container.media-grid .media-multi-badge,
+  #media-grid-container.media-grid .media-like-overlay {
+    background: rgba(16, 14, 11, 0.78);
   }
 }
