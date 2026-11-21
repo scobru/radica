@@ -252,6 +252,7 @@ body {
 .status-dot {
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: #cbd5e1;
 }
@@ -4637,31 +4638,52 @@ html[data-fullwidth="true"] #width-toggle-btn {
     padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
   .feed-head {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 8px 10px;
+    gap: 6px 8px;
     margin-bottom: 10px;
   }
+  .feed-head > div:first-child {
+    display: contents;
+  }
   .feed-title {
+    grid-column: 1;
+    grid-row: 1;
     font-size: 1.65rem;
   }
-  .feed-sub {
+  .head-panel-btn {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 5px 10px;
     font-size: 0.78rem;
-    margin-top: 2px;
+  }
+  .head-avatar-btn {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .feed-head .feed-sub {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 0.78rem;
+    margin-top: -2px;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  #freenet-status-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .feed-head .nav-search-input {
-    order: 2;
+    grid-column: 1 / -1;
+    grid-row: 3;
     width: 100%;
+    margin-top: 2px;
     padding: 7px 12px;
     font-size: 0.88rem;
-  }
-  .head-panel-btn,
-  .head-avatar-btn {
-    order: 1;
-  }
-  .feed-sort-nav {
-    margin: 8px 0 6px;
-    gap: 14px;
   }
   .main-feed .cat-filters {
     flex-wrap: nowrap;
@@ -4685,9 +4707,14 @@ html[data-fullwidth="true"] #width-toggle-btn {
     border-radius: 12px;
   }
   .composer-tabs {
-    gap: 6px;
+    gap: 4px;
     padding-bottom: 8px;
     margin-bottom: 8px;
+  }
+  .composer-tab {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
   .composer-tabs .composer-target-row {
     width: 100%;
@@ -6734,6 +6761,24 @@ html[data-fullwidth="true"] #width-toggle-btn {
 /* one focus ring for the feed controls, in the app's colour (the browser's white one stuck out on dark) */
 .sort-btn:focus-visible, .cat-btn:focus-visible, .scope-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+@media (max-width: 768px) {
+  .feed-sort-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 14px;
+    margin: 8px 0 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .feed-sort-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .feed-sort-nav .sort-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 /* several photos in one post: swipe, or the arrows */
 .carousel { position: relative; width: 100%; }
 .carousel-track {
@@ -8111,6 +8156,11 @@ kbd {
 
 /* --- Living Tree (Albero di Radica) Visual Graph --- */
 .feed-tree-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
   border: none;
   background: transparent;
   color: inherit;

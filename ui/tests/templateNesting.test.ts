@@ -333,4 +333,16 @@ test("mobile polish: no sticky touch hover/active highlights and smooth mobile s
   assert.ok(syncFn.length > 0, "Expected syncMobileViewport() in main.ts");
   assert.match(syncFn, /currentUiZoom/);
   assert.doesNotMatch(syncFn, /getComputedStyle\s*\(/);
+
+  // Mobile feed header gives .feed-sub ("Your node is online · N roots 🌿") its own full-width grid row
+  assert.match(styleCss, /\.status-dot\s*\{[^}]*flex-shrink:\s*0;/);
+  assert.match(styleCss, /\.feed-tree-chip\s*\{[^}]*white-space:\s*nowrap;/);
+  assert.match(
+    styleCss,
+    /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?\.feed-head\s*\{[^}]*display:\s*grid;[\s\S]*?\.feed-head\s*>\s*div:first-child\s*\{\s*display:\s*contents;[\s\S]*?\.feed-head\s+\.feed-sub\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*white-space:\s*nowrap;/
+  );
+  assert.match(
+    styleCss,
+    /\.sort-btn:focus-visible[\s\S]*?@media\s*\(max-width:\s*768px\)\s*\{\s*\.feed-sort-nav\s*\{[^}]*flex-wrap:\s*nowrap;/
+  );
 });
