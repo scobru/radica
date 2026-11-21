@@ -321,8 +321,15 @@
   border: 1px solid var(--rv-border);
 }
 
-#chat-modal .chat-bubble:hover .chat-bubble-del {
+#chat-modal .chat-bubble:hover .chat-bubble-del,
+#chat-modal .chat-bubble:focus-within .chat-bubble-del {
   display: flex;
+}
+
+@media (hover: none) {
+  #chat-modal .chat-bubble-del {
+    display: flex;
+  }
 }
 
 #chat-modal #chat-messages-list .empty-state {

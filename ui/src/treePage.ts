@@ -284,7 +284,7 @@ function startGrowthAnimation() {
   const durationMs = Math.max(1800, (1 - startProgress) * 7000);
   const startTs = performance.now();
   const isMobileLike =
-    window.innerWidth <= 900 || (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
+    window.innerWidth <= 768 || (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
   const minFrameMs = isMobileLike ? 50 : 0;
   let lastRenderTs = 0;
 

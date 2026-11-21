@@ -1134,9 +1134,10 @@ export function syncMiniPlayerSlot(): void {
       targetSlot = document.getElementById("rm-classic-player-slot");
     } else {
       const workspace = document.getElementById("rm-workspace");
-      const isMobile = window.innerWidth <= 860;
+      const inbox = workspace?.querySelector<HTMLElement>(".rm-inbox");
+      const isSinglePane = inbox ? getComputedStyle(inbox).display === "none" || inbox.offsetWidth === workspace?.offsetWidth : window.innerWidth <= 768; // ponytail: match @container messenger single-pane state
       const isThreadOpen = workspace?.classList.contains("mobile-thread-open");
-      if (isMobile && !isThreadOpen) {
+      if (isSinglePane && !isThreadOpen) {
         targetSlot = document.getElementById("rm-inbox-player-slot");
       } else {
         targetSlot = document.getElementById("rm-player-slot") || document.getElementById("rm-inbox-player-slot");

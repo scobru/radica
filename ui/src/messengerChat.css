@@ -3346,7 +3346,7 @@ html[data-theme="light"] #chat-modal .rv-ttl-tag.urgent {
   from { transform: translate3d(-6%, 0, 0); }
   to { transform: none; }
 }
-@media (max-width: 860px) and (prefers-reduced-motion: no-preference) {
+@media (max-width: 768px) and (prefers-reduced-motion: no-preference) {
   #chat-modal .rm-workspace {
     overflow: hidden; /* no sideways scrollbar while a pane slides in */
     background-color: var(--rm-bg-canvas);
@@ -3500,7 +3500,7 @@ html[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
 }
 
 /* Mobile & touch scroll smoothness: drop content-visibility jitter, gradient repainting, bubble shadows and blurs */
-@media (max-width: 860px), (pointer: coarse) {
+@media (max-width: 768px), (pointer: coarse) {
   #chat-modal .rm-conv-item {
     content-visibility: visible;
     contain-intrinsic-size: none;

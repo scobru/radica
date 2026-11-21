@@ -3112,7 +3112,7 @@ body.chat-fullscreen .rail {
   color: #fef08a;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .chat-body {
     grid-template-columns: 180px 1fr !important;
   }
@@ -4631,7 +4631,9 @@ html[data-fullwidth="true"] #width-toggle-btn {
   .corner-btn {
     display: none !important;
   }
-  #width-toggle-btn {
+  #width-toggle-btn,
+  #rm-btn-fullwidth,
+  .identity-section:has(#layout-width-select) {
     display: none !important;
   }
   body {
@@ -4836,7 +4838,6 @@ html[data-fullwidth="true"] #width-toggle-btn {
 /* chat on phones: one column (conversations as a short strip on top, the conversation below); members open over it */
 @media (max-width: 768px) {
   .chat-modal-card {
-    height: calc(calc(100dvh / var(--ui-zoom, 1)) - 92px); /* above the bottom bar */
     min-height: 0;
     border-radius: 0;
     padding: 10px 12px;
@@ -8145,7 +8146,7 @@ kbd {
   color: var(--text-main);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .reddit-layout {
     grid-template-columns: 1fr;
   }
@@ -8854,7 +8855,7 @@ kbd {
   line-height: 1.4;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .tree-workspace {
     grid-template-columns: 1fr;
   }
@@ -8872,7 +8873,7 @@ kbd {
   }
 }
 
-@media (max-width: 900px), (pointer: coarse) {
+@media (max-width: 768px), (pointer: coarse) {
   .tree-pulse,
   .tree-sap-filament {
     animation: none;

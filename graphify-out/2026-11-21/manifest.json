@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795283343.927544,
-    "ast_hash": "b43a65325682efb526f2541a89851660",
+    "mtime": 1795283993.5734377,
+    "ast_hash": "1861317b415d0e9356b5b9d65eb078dc",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795283116.7853808,
-    "ast_hash": "43792631ed2605467a1db1ff157d7174",
+    "mtime": 1795284006.1469197,
+    "ast_hash": "d164c7a44ddc05764973973ea16fc93e",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795283182.348976,
-    "ast_hash": "a3880bd2c640fc6a3e926f22fc00be9c",
+    "mtime": 1795284036.4784887,
+    "ast_hash": "ccc07dc69d52c84af5d97067872df6b6",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795283177.3039665,
-    "ast_hash": "73df032ebf5627eb72ae90a57672db79",
+    "mtime": 1795284000.3783722,
+    "ast_hash": "381a53c64751c61142008025acc074f8",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795283150.3334775,
-    "ast_hash": "41d9136f32aecac0d9ee670c1cc00546",
+    "mtime": 1795284003.2715795,
+    "ast_hash": "158aea1c7d8c716725a2967bcbe08f60",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795283121.4785836,
-    "ast_hash": "2fb8ca235b1d18b94c95a7c4338678f9",
+    "mtime": 1795284009.1609087,
+    "ast_hash": "8062b3d58869172d528a45c3f7f1ab33",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1690,8 +1690,8 @@
     "semantic_hash": ""
   },
   "ui/src/wallets.ts": {
-    "mtime": 1794936240.3708906,
-    "ast_hash": "f6fcb62eaa74d171c20d98a88ed2473d",
+    "mtime": 1795283986.9800336,
+    "ast_hash": "6e1ac1d9f6d7dd50941f60d3a65c2e91",
     "semantic_hash": ""
   },
   "ui/tests/commentHistory.test.ts": {
@@ -1715,8 +1715,8 @@
     "semantic_hash": ""
   },
   "ui/tests/wallets.test.ts": {
-    "mtime": 1794936240.3874078,
-    "ast_hash": "961b212c14aab0654f374f65073af7b6",
+    "mtime": 1795283996.8149884,
+    "ast_hash": "81f4af4c7f5dda8b08fc2e3a195fc03f",
     "semantic_hash": ""
   },
   "folio/README.md": {

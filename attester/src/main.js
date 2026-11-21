@@ -118,7 +118,7 @@ function connect() {
       onContractNotFound() {}, onDelegateResponse() {},
       onErr: (e) => log("[freenet]", e?.cause ?? e),
       onOpen: () => resolve(api),
-      onClose: () => reject(new Error("Freenet WebSocket closed")),
+      onClose: () => { api.closed = true; reject(new Error("Freenet WebSocket closed")); }, // ponytail: flag closed socket so main loop reconnects after node self-update
     }, "");
   }));
 }
@@ -156,8 +156,9 @@ async function stateOf(api, id, hash) {
 
 // a new build sweeps again; "r2": the first sweep settled contracts that timed out under the new build without carrying them
 const sweepFile = join(DATA, `swept-r2-${bytesToHex(feedHash).slice(0, 16)}-${bytesToHex(codeHash).slice(0, 16)}.json`);
-const sweepDone = new Set(existsSync(sweepFile) ? JSON.parse(await readFile(sweepFile, "utf8")) : []);
-const sweepTries = new Map();
+const sweepRaw = existsSync(sweepFile) ? JSON.parse(await readFile(sweepFile, "utf8")) : [];
+const sweepDone = new Set(Array.isArray(sweepRaw) ? sweepRaw : sweepRaw.done ?? []);
+const sweepTries = new Map(Array.isArray(sweepRaw) ? [] : Object.entries(sweepRaw.tries ?? {})); // ponytail: persist retry counts in same file so container restarts don't stall on the same 10 ids
 const legacyTs = SWEEP && existsSync(LEGACY_TS) ? await readFile(LEGACY_TS, "utf8") : "";
 const legacyOf = { feed: legacyHashes(legacyTs, "feed"), log: legacyHashes(legacyTs, "log") };
 let sweeping = false;
@@ -180,13 +181,17 @@ async function sweepPass(api) {
     };
     let moved = 0, checked = 0, failed = 0;
     for (const kind of ["feed", "log"]) {
+      if (api.closed) break;
       // under the current build a contract nobody PUT yet often times out instead of "not found": count it as missing
       // (a PUT of the old state into one that does exist only merges); failed lookups in old builds are retried
-      const get = (id, h) => (h ? stateOf(api, id, h) : stateOf(api, id).catch(() => null));
+      const get = (id, h) => {
+        if (api.closed) throw new Error("Freenet WebSocket closed");
+        return h ? stateOf(api, id, h) : stateOf(api, id).catch(() => null);
+      };
       const r = await sweep({ ids: ids.filter((i) => i.startsWith(`${kind}:`)), done: sweepDone, tries: sweepTries, legacy: legacyOf[kind], get, put, limit: SWEEP_PER_PASS });
       moved += r.moved, checked += r.checked, failed += r.failed;
     }
-    await writeJsonAtomic(sweepFile, [...sweepDone]);
+    if (!api.closed) await writeJsonAtomic(sweepFile, { done: [...sweepDone], tries: Object.fromEntries(sweepTries) });
     if (checked) log(`[sweep] ${checked} checked, ${moved} carried forward, ${failed} to retry, ${sweepDone.size}/${ids.length} done`);
   } finally {
     sweeping = false;
@@ -672,7 +677,9 @@ for (;;) {
     const api = await connect();
     log("connected to", NODE_WS);
     for (;;) {
+      if (api.closed) throw new Error("Freenet WebSocket closed");
       await pass(api, sk, st);
+      if (api.closed) throw new Error("Freenet WebSocket closed");
       if (SWEEP) void sweepPass(api).catch((e) => log("[sweep] pass failed:", e.message || e)); // in the background: lookups can take 45 s each
       if (modSk && Date.now() >= modNext) {
         modNext = Date.now() + MOD_POLL_MS;
