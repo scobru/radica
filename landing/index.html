@@ -155,7 +155,7 @@
       <h1>A social network <em>nobody owns.</em></h1>
       <p class="lead">Posts, communities and chat that live on a peer-to-peer network. No servers, no company, no account to make.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="#app">Download the Radica app</a>
+        <a class="btn btn-primary" href="#app">Download Radica &amp; Messenger</a>
         <a class="btn btn-ghost" href="http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">Already on Freenet? Open Radica</a>
         <a class="btn btn-ghost" href="https://try.freenet.org/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">Try it without installing</a>
       </div>
@@ -185,19 +185,56 @@
       <p class="muted">There is nothing for iPhone yet.</p>
 
       <div class="fast" id="app">
-        <h3>The quickest way: the Radica app</h3>
-        <p>On a computer, the app installs Freenet if you don't have it, starts it, and opens Radica in its own window. Then go to step 3 to choose your identity.</p>
-        <div class="dl">
-          <a class="btn btn-ghost" data-os="win" href="https://github.com/scobru/radica/releases/latest/download/radica-windows-x86_64.zip">Windows</a>
-          <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-arm64.zip">macOS (Apple Silicon)</a>
-          <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-x86_64.zip">macOS (Intel)</a>
-          <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-linux-x86_64.tar.gz">Linux</a>
-          <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">Android</a>
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: .6rem;">
+          <h3 style="margin-bottom: 0;">The quickest way: Native Apps</h3>
+          <span class="tag" style="margin-left: 0; font-size: .78rem;">Desktop &amp; Android</span>
         </div>
+        <p>On a computer, the apps can install Freenet automatically if you don't have it, start it in the background, and open right away. Choose between the complete social network or the distraction-free encrypted messenger:</p>
+
+        <div class="choices" style="margin-top: 1.2rem; gap: 16px;">
+          <!-- Card 1: Radica Full -->
+          <div class="choice" style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: .6rem;">
+              <span style="font-size: 1.6rem;">🌱</span>
+              <div>
+                <h4 style="font-size: 1.18rem; margin-bottom: 2px;">Radica</h4>
+                <div style="font-size: .82rem; color: var(--primary); font-weight: 600;">Full Social Ecosystem</div>
+              </div>
+            </div>
+            <p style="font-size: .92rem; color: var(--muted); flex: 1; margin-bottom: 1.1rem;">Public feeds, reddit-style communities, long-form Markdown articles, music, and integrated private messaging.</p>
+            <div class="dl dl-radica" style="display: flex; flex-direction: column; gap: 8px;">
+              <a class="btn btn-ghost" data-os="win" href="https://github.com/scobru/radica/releases/latest/download/radica-windows-x86_64.zip">Download for Windows</a>
+              <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-arm64.zip">macOS (Apple Silicon)</a>
+              <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-x86_64.zip">macOS (Intel)</a>
+              <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-linux-x86_64.tar.gz">Linux</a>
+              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">Android APK</a>
+            </div>
+          </div>
+
+          <!-- Card 2: Radica Messenger -->
+          <div class="choice" style="background: var(--card); border: 1.5px solid var(--primary); border-radius: 16px; padding: 22px; display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: .6rem;">
+              <span style="font-size: 1.6rem;">💬</span>
+              <div>
+                <h4 style="font-size: 1.18rem; margin-bottom: 2px;">Radica Messenger</h4>
+                <div style="font-size: .82rem; color: var(--primary); font-weight: 600;">Dedicated Encrypted Chat</div>
+              </div>
+            </div>
+            <p style="font-size: .92rem; color: var(--muted); flex: 1; margin-bottom: 1.1rem;">Signal/WhatsApp-style chat: E2EE DMs, ephemeral Secret Chats with auto-burn timers, private groups, broadcast channels, and native @handles.</p>
+            <div class="dl dl-messenger" style="display: flex; flex-direction: column; gap: 8px;">
+              <a class="btn btn-ghost" data-os="win" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-windows-x86_64.zip">Download Messenger for Windows</a>
+              <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-macos-arm64.zip">macOS (Apple Silicon)</a>
+              <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-macos-x86_64.zip">macOS (Intel)</a>
+              <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-linux-x86_64.tar.gz">Linux</a>
+              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-android-debug.apk">Android Messenger APK</a>
+            </div>
+          </div>
+        </div>
+
         <ul>
-          <li><strong>macOS:</strong> the app is not signed yet. The first time, right-click Radica and choose Open.</li>
-          <li><strong>Linux:</strong> it needs WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code> on Debian and Ubuntu).</li>
-          <li><strong>Android:</strong> install <a href="https://github.com/HostFat/freenet-android-node/releases/latest">Freenet Android Node</a> too and press <strong>Start network node</strong>. Radica tells you if the node is missing or stopped. An update needs the old app uninstalled first, for now.</li>
+          <li><strong>macOS:</strong> the apps are not signed yet. The first time, right-click the app and choose Open.</li>
+          <li><strong>Linux:</strong> requires WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code> on Debian and Ubuntu).</li>
+          <li><strong>Android:</strong> install <a href="https://github.com/HostFat/freenet-android-node/releases/latest">Freenet Android Node</a> and press <strong>Start network node</strong>. Both Radica and Radica Messenger can be installed side-by-side on the same phone.</li>
           <li>All files, checksums and release notes: <a href="https://github.com/scobru/radica/releases/latest">Radica's releases on GitHub</a>.</li>
         </ul>
       </div>
@@ -278,6 +315,7 @@
       <p class="eyebrow">Questions</p>
       <h2>Good to know</h2>
       <details><summary>Is Radica free?</summary><p>Yes. No ads and no subscription. Radica is open source, and anyone can read its code on GitHub.</p></details>
+      <details><summary>What is Radica Messenger?</summary><p><b>Radica Messenger</b> is a dedicated, chat-only application designed exclusively for private communication without feeds, algorithms, or distractions. Think of it like Signal or Telegram, but running completely peer-to-peer on Freenet with no central servers. It features end-to-end encrypted direct messages (X25519 + AES-256-GCM), device-only ephemeral Secret Chats with auto-burn countdown timers, E2EE private groups, broadcast channels, and native @handles. It shares your cryptographic identity and contacts seamlessly with the full Radica app.</p></details>
       <details><summary>Why do I have to install something?</summary><p>On Freenet there is no company server to visit: your own computer is your way into the network. Radica then opens in your normal browser, from your computer.</p></details>
       <details><summary>Can I try it without installing anything?</summary><p>Yes: <a href="https://try.freenet.org/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">open Radica on try.freenet.org</a>, a public node run by the Freenet Project. It is for a first look: you depend on their node, and it sees what you do. To own your corner of the network, install Freenet (step 1).</p></details>
       <details><summary>Can I use it on my phone?</summary><p>On Android, yes: <a href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">the Radica app</a> runs on <a href="https://github.com/HostFat/freenet-android-node">Freenet Android Node</a>, an unofficial, early app that runs a Freenet node on the phone (see the Android tab in step 1). There is nothing for iPhone yet. The official Freenet installs on Windows, macOS and Linux.</p></details>
@@ -325,7 +363,7 @@
   const os = /Android/.test(ua) ? "and" : /Mac/.test(ua) ? "mac" : /Linux|X11/.test(ua) ? "lin" : "win";
   pick(document.getElementById("t-" + os));
   // the visitor's download stands out (an Intel Mac reads the same as Apple Silicon here, so both stay listed)
-  document.querySelector(`.dl [data-os="${os}"]`)?.setAttribute("data-mine", "");
+  document.querySelectorAll(`.dl [data-os="${os}"]`).forEach((el) => el.setAttribute("data-mine", ""));
 
   document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent); b.textContent = "Copied"; }
