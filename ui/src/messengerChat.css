@@ -3547,6 +3547,7 @@ html[data-app-mode="messenger"] .container {
 }
 
 html[data-app-mode="messenger"] #chat-modal {
+  display: flex !important;
   position: fixed !important;
   inset: 0 !important;
   top: var(--rm-vvt, 0px) !important;

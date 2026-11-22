@@ -364,5 +364,17 @@ test("standalone messenger mode exposes identity, profile & settings menu items 
   assert.match(mainTs, /function\s+openExternalViaNative/);
   assert.match(mainTs, /a\[target="_blank"\]\[href\]/);
   assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail/);
-  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s*\{/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s*\{[^}]*display:\s*flex\s*!important;/s);
+
+  // Identity modal handles section
+  const indexHtml = read("../index.html");
+  for (const id of ["identity-handle-section", "identity-handle-val", "identity-copy-handle-btn", "identity-handle-input", "identity-handle-claim-btn"]) {
+    assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
+  }
+
+  // Android build config & messenger flavor check
+  const buildGradle = read("../../apps/android/build.gradle.kts");
+  const mainActivity = read("../../apps/android/src/main/java/org/freenet/radica/MainActivity.java");
+  assert.match(buildGradle, /buildConfigField\("boolean",\s*"IS_MESSENGER",\s*"true"\)/);
+  assert.match(mainActivity, /BuildConfig\.IS_MESSENGER/);
 });

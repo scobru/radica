@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795363684.864514,
-    "ast_hash": "4030e5839d491bc606e49905de94cd8a",
+    "mtime": 1795367565.4501278,
+    "ast_hash": "e9a7dbfc58e4f9494b1cd67697b116d3",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "landing/index.html": {
-    "mtime": 1794247439.0591798,
-    "ast_hash": "1833ec65a4728c76968f56fdf3893b0f",
+    "mtime": 1795364773.771213,
+    "ast_hash": "90e46032aafc2df028472deb5425c93a",
     "semantic_hash": ""
   },
   "ui/src/greenhouse.ts": {
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "apps/android/build.gradle.kts": {
-    "mtime": 1795340690.385203,
-    "ast_hash": "6966c9d1e31ec9079223c791df21bd5c",
+    "mtime": 1795367456.5463269,
+    "ast_hash": "65778bd4e162a641a4a3b39a3a9fa776",
     "semantic_hash": ""
   },
   "apps/android/settings.gradle.kts": {
@@ -1330,8 +1330,8 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795342476.2706373,
-    "ast_hash": "848eed8eba0d8c8f1830720d4395d64d",
+    "mtime": 1795367512.314349,
+    "ast_hash": "084796f92f091e42e6796c56a86a34f3",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {

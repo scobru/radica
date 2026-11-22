@@ -984,6 +984,45 @@
           </div>
         </div>
 
+        <!-- Section: Radica @handle (Human-Readable Address) -->
+        <div class="identity-section" id="identity-handle-section" style="border-color: rgba(61, 107, 42, 0.35); background: rgba(61, 107, 42, 0.04);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <h4 style="margin: 0;">
+              <span class="btn-icon-text">
+                <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <span>Radica @handle (Human-Readable Address)</span>
+              </span>
+            </h4>
+            <span id="identity-handle-badge" class="identity-badge" style="background: rgba(61, 107, 42, 0.15); color: var(--primary); border: 1px solid rgba(61, 107, 42, 0.3);">● Freenet Handle Log</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+            Your unique human-readable address on Radica and across Freenet. Friends, followers and contacts can mention you (@handle), search for you, or start chats without copying long 64-hex public keys.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Registered Active Handle:</div>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <code id="identity-handle-val" class="identity-code-box" style="font-size: 0.95rem; font-weight: 700; color: var(--primary); padding: 6px 12px; margin: 0; flex: 1; min-width: 140px;">None</code>
+                <button type="button" class="btn-secondary btn-sm btn-icon-text" id="identity-copy-handle-btn" style="display: none;">
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy Handle</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">Register or update @handle:</div>
+              <div style="display: flex; gap: 8px; align-items: center; max-width: 360px;">
+                <div style="position: relative; flex: 1; display: flex; align-items: center;">
+                  <span style="position: absolute; left: 10px; color: var(--text-muted); font-weight: 700;">@</span>
+                  <input type="text" id="identity-handle-input" placeholder="yourhandle" spellcheck="false" autocomplete="off" style="font-size: 0.85rem; padding: 6px 10px 6px 24px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 100%;" />
+                </div>
+                <button type="button" class="btn-primary btn-sm" id="identity-handle-claim-btn">Register</button>
+              </div>
+              <div id="identity-handle-status" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">3-30 chars: lowercase letters, numbers, hyphens and underscores. First-come, first-served on Freenet. Leave empty and click Register to release your handle.</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Section: Freenet Mail Identity (Post-Quantum) -->
         <div class="identity-section" id="identity-fmail-section" style="display: none; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.03);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
@@ -1461,7 +1500,7 @@
         </details>
 
         <details><summary>🏷️ Radica Handles (@handle) &amp; Contacts</summary>
-          <p>Claim a unique human-readable handle (like <code>@alice</code>) stored on Freenet's shared <code>handles</code> log. Other users can start direct chats or Secret Chats with you simply by typing your handle without needing to paste a 64-character hex key.</p>
+          <p>Claim a unique human-readable handle (like <code>@alice</code>) stored on Freenet's shared <code>handles</code> log. Other users can start direct chats or Secret Chats with you simply by typing your handle without needing to paste a 64-character hex key. Claim, view or update your handle anytime from <b>Identity &amp; keys</b> or <b>Edit profile</b>.</p>
           <p>New users entering directly via <b>Radica Messenger</b> enjoy a streamlined first-time setup to pick their display name and claim their handle right away, launching straight into private chats.</p>
           <p>Contact search also accepts Base58 persona keys and FreeNames domains as fallbacks.</p>
         </details>
@@ -2287,7 +2326,7 @@
         <label style="font-size: 0.85rem; font-weight: 600;">Display Name</label>
         <input type="text" id="modal-name-input" class="composer-input" style="min-height: auto; margin-bottom: 12px;" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Radica @handle <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(unique identifier for Messenger &amp; contacts)</span></label>
+        <label style="font-size: 0.85rem; font-weight: 600;">Radica @handle <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(your human-readable address on Freenet)</span></label>
         <div style="display: flex; gap: 8px; margin-bottom: 6px; align-items: center;">
           <input type="text" id="modal-handle-input" class="composer-input" maxlength="20" style="min-height: auto; margin-bottom: 0; font-family: var(--font-mono, monospace); font-size: 0.85rem;" placeholder="@yourname (3-20 characters: a-z, 0-9, _)" />
           <button type="button" class="btn-secondary btn-sm" id="modal-handle-claim-btn" style="white-space: nowrap;">Register</button>

@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(true);
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
-        web.addJavascriptInterface(new NativeStorage(), "__radicaNative");
+        web.addJavascriptInterface(new NativeStorage(isMessengerApp()), "__radicaNative");
         setContentView(fitted(web));
         if (saved != null && web.restoreState(saved) != null) {
             opened = true;
@@ -186,9 +186,14 @@ public class MainActivity extends Activity {
     }
 
     private boolean isMessengerApp() {
+        if (BuildConfig.IS_MESSENGER) return true;
         try {
-            int resId = getResources().getIdentifier("app_mode", "string", getPackageName());
+            int resId = getResources().getIdentifier("app_mode", "string", "org.freenet.radica");
             if (resId != 0 && "messenger".equalsIgnoreCase(getString(resId))) return true;
+        } catch (Exception ignored) {}
+        try {
+            int resId2 = getResources().getIdentifier("app_mode", "string", getPackageName());
+            if (resId2 != 0 && "messenger".equalsIgnoreCase(getString(resId2))) return true;
         } catch (Exception ignored) {}
         String pkg = getPackageName();
         return pkg != null && (pkg.endsWith(".messenger") || pkg.contains("messenger"));
@@ -308,10 +313,21 @@ public class MainActivity extends Activity {
      *  reopened (a new Activity means a new WebView, so a fresh, empty `window.name`). addJavascriptInterface
      *  objects are reachable from every frame of the WebView, sandboxed iframes included, so this gives
      *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that — strictly gated to Radica. */
-    private class NativeStorage {
+    public class NativeStorage {
+        private final boolean isMessenger;
+
+        public NativeStorage(boolean isMessenger) {
+            this.isMessenger = isMessenger;
+        }
+
         @JavascriptInterface
         public String getAppMode() {
-            return isMessengerApp() ? "messenger" : "full";
+            return isMessenger ? "messenger" : "full";
+        }
+
+        @JavascriptInterface
+        public boolean isMessenger() {
+            return isMessenger;
         }
 
         @JavascriptInterface
@@ -344,9 +360,17 @@ public class MainActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
-            if (isMessengerApp() && isRadicaUrl(url)) {
+            if (isMessengerApp()) {
                 view.evaluateJavascript(
-                    "try { if (!document.documentElement.hasAttribute('data-app-mode')) document.documentElement.setAttribute('data-app-mode', 'messenger'); } catch(e){}",
+                    "(function() {" +
+                    "  try {" +
+                    "    document.documentElement.setAttribute('data-app-mode', 'messenger');" +
+                    "    var frames = document.getElementsByTagName('iframe');" +
+                    "    for (var i = 0; i < frames.length; i++) {" +
+                    "      try { frames[i].contentWindow.postMessage({ type: 'radica_set_app_mode', mode: 'messenger' }, '*'); } catch(e){}" +
+                    "    }" +
+                    "  } catch(e){}" +
+                    "})()",
                     null
                 );
             }

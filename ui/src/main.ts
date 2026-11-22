@@ -142,13 +142,25 @@ import { generateDefaultAvatar, compressAvatarFile, compressPostImageFile } from
 
 const isMessengerApp = (() => {
   try {
-    const nativeMode = (globalThis as { __radicaNative?: { getAppMode?: () => string } }).__radicaNative?.getAppMode?.();
-    if (nativeMode === "messenger") return true;
+    if (document.documentElement.getAttribute("data-app-mode") === "messenger") return true;
+    const bridge = (globalThis as { __radicaNative?: { getAppMode?: () => string; isMessenger?: () => boolean } }).__radicaNative;
+    if (bridge) {
+      try {
+        if (typeof bridge.getAppMode === "function" && bridge.getAppMode() === "messenger") return true;
+      } catch {}
+      try {
+        if (typeof bridge.isMessenger === "function" && bridge.isMessenger() === true) return true;
+      } catch {}
+    }
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("app") === "messenger" || sp.get("mode") === "messenger") return true;
     const hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     if (hp.get("app") === "messenger" || hp.get("mode") === "messenger") return true;
-    if (nativeMode === "full") return false;
+    if (bridge) {
+      try {
+        if (typeof bridge.getAppMode === "function" && bridge.getAppMode() === "full") return false;
+      } catch {}
+    }
     return false;
   } catch {
     return false;
@@ -7217,6 +7229,21 @@ function setChatFullscreen(on: boolean) {
   }
 }
 
+window.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "radica_set_app_mode" && e.data.mode === "messenger") {
+    if (document.documentElement.getAttribute("data-app-mode") !== "messenger") {
+      document.documentElement.setAttribute("data-app-mode", "messenger");
+      document.title = "Radica Messenger";
+      safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
+      setChatFullscreen(true);
+      if (!isOpen(chatModal)) {
+        if (chatModal.dataset.messengerReady) chatModal.style.display = "flex";
+        else openChatBtn.click();
+      }
+    }
+  }
+});
+
 /** Open the chat at once with a loading bar, draw the conversation after the open chat is painted, then drop the bar. */
 async function showChat(load: () => Promise<unknown>) {
   chatModal.dataset.messengerReady = "1";
@@ -12677,6 +12704,36 @@ function renderIdentityModal() {
   localCreateMsg.textContent = "";
   localImportMsg.textContent = "";
 
+  // Update Radica @handle section
+  const idHandleVal = document.getElementById("identity-handle-val");
+  const idCopyHandleBtn = document.getElementById("identity-copy-handle-btn") as HTMLButtonElement | null;
+  const idHandleInput = document.getElementById("identity-handle-input") as HTMLInputElement | null;
+  const idHandleStatus = document.getElementById("identity-handle-status");
+  if (idHandleVal) {
+    if (!currentIdentity) {
+      idHandleVal.textContent = "None (sign in first)";
+      if (idCopyHandleBtn) idCopyHandleBtn.style.display = "none";
+    } else {
+      const activeH = freenet.handleOf(currentIdentity.pubkey);
+      if (activeH) {
+        idHandleVal.textContent = `@${activeH}`;
+        if (idCopyHandleBtn) {
+          idCopyHandleBtn.style.display = "inline-flex";
+          idCopyHandleBtn.onclick = () => {
+            void navigator.clipboard.writeText(`@${activeH}`);
+            showToast(`Copied @${activeH} to clipboard`, "info");
+          };
+        }
+        if (idHandleInput && !idHandleInput.value) idHandleInput.value = activeH;
+        if (idHandleStatus) idHandleStatus.textContent = `Active handle @${activeH} registered on Freenet. Leave empty and click Register to release.`;
+      } else {
+        idHandleVal.textContent = "No @handle registered";
+        if (idCopyHandleBtn) idCopyHandleBtn.style.display = "none";
+        if (idHandleStatus) idHandleStatus.textContent = "3-30 chars: lowercase letters, numbers, hyphens and underscores. First-come, first-served on Freenet.";
+      }
+    }
+  }
+
   // Update Freenet Mail section
   if (identityFmailSection) {
     if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
@@ -12874,6 +12931,40 @@ if (fmailSaveAliasBtn) {
     if (fmailStatusMsg) {
       fmailStatusMsg.textContent = `✓ Mail handle saved: @${clean}`;
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
+    }
+  });
+}
+
+const idHandleClaimBtn = document.getElementById("identity-handle-claim-btn") as HTMLButtonElement | null;
+if (idHandleClaimBtn) {
+  idHandleClaimBtn.addEventListener("click", async () => {
+    if (!currentIdentity) return;
+    const input = document.getElementById("identity-handle-input") as HTMLInputElement | null;
+    const status = document.getElementById("identity-handle-status");
+    const val = input?.value.trim().replace(/^@+/, "") || "";
+    idHandleClaimBtn.disabled = true;
+    try {
+      if (!val) {
+        await freenet.releaseHandle(currentIdentity);
+        if (status) status.textContent = "Handle released.";
+        renderIdentityModal();
+        if (sidebarHandle) sidebarHandle.textContent = `@${shortenKey(personaName(currentIdentity.pubkey))}`;
+        showToast("Handle released.", "info");
+      } else {
+        const res = await freenet.claimHandle(currentIdentity, val);
+        if (res.success) {
+          const norm = normalizeHandle(val);
+          if (status) status.textContent = `Registered active handle: @${norm}`;
+          renderIdentityModal();
+          if (sidebarHandle) sidebarHandle.textContent = `@${norm}`;
+          showToast(`Handle @${norm} registered!`, "info");
+        } else {
+          if (status) status.textContent = res.error || "Could not claim handle.";
+          showToast(res.error || "Could not claim handle", "error");
+        }
+      }
+    } finally {
+      idHandleClaimBtn.disabled = false;
     }
   });
 }

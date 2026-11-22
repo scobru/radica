@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795340631.9061506,
-    "ast_hash": "377e89d8ed3f000c3d4fc0d2e61bb9fd",
+    "mtime": 1795385912.9546833,
+    "ast_hash": "4c334f645a10a2a103a465a6a3d498de",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795367565.4501278,
-    "ast_hash": "e9a7dbfc58e4f9494b1cd67697b116d3",
+    "mtime": 1795385794.8116088,
+    "ast_hash": "3829a2f16aec8a493a7a429efe8a84c2",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795363714.577567,
-    "ast_hash": "36e49ce168233e05aff787b99a3eb5ec",
+    "mtime": 1795385859.0787532,
+    "ast_hash": "4b97981b2d5100cd203e52be2f07b0bd",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795362569.3163795,
-    "ast_hash": "711354bd2b05a5a6b860aaddde5310db",
+    "mtime": 1795385875.136889,
+    "ast_hash": "0696f052aea4d4118c78e5b439815ff2",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795363733.3741999,
-    "ast_hash": "75de30a4bea32f45b2a38b2e35d9bdf9",
+    "mtime": 1795385812.0606055,
+    "ast_hash": "26b4f643d657854e920b22f36c42f47c",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795363704.2339015,
-    "ast_hash": "522d4b3523940683681aaad69959868e",
+    "mtime": 1795385823.7223125,
+    "ast_hash": "d2e53779f18bcd7e4f76486e6919ffb2",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795362592.3515427,
-    "ast_hash": "d88e19487e46e359253e8860e844621c",
+    "mtime": 1795385901.0640543,
+    "ast_hash": "3221848cde6d2a5cd196c437a1c69d4a",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795342495.506329,
-    "ast_hash": "2624a384253be53d1eb8fc1648203a5c",
+    "mtime": 1795386003.621339,
+    "ast_hash": "6f7a706188100c1c77b7c0112470f996",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "apps/android/build.gradle.kts": {
-    "mtime": 1795367456.5463269,
-    "ast_hash": "65778bd4e162a641a4a3b39a3a9fa776",
+    "mtime": 1795385609.9191024,
+    "ast_hash": "7708602e8020a7f768027943da329c8c",
     "semantic_hash": ""
   },
   "apps/android/settings.gradle.kts": {
@@ -1330,8 +1330,8 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795367512.314349,
-    "ast_hash": "084796f92f091e42e6796c56a86a34f3",
+    "mtime": 1795385642.117024,
+    "ast_hash": "389ae1391abd536c0d67c81c7e41e013",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {

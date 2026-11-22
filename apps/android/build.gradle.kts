@@ -19,18 +19,24 @@ android {
         versionName = radicaVersion.joinToString(".")
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     flavorDimensions += "mode"
     productFlavors {
         create("full") {
             dimension = "mode"
             resValue("string", "app_name", "Radica")
             resValue("string", "app_mode", "full")
+            buildConfigField("boolean", "IS_MESSENGER", "false")
         }
         create("messenger") {
             dimension = "mode"
             applicationIdSuffix = ".messenger"
             resValue("string", "app_name", "Radica Messenger")
             resValue("string", "app_mode", "messenger")
+            buildConfigField("boolean", "IS_MESSENGER", "true")
         }
     }
 }
