@@ -1,16 +1,16 @@
 # Graph Report - radica  (2026-11-22)
 
 ## Corpus Check
-- 323 files · ~919,876 words
+- 325 files · ~922,823 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3978 nodes · 10785 edges · 154 communities (137 shown, 17 thin omitted)
+- 3998 nodes · 10852 edges · 142 communities (128 shown, 14 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 140 edges (avg confidence: 0.69)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `eb2be656`
+- Built from commit: `b4905884`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -45,7 +45,6 @@
 - [[_COMMUNITY_fetch-moderation-model.mjs|fetch-moderation-model.mjs]]
 - [[_COMMUNITY_icons.ts|icons.ts]]
 - [[_COMMUNITY_showProfilePage|showProfilePage]]
-- [[_COMMUNITY_freenet.ts|freenet.ts]]
 - [[_COMMUNITY_updates.ts|updates.ts]]
 - [[_COMMUNITY_CHANGELOG|CHANGELOG.md]]
 - [[_COMMUNITY_NotificationItem|NotificationItem]]
@@ -61,7 +60,6 @@
 - [[_COMMUNITY_compilerOptions|compilerOptions]]
 - [[_COMMUNITY_icons.ts|icons.ts]]
 - [[_COMMUNITY_handleJoinFromInviteUrl|handleJoinFromInviteUrl]]
-- [[_COMMUNITY_chatMedia.test.ts|chatMedia.test.ts]]
 - [[_COMMUNITY_caption.test.ts|caption.test.ts]]
 - [[_COMMUNITY_createMessengerChat|createMessengerChat]]
 - [[_COMMUNITY_createMessengerChat|createMessengerChat]]
@@ -110,7 +108,6 @@
 - [[_COMMUNITY_chatMedia.test.ts|chatMedia.test.ts]]
 - [[_COMMUNITY_WORMHOLE_PATH|WORMHOLE_PATH]]
 - [[_COMMUNITY_wormholeHref|wormholeHref]]
-- [[_COMMUNITY_milestones.ts|milestones.ts]]
 - [[_COMMUNITY_TASK-001 Responsive 13.3 Laptop Layout for Wall & Profile Modal|TASK-001: Responsive 13.3" Laptop Layout for Wall & Profile Modal]]
 - [[_COMMUNITY_treeGraph.ts|treeGraph.ts]]
 - [[_COMMUNITY_moments.test.ts|moments.test.ts]]
@@ -125,39 +122,30 @@
 - [[_COMMUNITY_TASK-008 Social Audio, Podcasts & Persistent Player (Spotify  FreeTunes)|TASK-008: Social Audio, Podcasts & Persistent Player (Spotify / FreeTunes)]]
 - [[_COMMUNITY_TASK-009 Dedicated Events Calendar & RSVP System (Luma  Meetup)|TASK-009: Dedicated Events Calendar & RSVP System (Luma / Meetup)]]
 - [[_COMMUNITY_mentionPicker.ts|mentionPicker.ts]]
-- [[_COMMUNITY_ecosystem.ts|ecosystem.ts]]
 - [[_COMMUNITY_scripts|scripts]]
 - [[_COMMUNITY_rootsfx.ts|rootsfx.ts]]
 - [[_COMMUNITY_anchorElementInViewport|anchorElementInViewport]]
 - [[_COMMUNITY_musicPage.ts|musicPage.ts]]
-- [[_COMMUNITY_chatMedia.test.ts|chatMedia.test.ts]]
 - [[_COMMUNITY_conversationState.ts|conversationState.ts]]
 - [[_COMMUNITY_communitiesPage.ts|communitiesPage.ts]]
-- [[_COMMUNITY_.notifyListeners|.notifyListeners]]
 - [[_COMMUNITY_loadTreePage|loadTreePage]]
 - [[_COMMUNITY_compilerOptions|compilerOptions]]
 - [[_COMMUNITY_roots.ts|roots.ts]]
 - [[_COMMUNITY_playPopSound|playPopSound]]
 - [[_COMMUNITY_savedPosts.ts|savedPosts.ts]]
-- [[_COMMUNITY_moderation.ts|moderation.ts]]
 - [[_COMMUNITY_wallets.ts|wallets.ts]]
 - [[_COMMUNITY_durable.ts|durable.ts]]
 - [[_COMMUNITY_Folio|Folio]]
-- [[_COMMUNITY_visoSeal.ts|visoSeal.ts]]
-- [[_COMMUNITY_communitiesPage.ts|communitiesPage.ts]]
-- [[_COMMUNITY_split-freenet-dist.mjs|split-freenet-dist.mjs]]
 - [[_COMMUNITY_caption.test.ts|caption.test.ts]]
-- [[_COMMUNITY_postGone.ts|postGone.ts]]
 - [[_COMMUNITY_playPopSound|playPopSound]]
 - [[_COMMUNITY_savedPosts.ts|savedPosts.ts]]
 - [[_COMMUNITY_postGone.ts|postGone.ts]]
 - [[_COMMUNITY_treeGraph.test.ts|treeGraph.test.ts]]
-- [[_COMMUNITY_gifPicker.ts|gifPicker.ts]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `FreenetClient` - 272 edges
+1. `FreenetClient` - 278 edges
 2. `escapeHtml()` - 93 edges
-3. `UserIdentity` - 84 edges
+3. `UserIdentity` - 86 edges
 4. `openUserProfile()` - 81 edges
 5. `renderCommunitiesPage()` - 66 edges
 6. `renderTimeline()` - 60 edges
@@ -167,6 +155,8 @@
 10. `init()` - 45 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `verifiedPohBadgesByAuthor()` --indirect_call--> `proof()`  [INFERRED]
+  ui/src/viso.ts → attester/src/core.test.js
 - `upsertLinkedRoomInDescription()` --indirect_call--> `tok()`  [INFERRED]
   ui/src/nativeRooms.ts → attester/src/core.test.js
 - `playVideo()` --indirect_call--> `head()`  [INFERRED]
@@ -175,8 +165,6 @@
   attester/src/main.js → ui/tests/freenames.test.ts
 - `sweep()` --indirect_call--> `h()`  [INFERRED]
   attester/src/sweep.js → ui/tests/freenames.test.ts
-- `bindPostCardListeners()` --indirect_call--> `el()`  [INFERRED]
-  ui/src/main.ts → folio/src/main.ts
 
 ## Import Cycles
 - 3-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/crypto.ts`
@@ -184,15 +172,11 @@
 - 4-file cycle: `ui/src/crypto.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 - 5-file cycle: `ui/src/crypto.ts -> ui/src/types.ts -> ui/src/whoiam.ts -> ui/src/riverRooms.ts -> ui/src/riverPointer.ts -> ui/src/crypto.ts`
 
-## Communities (154 total, 17 thin omitted)
+## Communities (142 total, 14 thin omitted)
 
 ### Community 0 - "main.ts"
-Cohesion: 0.12
-Nodes (41): BIP39_WORDLIST, AftTier, AftTokenAssignment, FreenetMailIdentity, initialInboxState(), unversionedWasm(), BLOCKED_KEY(), blockedMailSenders() (+33 more)
-
-### Community 1 - "RiverRooms"
-Cohesion: 0.16
-Nodes (6): KeyValue, localReadMarks(), seedReadMark(), MessengerActiveState, ChatMessage, room()
+Cohesion: 0.06
+Nodes (100): fromBase58(), toBase58(), BIP39_WORDLIST, AFT_TIER_SPEC, AFT_TIERS, aftDayIndexInYear(), AftTier, AftTokenAssignment (+92 more)
 
 ### Community 2 - "lib.rs"
 Cohesion: 0.07
@@ -207,8 +191,8 @@ Cohesion: 0.07
 Nodes (28): author, description, keywords, license, name, scripts, app, app:messenger (+20 more)
 
 ### Community 5 - "whoiam.ts"
-Cohesion: 0.12
-Nodes (34): AFT_TIER_SPEC, AFT_TIERS, aftDayIndexInYear(), buildAftSignatureContent(), check2Of(), createIdentityBackupJson(), dec, decodeRecoveryKey() (+26 more)
+Cohesion: 0.14
+Nodes (21): code(), createPoll(), enc(), fillFreepolls(), fpIdentity(), FpPoll, FpQuestion, LINK_RE (+13 more)
 
 ### Community 6 - "🚀 Getting Started"
 Cohesion: 0.05
@@ -223,12 +207,20 @@ Cohesion: 0.07
 Nodes (28): dependencies, @browsermt/bergamot-translator, @desert-ant-labs/moderator, @fontsource-variable/fraunces, @fontsource-variable/inter, freenet-blob, @freenetorg/freenet-stdlib, @litertjs/core (+20 more)
 
 ### Community 9 - "compilerOptions"
-Cohesion: 0.08
-Nodes (54): avatarCache, buildDefaultAvatar(), compressAvatarFile(), generateDefaultAvatar(), svgToBase64Uri(), renderAnteBadgeHtml(), renderPohProviderBadgesHtml(), renderPostSubMetaHtml() (+46 more)
+Cohesion: 0.07
+Nodes (79): avatarCache, buildDefaultAvatar(), compressAvatarFile(), generateDefaultAvatar(), svgToBase64Uri(), renderAnteBadgeHtml(), renderPohProviderBadgesHtml(), renderPostSubMetaHtml() (+71 more)
+
+### Community 10 - "moderation.ts"
+Cohesion: 0.04
+Nodes (6): FreenetClient, ModerationSets, ProfileExtraKind, setActiveSecretChatTTL(), Community, ProfileInfo
 
 ### Community 11 - "postGone.ts"
-Cohesion: 0.20
-Nodes (13): BlobVideoRef, filterVideoReels(), formatBlobVideoCaption(), isVideoReelPost(), parseBlobVideoRef(), stepReelIndex(), createReelsPlayer(), MountedReelVideo (+5 more)
+Cohesion: 0.05
+Nodes (48): ArticlesPageDeps, CommentEntry, CommentFilters, commentsBy(), computeHotRank(), computeNetScore(), flairInfoForPost(), formatThreadComposeCaption() (+40 more)
+
+### Community 12 - "resetPublishBtnState"
+Cohesion: 0.23
+Nodes (8): encodeBase64State(), FORBIDDEN_PROTO_KEYS, HASH_SAFE_OPTIONAL_PREFIXES, HASH_SAFE_SOFT_PREFIXES, isHashSafeKey(), isSensitiveStorageKey(), SENSITIVE_STORAGE_PREFIXES, utf8Enc
 
 ### Community 13 - "vite.config.ts"
 Cohesion: 0.17
@@ -239,12 +231,12 @@ Cohesion: 0.10
 Nodes (50): an_author_s_newer_entry_replaces_the_older_under_one_key(), check(), de(), delta(), Entry, entry2(), entry_msg(), entry_msg2() (+42 more)
 
 ### Community 15 - "delta.ts"
-Cohesion: 0.33
-Nodes (6): finishWelcome(), hasDefaultName(), maybeShowWelcome(), renderWelcomeSuggestions(), welcomeDoneKey(), welcomeStep()
+Cohesion: 0.35
+Nodes (8): foldHandles(), formatHandle(), isValidHandle(), normalizeHandle(), RESERVED_HANDLES, A, B, C
 
 ### Community 16 - "feature_request.md"
 Cohesion: 0.08
-Nodes (26): CURRENT, LEGACY, limiter(), asBytes(), bgGate, codes, contractCode(), ContractId (+18 more)
+Nodes (26): CURRENT, LEGACY, limiter(), yieldToMain(), asBytes(), bgGate, codes, contractCode() (+18 more)
 
 ### Community 18 - "SafeStorage"
 Cohesion: 0.17
@@ -255,8 +247,8 @@ Cohesion: 0.14
 Nodes (20): Identity, key_of(), kv_name(), parse_sk(), Req, Option, Parameters, Result (+12 more)
 
 ### Community 20 - "compilerOptions"
-Cohesion: 0.15
-Nodes (31): cancelMessageBurn(), getActiveSecretChatTTL(), getSecretRoomId(), addSecretChatPeer(), burnedKey(), burnSecretMessage(), editSecretMessage(), getItem() (+23 more)
+Cohesion: 0.06
+Nodes (83): activeTimers, cancelMessageBurn(), chainStepsCache, clearSecretChatSession(), dec, decryptSecretMessage(), enc, encryptSecretMessage() (+75 more)
 
 ### Community 21 - "caption.ts"
 Cohesion: 0.08
@@ -267,56 +259,56 @@ Cohesion: 0.06
 Nodes (54): issueReceipt(), append(), attesterPk, code, codeHash, connect(), feedCode, feedHash (+46 more)
 
 ### Community 23 - "feedsize.ts"
-Cohesion: 0.13
-Nodes (13): Gain, Linfa, linfaGreenhouseWeight(), PlantSeason, POINTS, SeasonInfo, seasonOf(), STAGES (+5 more)
+Cohesion: 0.09
+Nodes (32): Gain, gains(), Linfa, linfaGreenhouseWeight(), linfaOf(), PlantSeason, POINTS, SeasonInfo (+24 more)
 
 ### Community 24 - "Contributor Covenant Code of Conduct"
-Cohesion: 0.17
-Nodes (23): ArticleDraft, articleMissingNote(), ArticlePayload, ArticleRef, buildNewsletterEmail(), countWords(), estimateReadingMinutes(), extractArticleTags() (+15 more)
+Cohesion: 0.05
+Nodes (60): containerOf(), CONTAINERS, isHeavy(), LIMITS, all, cfg, cfgPath, copy() (+52 more)
 
 ### Community 25 - "versionCheck.ts"
-Cohesion: 0.22
-Nodes (4): RiverNet, RiverRooms, vkOf(), device()
+Cohesion: 0.13
+Nodes (11): Anchor, enc, ownerSkCache, RiverNet, RiverRooms, RiverView, vkHexCache, vkOf() (+3 more)
+
+### Community 26 - "avatar.ts"
+Cohesion: 0.11
+Nodes (12): seedReadMark(), formatChatMessageSignatureMessage(), readEncPubs(), computeRoomJoinProof(), MessengerActiveState, MessengerDeps, RiverJoin, roomOwnerSk() (+4 more)
 
 ### Community 28 - "icons.ts"
-Cohesion: 0.09
-Nodes (55): alertUnread(), amGlobalMod(), bindPostCardListeners(), checkCommunitiesOnNetwork(), closeSinglePostModal(), copyUserWallLink(), createCommunityFromPage(), deleteCommentFromCard() (+47 more)
+Cohesion: 0.07
+Nodes (87): fillAsocial(), compressPostImageFile(), fillDelta(), fillFh(), fillFreenames(), fillFreetunes(), amGlobalMod(), appendChatMessageToView() (+79 more)
 
 ### Community 29 - "showProfilePage"
 Cohesion: 0.11
 Nodes (29): app_mode_configures_messenger_binary(), AppMode, bring_up(), is_allowed_nav(), is_contract_prefix(), is_radica_url(), is_safe_external_url(), launch_externally() (+21 more)
 
-### Community 30 - "freenet.ts"
-Cohesion: 0.09
-Nodes (38): proof(), RFC-9474, asNumber(), asString(), AnteTier, anteTierOf(), cat(), checkedDelegations (+30 more)
-
 ### Community 31 - "updates.ts"
-Cohesion: 0.10
-Nodes (39): freenet, foldGreenhouse(), formatSeedsForAi(), greenhousePermalink(), greenhouseTokens(), parse(), parseGreenhouseHash(), Seed (+31 more)
+Cohesion: 0.09
+Nodes (42): freenet, foldGreenhouse(), formatSeedsForAi(), greenhousePermalink(), greenhouseTokens(), parse(), parseGreenhouseHash(), Seed (+34 more)
 
 ### Community 32 - "CHANGELOG.md"
-Cohesion: 0.31
-Nodes (8): CommunitySort, compare(), findCommunities(), FinderInput, FinderResult, slugOf(), all, find()
+Cohesion: 0.27
+Nodes (9): CommunitySort, compare(), findCommunities(), FinderInput, FinderResult, slugOf(), all, comm() (+1 more)
 
 ### Community 34 - "NotificationItem"
 Cohesion: 0.00
-Nodes (509): accentSelect, activeFilterBanner, activeFilterPrefix, activeFilterTag, addModForm, addModPubkeyInput, alerted, allCommunities (+501 more)
+Nodes (518): accentSelect, activeFilterBanner, activeFilterPrefix, activeFilterTag, addModForm, addModPubkeyInput, alerted, alertUnread() (+510 more)
 
 ### Community 35 - "secretChat.ts"
-Cohesion: 0.19
-Nodes (16): decodeCbor(), deltaInCaption(), DeltaPage, deltaPrefixOf(), DeltaSite, DeltaUri, parseDeltaUri(), parseSite() (+8 more)
+Cohesion: 0.12
+Nodes (30): decodeCbor(), deltaCard(), deltaInCaption(), DeltaPage, deltaPrefixOf(), DeltaSite, DeltaUri, pageHref() (+22 more)
 
 ### Community 36 - "nodeOrigin"
 Cohesion: 0.10
-Nodes (33): chunk(), coverUrls, Fetch, fillFreetunes(), fillFreetunesProfile(), fmtTime(), freetunesAllReleaseRefs(), freetunesArtistHref() (+25 more)
+Nodes (30): chunk(), coverUrls, Fetch, fillFreetunesProfile(), fmtTime(), freetunesAllReleaseRefs(), freetunesArtistHref(), freetunesArtistLink() (+22 more)
 
 ### Community 37 - "types.ts"
 Cohesion: 0.14
 Nodes (32): closeModal(), hasOpenModal(), installModalDismiss(), openModals(), ActiveView, clearSelectedPostCard(), closeOtherPages(), findNextCardIndex() (+24 more)
 
 ### Community 39 - "createMessengerChat"
-Cohesion: 0.13
-Nodes (44): GENESIS, bodies(), canEditCommunity(), CHAT_REACTIONS, compactLog(), directoryWeights(), DM_ENTRY_TYPES, enc (+36 more)
+Cohesion: 0.12
+Nodes (46): GENESIS, bodies(), canEditCommunity(), CHAT_REACTIONS, compactLog(), dedupeChat(), directoryWeights(), DM_ENTRY_TYPES (+38 more)
 
 ### Community 40 - "Reader"
 Cohesion: 0.15
@@ -328,31 +320,27 @@ Nodes (17): before, draftTranslateHtml(), initDraftTranslate(), translateKeeping
 
 ### Community 42 - "delegate.ts"
 Cohesion: 0.13
-Nodes (33): baseViewBoxDims(), TreeGraphModel, TreeScope, applySim(), applySvgViewBoxOnly(), attachSim(), getTreeSvgEl(), handleNodeDoubleClick() (+25 more)
+Nodes (32): baseViewBoxDims(), TreeSelection, applySim(), applySvgViewBoxOnly(), attachSim(), getTreeSvgEl(), handleNodeDoubleClick(), handleNodeSelect() (+24 more)
 
 ### Community 43 - "messengerLogic.ts"
-Cohesion: 0.13
-Nodes (3): dmPeerOf(), dedupeChat(), NotificationItem
+Cohesion: 0.11
+Nodes (4): dmPeerOf(), KeyValue, localReadMarks(), NotificationItem
 
 ### Community 44 - "compilerOptions"
 Cohesion: 0.15
 Nodes (12): compilerOptions, allowImportingTsExtensions, lib, module, moduleResolution, noEmit, skipLibCheck, strict (+4 more)
 
 ### Community 45 - "icons.ts"
-Cohesion: 0.17
-Nodes (22): deleteMailContact(), filterMailMessages(), formatMailDate(), getContactsStorageKey(), getUnreadMailCount(), loadMailContacts(), resolveMailAlias(), saveMailContact() (+14 more)
+Cohesion: 0.23
+Nodes (5): proof(), DelegationProofV1, PohBadge, VerifiedDelegation, verifiedDelegations()
 
 ### Community 46 - "handleJoinFromInviteUrl"
-Cohesion: 0.17
-Nodes (19): writeHead(), writeValue(), cacheKeyOf(), ChatMediaItem, ChunkProgress, fillChatMedia(), keepChatMediaUrl(), resolveChatMediaUrl() (+11 more)
-
-### Community 47 - "chatMedia.test.ts"
-Cohesion: 0.16
-Nodes (23): activeTimers, chainStepsCache, clearSecretChatSession(), dec, decryptSecretMessage(), enc, encryptSecretMessage(), formatTtlLabel() (+15 more)
+Cohesion: 0.30
+Nodes (10): ChatMediaItem, ChunkProgress, isFragmentedMp4(), item(), MAX_VIDEO_SEC, playVideo(), prepareVideo(), scanTimes() (+2 more)
 
 ### Community 48 - "caption.test.ts"
 Cohesion: 0.09
-Nodes (41): analyzeAudioBlob(), AUDIO_EXT, blobCache, chatMediaCardsHtml(), ChatMediaKind, dataUriToBytesAndMime(), decodeWaveformHex(), defaultWaveform() (+33 more)
+Nodes (48): analyzeAudioBlob(), AUDIO_EXT, blobCache, cacheKeyOf(), chatMediaCardsHtml(), ChatMediaKind, dataUriToBytesAndMime(), decodeWaveformHex() (+40 more)
 
 ### Community 49 - "createMessengerChat"
 Cohesion: 0.12
@@ -360,19 +348,19 @@ Nodes (16): devDependencies, chai, ethers, hardhat, @nomicfoundation/hardhat-cha
 
 ### Community 50 - "createMessengerChat"
 Cohesion: 0.06
-Nodes (60): CHAT_TOKEN_RE, chatText(), escMd(), extractCommentMedia(), isSafeUrl(), LINK_RE, linkCard(), linkify() (+52 more)
+Nodes (63): CHAT_TOKEN_RE, chatText(), escMd(), extractCommentMedia(), isSafeUrl(), LINK_RE, linkCard(), linkify() (+55 more)
 
 ### Community 54 - "avatar.ts"
-Cohesion: 0.09
-Nodes (53): fillAsocial(), deltaCard(), fillDelta(), pageHref(), siteKey(), fillFh(), fillFreenames(), freenamesCard() (+45 more)
+Cohesion: 0.18
+Nodes (15): sharedPost(), stageRepost(), GONE_MESSAGE, whyGone, hasUserReposted(), repostBody(), repostCaption(), repostCard() (+7 more)
 
 ### Community 55 - "delegate.ts"
-Cohesion: 0.05
-Nodes (62): verifyAuthorSignature(), api(), asBytes(), call(), chain, dec, delegateMessage(), enc (+54 more)
+Cohesion: 0.06
+Nodes (55): formatLogEntryMessage(), verifyAuthorSignature(), api(), asBytes(), call(), chain, dec, delegateMessage() (+47 more)
 
 ### Community 56 - "secretChat.ts"
-Cohesion: 0.13
-Nodes (43): amVouched(), ghostkeyKey(), pohKey(), refreshSupporters(), clearStoredReceipt(), dec, enc, foldSupporters() (+35 more)
+Cohesion: 0.12
+Nodes (45): amVouched(), ghostkeyKey(), pohKey(), refreshSupporters(), clearStoredReceipt(), dec, enc, foldSupporters() (+37 more)
 
 ### Community 57 - "Radica — domain language"
 Cohesion: 0.17
@@ -387,16 +375,16 @@ Cohesion: 0.09
 Nodes (54): a_failed_rewrite_of_a_record_leaves_it_whole(), a_node_answering_ends_the_wait_and_the_directory_goes_when_the_installer_exits(), an_installer_left_open_past_the_deadline_is_reported(), applications_dir(), binary_install_path(), copy_app_from(), copy_tree(), extract_freenet() (+46 more)
 
 ### Community 61 - "createMessengerChat"
-Cohesion: 0.08
-Nodes (50): addReadKeys(), commentMsg3(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), deleteMsg3(), enc, encryptDirectMessage() (+42 more)
+Cohesion: 0.09
+Nodes (46): addReadKeys(), commentMsg3(), decryptDirectMessage(), decryptRoomKeyFromPeer(), decryptWithSymmetricKey(), deleteMsg3(), enc, encryptDirectMessage() (+38 more)
 
 ### Community 62 - "loadMailContacts"
 Cohesion: 0.10
 Nodes (35): ANONYMOUS_AUTHOR, ArticlePayload, buildPayload(), countWords(), estimateReadingMinutes(), extractTags(), parsePayload(), serializePayload() (+27 more)
 
 ### Community 63 - "treePage.ts"
-Cohesion: 0.06
-Nodes (72): compressPostImageFile(), addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards() (+64 more)
+Cohesion: 0.18
+Nodes (18): addItemToBoard(), BoardFilterOpts, BoardItem, boardPermalink(), createBoard(), CuratedBoard, filterVisibleBoards(), loadLocalBoards() (+10 more)
 
 ### Community 64 - "package.json"
 Cohesion: 0.15
@@ -415,8 +403,8 @@ Cohesion: 0.24
 Nodes (6): ADDRESSES, DEPLOYED, { ethers, network }, { TREASURY, ADDRESSES }, hre, { TREASURY, ADDRESSES, DEPLOYED }
 
 ### Community 69 - "RiverRooms"
-Cohesion: 0.06
-Nodes (51): computeHotRank(), computeNetScore(), flairInfoForPost(), formatThreadComposeCaption(), RedditFlairFilter, RedditSort, RedditViewMode, sortRedditThreads() (+43 more)
+Cohesion: 0.05
+Nodes (72): ASOCIAL_RECORDS_CODE_BYTES, asocialCard(), AsocialData, asocialLink(), asocialOwnStoreKey(), asocialOwnStoreParams(), asocialPersonHref(), asocialPersonOf() (+64 more)
 
 ### Community 70 - "BatchTranslator"
 Cohesion: 0.20
@@ -427,8 +415,8 @@ Cohesion: 0.33
 Nodes (5): Before Base mainnet, Deploy, Deployments, Radica donation contract, Test
 
 ### Community 74 - "fh.ts"
-Cohesion: 0.14
-Nodes (30): ad(), aead(), b64(), clearDrSessions(), dec, drDecrypt(), drEncrypt(), drLevel() (+22 more)
+Cohesion: 0.22
+Nodes (10): blockPublishBtnForNsfw(), blockPublishBtnForUnverified(), isPostInCooldown(), resetPublishBtnState(), revokePosterUrl(), setMediaSensitive(), setMediaVerifiedSafe(), showScanResult() (+2 more)
 
 ### Community 75 - "Radica attester"
 Cohesion: 0.25
@@ -451,28 +439,28 @@ Cohesion: 0.09
 Nodes (32): canonicalFieldStr(), enc, judgeClaim(), logEntryMessage(), logEntryMessage2(), powBits(), SCOPE_FIELD, signEntry() (+24 more)
 
 ### Community 85 - "orto.ts"
-Cohesion: 0.13
-Nodes (30): ASOCIAL_RECORDS_CODE_BYTES, asocialCard(), AsocialData, asocialLink(), asocialOwnStoreKey(), asocialOwnStoreParams(), asocialPersonHref(), asocialPersonOf() (+22 more)
+Cohesion: 0.36
+Nodes (8): hex(), INFO, newEpk(), openEsk(), unhex(), hex(), seal(), un()
 
 ### Community 89 - "feedsize.ts"
-Cohesion: 0.42
-Nodes (6): FEED_TARGET, feedBytes(), formatBytes(), oldestToFree(), postBytes(), renderFeedSize()
+Cohesion: 0.36
+Nodes (8): measureImageDimensions(), normalizeAudioMime(), prepareChatAudioFile(), prepareChatDocFile(), prepareChatImageFile(), handleClassicDropFiles(), setClassicStagedMedia(), createMessengerChat()
 
 ### Community 91 - "🚨 Mandatory Rule: Features, Updates Tab & Documentation"
 Cohesion: 0.40
 Nodes (4): MUST: content moderation, all 3 layers, MUST: updates tab + docs, same session, Radica — Agent Rules, Testing & verification
 
 ### Community 92 - "resolve"
-Cohesion: 0.12
-Nodes (33): what_answers_on_the_port_decides_the_state(), a_real_signed_release_manifest_verifies(), an_asset_must_match_its_checksum_and_be_listed(), asset_name(), asset_name_for(), check_manifest_version(), Checksums, downloads_report_progress_and_stop_at_their_limits() (+25 more)
+Cohesion: 0.13
+Nodes (32): a_real_signed_release_manifest_verifies(), an_asset_must_match_its_checksum_and_be_listed(), asset_name(), asset_name_for(), check_manifest_version(), Checksums, downloads_report_progress_and_stop_at_their_limits(), every_platform_maps_to_an_asset_in_the_release() (+24 more)
 
 ### Community 93 - "treeGraph.test.ts"
-Cohesion: 0.20
-Nodes (17): stageOf(), Bloom, Branch, clamp(), curve(), [CX, GROUND], end(), f() (+9 more)
+Cohesion: 0.38
+Nodes (7): find_installed(), Installed, InstallStep, on_path(), Option, PathBuf, OsStr
 
 ### Community 94 - "UserIdentity"
-Cohesion: 0.53
-Nodes (7): cleanWallets(), isMoneroPrimaryAddress(), normalizeWallet(), validateWalletForSave(), WALLET_KINDS, WalletKind, walletUri()
+Cohesion: 0.35
+Nodes (8): cleanWallets(), isMoneroPrimaryAddress(), normalizeWallet(), validateWalletForSave(), WALLET_KINDS, WalletKind, Wallets, walletUri()
 
 ### Community 95 - "ecosystem.ts"
 Cohesion: 0.34
@@ -480,51 +468,47 @@ Nodes (11): cleanExcerpt(), decodeB64u(), encodeB64u(), OrtoBlog, ortoCard(), or
 
 ### Community 96 - "freetunes.test.ts"
 Cohesion: 0.09
-Nodes (46): bitsOf(), cat(), challengeBytes(), checkProof(), decodeProof(), enc, grind(), makeProof() (+38 more)
+Nodes (58): RFC-9474, bitsOf(), cat(), challengeBytes(), checkProof(), decodeProof(), enc, grind() (+50 more)
 
 ### Community 97 - "fillFreetunes"
 Cohesion: 0.50
 Nodes (6): isSporeRadioLive(), RADIO_HEARTBEATS, recordSporeRadioHeartbeat(), sporeRadioCard(), sporeRadioLink(), SporeRadioRef
 
 ### Community 98 - "riverPointer.ts"
-Cohesion: 0.24
-Nodes (3): PostReactionEvaluation, TrustBadgeInfo, WebOfTrust
+Cohesion: 0.47
+Nodes (6): a_command_that_hangs_is_killed_at_the_deadline(), no_console_window(), Command, Duration, run(), run_with_deadline()
 
 ### Community 99 - "resolve"
 Cohesion: 0.52
 Nodes (5): along(), Box, f(), growRoots(), rootPaths()
 
 ### Community 100 - "renderIdentityModal"
-Cohesion: 0.26
-Nodes (8): ArticlesPageDeps, CommentEntry, CommentFilters, commentsBy(), BuildPostCardOptions, Comment, Post, [ME, BOB, EVE]
+Cohesion: 0.40
+Nodes (5): applyTextSize(), isMobileTextEntry(), scheduleSyncMobileViewport(), syncMobileViewport(), TEXT_SIZES
 
 ### Community 101 - ".setIdentity"
 Cohesion: 0.10
-Nodes (30): ChatLayoutMode, chatTranslations, CLOCK_FMT, createMessengerChat(), formatClock(), formatDateSeparator(), formatInboxTime(), LONG_DATE_FMT (+22 more)
+Nodes (29): ChatLayoutMode, chatTranslations, CLOCK_FMT, formatClock(), formatDateSeparator(), formatInboxTime(), LONG_DATE_FMT, LONG_DATE_YEAR_FMT (+21 more)
 
 ### Community 102 - "treePage.ts"
-Cohesion: 0.11
-Nodes (5): MessengerDeps, postIdWithPow(), Community, ProfileInfo, UserIdentity
+Cohesion: 0.13
+Nodes (4): grindNonce(), lightFeedAsync(), postIdWithPow(), Change
 
 ### Community 103 - "musicPage.ts"
-Cohesion: 0.12
-Nodes (24): Exports, loadJsonWasm(), loadRiver(), river(), RiverCall, Anchor, anchorOf(), instanceOf() (+16 more)
+Cohesion: 0.23
+Nodes (12): checked, checkGhostkey(), ghostkey(), REFUSALS, requestGhostkeyProof(), verifiedGhostkeys(), Exports, loadJsonWasm() (+4 more)
 
 ### Community 104 - "chatMedia.test.ts"
-Cohesion: 0.17
-Nodes (20): a_leftover_user_unit_beside_a_system_unit_gets_a_way_out(), a_process_left_holding_stderr_does_not_hold_up_run(), a_registered_service_is_just_started(), a_registered_service_that_fails_is_reported_never_registered_again(), a_stopped_system_service_is_left_to_the_administrator(), a_suggested_command_survives_any_path(), error_line(), registered_services() (+12 more)
-
-### Community 107 - "milestones.ts"
-Cohesion: 0.39
-Nodes (6): articleDraftsKey(), cacheArticlePayload(), deleteArticleDraft(), loadArticleDrafts(), saveArticleDraft(), StorageLike
+Cohesion: 0.16
+Nodes (21): a_leftover_user_unit_beside_a_system_unit_gets_a_way_out(), a_process_left_holding_stderr_does_not_hold_up_run(), a_registered_service_is_just_started(), a_registered_service_that_fails_is_reported_never_registered_again(), a_stopped_system_service_is_left_to_the_administrator(), a_suggested_command_survives_any_path(), error_line(), registered_services() (+13 more)
 
 ### Community 108 - "TASK-001: Responsive 13.3" Laptop Layout for Wall & Profile Modal"
 Cohesion: 0.33
 Nodes (5): Context, Problem Analysis, Requirements, Status, TASK-001: Responsive 13.3" Laptop Layout for Wall & Profile Modal
 
 ### Community 109 - "treeGraph.ts"
-Cohesion: 0.13
-Nodes (27): plainMentions(), ARTICLE_BOUGH, buildTreeGraph(), BuildTreeGraphInput, CATEGORY_BOUGHS, clamp(), computeNetworkTreeStage(), cut() (+19 more)
+Cohesion: 0.12
+Nodes (29): plainMentions(), freepollsLink(), updateCategoryCounts(), ARTICLE_BOUGH, buildTreeGraph(), CATEGORY_BOUGHS, clamp(), computeNetworkTreeStage() (+21 more)
 
 ### Community 111 - "linfa.ts"
 Cohesion: 0.40
@@ -539,12 +523,12 @@ Cohesion: 0.40
 Nodes (4): Context & Goal, Requirements, Status, TASK-005: Multi-Channel Community Spaces (Discord)
 
 ### Community 114 - "savedPosts.ts"
-Cohesion: 0.06
-Nodes (52): el(), yieldToMain(), MailMessage, applyAccent(), applyDashboardSlots(), applyFullWidth(), applyTheme(), bootStep() (+44 more)
+Cohesion: 0.07
+Nodes (38): MailMessage, applyAccent(), applyDashboardSlots(), applyFullWidth(), applyTheme(), bootStep(), checkUrlInviteHash(), DASHBOARD_SLOT_CANDIDATES (+30 more)
 
 ### Community 115 - "pow.ts"
-Cohesion: 0.22
-Nodes (16): countLeadingZeroBits(), createPoWChallenge(), enc, failPowWorker(), ID_PREFIX, POST_POW_SINCE, postHasPow(), postPowCache (+8 more)
+Cohesion: 0.20
+Nodes (17): countLeadingZeroBits(), createPoWChallenge(), enc, failPowWorker(), ID_PREFIX, POST_POW_SINCE, postHasPow(), postPowCache (+9 more)
 
 ### Community 116 - "TASK-003: Mail Contacts Management (Add & Remove Contacts)"
 Cohesion: 0.40
@@ -567,64 +551,48 @@ Cohesion: 0.40
 Nodes (4): Context & Goal, Requirements, Status, TASK-009: Dedicated Events Calendar & RSVP System (Luma / Meetup)
 
 ### Community 121 - "mentionPicker.ts"
-Cohesion: 0.14
-Nodes (12): decodeBase64State(), encodeBase64State(), FORBIDDEN_PROTO_KEYS, HASH_SAFE_OPTIONAL_PREFIXES, HASH_SAFE_SOFT_PREFIXES, isHashSafeKey(), isSensitiveStorageKey(), nativeBridge() (+4 more)
-
-### Community 122 - "ecosystem.ts"
-Cohesion: 0.25
-Nodes (9): ecosystemCard(), ecosystemFooter(), hrefOf(), link(), appsCustomKey(), appsPinnedKey(), loadCustomApps(), loadPinnedApps() (+1 more)
+Cohesion: 0.24
+Nodes (4): decodeBase64State(), nativeBridge(), SafeStorage, takeHandedKey()
 
 ### Community 123 - "scripts"
 Cohesion: 0.11
 Nodes (17): dependencies, @freenetorg/freenet-stdlib, @noble/hashes, devDependencies, typescript, vite, name, private (+9 more)
 
 ### Community 124 - "rootsfx.ts"
-Cohesion: 0.18
-Nodes (21): cleanHash(), dec, enc, fhCard(), fhLink(), FhListData, fhListKey(), fhPersonaHex() (+13 more)
+Cohesion: 0.17
+Nodes (22): cleanHash(), dec, enc, fhCard(), fhLink(), FhListData, fhListKey(), fhPersonaHex() (+14 more)
 
 ### Community 125 - "anchorElementInViewport"
-Cohesion: 0.80
-Nodes (3): anchorElementInViewport(), AnchorScrollOptions, cancelAnchoredScroll()
+Cohesion: 0.08
+Nodes (41): el(), checkUrlPostHash(), closeRailPages(), collectTreePeers(), collectTreePosts(), fitChatInput(), getWebOfTrust(), handleFreenameLink() (+33 more)
 
 ### Community 126 - "musicPage.ts"
-Cohesion: 0.26
-Nodes (17): AudioQueueState, AudioQueueTrack, createAudioQueueState(), enqueueInQueue(), filterFreetunesReleases(), formatAudioTime(), nextQueueIndex(), playInQueue() (+9 more)
-
-### Community 127 - "chatMedia.test.ts"
-Cohesion: 0.52
-Nodes (6): checked, checkGhostkey(), ghostkey(), REFUSALS, requestGhostkeyProof(), verifiedGhostkeys()
+Cohesion: 0.24
+Nodes (18): AudioQueueState, AudioQueueTrack, createAudioQueueState(), enqueueInQueue(), filterFreetunesReleases(), formatAudioTime(), nextQueueIndex(), playInQueue() (+10 more)
 
 ### Community 128 - "conversationState.ts"
-Cohesion: 0.18
-Nodes (17): burnAtOf(), checksHtml(), ConversationDeps, ConversationState, createConversationState(), Delivery, deliveryOf(), formatBurnRemaining() (+9 more)
+Cohesion: 0.20
+Nodes (16): burnAtOf(), checksHtml(), ConversationDeps, ConversationState, createConversationState(), Delivery, deliveryOf(), formatBurnRemaining() (+8 more)
 
 ### Community 129 - "communitiesPage.ts"
-Cohesion: 0.12
-Nodes (17): giveUpWorker(), isCanonicalPost(), lightFeed, lightFeedAsync(), lightFeedOf(), mergeFeedText(), parseInline(), waiting (+9 more)
-
-### Community 130 - ".notifyListeners"
-Cohesion: 0.23
-Nodes (7): EQUAL, FeedSort, postScore(), sortPosts(), Weights, WINDOW_MS, now
+Cohesion: 0.13
+Nodes (15): giveUpWorker(), isCanonicalPost(), lightFeed, lightFeedOf(), mergeFeedText(), parseInline(), waiting, overlayFeed() (+7 more)
 
 ### Community 131 - "loadTreePage"
-Cohesion: 0.07
-Nodes (35): renderIcon(), blockPublishBtnForNsfw(), blockPublishBtnForUnverified(), checkMilestones(), hideButtonHtml(), isPostInCooldown(), networkCounts(), paintCardDislikeButtons() (+27 more)
+Cohesion: 0.08
+Nodes (24): checkMilestones(), networkCounts(), paintCardDislikeButtons(), paintCardLikeButtons(), paintReactionsBy(), reactionsByHtml(), renderMilestones(), toggleDislikeFromCard() (+16 more)
 
 ### Community 132 - "compilerOptions"
 Cohesion: 0.15
 Nodes (12): compilerOptions, allowImportingTsExtensions, lib, module, moduleResolution, noEmit, skipLibCheck, strict (+4 more)
 
 ### Community 133 - "roots.ts"
-Cohesion: 0.21
-Nodes (16): a_command_that_hangs_is_killed_at_the_deadline(), InstallStep, no_console_window(), no_user_session_recipe(), Command, Duration, Fn, FnMut (+8 more)
-
-### Community 136 - "moderation.ts"
-Cohesion: 0.17
-Nodes (15): filterWasmResponse(), heavyUrl(), heavyUrlFor(), analyzeImageFile(), analyzeTextContent(), BAD_WORDS, BAD_WORDS_RE, censorTextAndPII() (+7 more)
+Cohesion: 0.22
+Nodes (14): FakeRunner, no_user_session_recipe(), Fn, FnMut, Path, Result, String, Vec (+6 more)
 
 ### Community 137 - "wallets.ts"
 Cohesion: 0.07
-Nodes (15): HandledReportItem, LogEntry, backupOwnProfileExtras(), isProfileExtraLog(), isValidLogEntry(), KVStore, latestOwnLogEntry(), mergeLoadedWalletInputs() (+7 more)
+Nodes (13): LogEntry, backupOwnProfileExtras(), isProfileExtraLog(), isValidLogEntry(), KVStore, latestOwnLogEntry(), mergeLoadedWalletInputs(), PROFILE_EXTRA_LOGS (+5 more)
 
 ### Community 138 - "durable.ts"
 Cohesion: 0.20
@@ -634,21 +602,9 @@ Nodes (7): createDurable(), durable, DURABLE_PREFIXES, DurableNode, DurableStore
 Cohesion: 0.29
 Nodes (6): Development, Folio, License, Limitations, Publishing, What it does
 
-### Community 140 - "visoSeal.ts"
-Cohesion: 0.40
-Nodes (5): FakeRunner, Vec, Runner, SystemRunner, RefCell
-
-### Community 143 - "communitiesPage.ts"
-Cohesion: 0.47
-Nodes (3): cut(), Root, rootsSvg()
-
-### Community 144 - "split-freenet-dist.mjs"
-Cohesion: 0.16
-Nodes (12): containerOf(), CONTAINERS, isHeavy(), LIMITS, all, cfg, cfgPath, copy() (+4 more)
-
 ### Community 145 - "caption.test.ts"
-Cohesion: 0.18
-Nodes (14): sealChatMedia(), sealChatMediaChunked(), sealWithKey(), sendChatAttachment(), uploadChatMedia(), dataUrlBytes(), inflight, keepMedia() (+6 more)
+Cohesion: 0.31
+Nodes (7): dataUrlBytes(), inflight, keepMedia(), mediaUrl(), urls, bytes, hash
 
 ### Community 147 - "playPopSound"
 Cohesion: 0.36
@@ -659,35 +615,31 @@ Cohesion: 0.33
 Nodes (9): reconcile(), reconcileItems(), isSaved(), keyOf(), load(), memo, savedId(), savedPosts() (+1 more)
 
 ### Community 149 - "postGone.ts"
-Cohesion: 0.18
-Nodes (14): Answer, ask(), classify(), DesktopHost, find_installed(), Installed, NodeProbe, on_path() (+6 more)
+Cohesion: 0.27
+Nodes (8): Answer, ask(), classify(), DesktopHost, NodeProbe, probe_agent(), Agent, what_the_port_says_is_read_correctly()
 
 ### Community 151 - "treeGraph.test.ts"
-Cohesion: 0.18
-Nodes (9): TreePeerInput, TreePageDeps, ALICE, BOB, COMM, ME, PEERS, POSTS (+1 more)
-
-### Community 155 - "gifPicker.ts"
-Cohesion: 0.50
-Nodes (4): closeGifPicker(), CURATED_GIFS, GifItem, openGifPicker()
+Cohesion: 0.15
+Nodes (11): freetunesLink(), releaseTreePosts(), TreePeerInput, TreePageDeps, ALICE, BOB, COMM, ME (+3 more)
 
 ## Knowledge Gaps
-- **1060 isolated node(s):** `name`, `private`, `type`, `start`, `test` (+1055 more)
+- **1066 isolated node(s):** `name`, `private`, `type`, `start`, `test` (+1061 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Cert` connect `lib.rs` to `communitiesPage.ts`, `renderIdentityModal`, `treePage.ts`, `createMessengerChat`, `signOut`, `delegate.ts`, `secretChat.ts`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Why does `FreenetClient` connect `moderation.ts` to `RiverRooms`, `communitiesPage.ts`, `wallets.ts`, `resetPublishBtnState`, `feature_request.md`, `caption.test.ts`, `compilerOptions`, `versionCheck.ts`, `avatar.ts`, `freenet.ts`, `secretChat.ts`, `nodeOrigin`, `createMessengerChat`, `messengerLogic.ts`, `chatMedia.test.ts`, `createMessengerChat`, `createMessengerChat`, `orto.ts`, `ecosystem.ts`, `freetunes.test.ts`, `renderIdentityModal`, `treePage.ts`, `rootsfx.ts`, `musicPage.ts`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
-- **Why does `h()` connect `treePage.ts` to `RiverRooms`, `caption.test.ts`, `createMessengerChat`, `avatar.ts`, `attachCardListeners`, `icons.ts`, `createMessengerChat`, `loadMailContacts`?**
+- **Why does `Cert` connect `lib.rs` to `communitiesPage.ts`, `createMessengerChat`, `moderation.ts`, `postGone.ts`, `signOut`, `delegate.ts`, `secretChat.ts`, `avatar.ts`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
+- **Why does `h()` connect `icons.ts` to `RiverRooms`, `caption.test.ts`, `createMessengerChat`, `attachCardListeners`, `createMessengerChat`, `loadMailContacts`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
+- **Why does `FreenetClient` connect `moderation.ts` to `wallets.ts`, `postGone.ts`, `feature_request.md`, `caption.test.ts`, `compilerOptions`, `versionCheck.ts`, `avatar.ts`, `updates.ts`, `secretChat.ts`, `nodeOrigin`, `createMessengerChat`, `messengerLogic.ts`, `icons.ts`, `caption.test.ts`, `createMessengerChat`, `createMessengerChat`, `RiverRooms`, `UserIdentity`, `ecosystem.ts`, `freetunes.test.ts`, `treePage.ts`, `rootsfx.ts`, `musicPage.ts`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **What connects `name`, `private`, `type` to the rest of the system?**
-  _1060 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1066 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `main.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.12473572938689217 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.057692307692307696 - nodes in this community are weakly interconnected._
 - **Should `lib.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.06582828753299177 - nodes in this community are weakly interconnected._
 - **Should `init` be split into smaller, more focused modules?**

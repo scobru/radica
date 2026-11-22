@@ -1417,14 +1417,19 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
             <svg viewBox="0 0 34 34" class="svg-icon icon-md" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4v12"/><path d="M17 16c0-5 4-8 9-8-1 5-4 8-9 8z"/><path d="M17 16c-4 0-7-3-8-7 4 0 8 3 8 7z"/><path d="M17 16v4M17 20c-3 3-7 4-10 4M17 20c3 3 7 4 10 4M17 20v10"/></svg>
-            <span>Welcome to Radica 🌱</span>
+            <span id="welcome-modal-title">Welcome to Radica 🌱</span>
           </h3>
           <button class="btn-secondary btn-sm" id="welcome-skip-btn" title="Skip: you can do all this later">Skip</button>
         </div>
         <ol class="welcome-steps" aria-label="Steps"><li data-step="1">Name</li><li data-step="2">People</li><li data-step="3">First post</li></ol>
         <section data-step="1">
-          <p>Pick the name people see. Your identity is a key, so the name can be anything and you can change it later.</p>
-          <input type="text" id="welcome-name-input" class="composer-input" maxlength="40" placeholder="Your name" aria-label="Your name" />
+          <p id="welcome-step1-desc">Pick the name people see. Your identity is a key, so the name can be anything and you can change it later.</p>
+          <input type="text" id="welcome-name-input" class="composer-input" maxlength="40" placeholder="Your display name" aria-label="Your display name" style="margin-bottom: 10px;" />
+          <div id="welcome-handle-container" style="margin-bottom: 14px;">
+            <label style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Radica @handle (optional unique identifier)</label>
+            <input type="text" id="welcome-handle-input" class="composer-input" maxlength="20" placeholder="@yourname (3-20 characters: a-z, 0-9, _)" aria-label="Radica handle" style="font-family: var(--font-mono, monospace); font-size: 0.85rem;" />
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 3px;">Allows others to reach you directly in chat with @yourname instead of copying long keys.</span>
+          </div>
           <div class="welcome-actions"><button type="button" class="btn-primary" id="welcome-name-btn">Next</button></div>
         </section>
         <section data-step="2" hidden>
@@ -1453,6 +1458,12 @@
         <details open><summary>🔑 Your identity</summary>
           <p>You are a key, not an account: no email, no phone number, no password. Either Radica makes a key on this device, or you sign in with <b>Viso</b>, your Freenet identity for all its apps.</p>
           <p><b>Back up your key</b> (Identity page). Nobody can reset it for you: lose it and that identity is gone.</p>
+        </details>
+
+        <details><summary>🏷️ Radica Handles (@handle) &amp; Contacts</summary>
+          <p>Claim a unique human-readable handle (like <code>@alice</code>) stored on Freenet's shared <code>handles</code> log. Other users can start direct chats or Secret Chats with you simply by typing your handle without needing to paste a 64-character hex key.</p>
+          <p>New users entering directly via <b>Radica Messenger</b> enjoy a streamlined first-time setup to pick their display name and claim their handle right away, launching straight into private chats.</p>
+          <p>Contact search also accepts Base58 persona keys and FreeNames domains as fallbacks.</p>
         </details>
 
         <details><summary>👀 Who sees what</summary>
@@ -1502,6 +1513,7 @@
           <ul>
             <li><b>Hide user</b> (on their profile, or in a post's ⋯ menu): you stop seeing them. Private: only you know.</li>
             <li><b>Block</b>: goes on your <b>public blocklist</b>. You stop seeing them and chatting with them, and so does everyone who trusts your blocklist. In River groups their messages are hidden for you too; banning them from the room itself is up to its owner and moderators.</li>
+            <li><b>Unblock</b>: open <b>Blocklists</b> (or in Radica Messenger, the inbox <code>⋮</code> menu → <b>Blocked contacts</b>) and click <b>Remove</b> next to any blocked contact. In Messenger, you can also search or enter their @handle/key in <b>New message</b> to unblock them directly and start chatting.</li>
             <li><b>Report</b> a post (in its ⋯ menu): also on your public blocklist, with your reason. The post is hidden for you and for whoever trusts your list, and so is its picture or video wherever it is shared again; Radica's maintainer and moderators are notified (and in a community, its creator and moderators too).</li>
           </ul>
           <p>In <b>Blocklists</b> you choose whose lists to follow. Radica's maintainer's list is followed by default; you can stop following it at any time.</p>
@@ -2274,6 +2286,13 @@
 
         <label style="font-size: 0.85rem; font-weight: 600;">Display Name</label>
         <input type="text" id="modal-name-input" class="composer-input" style="min-height: auto; margin-bottom: 12px;" />
+
+        <label style="font-size: 0.85rem; font-weight: 600;">Radica @handle <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(unique identifier for Messenger &amp; contacts)</span></label>
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; align-items: center;">
+          <input type="text" id="modal-handle-input" class="composer-input" maxlength="20" style="min-height: auto; margin-bottom: 0; font-family: var(--font-mono, monospace); font-size: 0.85rem;" placeholder="@yourname (3-20 characters: a-z, 0-9, _)" />
+          <button type="button" class="btn-secondary btn-sm" id="modal-handle-claim-btn" style="white-space: nowrap;">Register</button>
+        </div>
+        <div id="modal-handle-status" style="font-size: 0.78rem; margin-bottom: 12px; color: var(--text-muted);"></div>
 
         <label style="font-size: 0.85rem; font-weight: 600;">Bio <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(Markdown, line breaks &amp; links supported)</span></label>
         <textarea id="modal-bio-input" placeholder="Tell people about yourself..." style="min-height: 110px; margin-bottom: 12px; resize: vertical; line-height: 1.5; font-family: inherit; font-size: 0.92rem;"></textarea>

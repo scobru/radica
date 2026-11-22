@@ -16,6 +16,8 @@ import {
 } from "./messengerLogic.ts";
 export { computeSafetyBlocks, shouldHydratePreview, shouldUpdateCachedPreview, type PreviewItem };
 import { personaName } from "./crypto.ts";
+import { fromBase58 } from "./base58.ts";
+import { normalizeHandle } from "./handles.ts";
 import { plainMentions, renderChatText } from "./caption.ts";
 import { CHAT_REACTIONS } from "./logfold.ts";
 import { safeStorage } from "./storage.ts";
@@ -109,6 +111,7 @@ export interface MessengerDeps {
   onCloseChat: () => void;
   onOpenIdentity?: () => void;
   onOpenEditProfile?: () => void;
+  onOpenBlocklists?: () => void;
   onOpenSettings?: () => void;
   isPickingFile?: () => boolean;
   markPickingFile?: (ms?: number) => void;
@@ -418,6 +421,7 @@ export function createMessengerChat(deps: MessengerDeps) {
               <div class="rm-menu" id="rm-inbox-menu" role="menu" hidden>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-identity"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg><span>Identity &amp; keys</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-edit-profile"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Edit profile</span></button>
+                <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-blocklists"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg><span>Blocked contacts</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-settings"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-palette"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg><span>Switch palette</span></button>
               </div>
@@ -625,9 +629,9 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (64-hex or search contacts)</label>
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, or 64-hex key)</label>
           <div style="display: flex; gap: 6px;">
-            <input type="text" id="rm-new-chat-input" class="rm-field-input" placeholder="Paste 64-hex pubkey or filter by name…" autocomplete="off" />
+            <input type="text" id="rm-new-chat-input" class="rm-field-input" placeholder="Type @handle, persona key, 64-hex, or filter contacts…" autocomplete="off" />
             <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go" style="margin-top: 0; white-space: nowrap;">Open DM</button>
             <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-secret-go" style="margin-top: 0; white-space: nowrap; background: #059669; border-color: #10b981;">${renderIcon("lock", { size: 14, className: "icon-xs" })} Secret</button>
           </div>
@@ -685,6 +689,10 @@ export function createMessengerChat(deps: MessengerDeps) {
           : ["PFS Ephemeral", "No message yet: the next one starts a Double Ratchet session"];
     headerSubtitleEl.textContent = `${label} · Disappearing: ${ttlLabel}`;
     headerSubtitleEl.title = tip;
+  };
+  const peerHandleOrPersona = (pk: string) => {
+    const h = freenet.handleOf(pk);
+    return h ? `@${h}` : `@${shortenKey(personaName(pk))}`;
   };
   const inviteTopBtn = rootEl.querySelector("#rm-btn-invite-top") as HTMLButtonElement;
   const safetyTopBtn = rootEl.querySelector("#rm-btn-safety-verify") as HTMLButtonElement;
@@ -886,7 +894,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
   function renderMentionPopup(query: string) {
     const matches = filterMentionCandidates(
-      mentionCandidates().map((pk) => ({ pk, name: deps.getAuthorDisplayName(pk) })),
+      mentionCandidates().map((pk) => ({ pk, name: deps.getAuthorDisplayName(pk), handle: freenet.handleOf(pk) || undefined })),
       query
     );
     if (!matches.length) {
@@ -894,7 +902,10 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
     mentionActiveIdx = Math.min(mentionActiveIdx, matches.length - 1);
-    mentionPopupEl.innerHTML = matches.map((c) => `<button type="button" class="rm-mention-item" data-pk="${escapeHtml(c.pk)}">${escapeHtml(c.name)}</button>`).join("");
+    mentionPopupEl.innerHTML = matches.map((c) => {
+      const handleBadge = c.handle ? ` <small style="opacity:0.65;font-size:0.75rem;">@${escapeHtml(c.handle)}</small>` : "";
+      return `<button type="button" class="rm-mention-item" data-pk="${escapeHtml(c.pk)}">${escapeHtml(c.name)}${handleBadge}</button>`;
+    }).join("");
     paintMentionActive();
     mentionPopupEl.hidden = false;
   }
@@ -1512,7 +1523,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.style.display = "inline-flex";
           headerTrustBadgeEl.className = "rm-trust-pill";
           headerTrustBadgeEl.innerHTML = isVerified ? `${renderIcon("shield", { size: 11 })} <span>E2EE · Verified</span>` : `${renderIcon("lock", { size: 11 })} <span>E2EE Private</span>`;
-          headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · @${shortenKey(personaName(pk))} · ${isRiver ? "River E2EE Bridge" : "X25519 + AES-256-GCM"}`;
+          headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · ${peerHandleOrPersona(pk)} · ${isRiver ? "River E2EE Bridge" : "X25519 + AES-256-GCM"}`;
           headerSubtitleEl.title = isRiver
             ? "End-to-end encrypted through a River room"
             : "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
@@ -1720,7 +1731,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             <div class="rm-first-contact-card">
               <img src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.src='${fallback}'" />
               <h3>${escapeHtml(name)}</h3>
-              <span class="rm-first-contact-key">@${escapeHtml(shortenKey(personaName(pk)))}</span>
+              <span class="rm-first-contact-key">${escapeHtml(peerHandleOrPersona(pk))}</span>
               <div class="rm-first-contact-mutual" style="color:var(--rm-danger);">
                 This contact is currently blocked. Feed posts, comments and direct messages are disabled.
               </div>
@@ -1734,7 +1745,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             <div class="rm-first-contact-card">
               <img src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.src='${fallback}'" />
               <h3>${escapeHtml(name)}</h3>
-              <span class="rm-first-contact-key">@${escapeHtml(shortenKey(personaName(pk)))}</span>
+              <span class="rm-first-contact-key">${escapeHtml(peerHandleOrPersona(pk))}</span>
               <div class="rm-first-contact-mutual">
                 ${shared.length
                   ? `In common on Freenet: <b>${escapeHtml(shared.join(", "))}</b>`
@@ -2216,7 +2227,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         <div class="rm-drawer-hero">
           <img src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.src='${fallback}'" />
           <div class="rm-drawer-name">${escapeHtml(name)}</div>
-          <div class="rm-drawer-handle">@${escapeHtml(shortenKey(personaName(pk)))}</div>
+          <div class="rm-drawer-handle">${escapeHtml(peerHandleOrPersona(pk))}</div>
           <div class="rm-quick-tiles">
             ${
               !isRiverOnly
@@ -2316,7 +2327,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                   ${isMod ? `<span class="rm-role-tag">${renderIcon("shield", { size: 10, className: "icon-xs" })} Mod</span>` : ""}
                   ${isYou ? `<span class="rm-role-tag">You</span>` : ""}
                 </div>
-                <div class="rm-member-sub">@${escapeHtml(shortenKey(personaName(mPk)))}</div>
+                <div class="rm-member-sub">${escapeHtml(peerHandleOrPersona(mPk))}</div>
               </div>
               <div class="rm-member-actions">
                 ${!isYou ? `<button type="button" class="rm-mini-act" data-dm-pk="${escapeHtml(mPk)}" title="Direct Message">${renderIcon("messageCircle", { size: 12 })}</button>` : ""}
@@ -2489,20 +2500,29 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (!identity) return;
     const me = identity.pubkey;
     const q = newChatInputEl.value.trim().toLowerCase();
+    const cleanQ = q.replace(/^@/, "");
 
     const isPeerBlocked = (pk: string) => (deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk));
-    const candidates = Array.from(
+    const allPeers = Array.from(
       new Set([
         ...deps.getFollowingKeys(),
         ...freenet.getChatPeers(me),
         ...freenet.getDiscoveredPeers(me).map((p) => p.pubkey),
+        ...freenet.blockedBy(me),
       ])
-    ).filter((pk) => pk && pk !== me && pk !== "system" && !isPeerBlocked(pk));
+    ).filter((pk) => pk && pk !== me && pk !== "system");
 
-    const filtered = candidates.filter((pk) => {
-      if (!q) return true;
+    // If query matches a registered handle on Freenet, prepend it so it's directly selectable
+    const resolvedHandlePk = cleanQ ? freenet.resolveHandle(cleanQ) : null;
+    if (resolvedHandlePk && resolvedHandlePk !== me && !allPeers.includes(resolvedHandlePk)) {
+      allPeers.unshift(resolvedHandlePk);
+    }
+
+    const filtered = allPeers.filter((pk) => {
+      if (!q) return !isPeerBlocked(pk);
       const name = deps.getAuthorDisplayName(pk).toLowerCase();
-      return name.includes(q) || pk.toLowerCase().includes(q) || personaName(pk).toLowerCase().includes(q);
+      const h = freenet.handleOf(pk)?.toLowerCase() || "";
+      return name.includes(q) || pk.toLowerCase().includes(q) || personaName(pk).toLowerCase().includes(q) || h.includes(cleanQ);
     });
 
     if (filtered.length === 0) {
@@ -2510,7 +2530,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         <div style="padding: 16px; text-align: center; font-size: 0.8rem; color: var(--rm-text-muted);">
           ${/^[0-9a-f]{64}$/i.test(q)
             ? `Valid key detected! Click <b>Open DM</b> to start.`
-            : `No matching contacts. You can paste any 64-character hex public key above.`}
+            : `No matching contacts. You can enter an @handle, Base58 persona, or paste a 64-hex key above.`}
         </div>
       `;
       return;
@@ -2524,20 +2544,27 @@ export function createMessengerChat(deps: MessengerDeps) {
         const fallback = generateDefaultAvatar(pk);
         const isFollowed = deps.getFollowingKeys().includes(pk);
         const isRiver = freenet.riverOnly.has(pk);
+        const blocked = isPeerBlocked(pk);
+        const h = freenet.handleOf(pk);
+        const subDisplay = h ? `@${escapeHtml(h)} · ${escapeHtml(shortenKey(personaName(pk)))}` : `@${escapeHtml(shortenKey(personaName(pk)))}`;
         return `
-          <div class="rm-contact-pick-row" data-pick-peer="${escapeHtml(pk)}" style="display:flex;align-items:center;padding:8px 12px;gap:10px;border-radius:10px;background:var(--rm-bg-secondary);margin-bottom:6px;">
+          <div class="rm-contact-pick-row" data-pick-peer="${escapeHtml(pk)}" style="display:flex;align-items:center;padding:8px 12px;gap:10px;border-radius:10px;background:var(--rm-bg-secondary);margin-bottom:6px;${blocked ? "opacity:0.85;" : ""}">
             <img src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.onerror=null;this.src='${fallback}'" />
             <div style="flex:1;min-width:0;">
               <div style="font-size:0.86rem;font-weight:650;display:flex;align-items:center;gap:6px;">
                 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</span>
+                ${blocked ? `<span class="rm-origin-pill" style="background:var(--rm-danger, #e53e3e);color:#fff;">Blocked</span>` : ""}
                 ${isFollowed ? `<span class="rm-origin-pill">Following</span>` : ""}
                 ${isRiver ? `<span class="rm-origin-pill">River</span>` : ""}
               </div>
-              <div style="font-family:var(--rm-font-mono);font-size:0.71rem;color:var(--rm-text-muted);">@${escapeHtml(shortenKey(personaName(pk)))}</div>
+              <div style="font-family:var(--rm-font-mono);font-size:0.71rem;color:var(--rm-text-muted);">${subDisplay}</div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
-              <button type="button" class="rm-contact-btn" data-action="dm" data-pk="${escapeHtml(pk)}">DM</button>
-              <button type="button" class="rm-contact-btn secret" data-action="secret" data-pk="${escapeHtml(pk)}" title="Start single-device ephemeral Secret Chat">${renderIcon("lock", { size: 12, className: "icon-xs" })} Secret</button>
+              ${blocked
+                ? `<button type="button" class="rm-contact-btn" data-action="unblock" data-pk="${escapeHtml(pk)}" style="color:var(--rm-danger);border-color:var(--rm-danger);">Unblock</button>`
+                : `<button type="button" class="rm-contact-btn" data-action="dm" data-pk="${escapeHtml(pk)}">DM</button>
+                   <button type="button" class="rm-contact-btn secret" data-action="secret" data-pk="${escapeHtml(pk)}" title="Start single-device ephemeral Secret Chat">${renderIcon("lock", { size: 12, className: "icon-xs" })} Secret</button>`
+              }
             </div>
           </div>
         `;
@@ -2895,6 +2922,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   rootEl.querySelector("#rm-btn-fullscreen")?.addEventListener("click", () => deps.onToggleFullscreen());
   rootEl.querySelector("#rm-btn-identity")?.addEventListener("click", () => deps.onOpenIdentity?.());
   rootEl.querySelector("#rm-btn-edit-profile")?.addEventListener("click", () => deps.onOpenEditProfile?.());
+  rootEl.querySelector("#rm-btn-blocklists")?.addEventListener("click", () => deps.onOpenBlocklists?.());
   rootEl.querySelector("#rm-btn-settings")?.addEventListener("click", () => deps.onOpenSettings?.());
   rootEl.querySelector("#rm-btn-close")?.addEventListener("click", () => deps.onCloseChat());
   rootEl.querySelector("#rm-btn-inbox-close")?.addEventListener("click", () => deps.onCloseChat());
@@ -3796,25 +3824,70 @@ export function createMessengerChat(deps: MessengerDeps) {
     deps.onOpenJoinRoomModal();
   });
   newChatInputEl.addEventListener("input", () => renderContactPickerList());
-  const startDmFromInput = (isSecret = false) => {
-    const raw = newChatInputEl.value.trim().toLowerCase();
+  const startDmFromInput = async (isSecret = false) => {
+    const raw = newChatInputEl.value.trim();
+    if (!raw) return;
     const identity = deps.getIdentity();
     if (!identity) return;
-    if (/^[0-9a-f]{64}$/.test(raw)) {
-      if (raw === identity.pubkey) {
-        deps.showToast("You cannot start a chat with your own public key.", "warning");
+
+    let targetPk: string | null = null;
+
+    // 1. Direct 64-hex public key
+    if (/^[0-9a-f]{64}$/i.test(raw)) {
+      targetPk = raw.toLowerCase();
+    }
+
+    // 2. Base58 persona key (Viso / Freenet persona)
+    if (!targetPk) {
+      try {
+        const bytes = fromBase58(raw);
+        if (bytes.length === 32) {
+          targetPk = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+        }
+      } catch {}
+    }
+
+    // 3. Radica Handle (@handle or handle)
+    if (!targetPk) {
+      const byHandle = freenet.resolveHandle(raw);
+      if (byHandle) {
+        targetPk = byHandle;
+      }
+    }
+
+    // 4. FreeNames lookup fallback
+    if (!targetPk) {
+      try {
+        const fnRes = await freenet.resolveFreename(raw);
+        if (fnRes?.owner && /^[0-9a-f]{64}$/i.test(fnRes.owner)) {
+          targetPk = fnRes.owner.toLowerCase();
+        }
+      } catch {}
+    }
+
+    if (targetPk) {
+      if (targetPk === identity.pubkey) {
+        deps.showToast("You cannot start a chat with your own identity.", "warning");
         return;
       }
-      if (deps.isPeerBlocked?.(raw) || freenet.blockedBy(identity.pubkey).has(raw)) {
-        deps.showToast("This contact is blocked. Unblock them first to start a chat.", "warning");
-        return;
+      const isBlocked = deps.isPeerBlocked ? deps.isPeerBlocked(targetPk) : freenet.blockedBy(identity.pubkey).has(targetPk);
+      if (isBlocked) {
+        const name = deps.getAuthorDisplayName(targetPk);
+        if (confirm(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`)) {
+          if (deps.onToggleBlockPeer) {
+            await deps.onToggleBlockPeer(targetPk);
+          }
+        } else {
+          return;
+        }
       }
       newChatModalEl.classList.remove("open");
       mobileShowThread = true;
       workspaceEl.classList.add("mobile-thread-open");
-      void deps.onSelectPeer(raw, isSecret);
+      void deps.onSelectPeer(targetPk, isSecret);
       return;
     }
+
     const firstBtn = contactPickerListEl.querySelector<HTMLElement>("[data-pick-peer]");
     if (firstBtn?.dataset.pickPeer) {
       newChatModalEl.classList.remove("open");
@@ -3822,27 +3895,41 @@ export function createMessengerChat(deps: MessengerDeps) {
       workspaceEl.classList.add("mobile-thread-open");
       void deps.onSelectPeer(firstBtn.dataset.pickPeer, isSecret);
     } else {
-      deps.showToast("Enter a valid 64-character hex public key or pick a contact.", "warning");
+      deps.showToast("Enter a valid @handle, Base58 persona, 64-hex key, or pick a contact.", "warning");
     }
   };
-  inModals("#rm-new-chat-go")?.addEventListener("click", () => startDmFromInput(false));
-  inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => startDmFromInput(true));
+  inModals("#rm-new-chat-go")?.addEventListener("click", () => void startDmFromInput(false));
+  inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => void startDmFromInput(true));
   inModals("#rm-modal-new-secret")?.addEventListener("click", () => {
     newChatInputEl.focus();
-    deps.showToast("Select a contact or paste 64-hex key to start a Secret Chat", "info");
+    deps.showToast("Select a contact or enter @handle/key to start a Secret Chat", "info");
   });
   newChatInputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      startDmFromInput(false);
+      void startDmFromInput(false);
     }
   });
-  contactPickerListEl.addEventListener("click", (e) => {
+  contactPickerListEl.addEventListener("click", async (e) => {
     const target = e.target as HTMLElement;
     const btn = target.closest<HTMLElement>("[data-action]");
     const row = target.closest<HTMLElement>("[data-pick-peer]");
     const pk = btn?.dataset.pk || row?.dataset.pickPeer;
     if (!pk) return;
+    const identity = deps.getIdentity();
+    if (identity) {
+      const isBlocked = deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(identity.pubkey).has(pk);
+      if (isBlocked) {
+        const name = deps.getAuthorDisplayName(pk);
+        if (confirm(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`)) {
+          if (deps.onToggleBlockPeer) {
+            await deps.onToggleBlockPeer(pk);
+          }
+        } else {
+          return;
+        }
+      }
+    }
     const isSecret = btn?.dataset.action === "secret";
     newChatModalEl.classList.remove("open");
     mobileShowThread = true;

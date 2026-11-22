@@ -130,6 +130,7 @@ import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
+import { normalizeHandle } from "./handles.ts";
 import { CHAT_REACTIONS, canEditCommunity, isPostDeletedInCommunity } from "./logfold";
 import { renderAnteBadgeHtml, renderPohProviderBadgesHtml, renderPostSubMetaHtml, renderTrustBadgeHtml } from "./badges.ts";
 import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
@@ -521,6 +522,9 @@ const modalAvatarPreview = document.getElementById("modal-avatar-preview") as HT
 const modalAvatarFileInput = document.getElementById("modal-avatar-file-input") as HTMLInputElement;
 const modalAvatarResetBtn = document.getElementById("modal-avatar-reset-btn") as HTMLButtonElement;
 const modalNameInput = document.getElementById("modal-name-input") as HTMLInputElement;
+const modalHandleInput = document.getElementById("modal-handle-input") as HTMLInputElement | null;
+const modalHandleClaimBtn = document.getElementById("modal-handle-claim-btn") as HTMLButtonElement | null;
+const modalHandleStatus = document.getElementById("modal-handle-status") as HTMLElement | null;
 const modalBioInput = document.getElementById("modal-bio-input") as HTMLTextAreaElement;
 const modalDeltaInput = document.getElementById("modal-delta-input") as HTMLInputElement;
 const modalOrtoInput = document.getElementById("modal-orto-input") as HTMLInputElement;
@@ -1722,7 +1726,28 @@ async function maybeShowWelcome() {
   await durable.ready; // "seen" may be on the node only: the sandboxed page storage does not outlive a session
   if (!currentIdentity || safeStorage.getItem(welcomeDoneKey(currentIdentity.pubkey)) || !hasDefaultName()) return;
   const nameInput = document.getElementById("welcome-name-input") as HTMLInputElement;
+  const handleInput = document.getElementById("welcome-handle-input") as HTMLInputElement | null;
+  const titleEl = document.getElementById("welcome-modal-title");
+  const descEl = document.getElementById("welcome-step1-desc");
+  const stepsOl = welcomeModal.querySelector<HTMLElement>(".welcome-steps");
+  const nameBtn = document.getElementById("welcome-name-btn");
+
+  if (isMessengerApp) {
+    if (titleEl) titleEl.textContent = "Welcome to Radica Messenger 💬";
+    if (descEl) descEl.textContent = "Choose your display name and register an optional unique @handle so friends and contacts can reach you directly in chat without copying 64-hex keys.";
+    if (stepsOl) stepsOl.style.display = "none";
+    if (nameBtn) nameBtn.textContent = "Start Chatting";
+  } else {
+    if (titleEl) titleEl.textContent = "Welcome to Radica 🌱";
+    if (descEl) descEl.textContent = "Pick the name people see. Your identity is a key, so the name can be anything and you can change it later.";
+    if (stepsOl) stepsOl.style.display = "";
+    if (nameBtn) nameBtn.textContent = "Next";
+  }
+
   nameInput.value = "";
+  if (handleInput) {
+    handleInput.value = freenet.handleOf(currentIdentity.pubkey) || "";
+  }
   welcomeStep(1);
   welcomeModal.style.display = "flex";
   // signed in with Viso: the name the persona already has there is offered, unless something was typed meanwhile
@@ -1779,20 +1804,36 @@ document.getElementById("welcome-skip-btn")!.addEventListener("click", finishWel
 document.getElementById("welcome-name-btn")!.addEventListener("click", async (e) => {
   const btn = e.currentTarget as HTMLButtonElement;
   const name = (document.getElementById("welcome-name-input") as HTMLInputElement).value.trim();
+  const handleInput = document.getElementById("welcome-handle-input") as HTMLInputElement | null;
+  const handleVal = handleInput?.value.trim() || "";
   if (!currentIdentity) return;
-  if (!name) return isMessengerApp ? finishWelcome() : welcomeStep(2); // keeping "Persona @…" is allowed
   btn.disabled = true;
   try {
-    applyProfile(await freenet.updateProfile(currentIdentity, name, currentProfile?.bio ?? "", currentProfile?.avatar_url ?? ""));
+    if (handleVal) {
+      const res = await freenet.claimHandle(currentIdentity, handleVal);
+      if (!res.success) {
+        showToast(res.error || "Could not claim handle", "error");
+        btn.disabled = false;
+        return;
+      }
+      showToast(`Handle @${normalizeHandle(handleVal)} registered!`, "info");
+    }
+    if (name) {
+      applyProfile(await freenet.updateProfile(currentIdentity, name, currentProfile?.bio ?? "", currentProfile?.avatar_url ?? ""));
+    }
     if (isMessengerApp) finishWelcome();
+    else if (!name) welcomeStep(2);
     else welcomeStep(2);
   } catch (err) {
-    showToast("Could not save your name: " + ((err as Error)?.message || String(err)), "error");
+    showToast("Could not save your profile: " + ((err as Error)?.message || String(err)), "error");
   } finally {
     btn.disabled = false;
   }
 });
 document.getElementById("welcome-name-input")!.addEventListener("keydown", (e) => {
+  if ((e as KeyboardEvent).key === "Enter") document.getElementById("welcome-name-btn")!.click();
+});
+document.getElementById("welcome-handle-input")?.addEventListener("keydown", (e) => {
   if ((e as KeyboardEvent).key === "Enter") document.getElementById("welcome-name-btn")!.click();
 });
 document.getElementById("welcome-suggestions")!.addEventListener("click", async (e) => {
@@ -2003,9 +2044,8 @@ blocklistsModal.addEventListener("click", async (e) => {
     return;
   }
   if (act === "unblock") {
-    await freenet.setBlocked(btn.dataset.pk!, false);
+    await toggleBlockAuthor(btn.dataset.pk!);
     renderBlocklists();
-    renderTimeline();
     return;
   }
   if (!amGlobalMod()) return;
@@ -5709,6 +5749,11 @@ editProfileBtn.addEventListener("click", () => {
     modalBioInput.style.height = `${Math.max(110, Math.min(320, modalBioInput.scrollHeight + 6))}px`;
   }
   const me = currentIdentity?.pubkey;
+  if (modalHandleInput) modalHandleInput.value = (me && freenet.handleOf(me)) || "";
+  if (modalHandleStatus) {
+    const curH = me && freenet.handleOf(me);
+    modalHandleStatus.textContent = curH ? `Registered active handle: @${curH}` : "No handle registered yet.";
+  }
   modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
   fillWalletInputs(me ? freenet.walletsOf(me) : {});
   if (modalOrtoInput) modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
@@ -5860,10 +5905,46 @@ function applyProfile(updated: ProfileInfo) {
     display_name: updated.display_name,
     avatar_url: updated.avatar_url,
   };
+  if (sidebarHandle && currentIdentity) {
+    const myH = freenet.handleOf(currentIdentity.pubkey);
+    sidebarHandle.textContent = myH ? `@${myH}` : `@${shortenKey(personaName(currentIdentity.pubkey))}`;
+  }
   freenet.announceIdentity(currentIdentity, updated);
   renderTimeline();
   renderDiscoveredPeers();
 }
+
+modalHandleClaimBtn?.addEventListener("click", async () => {
+  if (!currentIdentity) return;
+  const val = modalHandleInput?.value.trim() || "";
+  if (!val) {
+    modalHandleClaimBtn.disabled = true;
+    try {
+      await freenet.releaseHandle(currentIdentity);
+      if (modalHandleStatus) modalHandleStatus.textContent = "Handle released.";
+      if (sidebarHandle) sidebarHandle.textContent = `@${shortenKey(personaName(currentIdentity.pubkey))}`;
+      showToast("Handle released.", "info");
+    } finally {
+      modalHandleClaimBtn.disabled = false;
+    }
+    return;
+  }
+  modalHandleClaimBtn.disabled = true;
+  try {
+    const res = await freenet.claimHandle(currentIdentity, val);
+    if (res.success) {
+      const norm = normalizeHandle(val);
+      if (modalHandleStatus) modalHandleStatus.textContent = `Registered active handle: @${norm}`;
+      if (sidebarHandle) sidebarHandle.textContent = `@${norm}`;
+      showToast(`Handle @${norm} registered!`, "info");
+    } else {
+      if (modalHandleStatus) modalHandleStatus.textContent = res.error || "Could not claim handle.";
+      showToast(res.error || "Could not claim handle", "error");
+    }
+  } finally {
+    modalHandleClaimBtn.disabled = false;
+  }
+});
 
 modalSaveBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
@@ -5892,6 +5973,21 @@ modalSaveBtn.addEventListener("click", async () => {
 
   try {
     const updated = await freenet.updateProfile(currentIdentity, name, bio, avatar);
+
+    const desiredHandle = modalHandleInput?.value.trim() || "";
+    const currentHandle = freenet.handleOf(me) || "";
+    if (desiredHandle !== currentHandle) {
+      if (desiredHandle) {
+        const hRes = await freenet.claimHandle(currentIdentity, desiredHandle);
+        if (!hRes.success) {
+          showToast(hRes.error || "Could not claim handle", "warning");
+        } else {
+          showToast(`Handle @${normalizeHandle(desiredHandle)} registered!`, "info");
+        }
+      } else {
+        await freenet.releaseHandle(currentIdentity);
+      }
+    }
     if (
       shouldPersistProfileField({
         dirty: modalDirtyFields.has("delta"),
@@ -6069,7 +6165,11 @@ async function renderNames(pubkey: string) {
           .join("")}</div>` +
       `</div>`
     : "";
-  uviewNames.innerHTML = names
+  const h = freenet.handleOf(pubkey);
+  const handleHtml = h
+    ? `<span class="fn-name" style="background:var(--accent-tint, rgba(56,189,248,0.12));color:var(--accent,#38bdf8);border:1px solid var(--border);" title="Radica Handle">@${escapeHtml(h)}</span>`
+    : "";
+  uviewNames.innerHTML = handleHtml + names
     .map((n) => `<a class="fn-name" href="${escapeHtml(nameHref(origin, n))}" target="_blank" rel="noopener noreferrer" title="Name on FreeNames">fn:${escapeHtml(n)}</a>`)
     .join("");
 }
@@ -7867,6 +7967,7 @@ const messengerChat = createMessengerChat({
   },
   onOpenIdentity: openIdentityModal,
   onOpenEditProfile: () => editProfileBtn?.click(),
+  onOpenBlocklists: () => document.getElementById("blocklists-open-btn")?.click(),
   onOpenSettings: openSettingsModal,
   isPickingFile: () => isPickingFile(),
   markPickingFile: (ms?: number) => markPickingFile(ms),
@@ -14165,8 +14266,9 @@ async function init() {
   renderMyPohBadges();
   setProfileBio(sidebarBio, currentProfile?.bio, "No bio yet.");
   if (sidebarHandle) {
-    sidebarHandle.textContent = `@${shortPersona}`;
-    sidebarHandle.title = `Persona: ${personaBase58}\nClick to open my profile`;
+    const myH = freenet.handleOf(currentIdentity.pubkey);
+    sidebarHandle.textContent = myH ? `@${myH}` : `@${shortPersona}`;
+    sidebarHandle.title = myH ? `Handle: @${myH}\nPersona: ${personaBase58}\nClick to open my profile` : `Persona: ${personaBase58}\nClick to open my profile`;
   }
   sidebarAvatar.src = composerAvatar.src = currentProfile?.avatar_url || generateDefaultAvatar(currentIdentity.pubkey);
   sidebarAvatar.onerror = composerAvatar.onerror = function (this: HTMLImageElement) {

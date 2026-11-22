@@ -223,9 +223,9 @@ export function detectMentionTrigger(textBeforeCaret: string): { at: number; que
   return m ? { at: textBeforeCaret.length - m[1].length - 1, query: m[1] } : null;
 }
 
-/** The mention candidates whose display name contains `query` (case-insensitive), nearest-typed-first order kept, capped. */
-export function filterMentionCandidates<T extends { name: string }>(candidates: T[], query: string, limit = 8): T[] {
+/** The mention candidates whose display name or handle contains `query` (case-insensitive), nearest-typed-first order kept, capped. */
+export function filterMentionCandidates<T extends { name: string; handle?: string }>(candidates: T[], query: string, limit = 8): T[] {
   const q = query.toLowerCase();
-  return candidates.filter((c) => c.name.toLowerCase().includes(q)).slice(0, limit);
+  return candidates.filter((c) => c.name.toLowerCase().includes(q) || (c.handle && c.handle.toLowerCase().includes(q))).slice(0, limit);
 }
 

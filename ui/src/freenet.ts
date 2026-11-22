@@ -66,7 +66,7 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
 
 function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
@@ -545,6 +545,7 @@ export class FreenetClient {
       void this.refreshLog("delegations", true);
       void this.refreshLog("supporter-receipts", true);
       void this.refreshLog("post-edits", true);
+      void this.refreshLog("handles", true);
     } catch (err) {
       console.warn("[Freenet] Could not connect to the Freenet node, using local storage only:", err);
       this.isConnected = false;
@@ -956,6 +957,71 @@ export class FreenetClient {
     const raw = localStorage.getItem("freenet_log_communities");
     if (this.communitiesFold?.raw !== raw) this.communitiesFold = { raw, list: foldCommunities(this.logEntries("communities"), GENESIS) };
     return this.communitiesFold.list;
+  }
+
+  private handlesFold?: { raw: string | null; byHandle: Map<string, string>; byPubkey: Map<string, string> };
+
+  public getHandlesFold(): { byHandle: Map<string, string>; byPubkey: Map<string, string> } {
+    const raw = localStorage.getItem("freenet_log_handles");
+    if (this.handlesFold?.raw !== raw) {
+      const folded = foldHandles(this.logEntries("handles"));
+      this.handlesFold = { raw, ...folded };
+    }
+    return this.handlesFold;
+  }
+
+  /** Resolves a human-readable Radica handle ("@alice" or "alice") to its 64-hex public key, or null if unclaimed. */
+  public resolveHandle(query: string | null | undefined): string | null {
+    const h = normalizeHandle(query);
+    if (!h) return null;
+    return this.getHandlesFold().byHandle.get(h) ?? null;
+  }
+
+  /** Looks up the registered Radica handle for a 64-hex public key, returning e.g. "alice" without "@", or null if none. */
+  public handleOf(pubkey: string | null | undefined): string | null {
+    if (!pubkey) return null;
+    return this.getHandlesFold().byPubkey.get(pubkey.toLowerCase()) ?? null;
+  }
+
+  /** Returns all registered Radica handles mapped to their owner 64-hex pubkeys. */
+  public allHandles(): Map<string, string> {
+    return new Map(this.getHandlesFold().byHandle);
+  }
+
+  /** Claims a Radica @handle for the current identity. Checks format, availability, and appends to the "handles" log. */
+  public async claimHandle(identity: UserIdentity, handle: string): Promise<{ success: boolean; error?: string }> {
+    const norm = normalizeHandle(handle);
+    if (!norm) {
+      return {
+        success: false,
+        error: "Invalid handle format. Must be 3-20 lowercase alphanumeric characters or underscores (a-z, 0-9, _).",
+      };
+    }
+    if (RESERVED_HANDLES.has(norm)) {
+      return { success: false, error: `Handle @${norm} is reserved.` };
+    }
+
+    if (this.isConnected) {
+      await this.refreshLog("handles", true).catch(() => {});
+    }
+
+    const { byHandle } = this.getHandlesFold();
+    const existing = byHandle.get(norm);
+    if (existing && existing.toLowerCase() !== identity.pubkey.toLowerCase()) {
+      return { success: false, error: `@${norm} is already claimed by another user.` };
+    }
+
+    await this.logAppend("handles", { type: "handle_claim", handle: norm }, { flush: true });
+    this.handlesFold = undefined;
+    this.notifyListeners();
+    return { success: true };
+  }
+
+  /** Releases the current identity's claimed Radica handle. */
+  public async releaseHandle(identity: UserIdentity): Promise<void> {
+    await this.logAppend("handles", { type: "handle_release" }, { flush: true });
+    this.handlesFold = undefined;
+    this.notifyListeners();
   }
 
   private saveLog(name: string, entries: LogEntry[]): void {
@@ -2046,6 +2112,8 @@ export class FreenetClient {
       const author = name.slice("reactions/".length);
       this.reactionFolds.delete(author);
       this.postDislikeFolds.delete(author);
+    } else if (name === "handles") {
+      this.handlesFold = undefined;
     }
   }
 

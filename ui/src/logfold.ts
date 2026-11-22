@@ -821,7 +821,11 @@ const STATE_SUBJECT: Record<string, (b: any) => unknown> = {
   room_hide: (b) => b.roomId,
   river_access: (b) => b.roomId,
   dm_ref: (b) => b.room, // "a conversation of mine changed": one per conversation and author
+  handle_claim: () => "",
+  handle_release: () => "",
 };
+
+export { foldHandles, normalizeHandle, formatHandle, isValidHandle, RESERVED_HANDLES } from "./handles.ts";
 
 /** The id an author writes state under, the same for every write about one subject: the log contract keeps the
  *  newest entry under a key, so the log holds one per subject instead of one per write. Short enough for any subject
