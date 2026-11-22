@@ -14,6 +14,7 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - run: npm ci --prefix ui
+      - run: npm ci --prefix attester
       - run: npm run build:ui
       - name: UI smoke tests (Playwright)
         working-directory: ui
@@ -27,5 +28,4 @@ jobs:
       - run: npm ci --prefix donate-app
       - run: npm --prefix donate-app test
       - run: npm --prefix donate-app run build
-      - run: npm ci --prefix attester
       - run: npm --prefix attester test
