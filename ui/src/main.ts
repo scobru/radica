@@ -143,6 +143,7 @@ import { generateDefaultAvatar, compressAvatarFile, compressPostImageFile } from
 const isMessengerApp = (() => {
   try {
     if (document.documentElement.getAttribute("data-app-mode") === "messenger") return true;
+    if ((globalThis as unknown as { __radica_app_mode?: string }).__radica_app_mode === "messenger") return true;
     const bridge = (globalThis as { __radicaNative?: { getAppMode?: () => string; isMessenger?: () => boolean } }).__radicaNative;
     if (bridge) {
       try {
@@ -7231,15 +7232,13 @@ function setChatFullscreen(on: boolean) {
 
 window.addEventListener("message", (e) => {
   if (e.data && e.data.type === "radica_set_app_mode" && e.data.mode === "messenger") {
-    if (document.documentElement.getAttribute("data-app-mode") !== "messenger") {
-      document.documentElement.setAttribute("data-app-mode", "messenger");
-      document.title = "Radica Messenger";
-      safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
-      setChatFullscreen(true);
-      if (!isOpen(chatModal)) {
-        if (chatModal.dataset.messengerReady) chatModal.style.display = "flex";
-        else openChatBtn.click();
-      }
+    document.documentElement.setAttribute("data-app-mode", "messenger");
+    document.title = "Radica Messenger";
+    safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
+    setChatFullscreen(true);
+    if (!isOpen(chatModal)) {
+      if (chatModal.dataset.messengerReady) chatModal.style.display = "flex";
+      else openChatBtn.click();
     }
   }
 });

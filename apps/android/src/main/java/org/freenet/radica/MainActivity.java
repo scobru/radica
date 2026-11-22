@@ -27,11 +27,15 @@ import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 /**
  * Radica web, served by the Freenet node on this phone. Android has no Freenet of its own: the node comes from
@@ -308,6 +312,133 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    private static boolean isLikelyHtmlUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        String path = url.split("\\?")[0].split("#")[0].toLowerCase();
+        if (path.endsWith(".js") || path.endsWith(".css") || path.endsWith(".png")
+                || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif")
+                || path.endsWith(".svg") || path.endsWith(".webp") || path.endsWith(".ico")
+                || path.endsWith(".wasm") || path.endsWith(".woff") || path.endsWith(".woff2")
+                || path.endsWith(".ttf") || path.endsWith(".eot") || path.endsWith(".json")
+                || path.endsWith(".map") || path.endsWith(".mp3") || path.endsWith(".mp4")
+                || path.endsWith(".webm") || path.endsWith(".wav") || path.endsWith(".ogg")) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isLikelyHtmlRequest(WebResourceRequest req, String url) {
+        if (req.isForMainFrame()) return true;
+        if (isSubframeDocumentRequest(req)) return true;
+        String clean = url.split("\\?")[0].split("#")[0];
+        if (clean.endsWith("/") || clean.endsWith(".html") || url.contains("__sandbox=1")) return true;
+        Map<String, String> headers = req.getRequestHeaders();
+        if (headers != null) {
+            for (Map.Entry<String, String> e : headers.entrySet()) {
+                if ("Accept".equalsIgnoreCase(e.getKey()) && e.getValue() != null && e.getValue().toLowerCase().contains("text/html")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static byte[] readFully(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            out.write(buf, 0, n);
+        }
+        return out.toByteArray();
+    }
+
+    private WebResourceResponse tryInjectMessengerDocument(WebResourceRequest req, String urlStr) {
+        if (req.getMethod() != null && !"GET".equalsIgnoreCase(req.getMethod())) return null;
+        if (!isLikelyHtmlUrl(urlStr) || !isLikelyHtmlRequest(req, urlStr)) return null;
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(2500);
+            conn.setReadTimeout(4000);
+            conn.setInstanceFollowRedirects(true);
+            Map<String, String> reqHeaders = req.getRequestHeaders();
+            if (reqHeaders != null) {
+                for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
+                    String k = entry.getKey();
+                    if (k != null && !"Accept-Encoding".equalsIgnoreCase(k)) {
+                        conn.setRequestProperty(k, entry.getValue());
+                    }
+                }
+            }
+            conn.setRequestProperty("Accept-Encoding", "identity");
+            conn.connect();
+            int code = conn.getResponseCode();
+            if (code != 200) return null;
+            InputStream in = conn.getInputStream();
+            String encoding = conn.getContentEncoding();
+            if ("gzip".equalsIgnoreCase(encoding)) {
+                in = new GZIPInputStream(in);
+            }
+            byte[] raw = readFully(in);
+            String html = new String(raw, StandardCharsets.UTF_8);
+            String lower = html.toLowerCase();
+            if (!lower.contains("<html") && !lower.contains("<!doctype")) {
+                return null;
+            }
+            String script = "<script>" +
+                    "try{" +
+                    "document.documentElement.setAttribute('data-app-mode','messenger');" +
+                    "window.__radica_app_mode='messenger';" +
+                    "window.__radicaNative=window.__radicaNative||{};" +
+                    "window.__radicaNative.getAppMode=function(){return'messenger';};" +
+                    "window.__radicaNative.isMessenger=function(){return true;};" +
+                    "}catch(e){}" +
+                    "</script>";
+            String modified;
+            if (html.contains("<head>")) {
+                modified = html.replaceFirst("<head>", "<head>" + script);
+            } else if (html.contains("<html")) {
+                modified = html.replaceFirst("(<html[^>]*>)", "$1" + script);
+            } else {
+                modified = script + html;
+            }
+            if (modified.contains("<html") && !modified.contains("data-app-mode=")) {
+                modified = modified.replaceFirst("(<html[^>]*)(>)", "$1 data-app-mode=\"messenger\"$2");
+            }
+            byte[] outBytes = modified.getBytes(StandardCharsets.UTF_8);
+            Map<String, String> responseHeaders = new HashMap<>();
+            Map<String, List<String>> fields = conn.getHeaderFields();
+            if (fields != null) {
+                for (Map.Entry<String, List<String>> e : fields.entrySet()) {
+                    String k = e.getKey();
+                    if (k != null && e.getValue() != null && !e.getValue().isEmpty()) {
+                        if (!"content-length".equalsIgnoreCase(k) && !"content-encoding".equalsIgnoreCase(k)) {
+                            responseHeaders.put(k, e.getValue().get(0));
+                        }
+                    }
+                }
+            }
+            responseHeaders.put("content-type", "text/html; charset=utf-8");
+            return new WebResourceResponse(
+                    "text/html",
+                    "utf-8",
+                    200,
+                    "OK",
+                    responseHeaders,
+                    new ByteArrayInputStream(outBytes)
+            );
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (conn != null) {
+                try { conn.disconnect(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
     /** Radica runs in a sandboxed iframe the node's shell serves (no `allow-same-origin`): `window.localStorage`
      *  throws there, and storage.ts's fallback (`window.name` + URL hash) is lost whenever this app is closed and
      *  reopened (a new Activity means a new WebView, so a fresh, empty `window.name`). addJavascriptInterface
@@ -361,18 +492,25 @@ public class MainActivity extends Activity {
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             if (isMessengerApp()) {
-                view.evaluateJavascript(
-                    "(function() {" +
-                    "  try {" +
-                    "    document.documentElement.setAttribute('data-app-mode', 'messenger');" +
-                    "    var frames = document.getElementsByTagName('iframe');" +
-                    "    for (var i = 0; i < frames.length; i++) {" +
-                    "      try { frames[i].contentWindow.postMessage({ type: 'radica_set_app_mode', mode: 'messenger' }, '*'); } catch(e){}" +
-                    "    }" +
-                    "  } catch(e){}" +
-                    "})()",
-                    null
-                );
+                Runnable postMode = () -> {
+                    try {
+                        view.evaluateJavascript(
+                            "(function() {" +
+                            "  try {" +
+                            "    document.documentElement.setAttribute('data-app-mode', 'messenger');" +
+                            "    var frames = document.getElementsByTagName('iframe');" +
+                            "    for (var i = 0; i < frames.length; i++) {" +
+                            "      try { frames[i].contentWindow.postMessage({ type: 'radica_set_app_mode', mode: 'messenger' }, '*'); } catch(e){}" +
+                            "    }" +
+                            "  } catch(e){}" +
+                            "})()",
+                            null
+                        );
+                    } catch (Exception ignored) {}
+                };
+                postMode.run();
+                main.postDelayed(postMode, 600);
+                main.postDelayed(postMode, 1500);
             }
         }
 
@@ -395,6 +533,10 @@ public class MainActivity extends Activity {
                         java.util.Collections.emptyMap(),
                         new ByteArrayInputStream("Forbidden subframe navigation".getBytes(StandardCharsets.UTF_8))
                 );
+            }
+            if (isMessengerApp() && isRadicaUrl(url)) {
+                WebResourceResponse injected = tryInjectMessengerDocument(req, url);
+                if (injected != null) return injected;
             }
             return super.shouldInterceptRequest(view, req);
         }
