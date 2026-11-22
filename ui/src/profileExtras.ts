@@ -48,15 +48,21 @@ export function backupOwnProfileExtras(
   store.setItem(`${PROFILE_EXTRAS_BACKUP_PREFIX}${pubkey}`, JSON.stringify(out));
 }
 
+const HEX64_RE = /^[0-9a-f]{64}$/i;
+const HEX128_RE = /^[0-9a-f]{128}$/i;
+
 function isValidLogEntry(e: unknown): e is LogEntry {
   if (!e || typeof e !== "object") return false;
   const r = e as Record<string, unknown>;
   return (
     typeof r.author === "string" &&
+    HEX64_RE.test(r.author) &&
     typeof r.id === "string" &&
     typeof r.ts === "number" &&
+    Number.isFinite(r.ts) &&
     typeof r.body === "string" &&
-    typeof r.sig === "string"
+    typeof r.sig === "string" &&
+    HEX128_RE.test(r.sig)
   );
 }
 

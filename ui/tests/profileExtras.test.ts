@@ -16,7 +16,7 @@ import type { LogEntry } from "../src/logfold.ts";
 const ALICE = "a".repeat(64);
 const BOB = "b".repeat(64);
 
-function makeEntry(author: string, id: string, ts: number, bodyObj: object, sig = `sig_${ts}`): LogEntry {
+function makeEntry(author: string, id: string, ts: number, bodyObj: object, sig = "ab".repeat(64)): LogEntry {
   return { author, id, ts, body: JSON.stringify(bodyObj), sig };
 }
 
@@ -116,5 +116,31 @@ test("profileExtras: shouldPersistProfileField refuses clearing an unloaded fiel
     shouldPersistProfileField({ dirty: false, loaded: true, nextValue: "", currentValue: "savedblog" }),
     true,
     "confirmed loaded state allows clearing"
+  );
+});
+
+test("profileExtras: restoreOwnProfileExtras rejects malformed signatures, authors, or timestamps", () => {
+  const mkStore = (backup: unknown) => {
+    const map = new Map<string, string>([[`${PROFILE_EXTRAS_BACKUP_PREFIX}${ALICE}`, JSON.stringify(backup)]]);
+    return {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+    };
+  };
+
+  assert.equal(
+    restoreOwnProfileExtras(mkStore({ wallets: { author: ALICE, id: "w1", ts: 1000, body: "{}", sig: "short_sig" } }), ALICE),
+    false,
+    "non-128-hex signature must be rejected"
+  );
+  assert.equal(
+    restoreOwnProfileExtras(mkStore({ wallets: { author: BOB, id: "w1", ts: 1000, body: "{}", sig: "ab".repeat(64) } }), ALICE),
+    false,
+    "mismatched author must be rejected"
+  );
+  assert.equal(
+    restoreOwnProfileExtras(mkStore({ wallets: { author: ALICE, id: "w1", ts: Number.NaN, body: "{}", sig: "ab".repeat(64) } }), ALICE),
+    false,
+    "non-finite timestamp must be rejected"
   );
 });

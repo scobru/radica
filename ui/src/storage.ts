@@ -40,6 +40,7 @@ const SENSITIVE_STORAGE_PREFIXES = [
   "freenet_room_key_",
   "radica_fmail_store_",
   "radica_secret_",
+  "radica_profile_extras_",
   "radica_hidden_users",
   "radica_trusted_blocklists",
   "radica_poh_",

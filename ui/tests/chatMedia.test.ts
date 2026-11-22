@@ -347,7 +347,7 @@ test("chatMedia: syncMiniPlayerSlot docks player bar under active header and nev
   const inboxSlot = { id: "rm-inbox-player-slot", appendChild(el: any) { el.parentElement = this; } };
   const feedSlot = { id: "feed-player-slot", appendChild(el: any) { el.parentElement = this; } };
   const chatModal = { id: "chat-modal", style: { display: "flex" }, dataset: { chatLayout: "messenger" } };
-  const workspace = { id: "rm-workspace", classList: { contains: (c: string) => c === "mobile-thread-open" } };
+  const workspace = { id: "rm-workspace", classList: { contains: (c: string) => c === "mobile-thread-open" }, querySelector: () => null };
 
   const prevDoc = (globalThis as any).document;
   const prevWin = (globalThis as any).window;

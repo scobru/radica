@@ -297,3 +297,36 @@ test("foldRoomState + roomJoinProofs + decryptRoomKey support moderator-invited 
   assert.ok(kicked && !kicked.members.includes(botPk) && !kicked.moderators.includes(botPk));
   assert.equal(kicked.gardener_enc_pub, undefined);
 });
+
+test("foldRoomState + roomJoinProofs enforce maintainerPk on room_gardener and update joined keys on room_kick", () => {
+  const creator = A, otherMod = "22".repeat(32), maint = B, botPk = "ee".repeat(32), user = "33".repeat(32), mallory = "44".repeat(32);
+  const le = (author, ts, body, id = `e${ts}`) => ({ author, id, ts, body: JSON.stringify(body) });
+
+  const entries = [
+    le(creator, 1, { type: "private_room", room: { id: "privroom_m", creator, members: [creator, otherMod, maint], moderators: [otherMod, maint], encrypted_keys: {} } }),
+    le(otherMod, 2, { type: "room_gardener", roomId: "privroom_m", on: true, target: botPk, encrypted_key: "spoof" }),
+  ];
+  const denied = foldRoomState(entries, "privroom_m", botPk, maint);
+  assert.equal(denied.members.includes(botPk), false);
+  assert.equal(roomJoinProofs(entries, "privroom_m", maint).creatorListed.has(botPk), false);
+
+  const allowedEntries = [
+    ...entries,
+    le(maint, 3, { type: "room_gardener", roomId: "privroom_m", on: true, target: botPk, encrypted_key: "real_k", inviter_enc_pub: maint }),
+  ];
+  const allowed = foldRoomState(allowedEntries, "privroom_m", botPk, maint);
+  assert.equal(allowed.members.includes(botPk), true);
+  assert.equal(allowed.encrypted_keys[botPk], "real_k");
+  assert.equal(roomJoinProofs(allowedEntries, "privroom_m", maint).creatorListed.has(botPk), true);
+
+  const rotateEntries = [
+    le(creator, 1, { type: "private_room", room: { id: "privroom_r", creator, members: [creator], moderators: [], encrypted_keys: { [creator]: "c1" } } }),
+    le(user, 2, { type: "room_join", roomId: "privroom_r", encrypted_key: "u_old" }),
+    le(mallory, 3, { type: "room_join", roomId: "privroom_r", encrypted_key: "m_old" }),
+    le(creator, 4, { type: "room_kick", roomId: "privroom_r", target: mallory, name_encrypted: "n2", encrypted_keys: { [creator]: "c2", [user]: "u_rotated" } }),
+    le(creator, 5, { type: "private_room", room: { id: "privroom_r", creator, members: [creator], moderators: [], encrypted_keys: { [creator]: "c2" } } }),
+  ];
+  const rotated = foldRoomState(rotateEntries, "privroom_r", botPk, maint);
+  assert.deepEqual(rotated.members, [creator, user]);
+  assert.equal(rotated.encrypted_keys[user], "u_rotated");
+});

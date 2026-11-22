@@ -341,7 +341,7 @@ async function roomModPass(api, modSk, modPk, mod, globalProtected, b) {
     if (b.requestsLeft <= 0 || b.reportsLeft <= 0) break;
     const roomEntries = await getEntries(api, `room/${roomId}`);
     if (!roomEntries) continue;
-    const room = foldRoomState(roomEntries, roomId, botLow);
+    const room = foldRoomState(roomEntries, roomId, botLow, ownerLow);
     const ownerAuthorized = !!room && (room.creator === ownerLow || room.moderators.includes(ownerLow));
     if (!room || !ownerAuthorized || room.river || room.is_channel || !room.members.includes(botLow) || !room.moderators.includes(botLow)) {
       continue;
@@ -384,7 +384,7 @@ async function roomModPass(api, modSk, modPk, mod, globalProtected, b) {
             await append(api, `room/${room.id}`, await signEntry(modSk, `room/${room.id}`, APP, { type: "chat_delete", roomId: room.id, messageId: msg.msgId }));
 
             const entryList = Object.values(roomEntries);
-            const { creatorListed, joinProofs } = roomJoinProofs(entryList, room.id);
+            const { creatorListed, joinProofs } = roomJoinProofs(entryList, room.id, ownerLow);
             const legacyProvenJoiners = new Set();
             for (const le of entryList) {
               const s = String(le?.author ?? "").toLowerCase();

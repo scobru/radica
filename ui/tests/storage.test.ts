@@ -306,3 +306,37 @@ test("safeStorage: ignores #auth_state completely when real localStorage is avai
     safeStorage.clear();
   }
 });
+
+test("safeStorage: excludes radica_profile_extras_ from #auth_state= and rejects forged hash injection in sandbox", () => {
+  const origLocalStorage = (globalThis as any).localStorage;
+  const me = "22".repeat(32);
+  const extrasKey = `radica_profile_extras_${me}`;
+  const forged = JSON.stringify({ wallets: { author: me, id: "x", ts: 9999999999999, body: '{"btc":"1Attacker"}', sig: "aa".repeat(64) } });
+  try {
+    Object.defineProperty(globalThis, "localStorage", {
+      get() {
+        throw new DOMException("sandboxed", "SecurityError");
+      },
+      configurable: true,
+    });
+    (safeStorage as any).localStorageAvailable = null;
+    safeStorage.clear();
+    safeStorage.setItem(extrasKey, forged);
+    const { authObj } = safeStorage.computeBudgetedState();
+    assert.equal(authObj[extrasKey], undefined, "radica_profile_extras_ must never be serialized to #auth_state=");
+
+    safeStorage.clear();
+    const payload = Buffer.from(JSON.stringify({ [extrasKey]: forged, [`radica_profile_${me}`]: '{"display_name":"Ok"}' }), "utf8").toString("base64");
+    safeStorage.hydrateFromHashString(`#auth_state=${payload}`);
+    assert.equal(safeStorage.getItem(extrasKey), null, "radica_profile_extras_ must be rejected from #auth_state= in sandbox");
+    assert.equal(safeStorage.getItem(`radica_profile_${me}`), '{"display_name":"Ok"}');
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", {
+      value: origLocalStorage,
+      configurable: true,
+      writable: true,
+    });
+    (safeStorage as any).localStorageAvailable = null;
+    safeStorage.clear();
+  }
+});

@@ -316,6 +316,7 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
       delete joined[t];
       const keys: Record<string, string> = typeof b.encrypted_keys === "object" && b.encrypted_keys ? b.encrypted_keys : {};
       room.encrypted_keys = Object.fromEntries(Object.entries(keys).filter(([m]) => room!.members.includes(m)));
+      for (const m of Object.keys(joined)) joined[m] = room.encrypted_keys[m] ?? "";
       if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
       room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? b.keys_enc_pub : undefined;
       room.gardener_enc_pub = undefined;
@@ -323,7 +324,7 @@ export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | nul
       const t = norm(b.target);
       const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      if (!(byCreator || mods.includes(a)) || !AI_REPORTERS.some((g) => norm(g) === t)) continue;
+      if (a !== norm(RADICA_MAINTAINER) || !(byCreator || mods.includes(a)) || !AI_REPORTERS.some((g) => norm(g) === t)) continue;
       if (b.on === true) {
         kicked.delete(t);
         if (!room.members.includes(t)) room.members.push(t);
@@ -381,7 +382,7 @@ export function roomJoinProofs(
       if (typeof b.key_proof === "string" && /^[0-9a-f]{64}$/i.test(b.key_proof)) {
         joinProofs.set(a, b.key_proof.toLowerCase());
       }
-    } else if (b.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (a === creator || moderators.has(a)) && typeof b.target === "string") {
+    } else if (b.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && a === norm(RADICA_MAINTAINER) && (a === creator || moderators.has(a)) && typeof b.target === "string") {
       const t = norm(b.target);
       if (AI_REPORTERS.some((g) => norm(g) === t)) {
         creatorListed.add(t);

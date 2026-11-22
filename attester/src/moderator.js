@@ -318,11 +318,12 @@ export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
 }
 
 /** Fold `room/<id>` entries into the authoritative native PrivateRoom roster + encrypted_keys (mirrors ui/src/logfold.ts foldRoom). */
-export function foldRoomState(entries, roomId, gardenerPk = "") {
+export function foldRoomState(entries, roomId, gardenerPk = "", maintainerPk = "") {
   let room = null;
   const kicked = new Set();
   const joined = {};
   const gardenerNorm = normHex(gardenerPk);
+  const maintNorm = normHex(maintainerPk);
   const gardenerSet = new Set(HEX64_RE.test(gardenerNorm) ? [gardenerNorm] : []);
   for (const { e, b } of sortedParsed(entries)) {
     const a = normHex(e?.author);
@@ -351,7 +352,7 @@ export function foldRoomState(entries, roomId, gardenerPk = "") {
       const t = normHex(b.target);
       const byCreator = a === room.creator;
       const mods = room.moderators ?? [];
-      if (!(byCreator || mods.includes(a)) || !HEX64_RE.test(t) || (gardenerNorm && t !== gardenerNorm)) continue;
+      if ((maintNorm && a !== maintNorm) || !(byCreator || mods.includes(a)) || !HEX64_RE.test(t) || (gardenerNorm && t !== gardenerNorm)) continue;
       if (b.on === true) {
         gardenerSet.add(t);
         kicked.delete(t);
@@ -383,6 +384,7 @@ export function foldRoomState(entries, roomId, gardenerPk = "") {
         }
       }
       room.encrypted_keys = keys;
+      for (const m of Object.keys(joined)) joined[m] = typeof keys[m] === "string" ? keys[m] : "";
       if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
       room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? normHex(b.keys_enc_pub) : undefined;
       delete room.gardener_enc_pub;
@@ -392,10 +394,11 @@ export function foldRoomState(entries, roomId, gardenerPk = "") {
 }
 
 /** Creator-listed members and HMAC `key_proof` values from `room/<id>` entries (mirrors ui/src/logfold.ts roomJoinProofs). */
-export function roomJoinProofs(entries, roomId) {
+export function roomJoinProofs(entries, roomId, maintainerPk = "") {
   const creatorListed = new Set();
   const moderators = new Set();
   const joinProofs = new Map();
+  const maintNorm = normHex(maintainerPk);
   let creator = "";
   for (const { e, b } of sortedParsed(entries)) {
     const a = normHex(e?.author);
@@ -413,7 +416,7 @@ export function roomJoinProofs(entries, roomId) {
       }
     } else if (b?.type === "room_join" && b.roomId === roomId && creator) {
       if (HEX64_RE.test(String(b.key_proof ?? ""))) joinProofs.set(a, String(b.key_proof).toLowerCase());
-    } else if (b?.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (a === creator || moderators.has(a)) && typeof b.target === "string") {
+    } else if (b?.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (!maintNorm || a === maintNorm) && (a === creator || moderators.has(a)) && typeof b.target === "string") {
       const t = normHex(b.target);
       if (HEX64_RE.test(t)) {
         creatorListed.add(t);

@@ -286,7 +286,7 @@ test("ui improvements: clean Mail header, camera input, smooth tree, Markdown pr
   // 3. Living Tree pan/zoom mutates viewBox + CSS GPU transform instead of rebuilding SVG
   assert.match(treePageTs, /applySvgViewBoxOnly/);
   assert.match(treePageTs, /translate3d\(/);
-  assert.match(styleCss, /@media\s*\(max-width:\s*900px\),\s*\(pointer:\s*coarse\)[\s\S]*?\.tree-pulse[\s\S]*?animation:\s*none/);
+  assert.match(styleCss, /@media\s*\(max-width:\s*768px\),\s*\(pointer:\s*coarse\)[\s\S]*?\.tree-pulse[\s\S]*?animation:\s*none/);
 
   // 4. Single Post View modal and entry points from Communities + Feed
   for (const id of ["single-post-modal", "single-post-back-btn", "single-post-body", "single-post-jump-feed-btn"]) {
@@ -320,7 +320,7 @@ test("mobile polish: no sticky touch hover/active highlights and smooth mobile s
   );
   assert.match(
     chatCss,
-    /@media\s*\(max-width:\s*860px\),\s*\(pointer:\s*coarse\)[\s\S]*?#chat-modal\s+\.rm-conv-item\s*\{[^}]*content-visibility:\s*visible;/
+    /@media\s*\(max-width:\s*768px\),\s*\(pointer:\s*coarse\)[\s\S]*?#chat-modal\s+\.rm-conv-item\s*\{[^}]*content-visibility:\s*visible;/
   );
 
   assert.doesNotMatch(styleCss, /@media\s*\(max-width:\s*768px\)\s*\{[\s\S]*?\.rail\s*\{[^}]*backdrop-filter:/);

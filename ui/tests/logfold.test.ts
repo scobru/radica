@@ -749,24 +749,26 @@ test("logfold: founders, active community moderators, and RADICA_MAINTAINER (for
   assert.equal(canEditCommunity(afterMaintainer[0], mallory), false);
 });
 
-test("logfold: room moderator can add and kick The Gardener via room_gardener/room_kick without affecting human mods", () => {
+test("logfold: only RADICA_MAINTAINER as room creator/mod can add The Gardener, and room_kick rotates joined keys", () => {
   const bot = AI_REPORTERS[0].toLowerCase();
+  const maint = RADICA_MAINTAINER.toLowerCase();
   const inviterEnc = "ee".repeat(32);
   const baseRoom = {
     id: "privroom_g",
     creator: owner,
     name_encrypted: "sym:name",
-    members: [owner, mod, user],
-    moderators: [mod],
-    encrypted_keys: { [owner]: "ko", [mod]: "km", [user]: "ku" },
+    members: [owner, mod, maint, user],
+    moderators: [mod, maint],
+    encrypted_keys: { [owner]: "ko", [mod]: "km", [maint]: "kmt", [user]: "ku" },
     created_at: 1,
     sig: "",
   };
   const added = [
     entry(owner, 1, { type: "private_room", room: baseRoom }),
     entry(user, 2, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }), // non-mod ignored
-    entry(mod, 3, { type: "room_gardener", roomId: "privroom_g", on: true, target: mallory, encrypted_key: "kx" }), // non-Gardener target ignored
-    entry(mod, 4, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
+    entry(mod, 3, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kbad", inviter_enc_pub: "ff".repeat(32) }), // non-maintainer mod ignored
+    entry(maint, 4, { type: "room_gardener", roomId: "privroom_g", on: true, target: mallory, encrypted_key: "kx" }), // non-Gardener target ignored
+    entry(maint, 5, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
   ];
   const rAdded = foldRoom(added, "privroom_g")!;
   assert.equal(rAdded.members.includes(bot), true);
@@ -782,14 +784,26 @@ test("logfold: room moderator can add and kick The Gardener via room_gardener/ro
   // Moderator can kick The Gardener (rotating keys & clearing gardener_enc_pub), still cannot kick another human moderator
   const anotherMod = "99".repeat(32);
   const kickedLog = [
-    entry(owner, 1, { type: "private_room", room: { ...baseRoom, members: [owner, mod, anotherMod, user], moderators: [mod, anotherMod] } }),
-    entry(mod, 2, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
+    entry(owner, 1, { type: "private_room", room: { ...baseRoom, members: [owner, mod, maint, anotherMod, user], moderators: [mod, maint, anotherMod] } }),
+    entry(maint, 2, { type: "room_gardener", roomId: "privroom_g", on: true, target: bot, encrypted_key: "kb", inviter_enc_pub: inviterEnc }),
     entry(mod, 3, { type: "room_kick", roomId: "privroom_g", target: anotherMod, name_encrypted: "n", encrypted_keys: {}, keys_enc_pub: mod }), // ignored
-    entry(mod, 4, { type: "room_kick", roomId: "privroom_g", target: bot, name_encrypted: "n2", encrypted_keys: { [owner]: "ko2", [mod]: "km2", [anotherMod]: "ka2", [user]: "ku2" }, keys_enc_pub: mod }),
+    entry(mod, 4, { type: "room_kick", roomId: "privroom_g", target: bot, name_encrypted: "n2", encrypted_keys: { [owner]: "ko2", [mod]: "km2", [maint]: "kmt2", [anotherMod]: "ka2", [user]: "ku2" }, keys_enc_pub: mod }),
   ];
   const rKicked = foldRoom(kickedLog, "privroom_g")!;
   assert.equal(rKicked.members.includes(anotherMod), true);
   assert.equal(rKicked.members.includes(bot), false);
   assert.equal(rKicked.moderators?.includes(bot), false);
   assert.equal(rKicked.gardener_enc_pub, undefined);
+
+  // A link-joiner's cached key in `joined` is updated on room_kick so a later private_room snapshot cannot resurrect the old key
+  const joinRotateLog = [
+    entry(owner, 1, { type: "private_room", room: { ...baseRoom, members: [owner], moderators: [], encrypted_keys: { [owner]: "ko1" } } }),
+    entry(user, 2, { type: "room_join", roomId: "privroom_g", encrypted_key: "ku_old" }),
+    entry(mallory, 3, { type: "room_join", roomId: "privroom_g", encrypted_key: "km_old" }),
+    entry(owner, 4, { type: "room_kick", roomId: "privroom_g", target: mallory, name_encrypted: "n2", encrypted_keys: { [owner]: "ko2", [user]: "ku_rotated" } }),
+    entry(owner, 5, { type: "private_room", room: { ...baseRoom, members: [owner], moderators: [], encrypted_keys: { [owner]: "ko2" } } }),
+  ];
+  const rRotated = foldRoom(joinRotateLog, "privroom_g")!;
+  assert.deepEqual(rRotated.members, [owner, user]);
+  assert.equal(rRotated.encrypted_keys[user], "ku_rotated");
 });

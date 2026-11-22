@@ -1863,29 +1863,43 @@ export class FreenetClient {
   }
 
   /** Merge the network's entries of a log with ours, rebuild what it feeds, and send what only we have. */
+  private verifiedLogEntries = new WeakMap<LogEntry, string>();
+
   private async takeLog(name: string, remote: Record<string, LogEntry>): Promise<void> {
+    const entryMsg = (e: LogEntry) =>
+      e.v === 2 ? logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce ?? 0) : formatLogEntryMessage(name, e.author, e.id, e.ts, e.body);
     const local = this.logEntries(name);
-    const localByKey = new Map(local.map((e) => [`${e.author}:${e.id}`, e]));
+    const verifiedLocal: LogEntry[] = [];
+    const localByKey = new Map<string, LogEntry>();
+    for (const e of local) {
+      if (!e || typeof e.author !== "string" || typeof e.id !== "string" || typeof e.ts !== "number" || typeof e.body !== "string") continue;
+      // ponytail: verify local entries too (cached per object+log) so unverified storage never overrides verified remote state
+      const ok = this.verifiedLogEntries.get(e) === name || (await verifyAuthorSignature(entryMsg(e), e.sig, e.author, e.cert));
+      if (ok) {
+        this.verifiedLogEntries.set(e, name);
+        verifiedLocal.push(e);
+        localByKey.set(`${e.author}:${e.id}`, e);
+      }
+    }
     const checkedRemote: Record<string, LogEntry> = {};
     for (const [k, e] of Object.entries(remote)) {
-      if (!e || k !== `${e.author}:${e.id}`) continue;
+      if (!e || k !== `${e.author}:${e.id}` || typeof e.ts !== "number" || typeof e.body !== "string") continue;
       const cur = localByKey.get(k);
-      if (cur && cur.sig === e.sig && cur.ts === e.ts && cur.body === e.body) {
+      if (cur && cur.sig === e.sig && cur.ts === e.ts && cur.body === e.body && cur.v === e.v && cur.nonce === e.nonce) {
         checkedRemote[k] = e;
         continue;
       }
-      const msg = e.v === 2 ? logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce ?? 0) : formatLogEntryMessage(name, e.author, e.id, e.ts, e.body);
-      if (await verifyAuthorSignature(msg, e.sig, e.author, e.cert)) {
+      if (await verifyAuthorSignature(entryMsg(e), e.sig, e.author, e.cert)) {
         checkedRemote[k] = e;
       }
     }
     // what only we have, or a newer state entry under a key the network holds an older one of (as the contract decides)
-    const missing = local.filter((e) => {
+    const missing = verifiedLocal.filter((e) => {
       const r = checkedRemote[`${e.author}:${e.id}`];
       return !r || e.ts > r.ts || (e.ts === r.ts && e.sig > r.sig);
     });
     const remoteCount = Object.keys(checkedRemote).length;
-    if (missing.length === 0 && local.length === remoteCount) {
+    if (missing.length === 0 && verifiedLocal.length === remoteCount && verifiedLocal.length === local.length) {
       this.unsentLogs.delete(name);
       return;
     }
