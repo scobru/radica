@@ -18,10 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: radica-linux-x86_64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: radica-windows-x86_64 }
-          - { os: macos-latest, target: aarch64-apple-darwin, name: radica-macos-arm64 }
-          - { os: macos-latest, target: x86_64-apple-darwin, name: radica-macos-x86_64 }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: radica-linux-x86_64, messenger_name: radica-messenger-linux-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: radica-windows-x86_64, messenger_name: radica-messenger-windows-x86_64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: radica-macos-arm64, messenger_name: radica-messenger-macos-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: radica-macos-x86_64, messenger_name: radica-messenger-macos-x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -35,43 +35,55 @@ jobs:
           targets: ${{ matrix.target }}
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
-      - run: cargo build --release --locked --manifest-path apps/Cargo.toml -p radica-desktop --target ${{ matrix.target }}
+      - run: cargo build --release --locked --manifest-path apps/Cargo.toml -p radica-desktop --bins --target ${{ matrix.target }}
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: tar -czf ${{ matrix.name }}.tar.gz -C apps/target/${{ matrix.target }}/release radica
+        run: |
+          tar -czf ${{ matrix.name }}.tar.gz -C apps/target/${{ matrix.target }}/release radica
+          tar -czf ${{ matrix.messenger_name }}.tar.gz -C apps/target/${{ matrix.target }}/release radica-messenger
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path apps/target/${{ matrix.target }}/release/radica.exe -DestinationPath ${{ matrix.name }}.zip
-      - name: Package (macOS app bundle)
+        run: |
+          Compress-Archive -Path apps/target/${{ matrix.target }}/release/radica.exe -DestinationPath ${{ matrix.name }}.zip
+          Compress-Archive -Path apps/target/${{ matrix.target }}/release/radica-messenger.exe -DestinationPath ${{ matrix.messenger_name }}.zip
+      - name: Package (macOS app bundles)
         if: runner.os == 'macOS'
         run: |
-          app=Radica.app/Contents
-          mkdir -p $app/MacOS $app/Resources
-          cp apps/target/${{ matrix.target }}/release/radica $app/MacOS/radica
-          sips -s format icns apps/desktop/assets/icon-512.png --out $app/Resources/Radica.icns
-          cat > $app/Info.plist <<'EOF'
+          VER=$(node -p "require('./package.json').version")
+          pack_mac() {
+            app_dir="$1.app/Contents"
+            mkdir -p "$app_dir/MacOS" "$app_dir/Resources"
+            cp "apps/target/${{ matrix.target }}/release/$2" "$app_dir/MacOS/$2"
+            sips -s format icns apps/desktop/assets/icon-512.png --out "$app_dir/Resources/Radica.icns"
+            cat > "$app_dir/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
-            <key>CFBundleName</key><string>Radica</string>
-            <key>CFBundleIdentifier</key><string>org.freenet.radica</string>
-            <key>CFBundleExecutable</key><string>radica</string>
+            <key>CFBundleName</key><string>$1</string>
+            <key>CFBundleIdentifier</key><string>$3</string>
+            <key>CFBundleExecutable</key><string>$2</string>
             <key>CFBundleIconFile</key><string>Radica</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>VERSION</string>
+            <key>CFBundleShortVersionString</key><string>$VER</string>
             <key>LSMinimumSystemVersion</key><string>11.0</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF
-          sed -i '' "s/VERSION/$(node -p "require('./package.json').version")/" $app/Info.plist
-          ditto -c -k --keepParent Radica.app ${{ matrix.name }}.zip
+            ditto -c -k --keepParent "$1.app" "$4.zip"
+          }
+          pack_mac "Radica" "radica" "org.freenet.radica" "${{ matrix.name }}"
+          pack_mac "Radica Messenger" "radica-messenger" "org.freenet.radica.messenger" "${{ matrix.messenger_name }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}.*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.messenger_name }}
+          path: ${{ matrix.messenger_name }}.*
 
   android:
     runs-on: ubuntu-latest
@@ -92,11 +104,17 @@ jobs:
       # shortcut: a debug-signed APK (each CI runner signs with its own key, so an update needs an uninstall first);
       # sign releases with a keystore kept in repository secrets once the app is published
       - run: gradle -p apps/android assembleDebug
-      - run: cp apps/android/build/outputs/apk/debug/*.apk radica-android-debug.apk
+      - run: |
+          cp apps/android/build/outputs/apk/full/debug/*.apk radica-android-debug.apk
+          cp apps/android/build/outputs/apk/messenger/debug/*.apk radica-messenger-android-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: radica-android
           path: radica-android-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: radica-messenger-android
+          path: radica-messenger-android-debug.apk
 
   release:
     needs: [build, android]

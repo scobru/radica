@@ -184,23 +184,32 @@ public class MainActivity extends Activity {
         return getPackageManager().getLaunchIntentForPackage(NODE_APP) != null;
     }
 
+    private boolean isMessengerApp() {
+        return getPackageName().endsWith(".messenger");
+    }
+
+    private String appTitle() {
+        return isMessengerApp() ? "Radica Messenger" : "Radica";
+    }
+
     private void show(Node node) {
         if (node == shown) return;
         shown = node;
+        String title = appTitle();
         String body;
         switch (node) {
             case MISSING:
-                body = "<p>Radica needs a Freenet node on this phone, and none is running.</p>"
+                body = "<p>" + title + " needs a Freenet node on this phone, and none is running.</p>"
                         + "<ol><li>Install <b>Freenet Android Node</b> (a community app by HostFat, not official): "
                         + "download the <code>.apk</code> from its latest release and allow the install.</li>"
                         + "<li>Open it and press <b>Start network node</b>.</li>"
-                        + "<li>Come back here: Radica opens by itself.</li></ol>"
+                        + "<li>Come back here: " + title + " opens by itself.</li></ol>"
                         + "<a class=b href=\"radica://install\">Get Freenet Android Node</a>"
                         + "<a class=l href=\"radica://retry\">Check again</a>";
                 break;
             case STOPPED:
                 body = "<p>Freenet Android Node is installed, but its node is not running.</p>"
-                        + "<p>Open it and press <b>Start network node</b>, then come back: Radica opens by itself.</p>"
+                        + "<p>Open it and press <b>Start network node</b>, then come back: " + title + " opens by itself.</p>"
                         + "<a class=b href=\"radica://node\">Open Freenet Android Node</a>"
                         + "<a class=l href=\"radica://retry\">Check again</a>";
                 break;
@@ -215,7 +224,7 @@ public class MainActivity extends Activity {
                 + "h1{font:600 30px Georgia,serif;margin:0 0 16px;text-align:center}p,li{line-height:1.5}ol{padding-left:20px}"
                 + "code{font-size:14px}a{display:block;text-align:center;margin-top:16px;text-decoration:none}"
                 + "a.b{border-radius:999px;padding:12px 20px;background:var(--accent);color:#fff}a.l{color:var(--muted)}</style>"
-                + "<main><h1>Radica</h1>" + body + "</main>";
+                + "<main><h1>" + title + "</h1>" + body + "</main>";
         web.loadDataWithBaseURL("radica://status", html, "text/html", "utf-8", null);
     }
 
@@ -237,10 +246,27 @@ public class MainActivity extends Activity {
         return url.startsWith(RADICA_PREFIX_LOOPBACK) || url.startsWith(RADICA_PREFIX_LOCALHOST);
     }
 
-    private static boolean isAllowedInAppUrl(String url) {
-        if (isRadicaUrl(url)) return true;
+    private static boolean isVisoUrl(String url) {
         if (url == null) return false;
         return url.startsWith(VISO_PREFIX_LOOPBACK) || url.startsWith(VISO_PREFIX_LOCALHOST);
+    }
+
+    private static boolean isAllowedInAppUrl(String url) {
+        return isRadicaUrl(url) || isVisoUrl(url);
+    }
+
+    private boolean isAllowedSubframeUrl(String url) {
+        return (isRadicaUrl(currentTopUrl) && isRadicaUrl(url))
+                || (isVisoUrl(currentTopUrl) && isVisoUrl(url));
+    }
+
+    private static boolean isSafeExternalUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        for (int i = 0; i < url.length(); i++) {
+            char c = url.charAt(i);
+            if (c <= 0x1F || c == 0x7F) return false;
+        }
+        return url.startsWith("https://") || url.startsWith("http://") || url.startsWith("spore:radio:");
     }
 
     private static boolean isSubframeDocumentRequest(WebResourceRequest req) {
@@ -268,6 +294,18 @@ public class MainActivity extends Activity {
      *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that — strictly gated to Radica. */
     private class NativeStorage {
         @JavascriptInterface
+        public String getAppMode() {
+            if (!isRadicaUrl(currentTopUrl)) return "full";
+            return isMessengerApp() ? "messenger" : "full";
+        }
+
+        @JavascriptInterface
+        public void openExternal(String url) {
+            if (!isAllowedInAppUrl(currentTopUrl) || !isSafeExternalUrl(url)) return;
+            main.post(() -> openOutside(Uri.parse(url)));
+        }
+
+        @JavascriptInterface
         public String getAll() {
             if (!isRadicaUrl(currentTopUrl)) return null;
             return getSharedPreferences("radica_storage", MODE_PRIVATE).getString("blob", null);
@@ -292,7 +330,13 @@ public class MainActivity extends Activity {
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
             Uri uri = req.getUrl();
             String url = uri != null ? uri.toString() : "";
-            if (isSubframeDocumentRequest(req) && !isRadicaUrl(url)) {
+            if (isSubframeDocumentRequest(req) && !isAllowedSubframeUrl(url)) {
+                if (isAllowedInAppUrl(url)) {
+                    main.post(() -> {
+                        currentTopUrl = url;
+                        web.loadUrl(url);
+                    });
+                }
                 return new WebResourceResponse(
                         "text/plain",
                         "utf-8",
@@ -326,11 +370,18 @@ public class MainActivity extends Activity {
                 return true;
             }
             if (isAllowedInAppUrl(url)) {
-                currentTopUrl = url;
+                if (!req.isForMainFrame() && !isAllowedSubframeUrl(url)) {
+                    currentTopUrl = url;
+                    web.loadUrl(url);
+                    return true;
+                }
+                if (req.isForMainFrame()) {
+                    currentTopUrl = url;
+                }
                 return false; // Only Radica and Viso (for SSO bounce) stay in this WebView
             }
             // Other Freenet contracts and external sites open in the system browser; anything else (intent:, file:, ...) is refused
-            if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) openOutside(uri);
+            if (isSafeExternalUrl(url)) openOutside(uri);
             return true;
         }
     }
@@ -341,18 +392,31 @@ public class MainActivity extends Activity {
         public boolean onCreateWindow(WebView view, boolean dialog, boolean userGesture, Message result) {
             WebView popup = new WebView(MainActivity.this);
             popup.setWebViewClient(new WebViewClient() {
-                @Override
-                public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
-                    Uri uri = req.getUrl();
-                    String url = uri != null ? uri.toString() : "";
+                private boolean handled = false;
+
+                private void handlePopupUrl(WebView v, String url) {
+                    if (handled) return;
+                    handled = true;
                     if (isAllowedInAppUrl(url)) {
                         currentTopUrl = url;
                         web.loadUrl(url);
-                    } else if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) {
-                        openOutside(uri);
+                    } else if (isSafeExternalUrl(url)) {
+                        openOutside(Uri.parse(url));
                     }
+                    v.stopLoading();
                     v.destroy();
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest req) {
+                    Uri uri = req.getUrl();
+                    handlePopupUrl(v, uri != null ? uri.toString() : "");
                     return true;
+                }
+
+                @Override
+                public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
+                    handlePopupUrl(v, url != null ? url : "");
                 }
             });
             ((WebView.WebViewTransport) result.obj).setWebView(popup);

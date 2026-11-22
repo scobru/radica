@@ -346,3 +346,23 @@ test("mobile polish: no sticky touch hover/active highlights and smooth mobile s
     /\.sort-btn:focus-visible[\s\S]*?@media\s*\(max-width:\s*768px\)\s*\{\s*\.feed-sort-nav\s*\{[^}]*flex-wrap:\s*nowrap;/
   );
 });
+
+test("standalone messenger mode exposes identity, profile & settings menu items and hides social chrome", () => {
+  const messengerTs = read("../src/messengerChat.ts");
+  const chatCss = read("../src/messengerChat.css");
+  const mainTs = read("../src/main.ts");
+
+  for (const id of ["rm-btn-identity", "rm-btn-edit-profile", "rm-btn-settings"]) {
+    assert.ok(messengerTs.includes(`id="${id}"`), `Expected #${id} in messengerChat.ts`);
+  }
+  assert.match(messengerTs, /onOpenIdentity/);
+  assert.match(messengerTs, /onOpenEditProfile/);
+  assert.match(messengerTs, /onOpenSettings/);
+
+  assert.match(mainTs, /data-app-mode",\s*"messenger"/);
+  assert.match(mainTs, /getAppMode/);
+  assert.match(mainTs, /function\s+openExternalViaNative/);
+  assert.match(mainTs, /a\[target="_blank"\]\[href\]/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s*\{/);
+});

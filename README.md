@@ -288,15 +288,16 @@ Add each key to `ui/freenet-assets.json` under `"langs"` (e.g. `"langs": { "it":
 
 ### 6. Launch the Desktop App (Rust + Freenet node)
 
-The desktop app under `apps/` (`apps/desktop`) is Radica web in a native window, so it does what the web does from one codebase, plus the Freenet node underneath. On launch it probes port `7509`, auto-starts an installed Freenet service, or downloads and Ed25519-verifies the official Freenet release, then opens Radica web from the node in a [wry](https://github.com/tauri-apps/wry) window (WebView2 on Windows, WebKit on macOS and Linux; Linux builds need `libwebkit2gtk-4.1-dev`). Links to other sites open in the system browser. It lives in its own Cargo workspace so desktop dependencies never alter WASM contract or delegate hashes.:
+The desktop app under `apps/` (`apps/desktop`) is Radica web in a native window, so it does what the web does from one codebase, plus the Freenet node underneath. It ships two binaries: **`radica`** (the full social + chat + mail experience) and **`radica-messenger`** (standalone Signal/WhatsApp-style encrypted chat window sharing the same `storage.json` identity store while keeping Identity/Profile/Settings accessible from the inbox `⋮` menu). On launch it probes port `7509`, auto-starts an installed Freenet service, or downloads and Ed25519-verifies the official Freenet release, then opens Radica web from the node in a [wry](https://github.com/tauri-apps/wry) window (WebView2 on Windows, WebKit on macOS and Linux; Linux builds need `libwebkit2gtk-4.1-dev`). Links to other sites open in the system browser. It lives in its own Cargo workspace so desktop dependencies never alter WASM contract or delegate hashes.:
 
-**Android** (`apps/android`): Radica web in a WebView over the Freenet node that [Freenet Android Node](https://github.com/HostFat/freenet-android-node) (community app by HostFat, unofficial) runs on the phone. When no node answers, the app says whether that app is missing (with where to get it) or installed but stopped (with a button to open it), and opens Radica by itself once the node is up.
+**Android** (`apps/android`): builds two side-by-side installable flavors — `full` (**Radica**, `org.freenet.radica`) and `messenger` (**Radica Messenger**, `org.freenet.radica.messenger`) — in a WebView over the Freenet node that [Freenet Android Node](https://github.com/HostFat/freenet-android-node) (community app by HostFat, unofficial) runs on the phone. When no node answers, the app says whether that app is missing (with where to get it) or installed but stopped (with a button to open it), and opens Radica by itself once the node is up.
 
-Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed) and macOS (Apple Silicon and Intel, unsigned `Radica.app`) and Android (debug-signed APK) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release. Radica's version lives in the root `package.json`: the desktop app (`apps/Cargo.toml`, checked by a test), the Android app and the macOS bundle carry it, and a release tag must be `v` plus that version (for example `v1.0.0`) or its build fails.
+Builds for Windows (x86_64), Linux (x86_64, needs WebKitGTK 4.1 installed), macOS (Apple Silicon and Intel, unsigned `.app` bundles), and Android (debug-signed `.apk`s for both `full` and `messenger`) come from `.github/workflows/desktop.yml`: every run keeps them as artifacts, and a `v*` tag attaches them to its GitHub release. Radica's version lives in the root `package.json`: the desktop app (`apps/Cargo.toml`, checked by a test), the Android app and the macOS bundle carry it, and a release tag must be `v` plus that version (for example `v1.0.0`) or its build fails.
 
 ```bash
-npm run app        # cargo run --manifest-path apps/Cargo.toml -p radica-desktop
-npm run test:app   # Freenet installer/probe tests
+npm run app            # cargo run --manifest-path apps/Cargo.toml -p radica-desktop (full Radica)
+npm run app:messenger  # cargo run --manifest-path apps/Cargo.toml -p radica-desktop --bin radica-messenger
+npm run test:app       # Freenet installer/probe + desktop mode tests
 ```
 
 ---

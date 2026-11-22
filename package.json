@@ -18,6 +18,7 @@
     "test:contract": "cargo test --manifest-path contract/Cargo.toml && cargo test --manifest-path log-contract/Cargo.toml && cargo test --manifest-path delegate/Cargo.toml && cargo test --manifest-path river-wasm/Cargo.toml && cargo test --manifest-path ghostkey-wasm/Cargo.toml",
     "test:app": "cargo test --manifest-path apps/Cargo.toml",
     "app": "cargo run --manifest-path apps/Cargo.toml -p radica-desktop",
+    "app:messenger": "cargo run --manifest-path apps/Cargo.toml -p radica-desktop --bin radica-messenger",
     "start": "npm --prefix ui run dev",
     "freenet:filter:publish": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs filter && fdev website publish ui/dist-filter --key radica-filter",
     "freenet:filter:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs filter && fdev website update ui/dist-filter --key radica-filter",

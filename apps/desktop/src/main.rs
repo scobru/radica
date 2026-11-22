@@ -4,11 +4,6 @@
 // No console window behind the app on Windows release builds.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-mod host;
-mod install;
-mod release;
-mod web;
-
 #[cfg(test)]
 #[test]
 fn the_app_carries_radica_s_version() {
@@ -22,7 +17,7 @@ fn the_app_carries_radica_s_version() {
 }
 
 fn main() {
-    if let Err(e) = web::run() {
+    if let Err(e) = radica_desktop::web::run_with_mode(radica_desktop::web::AppMode::Full) {
         eprintln!("Radica: could not open the window: {e}");
         std::process::exit(1);
     }

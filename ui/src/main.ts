@@ -138,6 +138,48 @@ import { renderIcon, type IconName } from "./icons";
 import { safeStorage } from "./storage";
 import { FEED_BUDGET, FEED_SHOW, FEED_TARGET, feedBytes, formatBytes, oldestToFree } from "./feedsize";
 import { generateDefaultAvatar, compressAvatarFile, compressPostImageFile } from "./avatar";
+
+const isMessengerApp = (() => {
+  try {
+    const nativeMode = (globalThis as { __radicaNative?: { getAppMode?: () => string } }).__radicaNative?.getAppMode?.();
+    if (nativeMode === "messenger") return true;
+    if (nativeMode === "full") return false;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("app") === "messenger" || sp.get("mode") === "messenger") return true;
+    const hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    return hp.get("app") === "messenger" || hp.get("mode") === "messenger";
+  } catch {
+    return false;
+  }
+})();
+if (isMessengerApp) {
+  document.documentElement.setAttribute("data-app-mode", "messenger");
+  document.title = "Radica Messenger";
+  const bootMsg = document.getElementById("boot-msg");
+  if (bootMsg) bootMsg.textContent = "Starting Radica Messenger…";
+}
+
+function openExternalViaNative(rawUrl: string): boolean {
+  const fn = (globalThis as { __radicaNative?: { openExternal?: (url: string) => void } }).__radicaNative?.openExternal;
+  if (typeof fn !== "function" || !rawUrl) return false;
+  try {
+    const resolved = new URL(rawUrl, window.location.href).href;
+    if (!/^https?:\/\/|^spore:radio:/i.test(resolved)) return false;
+    fn(resolved);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+document.addEventListener("click", (e) => {
+  if (e.defaultPrevented) return;
+  const a = (e.target as Element | null)?.closest<HTMLAnchorElement>('a[target="_blank"][href]');
+  if (!a) return;
+  if (openExternalViaNative(a.getAttribute("href") || a.href)) {
+    e.preventDefault();
+  }
+});
 import type {
   Post,
   Comment,
@@ -1738,11 +1780,12 @@ document.getElementById("welcome-name-btn")!.addEventListener("click", async (e)
   const btn = e.currentTarget as HTMLButtonElement;
   const name = (document.getElementById("welcome-name-input") as HTMLInputElement).value.trim();
   if (!currentIdentity) return;
-  if (!name) return welcomeStep(2); // keeping "Persona @…" is allowed
+  if (!name) return isMessengerApp ? finishWelcome() : welcomeStep(2); // keeping "Persona @…" is allowed
   btn.disabled = true;
   try {
     applyProfile(await freenet.updateProfile(currentIdentity, name, currentProfile?.bio ?? "", currentProfile?.avatar_url ?? ""));
-    welcomeStep(2);
+    if (isMessengerApp) finishWelcome();
+    else welcomeStep(2);
   } catch (err) {
     showToast("Could not save your name: " + ((err as Error)?.message || String(err)), "error");
   } finally {
@@ -4288,6 +4331,10 @@ function openPostLink(this: HTMLAnchorElement, e: Event) {
   if (userMatch) {
     e.preventDefault();
     void openUserProfile(userMatch[1].toLowerCase());
+    return;
+  }
+  if (openExternalViaNative(this.href)) {
+    e.preventDefault();
     return;
   }
   if (window.parent === window) return; // normal page: the browser follows the link
@@ -7067,6 +7114,7 @@ function setChatFullscreen(on: boolean) {
 
 /** Open the chat at once with a loading bar, draw the conversation after the open chat is painted, then drop the bar. */
 async function showChat(load: () => Promise<unknown>) {
+  chatModal.dataset.messengerReady = "1";
   applyChatLayoutAttr(currentChatLayout());
   // full screen stays what the reader chose (the button); phones get the whole screen from body.chat-open
   chatModal.classList.add("chat-loading");
@@ -7154,6 +7202,7 @@ document.getElementById("chat-fullscreen-btn")!.addEventListener("click", () => 
 });
 
 chatCloseBtn.addEventListener("click", () => {
+  if (isMessengerApp) return;
   chatModal.style.display = "none";
 });
 
@@ -7360,12 +7409,17 @@ for (const [page, btnId] of railPages) {
     if (isOpen(page)) {
       if (!wasOpen) {
         feedScrollY = window.scrollY;
-        pushBackStep("page"); // Back (Android gesture) closes the page instead of leaving Radica
+        if (!(isMessengerApp && page === chatModal)) pushBackStep("page"); // Back (Android gesture) closes the page instead of leaving Radica
       }
       closeRailPages(page);
       window.scrollTo({ top: 0 });
     }
     const open = railPages.some(([el]) => isOpen(el));
+    if (!open && isMessengerApp && currentIdentity) {
+      if (chatModal.dataset.messengerReady) chatModal.style.display = "flex";
+      else openChatBtn.click();
+      return;
+    }
     const chatOpen = isOpen(chatModal);
     const mailOpen = isOpen(mailModal);
     document.body.classList.toggle("page-open", open);
@@ -7675,6 +7729,7 @@ function openRoomId(): string | null {
 }
 
 function switchChatLayout(mode: ChatLayoutMode) {
+  if (isMessengerApp) mode = "messenger";
   safeStorage.setItem(CHAT_LAYOUT_KEY, mode);
   applyChatLayoutAttr(mode);
   if (mode === "messenger") {
@@ -7807,8 +7862,12 @@ const messengerChat = createMessengerChat({
   },
   onToggleFullscreen: () => document.getElementById("chat-fullscreen-btn")?.click(),
   onCloseChat: () => {
+    if (isMessengerApp) return;
     chatModal.style.display = "none";
   },
+  onOpenIdentity: openIdentityModal,
+  onOpenEditProfile: () => editProfileBtn?.click(),
+  onOpenSettings: openSettingsModal,
   isPickingFile: () => isPickingFile(),
   markPickingFile: (ms?: number) => markPickingFile(ms),
   clearPickingFile: (delayMs?: number) => clearPickingFile(delayMs),
@@ -7828,6 +7887,7 @@ function stepBackInRadica(): boolean {
       chatBody.classList.remove("show-rooms");
       return true;
     }
+    if (isMessengerApp) return false;
   }
   if (isOpen(mailModal) && mailBodyContainer?.classList.contains("in-detail")) {
     mailBodyContainer.classList.remove("in-detail");
@@ -14232,6 +14292,18 @@ async function init() {
     freenetStatusLabel.title = `Freenet node unreachable: ${freenet.connectError}`;
   }
   if (postLink) void checkUrlPostHash(postLink);
+
+  if (isMessengerApp) {
+    safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
+    setChatFullscreen(true);
+    if (!isOpen(chatModal) && !isOpen(welcomeModal)) openChatBtn.click();
+    hideBoot();
+    void reloadPosts({ background: true });
+    if (connected) {
+      freenet.warmPeerWallets([...followingKeys, ...timelinePosts.map((p) => p.author)]);
+    }
+    return;
+  }
 
   // Load Timeline (Explore by default so all posts on network are immediately visible)
   bootStep("Loading posts…");

@@ -68,6 +68,46 @@ button{display:none;border:0;border-radius:999px;padding:8px 20px;background:var
 function setStatus(t,failed){document.getElementById('s').textContent=t;document.body.className=failed?'failed':''}
 </script>"#;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppMode {
+    Full,
+    Messenger,
+}
+
+impl AppMode {
+    pub const fn title(self) -> &'static str {
+        match self {
+            AppMode::Full => "Radica",
+            AppMode::Messenger => "Radica Messenger",
+        }
+    }
+
+    pub const fn js_mode(self) -> &'static str {
+        match self {
+            AppMode::Full => "full",
+            AppMode::Messenger => "messenger",
+        }
+    }
+
+    pub const fn webview_dir_name(self) -> &'static str {
+        match self {
+            AppMode::Full => "webview",
+            AppMode::Messenger => "webview-messenger",
+        }
+    }
+
+    pub fn window_size(self) -> tao::dpi::LogicalSize<f64> {
+        match self {
+            AppMode::Full => tao::dpi::LogicalSize::new(1280.0, 860.0),
+            AppMode::Messenger => tao::dpi::LogicalSize::new(1080.0, 780.0),
+        }
+    }
+}
+
+fn loading_html(mode: AppMode) -> String {
+    LOADING.replace("Radica", mode.title())
+}
+
 /// The web opens profiles, docs and other Freenet apps with `window.open`, and navigates itself away when that returns
 /// null. Here they go to the system browser, and the page gets a stand-in window so it stays where it is.
 const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
@@ -79,12 +119,16 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
 /// there, and `storage.ts`'s fallback (`window.name` + URL hash) is lost whenever this window is closed and
 /// reopened. `window.__radicaNative` gives it a real, file-backed alternative that survives that; `initial` is
 /// read from disk once at startup and seeded here since the init script runs before the page's own JS does.
-fn native_storage_script(initial_blob: &str) -> String {
+fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
     format!(
         r#"(function() {{
   if (!/^http:\/\/(?:127\.0\.0\.1|localhost):7509\/v1\/contract\/web\/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw(?:[/?#]|$)/.test(String(location.href || ""))) return;
   var initial = {};
   window.__radicaNative = {{
+    getAppMode: function() {{ return {}; }},
+    openExternal: function(url) {{
+      try {{ window.ipc.postMessage("open:" + new URL(url, location.href).href); }} catch (e) {{}}
+    }},
     getAll: function() {{ return initial; }},
     setAll: function(json) {{
       initial = json;
@@ -92,7 +136,8 @@ fn native_storage_script(initial_blob: &str) -> String {
     }}
   }};
 }})();"#,
-        serde_json::to_string(initial_blob).unwrap_or_else(|_| "\"\"".to_string())
+        serde_json::to_string(initial_blob).unwrap_or_else(|_| "\"\"".to_string()),
+        serde_json::to_string(mode.js_mode()).unwrap_or_else(|_| "\"full\"".to_string())
     )
 }
 
@@ -274,18 +319,22 @@ fn with_icon(builder: WindowBuilder) -> WindowBuilder {
 }
 
 pub fn run() -> wry::Result<()> {
+    run_with_mode(AppMode::Full)
+}
+
+pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
     let event_loop = EventLoopBuilder::<Ui>::with_user_event().build();
     let window = with_icon(
         WindowBuilder::new()
-            .with_title("Radica")
-            .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 860.0)),
+            .with_title(mode.title())
+            .with_inner_size(mode.window_size()),
     )
     .build(&event_loop)
     .map_err(|e| wry::Error::Io(std::io::Error::other(e)))?;
     // The web app keeps identity and keys in its storage: a fixed folder keeps them across runs.
     let mut context = WebContext::new(
         directories::ProjectDirs::from("", "Freenet", "Radica")
-            .map(|d| d.data_local_dir().join("webview")),
+            .map(|d| d.data_local_dir().join(mode.webview_dir_name())),
     );
     let retry = event_loop.create_proxy();
     let radica_opened = Arc::new(AtomicBool::new(false));
@@ -293,9 +342,9 @@ pub fn run() -> wry::Result<()> {
     let storage_path = storage_path();
     let initial_storage_blob = storage_path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
-        .with_html(LOADING)
+        .with_html(loading_html(mode))
         .with_initialization_script_for_main_only(OPEN_IN_BROWSER, false)
-        .with_initialization_script_for_main_only(&native_storage_script(&initial_storage_blob), false)
+        .with_initialization_script_for_main_only(&native_storage_script(&initial_storage_blob, mode), false)
         .with_navigation_handler(|url| {
             if is_allowed_nav(&url) {
                 true
@@ -398,5 +447,22 @@ mod tests {
         assert!(is_safe_external_url("spore:radio:123"));
         assert!(!is_safe_external_url("https://freenet.org/\nevil"));
         assert!(!is_safe_external_url("file:///etc/passwd"));
+    }
+
+    #[test]
+    fn app_mode_configures_messenger_binary() {
+        assert_eq!(AppMode::Full.title(), "Radica");
+        assert_eq!(AppMode::Full.js_mode(), "full");
+        assert_eq!(AppMode::Full.webview_dir_name(), "webview");
+        assert_eq!(AppMode::Messenger.title(), "Radica Messenger");
+        assert_eq!(AppMode::Messenger.js_mode(), "messenger");
+        assert_eq!(AppMode::Messenger.webview_dir_name(), "webview-messenger");
+        assert!(loading_html(AppMode::Messenger).contains("<h1>Radica Messenger</h1>"));
+        assert!(loading_html(AppMode::Messenger).contains("<title>Radica Messenger</title>"));
+        let script = native_storage_script("{\"k\":\"v\"}", AppMode::Messenger);
+        assert!(script.contains("getAppMode: function() { return \"messenger\"; }"));
+        assert!(script.contains("openExternal: function(url)"));
+        let full_script = native_storage_script("{}", AppMode::Full);
+        assert!(full_script.contains("getAppMode: function() { return \"full\"; }"));
     }
 }

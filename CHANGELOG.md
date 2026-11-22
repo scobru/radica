@@ -1,3 +1,9 @@
+5.8.0 / 2026-11-22
+==================
+
+  * **NEW** Standalone **Radica Messenger** Desktop & Android apps (`ui/src/{messengerChat,main}.ts`, `ui/src/messengerChat.css`, `apps/desktop/`, `apps/android/`, `.github/workflows/desktop.yml`, `package.json`): added `html[data-app-mode="messenger"]` UI mode (activated by `window.__radicaNative.getAppMode()` or `#mode=messenger` / `?app=messenger`), exposed **Identity & keys**, **Edit profile**, and **Settings** in `#rm-inbox-menu` (`#rm-btn-identity`, `#rm-btn-edit-profile`, `#rm-btn-settings`) returning cleanly to Messenger on close/back, added Desktop second binary `radica-messenger` (`npm run app:messenger`, sharing `storage.json` with an isolated `webview-messenger` directory), added Android `messenger` product flavor (`org.freenet.radica.messenger`, side-by-side install with full Radica), and extended `.github/workflows/desktop.yml` to build and package both full and messenger artifacts on Windows, Linux, macOS, and Android.
+  * **FIX** External app launches on Android & Desktop (`apps/android/.../MainActivity.java`, `apps/desktop/src/web.rs`, `ui/src/{main,asocial}.ts`): added `window.__radicaNative.openExternal(url)` and `a[target="_blank"][href]` / `openPostLink` native handoff so launching companion dApps from `#apps-modal` or links inside Radica opens the system browser directly instead of navigating Freenet's `shell.html` subframe; allowed Viso's own `shell.html` subframe when `currentTopUrl` is Viso (`isAllowedSubframeUrl`), promoted cross-app `Radica <-> Viso` subframe redirects to top-level navigation, and handled `rel="noopener"` popups in `Chrome.onCreateWindow` `onPageStarted`.
+
 5.7.2 / 2026-11-16
 ==================
 

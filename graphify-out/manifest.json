@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795178925.319873,
-    "ast_hash": "08850975227bd59e389b8b5a6a238650",
+    "mtime": 1795340631.9061506,
+    "ast_hash": "377e89d8ed3f000c3d4fc0d2e61bb9fd",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795283993.5734377,
-    "ast_hash": "1861317b415d0e9356b5b9d65eb078dc",
+    "mtime": 1795342673.5225842,
+    "ast_hash": "f036a348c2fa15258d77b783aa4fb871",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795339033.1282294,
-    "ast_hash": "b5422d7a7084d403d471354bd4f8ecf2",
+    "mtime": 1795342497.4808695,
+    "ast_hash": "8292c1d1aa2cf073dff1dfb316fbe358",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795284036.4784887,
-    "ast_hash": "ccc07dc69d52c84af5d97067872df6b6",
+    "mtime": 1795340910.7852092,
+    "ast_hash": "4548140c914ba62135d51e169ced83ac",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795291078.79263,
-    "ast_hash": "5d006f9eaabc7225b8dec11c0e5b3df2",
+    "mtime": 1795340899.200902,
+    "ast_hash": "804eba3e934be76215e43114914c1699",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795284003.2715795,
-    "ast_hash": "158aea1c7d8c716725a2967bcbe08f60",
+    "mtime": 1795342511.953976,
+    "ast_hash": "b42686405d40095450a950fc23f7fd95",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795283010.2742455,
-    "ast_hash": "97f3804a16280188a41dfadd1abdbd28",
+    "mtime": 1795340625.1426227,
+    "ast_hash": "cba697d8989c6fb3aff809a798bb2915",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795339035.7492788,
-    "ast_hash": "2a1278be4e995482bef2e38529c7cd2f",
+    "mtime": 1795342499.9597335,
+    "ast_hash": "46d530a4e89eab6e1893abb12b062f20",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795339193.197618,
-    "ast_hash": "b86a4f18f1025a3351cc6d7a38f91294",
+    "mtime": 1795342495.506329,
+    "ast_hash": "2624a384253be53d1eb8fc1648203a5c",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1215,8 +1215,8 @@
     "semantic_hash": ""
   },
   "ui/src/asocial.ts": {
-    "mtime": 1795175764.9923348,
-    "ast_hash": "5300c237d43706af2d664db325943625",
+    "mtime": 1795342492.0490825,
+    "ast_hash": "0ccb6fdc855a59a0aeb4f817941b5dcf",
     "semantic_hash": ""
   },
   "ui/src/orto.ts": {
@@ -1295,8 +1295,8 @@
     "semantic_hash": ""
   },
   "apps/desktop/src/main.rs": {
-    "mtime": 1794247439.024299,
-    "ast_hash": "9bfa249a81e2c923849048c38e039d96",
+    "mtime": 1795340684.4095042,
+    "ast_hash": "07692fbab7b3b9cb97e18e98c9503022",
     "semantic_hash": ""
   },
   "apps/desktop/src/release.rs": {
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "apps/android/build.gradle.kts": {
-    "mtime": 1794247438.9330308,
-    "ast_hash": "565e0155fa71a693fe075a11fcc7623a",
+    "mtime": 1795340690.385203,
+    "ast_hash": "6966c9d1e31ec9079223c791df21bd5c",
     "semantic_hash": ""
   },
   "apps/android/settings.gradle.kts": {
@@ -1330,13 +1330,13 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795175906.6711795,
-    "ast_hash": "51024dd928af0de76cbd248cf975946b",
+    "mtime": 1795342476.2706373,
+    "ast_hash": "848eed8eba0d8c8f1830720d4395d64d",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1795175943.7019627,
-    "ast_hash": "7dc8d210477f4d5c7a11d0e5f273b051",
+    "mtime": 1795342482.54176,
+    "ast_hash": "c1a75d3470a20ab6e6f3d661c748687f",
     "semantic_hash": ""
   },
   "inbox.json": {
@@ -1345,8 +1345,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/desktop.yml": {
-    "mtime": 1795180225.074812,
-    "ast_hash": "0727e691413b8c067356772fb78e70fe",
+    "mtime": 1795340769.5276573,
+    "ast_hash": "adbfc0d2632010961a502a780bd918a2",
     "semantic_hash": ""
   },
   "apps/android/src/main/res/mipmap/ic_launcher.png": {
@@ -1852,6 +1852,16 @@
   "ui/tests/profileExtras.test.ts": {
     "mtime": 1795339028.3085012,
     "ast_hash": "7937bf17a50e88315c2e3afb1363942b",
+    "semantic_hash": ""
+  },
+  "apps/desktop/src/bin/radica-messenger.rs": {
+    "mtime": 1795340686.889821,
+    "ast_hash": "2441ce9017623847b83845f979bbc5e1",
+    "semantic_hash": ""
+  },
+  "apps/desktop/src/lib.rs": {
+    "mtime": 1795340681.9222405,
+    "ast_hash": "28e8bd73ccbf1a6a337742f59f3b5fd7",
     "semantic_hash": ""
   }
 }

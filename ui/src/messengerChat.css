@@ -3521,3 +3521,55 @@ html[data-theme="dark"][data-accent] #chat-modal .rm-messenger-card {
     backdrop-filter: none;
   }
 }
+
+/* ==========================================================================
+   STANDALONE RADICA MESSENGER APP MODE (Desktop radica-messenger / Android)
+   ========================================================================== */
+html[data-app-mode="messenger"] .rail,
+html[data-app-mode="messenger"] #feed-view,
+html[data-app-mode="messenger"] #profile-page,
+html[data-app-mode="messenger"] .sidebar,
+html[data-app-mode="messenger"] .corner-btn,
+html[data-app-mode="messenger"] #rm-btn-close,
+html[data-app-mode="messenger"] #rm-btn-inbox-close,
+html[data-app-mode="messenger"] #chat-close-btn,
+html[data-app-mode="messenger"] #chat-modal .rm-mode-switch,
+html[data-app-mode="messenger"] #rm-btn-fullscreen,
+html[data-app-mode="messenger"] #rm-btn-fullwidth,
+html[data-app-mode="messenger"] #uview-open-wall-feed-btn,
+html[data-app-mode="messenger"] #single-post-jump-feed-btn {
+  display: none !important;
+}
+
+html[data-app-mode="messenger"] .container {
+  grid-template-columns: minmax(0, 820px) !important;
+  justify-content: center;
+}
+
+html[data-app-mode="messenger"] #chat-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  top: var(--rm-vvt, 0px) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
+  width: calc(100vw / var(--ui-zoom, 1)) !important;
+  width: calc(100dvw / var(--ui-zoom, 1)) !important;
+  height: calc(100vh / var(--ui-zoom, 1)) !important;
+  height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  z-index: 500 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+html[data-app-mode="messenger"] #chat-modal .rm-messenger-card {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+}

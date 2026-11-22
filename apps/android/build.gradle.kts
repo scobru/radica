@@ -18,4 +18,17 @@ android {
         versionCode = radicaVersion[0] * 10000 + radicaVersion[1] * 100 + radicaVersion[2]
         versionName = radicaVersion.joinToString(".")
     }
+
+    flavorDimensions += "mode"
+    productFlavors {
+        create("full") {
+            dimension = "mode"
+            resValue("string", "app_name", "Radica")
+        }
+        create("messenger") {
+            dimension = "mode"
+            applicationIdSuffix = ".messenger"
+            resValue("string", "app_name", "Radica Messenger")
+        }
+    }
 }

@@ -107,6 +107,9 @@ export interface MessengerDeps {
   onToggleFullscreen: () => void;
   onToggleFullWidth?: () => void;
   onCloseChat: () => void;
+  onOpenIdentity?: () => void;
+  onOpenEditProfile?: () => void;
+  onOpenSettings?: () => void;
   isPickingFile?: () => boolean;
   markPickingFile?: (ms?: number) => void;
   clearPickingFile?: (delayMs?: number) => void;
@@ -413,6 +416,9 @@ export function createMessengerChat(deps: MessengerDeps) {
             <div class="rm-menu-wrap">
               <button type="button" class="rm-icon-btn" data-menu="rm-inbox-menu" aria-haspopup="menu" aria-expanded="false" title="More"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg></button>
               <div class="rm-menu" id="rm-inbox-menu" role="menu" hidden>
+                <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-identity"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg><span>Identity &amp; keys</span></button>
+                <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-edit-profile"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Edit profile</span></button>
+                <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-settings"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
                 <button type="button" class="rm-menu-item" role="menuitem" id="rm-btn-palette"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg><span>Switch palette</span></button>
               </div>
             </div>
@@ -2887,6 +2893,9 @@ export function createMessengerChat(deps: MessengerDeps) {
   safetyTopBtn.addEventListener("click", () => openSafetyModal());
   rootEl.querySelector("#rm-btn-fullwidth")?.addEventListener("click", () => deps.onToggleFullWidth?.());
   rootEl.querySelector("#rm-btn-fullscreen")?.addEventListener("click", () => deps.onToggleFullscreen());
+  rootEl.querySelector("#rm-btn-identity")?.addEventListener("click", () => deps.onOpenIdentity?.());
+  rootEl.querySelector("#rm-btn-edit-profile")?.addEventListener("click", () => deps.onOpenEditProfile?.());
+  rootEl.querySelector("#rm-btn-settings")?.addEventListener("click", () => deps.onOpenSettings?.());
   rootEl.querySelector("#rm-btn-close")?.addEventListener("click", () => deps.onCloseChat());
   rootEl.querySelector("#rm-btn-inbox-close")?.addEventListener("click", () => deps.onCloseChat());
 

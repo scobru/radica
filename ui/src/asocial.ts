@@ -195,7 +195,9 @@ export function fillAsocial(root: ParentNode, origin = defaultNodeOrigin()): voi
       // Never embed untrusted third-party web contracts in an inline same-origin iframe:
       // open in a separate browser tab/window and render a safe launch panel.
       try {
-        window.open(gameUrl, "_blank", "noopener,noreferrer");
+        const nativeOpen = (globalThis as { __radicaNative?: { openExternal?: (url: string) => void } }).__radicaNative?.openExternal;
+        if (typeof nativeOpen === "function") nativeOpen(gameUrl);
+        else window.open(gameUrl, "_blank", "noopener,noreferrer");
       } catch {}
 
       const initialHtml = card.innerHTML;
