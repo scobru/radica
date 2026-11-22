@@ -14371,9 +14371,11 @@ async function init() {
     this.src = generateDefaultAvatar(currentIdentity?.pubkey || "radica");
   };
 
-  await updateMyPostsAndScopeCounts();
-  renderFollowingList();
-  renderDiscoveredPeers();
+  if (!isMessengerApp) {
+    await updateMyPostsAndScopeCounts();
+    renderFollowingList();
+    renderDiscoveredPeers();
+  }
   await durable.ready; // renderIdentityModal derives & caches the Freenet Mail identity from the saved alias,
   // which lives in durable storage: rendering it before this resolves poisons the cache with the "user_…" fallback
   reapplyDurablePreferences();
@@ -14496,10 +14498,6 @@ async function init() {
     setChatFullscreen(true);
     if (!isOpen(chatModal)) openChatBtn.click();
     hideBoot();
-    void reloadPosts({ background: true });
-    if (connected) {
-      freenet.warmPeerWallets([...followingKeys, ...timelinePosts.map((p) => p.author)]);
-    }
     return;
   }
 
