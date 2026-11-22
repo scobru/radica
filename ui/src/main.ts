@@ -144,11 +144,12 @@ const isMessengerApp = (() => {
   try {
     const nativeMode = (globalThis as { __radicaNative?: { getAppMode?: () => string } }).__radicaNative?.getAppMode?.();
     if (nativeMode === "messenger") return true;
-    if (nativeMode === "full") return false;
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("app") === "messenger" || sp.get("mode") === "messenger") return true;
     const hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    return hp.get("app") === "messenger" || hp.get("mode") === "messenger";
+    if (hp.get("app") === "messenger" || hp.get("mode") === "messenger") return true;
+    if (nativeMode === "full") return false;
+    return false;
   } catch {
     return false;
   }
@@ -1763,6 +1764,10 @@ async function maybeShowWelcome() {
 function finishWelcome() {
   if (currentIdentity) safeStorage.setItem(welcomeDoneKey(currentIdentity.pubkey), "1");
   welcomeModal.style.display = "none";
+  if (isMessengerApp && !isOpen(chatModal)) {
+    setChatFullscreen(true);
+    openChatBtn.click();
+  }
 }
 
 function welcomeStep(n: number) {
@@ -14398,7 +14403,7 @@ async function init() {
   if (isMessengerApp) {
     safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
     setChatFullscreen(true);
-    if (!isOpen(chatModal) && !isOpen(welcomeModal)) openChatBtn.click();
+    if (!isOpen(chatModal)) openChatBtn.click();
     hideBoot();
     void reloadPosts({ background: true });
     if (connected) {

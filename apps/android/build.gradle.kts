@@ -24,11 +24,13 @@ android {
         create("full") {
             dimension = "mode"
             resValue("string", "app_name", "Radica")
+            resValue("string", "app_mode", "full")
         }
         create("messenger") {
             dimension = "mode"
             applicationIdSuffix = ".messenger"
             resValue("string", "app_name", "Radica Messenger")
+            resValue("string", "app_mode", "messenger")
         }
     }
 }

@@ -73,8 +73,9 @@ public class MainActivity extends Activity {
                     if (opened) return;
                     if (up) {
                         opened = true;
-                        currentTopUrl = RADICA;
-                        web.loadUrl(RADICA);
+                        String startUrl = radicaWebUrl();
+                        currentTopUrl = startUrl;
+                        web.loadUrl(startUrl);
                     } else {
                         show(nodeAppInstalled() ? Node.STOPPED : Node.MISSING);
                         main.postDelayed(check, 3000);
@@ -185,7 +186,16 @@ public class MainActivity extends Activity {
     }
 
     private boolean isMessengerApp() {
-        return getPackageName().endsWith(".messenger");
+        try {
+            int resId = getResources().getIdentifier("app_mode", "string", getPackageName());
+            if (resId != 0 && "messenger".equalsIgnoreCase(getString(resId))) return true;
+        } catch (Exception ignored) {}
+        String pkg = getPackageName();
+        return pkg != null && (pkg.endsWith(".messenger") || pkg.contains("messenger"));
+    }
+
+    private String radicaWebUrl() {
+        return isMessengerApp() ? (RADICA + "?app=messenger#mode=messenger") : RADICA;
     }
 
     private String appTitle() {
@@ -243,12 +253,18 @@ public class MainActivity extends Activity {
 
     private static boolean isRadicaUrl(String url) {
         if (url == null) return false;
-        return url.startsWith(RADICA_PREFIX_LOOPBACK) || url.startsWith(RADICA_PREFIX_LOCALHOST);
+        String base1 = "http://127.0.0.1:7509/v1/contract/web/" + RADICA_KEY;
+        String base2 = "http://localhost:7509/v1/contract/web/" + RADICA_KEY;
+        return url.startsWith(base1 + "/") || url.equals(base1) || url.startsWith(base1 + "?") || url.startsWith(base1 + "#")
+                || url.startsWith(base2 + "/") || url.equals(base2) || url.startsWith(base2 + "?") || url.startsWith(base2 + "#");
     }
 
     private static boolean isVisoUrl(String url) {
         if (url == null) return false;
-        return url.startsWith(VISO_PREFIX_LOOPBACK) || url.startsWith(VISO_PREFIX_LOCALHOST);
+        String base1 = "http://127.0.0.1:7509/v1/contract/web/" + VISO_KEY;
+        String base2 = "http://localhost:7509/v1/contract/web/" + VISO_KEY;
+        return url.startsWith(base1 + "/") || url.equals(base1) || url.startsWith(base1 + "?") || url.startsWith(base1 + "#")
+                || url.startsWith(base2 + "/") || url.equals(base2) || url.startsWith(base2 + "?") || url.startsWith(base2 + "#");
     }
 
     private static boolean isAllowedInAppUrl(String url) {
@@ -295,7 +311,6 @@ public class MainActivity extends Activity {
     private class NativeStorage {
         @JavascriptInterface
         public String getAppMode() {
-            if (!isRadicaUrl(currentTopUrl)) return "full";
             return isMessengerApp() ? "messenger" : "full";
         }
 
@@ -323,7 +338,18 @@ public class MainActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
-            if (url != null && !"radica://status".equals(url)) currentTopUrl = url;
+            if (url != null && !"radica://status".equals(url) && !"about:blank".equals(url)) currentTopUrl = url;
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            if (isMessengerApp() && isRadicaUrl(url)) {
+                view.evaluateJavascript(
+                    "try { if (!document.documentElement.hasAttribute('data-app-mode')) document.documentElement.setAttribute('data-app-mode', 'messenger'); } catch(e){}",
+                    null
+                );
+            }
         }
 
         @Override

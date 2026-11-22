@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795362738.7834713,
-    "ast_hash": "2f1cdabcb5576ccb2de53d2638d3383a",
+    "mtime": 1795363684.864514,
+    "ast_hash": "4030e5839d491bc606e49905de94cd8a",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795362531.568509,
-    "ast_hash": "09d324d11008ed4015e0bc5208aaa6de",
+    "mtime": 1795363714.577567,
+    "ast_hash": "36e49ce168233e05aff787b99a3eb5ec",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795362207.0899737,
-    "ast_hash": "169e76fca0eb4d134350b9b1bc0af863",
+    "mtime": 1795363733.3741999,
+    "ast_hash": "75de30a4bea32f45b2a38b2e35d9bdf9",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795362509.7972882,
-    "ast_hash": "fe3a4f1c85e63e890b6037a1b1e410ec",
+    "mtime": 1795363704.2339015,
+    "ast_hash": "522d4b3523940683681aaad69959868e",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795362128.537943,
-    "ast_hash": "f68f383abb3c93867bd5309209748278",
+    "mtime": 1795363666.35608,
+    "ast_hash": "49ab5366865f051f1699b229b27f9aca",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
