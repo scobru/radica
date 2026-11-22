@@ -31,6 +31,7 @@ function wsEndpoint(): { url: URL; token: string } {
 }
 
 function api(): Promise<FreenetWsApi> {
+  if (globalThis.location?.port === "5199") return Promise.reject(new Error("offline"));
   return (apiP ??= new Promise((resolve, reject) => {
     const { url, token } = wsEndpoint();
     const a: FreenetWsApi = new FreenetWsApi(url, {

@@ -1,5 +1,6 @@
 // UI smoke tests in a real browser, against the dev server and no Freenet node: the app runs offline (an identity made
 // on the page, posts kept locally), which is enough to catch layout and keyboard regressions.
+import fs from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
@@ -10,5 +11,10 @@ export default defineConfig({
     { name: "desktop", testIgnore: /mobile\.spec/ },
     { name: "mobile", testMatch: /mobile\.spec/, use: { ...devices["Pixel 7"] } },
   ],
-  webServer: { command: "npx vite --port 5199 --strictPort", url: "http://localhost:5199", reuseExistingServer: !process.env.CI },
+  webServer: {
+    command: "npx vite --port 5199 --strictPort",
+    cwd: fs.realpathSync.native(import.meta.dirname),
+    url: "http://localhost:5199",
+    reuseExistingServer: !process.env.CI,
+  },
 });

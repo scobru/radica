@@ -95,3 +95,7 @@ ui/public/moderation/model/moderator.tflite
 .pi/
 .pi-lens/
 .cache/
+
+# Playwright artifacts
+ui/test-results/
+ui/playwright-report/

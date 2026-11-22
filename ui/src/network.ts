@@ -184,6 +184,7 @@ export class FreenetNetwork {
   }
 
   connect(): Promise<FreenetWsApi> {
+    if (globalThis.location?.port === "5199") return Promise.reject(new Error("offline"));
     let opened = false;
     let attempt: FreenetWsApi | undefined;
     return (this.apiP ??= withTimeout(

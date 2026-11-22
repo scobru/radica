@@ -244,22 +244,24 @@ test("a Radica moderator hides a community from the lists, and shows it again", 
   await expect(page.locator("#communities-list")).toContainText("r/tech");
 });
 
-test("a person Radica's moderators banned does not show in a community's chat", async ({ page }) => {
+test("a person Radica's moderators banned does not show in a group chat", async ({ page }) => {
   await signIn(page);
   const [banned, fine] = [hex(), hex()];
   await page.evaluate(async ({ banned, fine }) => {
     const { RADICA_MAINTAINER } = await import("/src/types.ts");
+    const { getIdentity } = await import("/src/crypto.ts");
     const { freenet } = await import("/src/freenet.ts");
+    const room = await freenet.createPrivateRoom((await getIdentity())!, "lobby", []);
     const f = freenet as unknown as { handlePeerEvent(d: unknown): void };
     const ban = { author: RADICA_MAINTAINER, id: "ban1", ts: Date.now(), body: JSON.stringify({ type: "block", target: banned, on: true }), sig: "" };
     localStorage.setItem(`freenet_log_blocklist/${RADICA_MAINTAINER}`, JSON.stringify({ [`${ban.author}:${ban.id}`]: ban }));
     const say = (sender: string, text: string, id: string) =>
-      f.handlePeerEvent({ type: "chat", message: { id, room_id: "comm_c_radica", sender, recipient: "community", community_id: "c_radica", text, timestamp: Date.now(), sig: "" } });
+      f.handlePeerEvent({ type: "chat", message: { id, room_id: room.id, sender, recipient: "", text, timestamp: Date.now(), sig: "" } });
     say(banned, "buy my coins", "m_spam");
     say(fine, "hello everyone", "m_fine");
   }, { banned, fine });
-  await page.locator("#communities-list").getByText("r/radica").first().click();
-  await page.getByRole("button", { name: "Community Chat" }).click();
+  await page.locator("#open-chat-btn").click();
+  await page.locator(".rm-conv-item", { hasText: "lobby" }).first().click();
   await expect(page.locator(".rm-msg-row", { hasText: "hello everyone" }).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".rm-msg-row", { hasText: "buy my coins" })).toHaveCount(0);
 });

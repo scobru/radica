@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795341260.5806816,
-    "ast_hash": "54e7b91fe82345fb025f8222adce2db8",
+    "mtime": 1795342673.5225842,
+    "ast_hash": "f036a348c2fa15258d77b783aa4fb871",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795340905.0716307,
-    "ast_hash": "e81f779b927f7900f043f14ec50e7e10",
+    "mtime": 1795342497.4808695,
+    "ast_hash": "8292c1d1aa2cf073dff1dfb316fbe358",
     "semantic_hash": ""
   },
   "README.md": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795340890.194457,
-    "ast_hash": "65f249f020215ff9e8d6f5e16a8cdb56",
+    "mtime": 1795342511.953976,
+    "ast_hash": "b42686405d40095450a950fc23f7fd95",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795340917.0702267,
-    "ast_hash": "8ca222bffcfe899498122da464494d81",
+    "mtime": 1795342499.9597335,
+    "ast_hash": "46d530a4e89eab6e1893abb12b062f20",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795340884.2097907,
-    "ast_hash": "238b6282ca5640ae4c0e7700a2a6911c",
+    "mtime": 1795342495.506329,
+    "ast_hash": "2624a384253be53d1eb8fc1648203a5c",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1215,8 +1215,8 @@
     "semantic_hash": ""
   },
   "ui/src/asocial.ts": {
-    "mtime": 1795175764.9923348,
-    "ast_hash": "5300c237d43706af2d664db325943625",
+    "mtime": 1795342492.0490825,
+    "ast_hash": "0ccb6fdc855a59a0aeb4f817941b5dcf",
     "semantic_hash": ""
   },
   "ui/src/orto.ts": {
@@ -1330,13 +1330,13 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795340764.8561852,
-    "ast_hash": "e2a976cfd8158c77998f84f5fb0f0d81",
+    "mtime": 1795342476.2706373,
+    "ast_hash": "848eed8eba0d8c8f1830720d4395d64d",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1795340755.9259708,
-    "ast_hash": "634a2a53913efe1f699b682f7c254a56",
+    "mtime": 1795342482.54176,
+    "ast_hash": "c1a75d3470a20ab6e6f3d661c748687f",
     "semantic_hash": ""
   },
   "inbox.json": {

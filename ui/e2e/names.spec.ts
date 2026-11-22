@@ -15,12 +15,14 @@ test("a person whose feed is already stored shows their name in chat, not their 
   await page.evaluate(async (stranger) => {
     // their feed, kept from an earlier visit; nothing in memory knows them yet and no node answers
     localStorage.setItem(`freenet_feed_${stranger}`, JSON.stringify({ owner: stranger, posts: {}, following: [], profile: { display_name: "Agent.69", bio: "", avatar_url: "", enc_pub: "", updated_at: 1, sig: "" } }));
+    const { getIdentity } = await import("/src/crypto.ts");
     const { freenet } = await import("/src/freenet.ts");
+    const room = await freenet.createPrivateRoom((await getIdentity())!, "lobby", []);
     const f = freenet as unknown as { handlePeerEvent(d: unknown): void };
-    f.handlePeerEvent({ type: "chat", message: { id: `m_${Date.now()}`, room_id: "comm_c_radica", sender: stranger, recipient: "community", community_id: "c_radica", text: "hello from the community", timestamp: Date.now(), sig: "" } });
+    f.handlePeerEvent({ type: "chat", message: { id: `m_${Date.now()}`, room_id: room.id, sender: stranger, recipient: "", text: "hello from the community", timestamp: Date.now(), sig: "" } });
   }, stranger);
-  await page.locator("#communities-list").getByText("r/radica").first().click(); // the community, then its chat
-  await page.getByRole("button", { name: "Community Chat" }).click();
+  await page.locator("#open-chat-btn").click();
+  await page.locator(".rm-conv-item", { hasText: "lobby" }).first().click();
   const row = page.locator(".rm-msg-row.theirs", { hasText: "hello from the community" }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText("Agent.69", { timeout: 20_000 });

@@ -125,8 +125,8 @@
     "semantic_hash": ""
   },
   "ui/src/delegate.ts": {
-    "mtime": 1793901167.7309744,
-    "ast_hash": "e0e03eda5c8f6d3d99ec8bd750e8f256",
+    "mtime": 1795348066.0139174,
+    "ast_hash": "595da0f048824e38342e26025336a694",
     "semantic_hash": ""
   },
   "ui/src/feedmerge.ts": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "ui/src/network.ts": {
-    "mtime": 1795282036.4788454,
-    "ast_hash": "9f83beda4053ca990346fce4ccd64421",
+    "mtime": 1795348074.0889385,
+    "ast_hash": "87c17095d74d29bc93ed19bc22ca0a95",
     "semantic_hash": ""
   },
   "ui/src/refresh.ts": {
@@ -785,8 +785,8 @@
     "semantic_hash": ""
   },
   "ui/playwright.config.ts": {
-    "mtime": 1793820596.2086766,
-    "ast_hash": "107a444ca01de8c7d358fba3fe649a28",
+    "mtime": 1795346244.342899,
+    "ast_hash": "a6b55d5110735ec48fe95120e9ed579d",
     "semantic_hash": ""
   },
   "ui/scripts/fetch-translation-models.mjs": {
@@ -1160,8 +1160,8 @@
     "semantic_hash": ""
   },
   "ui/e2e/moderation.spec.ts": {
-    "mtime": 1794821588.1758687,
-    "ast_hash": "3b5c423ab898ec20fad82f99eda92e84",
+    "mtime": 1795346247.1288407,
+    "ast_hash": "f2cbaaab01b615127a5f52b3216d9874",
     "semantic_hash": ""
   },
   "ui/scripts/heavy.mjs": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": ""
   },
   "ui/e2e/names.spec.ts": {
-    "mtime": 1793831066.026793,
-    "ast_hash": "daa6cfc7f30aef3095869241178cb6e0",
+    "mtime": 1795346249.4743674,
+    "ast_hash": "22fc66cfd0b2334851f6d65c941f202c",
     "semantic_hash": ""
   },
   "ui/src/notifTrust.ts": {
