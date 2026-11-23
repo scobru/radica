@@ -31,7 +31,7 @@ import { CURRENT, LEGACY } from "./legacy.ts";
 import { compactLog, type LogEntry } from "./logfold.ts";
 import { safeStorage } from "./storage.ts"; // the sandboxed web container has no localStorage
 import { nextDelay, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
-import { changeOf, type Change } from "./refresh.ts";
+import { changeOf, isInteractiveContract, type Change } from "./refresh.ts";
 
 const PROBED = "radica_legacy_probed"; // contracts already looked up under earlier generations
 const TIMEOUT_MS = 45000; // a get/put for a contract the node has not got goes looking on the network
@@ -110,13 +110,6 @@ export function contractKey(id: ContractId): Promise<ContractKey> {
   return p;
 }
 
-const isInteractiveContract = (id: ContractId): boolean =>
-  id.startsWith("media:") ||
-  id.startsWith("river:") ||
-  id.startsWith("mail:") ||
-  id.startsWith("log:inbox/") ||
-  id.startsWith("log:room/") ||
-  id.startsWith("log:wallets/");
 
 export class FreenetNetwork {
   private apiP?: Promise<FreenetWsApi>;

@@ -33,3 +33,15 @@ export function changeOf(u: Update | null | undefined): Change {
       return {};
   }
 }
+
+/** Read in the foreground queue, never behind Explore feeds and the social logs `connect()` refreshes: what a person is
+ *  waiting on. `dm/` is a conversation's own log (every DM and Secret Chat message), `devices/` the keys a DM is sealed to. */
+export const isInteractiveContract = (id: string): boolean =>
+  id.startsWith("media:") ||
+  id.startsWith("river:") ||
+  id.startsWith("mail:") ||
+  id.startsWith("log:inbox/") ||
+  id.startsWith("log:dm/") ||
+  id.startsWith("log:devices/") ||
+  id.startsWith("log:room/") ||
+  id.startsWith("log:wallets/");
