@@ -83,7 +83,7 @@ async function signIn(): Promise<void> {
   }
   freenet.setIdentity(me);
   say(`Signed in as ${nameOf(me.pubkey)} (${me.pubkey.slice(0, 12)}…). Connecting to your Freenet node…`);
-  online = await freenet.connect();
+  online = await freenet.connect({ chatOnly: true });
   say(
     online
       ? "Freenet node connected."
@@ -106,8 +106,7 @@ async function command(line: string): Promise<void> {
     case "/help":
       return say(HELP);
     case "/quit":
-      shutdown();
-      process.exit(0);
+      return quit();
     case "/new":
     case "/import": {
       if (me) return say("This computer already has an identity.");
@@ -174,6 +173,12 @@ async function send(text: string): Promise<void> {
   say(`  sent to ${nameOf(peer)}${online ? "" : " over the local network only"}.`);
 }
 
+async function quit(): Promise<never> {
+  const profile = await shutdown();
+  if (profile) process.stdout.write(`\n${profile}\n`);
+  process.exit(0);
+}
+
 say(`Radica chat for the terminal. Data: ${HOME}`);
 await signIn();
 freenet.onSyncUpdate(() => void showOpen().catch(() => {}));
@@ -185,7 +190,4 @@ rl.on("line", (line) => {
   if (!t) return rl.prompt();
   (t.startsWith("/") ? command(t) : send(t)).catch((e) => say(`Error: ${(e as Error).message ?? e}`)).finally(() => rl.prompt());
 });
-rl.on("close", () => {
-  shutdown();
-  process.exit(0);
-});
+rl.on("close", () => void quit());

@@ -549,10 +549,14 @@ export class FreenetClient {
     }, Math.max(150, 2000 - (Date.now() - this.lastNotify)));
   }
 
-  public async connect(): Promise<boolean> {
+  /** `chatOnly` (the terminal chat): only the log chat needs at start, @handles; the social logs below are big to fetch and
+   *  verify, and nothing there reads them. */
+  public async connect(opts?: { chatOnly?: boolean }): Promise<boolean> {
     try {
       await this.net.connect();
       this.isConnected = true;
+      void this.refreshLog("handles", true);
+      if (opts?.chatOnly) return true;
       void this.refreshLog("directory", true); // learn who else is on the network, and publish my own entry
       void this.refreshLog("supporters", true);
       void this.refreshLog("ghostkeys", true);
@@ -560,7 +564,6 @@ export class FreenetClient {
       void this.refreshLog("delegations", true);
       void this.refreshLog("supporter-receipts", true);
       void this.refreshLog("post-edits", true);
-      void this.refreshLog("handles", true);
     } catch (err) {
       console.warn("[Freenet] Could not connect to the Freenet node, using local storage only:", err);
       this.isConnected = false;

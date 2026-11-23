@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795470535.4345977,
-    "seen": 1795470708.4597895,
-    "ast_hash": "522c91bfd7d56314042df73f2978eca8",
+    "mtime": 1795473344.7371674,
+    "seen": 1795473447.5210698,
+    "ast_hash": "1c7781b8d4fb5e46e006251804b30022",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -84,15 +84,15 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795473159.140493,
-    "seen": 1795473162.6076634,
-    "ast_hash": "ef7ef21f61dba0cf9b2aa008311d63a0",
+    "mtime": 1795473443.1506646,
+    "seen": 1795473447.5236316,
+    "ast_hash": "ea866819e60a69452ff2525a93c41f83",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795470697.4029837,
-    "seen": 1795470708.462258,
-    "ast_hash": "d3d1574fc52f9af2231457db465c0588",
+    "mtime": 1795473443.1510744,
+    "seen": 1795473447.5236595,
+    "ast_hash": "dcac93c51f9c0699704618e8daaa474c",
     "semantic_hash": ""
   },
   "ui/index.html": {
@@ -2082,15 +2082,15 @@
     "semantic_hash": ""
   },
   "ui/cli/chat.ts": {
-    "mtime": 1795472660.597902,
-    "seen": 1795472687.1817858,
-    "ast_hash": "0ddab6614c7785b91a369d5154100b61",
+    "mtime": 1795473407.1063714,
+    "seen": 1795473447.520142,
+    "ast_hash": "87d9cd3328beb73fa735cb1acfd1e79f",
     "semantic_hash": ""
   },
   "ui/cli/node-bridge.ts": {
-    "mtime": 1795470362.4730036,
-    "seen": 1795470708.4591,
-    "ast_hash": "c6e9d4246ee92c53f1ad0aef67d3d3c7",
+    "mtime": 1795473407.1061401,
+    "seen": 1795473447.5201457,
+    "ast_hash": "1c8c1722fab6648e68f7153d4704c50e",
     "semantic_hash": ""
   },
   "ui/tests/cli.test.ts": {
