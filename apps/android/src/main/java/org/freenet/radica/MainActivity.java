@@ -62,6 +62,7 @@ public class MainActivity extends Activity {
     private static final int PICK_FILES = 1;
     private static final int MIC = 2;
     private static final int MIC_NATIVE = 4;
+    private static final int CAMERA_CHOOSER = 5;
     private static final int MAX_NATIVE_AUDIO_BYTES = 4 * 1024 * 1024;
 
     private enum Node { CHECKING, MISSING, STOPPED }
@@ -72,6 +73,8 @@ public class MainActivity extends Activity {
     private boolean opened;
     private Node shown;
     private ValueCallback<Uri[]> pendingFiles;
+    private Intent pendingCameraChooserIntent;
+    private Intent pendingFallbackFileIntent;
     private PermissionRequest pendingMic;
     private String[] pendingMediaResources;
     private MediaRecorder nativeRecorder;
@@ -835,10 +838,16 @@ public class MainActivity extends Activity {
                 if (wantsVideo && params.isCaptureEnabled()) {
                     Intent cam = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
                     cam.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);
-                    cam.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 0);
+                    cam.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1);
                     Intent chooser = Intent.createChooser(base, "Record or pick video");
                     chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{ cam });
-                    startActivityForResult(chooser, PICK_FILES);
+                    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        pendingCameraChooserIntent = chooser;
+                        pendingFallbackFileIntent = base;
+                        requestPermissions(new String[]{ Manifest.permission.CAMERA }, CAMERA_CHOOSER);
+                    } else {
+                        startActivityForResult(chooser, PICK_FILES);
+                    }
                 } else {
                     startActivityForResult(base, PICK_FILES);
                 }
@@ -899,6 +908,26 @@ public class MainActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        if (request == CAMERA_CHOOSER) {
+            Intent chooser = pendingCameraChooserIntent;
+            Intent fallback = pendingFallbackFileIntent;
+            pendingCameraChooserIntent = null;
+            pendingFallbackFileIntent = null;
+            Intent target = (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED && chooser != null)
+                    ? chooser
+                    : fallback;
+            if (target != null) {
+                try {
+                    startActivityForResult(target, PICK_FILES);
+                    return;
+                } catch (Exception ignored) {}
+            }
+            if (pendingFiles != null) {
+                pendingFiles.onReceiveValue(null);
+                pendingFiles = null;
+            }
+            return;
+        }
         if (request == MIC_NATIVE) {
             int maxSec = pendingNativeVoiceMaxSec > 0 ? pendingNativeVoiceMaxSec : 10;
             pendingNativeVoiceMaxSec = 0;

@@ -618,8 +618,8 @@ export function createMessengerChat(deps: MessengerDeps) {
               <div class="rm-vnote-rec-status" id="rm-vnote-rec-status">Recording circular video…</div>
               <div class="rm-vnote-rec-actions">
                 <button type="button" class="rm-link-btn" id="rm-vnote-rec-cancel">Cancel</button>
-                <button type="button" class="rm-link-btn" id="rm-vnote-rec-flip" title="Switch camera">↻ Flip</button>
-                <button type="button" class="rm-link-btn" id="rm-vnote-rec-file" title="Choose video file">📁 File</button>
+                <button type="button" class="rm-link-btn" id="rm-vnote-rec-flip" title="Switch camera">${renderIcon("repeat", { size: 12, className: "icon-xs" })} <span>Flip</span></button>
+                <button type="button" class="rm-link-btn" id="rm-vnote-rec-file" title="Choose video file">${renderIcon("folder", { size: 12, className: "icon-xs" })} <span>File</span></button>
                 <button type="button" class="rm-icebreaker-btn rm-vnote-rec-send" id="rm-vnote-rec-send" style="margin-top:0;">Stop &amp; Send</button>
               </div>
             </div>
@@ -637,7 +637,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                   placeholder="Write a message…"
                 ></textarea>
                 ${draftTranslateHtml("rm-composer-input")}
-                <button type="button" class="rm-emoji-btn" id="rm-btn-quick-emoji" title="Insert 🌱">🌱</button>
+                <button type="button" class="rm-emoji-btn" id="rm-btn-quick-emoji" hidden></button>
               </div>
               <button type="button" class="rm-quick-media-btn" id="rm-btn-vnote" title="Record circular video message (up to 60s)" aria-label="Record video message">
                 ${renderIcon("video", { className: "icon-sm" })}
@@ -2346,7 +2346,7 @@ export function createMessengerChat(deps: MessengerDeps) {
                 return `
           <div class="cm-card cm-card-img rm-shared-photo-item rm-shared-vnote-item" data-jump-msg="${escapeHtml(p.msgId)}" data-cm-kind="img" data-cm-hash="${escapeHtml(p.item.posterHash)}" data-cm-key="${escapeHtml(p.item.keyHex)}" data-cm-mime="image/jpeg" title="Jump to video message in chat">
             <div class="cm-img-wrap"><div class="cm-img-status">Decrypting…</div></div>
-            <span class="rm-shared-vnote-tag">🎥 ${escapeHtml(formatMediaDuration(p.item.durationSec))}</span>
+            <span class="rm-shared-vnote-tag">${renderIcon("video", { size: 11, className: "icon-xs" })} <span>${escapeHtml(formatMediaDuration(p.item.durationSec))}</span></span>
           </div>
         `;
               }
@@ -3853,7 +3853,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       walkieQueue.seedRoom(deps.openRoomId() || "", deps.getActiveState().shownMessages);
     }
     syncWalkieUi();
-    deps.showToast(next ? "📻 Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
+    deps.showToast(next ? "Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
   });
 
   walkieOffBtn.addEventListener("click", () => {

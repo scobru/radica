@@ -471,7 +471,8 @@
                   <span>Clear</span>
                 </button>
                 <button class="btn-secondary btn-sm btn-icon-text" id="chat-btn-walkie" aria-pressed="false" title="Walkie-Talkie mode: fast 10s push-to-talk &amp; auto-play incoming voice notes">
-                  <span>📻 Walkie</span>
+                  <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                  <span>Walkie</span>
                 </button>
                 <button class="btn-secondary btn-sm" id="chat-fullscreen-btn" title="Full screen" aria-label="Full screen" aria-pressed="false">
                   <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -580,15 +581,15 @@
                 <input type="file" id="chat-file-doc" hidden />
 
                 <div class="rm-attach-menu" id="chat-attach-menu" style="left: 20px; bottom: 65px;">
-                  <button type="button" class="rm-attach-item" data-chat-attach="voice">🎙️ Record Voice / Push-to-Talk</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="vnote">🎥 Record / Send Video Message</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="image">🖼️ Send Photo / Image</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="audio">🎵 Send Audio File / Memo</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="file">📄 Send Document / File</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="mention">👤 Mention someone (@)</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="poll">📊 Create FreePolls Poll</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="room-link" id="chat-attach-room-link">🔑 Insert Room Invite Link</button>
-                  <button type="button" class="rm-attach-item" data-chat-attach="my-key">🪪 Insert My Public Key</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="voice">Record Voice / Push-to-Talk</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="vnote">Record / Send Video Message</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="image">Send Photo / Image</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="audio">Send Audio File / Memo</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="file">Send Document / File</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="mention">Mention someone (@)</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="poll">Create FreePolls Poll</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="room-link" id="chat-attach-room-link">Insert Room Invite Link</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="my-key">Insert My Public Key</button>
                 </div>
 
                 <div id="chat-classic-typing-bar" style="display: none; align-items: center; gap: 6px; padding: 2px 14px 4px; font-size: 0.78rem; color: #10b981;">
@@ -610,8 +611,8 @@
                     <svg viewBox="0 0 24 24" class="svg-icon icon-md"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
                   <textarea id="chat-message-input" class="comment-input" rows="1" autocomplete="off" placeholder="Type a message... (Shift+Enter: new line)"></textarea>
-                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-vnote" title="Record or send video message (up to 60s)" aria-label="Video message" style="height: 38px; flex-shrink: 0;">🎥</button>
-                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-ptt" title="Hold for Push-to-Talk (or tap to record)" aria-label="Push to talk voice message" style="height: 38px; flex-shrink: 0; touch-action: none; user-select: none;">🎙️</button>
+                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-vnote" title="Record or send video message (up to 60s)" aria-label="Video message" style="height: 38px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></button>
+                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-ptt" title="Hold for Push-to-Talk (or tap to record)" aria-label="Push to talk voice message" style="height: 38px; flex-shrink: 0; touch-action: none; user-select: none; display: inline-flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
                   <button type="submit" class="btn-primary btn-sm" id="chat-send-btn">Send</button>
                 </form>
               </div>

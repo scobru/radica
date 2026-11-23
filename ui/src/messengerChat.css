@@ -835,6 +835,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   gap: 11px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   cursor: pointer;
   padding: 4px 8px 4px 4px;
   border-radius: 12px;
@@ -872,6 +873,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 
 #chat-modal .rm-header-info {
   min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -3030,6 +3032,8 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.35);
   color: #10b981;
@@ -4038,6 +4042,9 @@ progress.cm-vnote-ring {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(0, 0, 0, 0.65);
   color: #ffffff;
   font-size: 0.68rem;
@@ -4064,6 +4071,9 @@ progress.cm-vnote-ring {
   position: absolute;
   right: 6px;
   bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: rgba(0, 0, 0, 0.68);
   color: #fff;
   border-radius: 999px;
@@ -4084,6 +4094,13 @@ progress.cm-vnote-ring {
 }
 
 @media (max-width: 768px) {
+  #chat-modal .rm-trust-pill {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   #chat-modal .cm-vnote-stage,
   .chat-bubble .cm-vnote-stage {
     --vnote-size: 188px;

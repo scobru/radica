@@ -9391,19 +9391,18 @@ function setClassicStagedMedia(next: PreparedChatMedia | null) {
   chatMediaStage.style.display = "flex";
   if (next.kind === "img" && next.previewUrl) {
     chatMediaStagePreview.innerHTML = `<img src="${next.previewUrl}" alt="" style="max-height: 48px; border-radius: 6px;" />`;
-    chatMediaStageLabel.textContent = `🖼️ Photo · ${next.width || "?"}×${next.height || "?"} · ${formatBytes(next.sizeBytes || 0)}`;
+    chatMediaStageLabel.textContent = `Photo · ${next.width || "?"}×${next.height || "?"} · ${formatBytes(next.sizeBytes || 0)}`;
   } else if (next.kind === "vnote") {
     chatMediaStagePreview.innerHTML = next.previewUrl
       ? `<img src="${next.previewUrl}" alt="" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;" />`
-      : `<span style="font-size:1.4rem;">🎥</span>`;
-    chatMediaStageLabel.textContent = `🎥 Video message · ${formatMediaDuration(next.durationSec)} · ${formatBytes(next.sizeBytes || 0)}`;
+      : `<span style="display:grid;place-items:center;">${renderIcon("video", { size: 20 })}</span>`;
+    chatMediaStageLabel.textContent = `Video message · ${formatMediaDuration(next.durationSec)} · ${formatBytes(next.sizeBytes || 0)}`;
   } else if ((next.kind === "audio" || next.kind === "voice") && next.previewUrl) {
-    chatMediaStagePreview.innerHTML = `<span style="font-size:1.4rem;">🎵</span>`;
-    chatMediaStageLabel.textContent = `🎵 Audio memo · ${formatBytes(next.sizeBytes || 0)}`;
+    chatMediaStagePreview.innerHTML = `<span style="display:grid;place-items:center;">${renderIcon("music", { size: 20 })}</span>`;
+    chatMediaStageLabel.textContent = `Audio memo · ${formatBytes(next.sizeBytes || 0)}`;
   } else {
-    const icon = fileExtensionIcon(next.filename || "");
-    chatMediaStagePreview.innerHTML = `<span style="font-size:1.3rem;">${icon}</span>`;
-    chatMediaStageLabel.textContent = `📄 ${next.filename || "File"} · ${formatBytes(next.sizeBytes || 0)}`;
+    chatMediaStagePreview.innerHTML = `<span style="display:grid;place-items:center;">${renderIcon("fileText", { size: 20 })}</span>`;
+    chatMediaStageLabel.textContent = `${next.filename || "File"} · ${formatBytes(next.sizeBytes || 0)}`;
   }
 }
 
@@ -9655,7 +9654,7 @@ chatWalkieBtn?.addEventListener("click", () => {
     classicWalkieQueue.seedRoom(openRoomId() || "", shownMessages);
   }
   syncClassicWalkieUi();
-  showToast(next ? "📻 Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
+  showToast(next ? "Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
 });
 
 chatWalkieOffBtn?.addEventListener("click", () => {

@@ -7,6 +7,7 @@ import { bytesToHex, hexToBytes } from "./crypto.ts";
 import { mediaHashOf } from "./media.ts";
 import { compressPostImageFile } from "./avatar.ts";
 import { escapeHtml as esc } from "./html.ts";
+import { renderIcon } from "./icons.ts";
 import type { ImageModerationResult } from "./moderation.ts";
 import { encodeFEC, decodeFEC } from "freenet-blob";
 
@@ -1759,7 +1760,7 @@ export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
             : "";
         return `<div class="cm-card cm-img-card" ${attrs}>
           <div class="cm-img-wrap" ${ratio}>
-            <div class="cm-img-status">🔒 Decrypting photo…</div>
+            <div class="cm-img-status">Decrypting photo…</div>
           </div>
         </div>`;
       }
@@ -1772,9 +1773,9 @@ export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
           <div class="cm-file-icon">${icon}</div>
           <div class="cm-file-info">
             <div class="cm-file-name" title="${esc(fname)}">${esc(fname)}</div>
-            <div class="cm-file-meta">${esc(sizeStr)} · 🔒 Encrypted</div>
+            <div class="cm-file-meta">${esc(sizeStr)} · Encrypted</div>
           </div>
-          <button type="button" class="cm-file-download" title="Download ${esc(fname)}" aria-label="Download ${esc(fname)}">⬇️</button>
+          <button type="button" class="cm-file-download" title="Download ${esc(fname)}" aria-label="Download ${esc(fname)}">${renderIcon("download", { size: 14, className: "icon-xs" })}</button>
         </div>`;
       }
 
@@ -1787,13 +1788,13 @@ export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
             <div class="cm-vnote-circle">
               <video class="cm-vnote-video" width="208" height="208" playsinline preload="none" loading="lazy"></video>
               <div class="cm-vnote-overlay" aria-hidden="true">▶</div>
-              <div class="cm-vnote-badge" aria-hidden="true">🎥 ${esc(durStr)}</div>
+              <div class="cm-vnote-badge" aria-hidden="true">${renderIcon("video", { size: 11, className: "icon-xs" })} <span>${esc(durStr)}</span></div>
             </div>
           </div>
           <div class="cm-vnote-controls">
-            <button type="button" class="cm-speed-btn cm-vnote-mute" title="Mute / Unmute" aria-label="Mute or unmute video message" aria-pressed="false">🔊</button>
+            <button type="button" class="cm-speed-btn cm-vnote-mute" title="Mute / Unmute" aria-label="Mute or unmute video message" aria-pressed="false">${renderIcon("volume2", { size: 14, className: "icon-xs" })}</button>
             <button type="button" class="cm-speed-btn cm-vnote-speed" title="Playback speed">1×</button>
-            <button type="button" class="cm-speed-btn cm-vnote-download" title="Download video message" aria-label="Download video message">⬇️</button>
+            <button type="button" class="cm-speed-btn cm-vnote-download" title="Download video message" aria-label="Download video message">${renderIcon("download", { size: 14, className: "icon-xs" })}</button>
           </div>
         </div>`;
       }
@@ -1806,7 +1807,10 @@ export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
           return `<span class="cm-wf-bar" data-bar-idx="${idx}" style="height: ${Math.max(16, pct)}%;"></span>`;
         })
         .join("");
-      const kindBadge = item.kind === "voice" ? "🎙️ Voice" : "🎵 Audio";
+      const kindBadge =
+        item.kind === "voice"
+          ? `${renderIcon("mic", { size: 11, className: "icon-xs" })} <span>Voice</span>`
+          : `${renderIcon("music", { size: 11, className: "icon-xs" })} <span>Audio</span>`;
       return `<div class="cm-card cm-audio-card" ${attrs} data-cm-dur="${item.durationSec ?? 0}" data-cm-title="${esc(title.split("\n").find((l) => l.trim())?.trim().slice(0, 120) ?? "")}">
         <button type="button" class="cm-audio-play" aria-label="Play ${item.kind === "voice" ? "voice message" : "audio"}">▶</button>
         <div class="cm-audio-main">
@@ -1817,7 +1821,7 @@ export function chatMediaCardsHtml(items: ChatMediaItem[], title = ""): string {
           </div>
         </div>
         <button type="button" class="cm-speed-btn" title="Playback speed">1×</button>
-        <button type="button" class="cm-speed-btn cm-audio-download" title="Download" aria-label="Download ${item.kind === "voice" ? "voice message" : "audio"}">⬇️</button>
+        <button type="button" class="cm-speed-btn cm-audio-download" title="Download" aria-label="Download ${item.kind === "voice" ? "voice message" : "audio"}">${renderIcon("download", { size: 14, className: "icon-xs" })}</button>
       </div>`;
     })
     .join("");
@@ -1987,19 +1991,20 @@ function wireDownload(
   fname: string,
   getSealed: (hash: string) => Promise<Uint8Array | null>
 ): void {
+  const defaultIcon = renderIcon("download", { size: 14, className: "icon-xs" });
   let downloading = false;
   dlBtn.addEventListener("click", async (ev) => {
     ev.stopPropagation();
     if (downloading) return;
     downloading = true;
     dlBtn.disabled = true;
-    dlBtn.textContent = "⏳";
+    dlBtn.textContent = "…";
     try {
       const blobUrl = await resolveChatMediaUrl(item, getSealed);
       if (!blobUrl) {
-        dlBtn.textContent = "⚠️";
+        dlBtn.innerHTML = renderIcon("alertTriangle", { size: 14, className: "icon-xs" });
         setTimeout(() => {
-          dlBtn.textContent = "⬇️";
+          dlBtn.innerHTML = defaultIcon;
         }, 2500);
         return;
       }
@@ -2009,14 +2014,14 @@ function wireDownload(
       document.body.appendChild(a);
       a.click();
       a.remove();
-      dlBtn.textContent = "✓";
+      dlBtn.innerHTML = renderIcon("check", { size: 14, className: "icon-xs" });
       setTimeout(() => {
-        dlBtn.textContent = "⬇️";
+        dlBtn.innerHTML = defaultIcon;
       }, 2000);
     } catch {
-      dlBtn.textContent = "❌";
+      dlBtn.innerHTML = renderIcon("alertTriangle", { size: 14, className: "icon-xs" });
       setTimeout(() => {
-        dlBtn.textContent = "⬇️";
+        dlBtn.innerHTML = defaultIcon;
       }, 2500);
     } finally {
       downloading = false;
@@ -2108,7 +2113,8 @@ function hydrateVnoteCard(
     const cur = video.currentTime || 0;
     syncVnoteRing(ring, playing || cur > 0 ? cur : 0, dur);
     if (badge && loadStatus !== "loading" && loadStatus !== "error") {
-      badge.textContent = playing && dur > 0 ? `🎥 ${formatMediaDuration(Math.max(0, dur - cur))}` : `🎥 ${formatMediaDuration(dur)}`;
+      const label = playing && dur > 0 ? formatMediaDuration(Math.max(0, dur - cur)) : formatMediaDuration(dur);
+      badge.innerHTML = `${renderIcon("video", { size: 11, className: "icon-xs" })} <span>${esc(label)}</span>`;
     }
   };
 
@@ -2128,7 +2134,7 @@ function hydrateVnoteCard(
     if (loadStatus === "ready") return true;
     if (loadStatus === "loading") return false;
     loadStatus = "loading";
-    if (badge) badge.textContent = "🔒 Decrypting…";
+    if (badge) badge.textContent = "Decrypting…";
 
     const cached = blobCache.get(cacheKeyOf(item.hash, item.keyHex));
     if (cached) {
@@ -2189,7 +2195,7 @@ function hydrateVnoteCard(
           msUrl = "";
         }
         loadStatus = "error";
-        if (badge) badge.textContent = "⚠️ Tap to retry";
+        if (badge) badge.textContent = "Tap to retry";
         return false;
       }
       const activeMs = ms as MediaSource | null;
@@ -2211,7 +2217,7 @@ function hydrateVnoteCard(
       return true;
     } catch {
       loadStatus = "error";
-      if (badge) badge.textContent = "⚠️ Tap to retry";
+      if (badge) badge.textContent = "Tap to retry";
       return false;
     }
   };
@@ -2250,7 +2256,7 @@ function hydrateVnoteCard(
   muteBtn?.addEventListener("click", (ev) => {
     ev.stopPropagation();
     video.muted = !video.muted;
-    muteBtn.textContent = video.muted ? "🔇" : "🔊";
+    muteBtn.innerHTML = renderIcon(video.muted ? "volumeX" : "volume2", { size: 14, className: "icon-xs" });
     muteBtn.setAttribute("aria-pressed", video.muted ? "true" : "false");
   });
 
@@ -2294,11 +2300,11 @@ export function fillChatMedia(
       if (!wrap) return;
       const loadImg = () => {
         card.dataset.cmState = "loading";
-        wrap.innerHTML = `<div class="cm-img-status">🔒 Decrypting photo…</div>`;
+        wrap.innerHTML = `<div class="cm-img-status">Decrypting photo…</div>`;
         void resolveChatMediaUrl(item, getSealed).then((blobUrl) => {
           if (!blobUrl) {
             card.dataset.cmState = "missing";
-            wrap.innerHTML = `<button type="button" class="cm-retry-btn">📷 Photo not on node yet · Tap to retry</button>`;
+            wrap.innerHTML = `<button type="button" class="cm-retry-btn">Photo not on node yet · Tap to retry</button>`;
             wrap.querySelector(".cm-retry-btn")?.addEventListener("click", (ev) => {
               ev.stopPropagation();
               loadImg();

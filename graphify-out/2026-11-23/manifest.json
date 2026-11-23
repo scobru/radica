@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795388244.4658039,
-    "ast_hash": "84bf47559090b166e8aa3268602cd3a8",
+    "mtime": 1795450180.0239718,
+    "ast_hash": "aa4e371fae8e62b918856ef52a550990",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1795440439.5780516,
-    "ast_hash": "9d3fb7e191dd60998fb903ba59b6bcdb",
+    "mtime": 1795452156.140283,
+    "ast_hash": "5a1e800ec3787052188480b23cf3ecdd",
     "semantic_hash": ""
   },
   "inbox.json": {
