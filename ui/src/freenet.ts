@@ -132,6 +132,7 @@ import {
 import { dmPeerOf, localReadMarks, seedReadMark } from "./conversationState.ts";
 import { durable } from "./durable.ts";
 import { acceptMeshPacket, meshSend, onMeshPacket } from "./lanMesh.ts";
+import { readContactCards, saveContactCard, type ContactCard } from "./contactCard.ts";
 import { mergeRoomBackup } from "./roomBackup.ts";
 import {
   backupOwnProfileExtras,
@@ -658,10 +659,22 @@ export class FreenetClient {
   private roomsReady: Promise<void> = Promise.resolve();
 
   /** The persona that signs log entries (messages, community actions). Call once at startup. */
+  /** A contact card I took in person (contactCard.ts). */
+  public contactCard(pubkey: string): ContactCard | undefined {
+    return this.me ? readContactCards(localStorage, this.me)[pubkey] : undefined;
+  }
+
+  public saveContactCard(card: ContactCard): void {
+    saveContactCard(localStorage, this.me, card);
+    if (card.name && !this.knownPeers[card.pubkey]) this.knownPeers[card.pubkey] = { display_name: card.name };
+  }
+
   public setIdentity(identity: UserIdentity): void {
     this.identity = identity;
     this.me = identity.pubkey;
     restoreOwnProfileExtras(localStorage, identity.pubkey);
+    for (const c of Object.values(readContactCards(localStorage, this.me)))
+      if (c.name && !this.knownPeers[c.pubkey]) this.knownPeers[c.pubkey] = { display_name: c.name };
     this.moveLocalLogs();
     this.applyDmHistory();
     void this.loadDmHistory();
@@ -2149,7 +2162,8 @@ export class FreenetClient {
     if (pubkey === this.me && this.identity) return this.identity.encPub;
     const pr = (await this.getFeed(pubkey)).profile;
     const enc = pr?.enc_pub;
-    if (!pr || !enc || !/^[0-9a-f]{64}$/.test(enc) || enc === pubkey) return pubkey;
+    // no signed profile (offline, or not published yet): the key from a contact card taken in person
+    if (!pr || !enc || !/^[0-9a-f]{64}$/.test(enc) || enc === pubkey) return this.contactCard(pubkey)?.encPub ?? pubkey;
     const msg = pr.v === 3
       ? profileMsg4(pubkey, pr)
       : formatProfileSignatureMessage(pubkey, pr.display_name ?? "", pr.bio ?? "", pr.avatar_url ?? "", enc, pr.updated_at ?? 0);

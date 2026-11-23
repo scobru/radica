@@ -15,6 +15,7 @@ export const DURABLE_PREFIXES = [
   "radica_profile_extras_", // Own signed wallets and ecosystem profile links so Edit Profile & Own Profile stay instant & persistent
   "radica_pinned_chats_",
   "radica_verified_chats_",
+  "radica_contact_cards_", // contact cards taken in person: the only way to reach someone with no network
   "river_key_",
   "river_join_",
   "radica_hidden_users",

@@ -73,6 +73,7 @@ import { playWalkieChirp } from "./sound.ts";
 import { analyzeImageFile } from "./moderation.ts";
 import { freenet } from "./freenet.ts";
 import { hasLanMesh } from "./lanMesh.ts";
+import { contactCardText, parseContactCard } from "./contactCard.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { drLevel } from "./secretRatchet.ts";
@@ -696,9 +697,10 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-create-room">+ New E2EE Group</button>
           <button type="button" class="rm-link-btn" id="rm-modal-join-room">${renderIcon("key", { size: 14, className: "icon-xs" })} Join with Invite Code</button>
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
+          <button type="button" class="rm-link-btn" id="rm-modal-copy-card" title="Your key as one line of text: whoever pastes it here can write to you even with no network">${renderIcon("key", { size: 14, className: "icon-xs" })} Copy my contact card</button>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, or 64-hex key)</label>
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, 64-hex key, or contact card)</label>
           <div style="display: flex; gap: 6px;">
             <input type="text" id="rm-new-chat-input" class="rm-field-input" placeholder="Type @handle, persona key, 64-hex, or filter contacts…" autocomplete="off" />
             <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go" style="margin-top: 0; white-space: nowrap;">Open DM</button>
@@ -4449,8 +4451,15 @@ export function createMessengerChat(deps: MessengerDeps) {
 
     let targetPk: string | null = null;
 
+    // 0. Contact card (radica:c1:…), handed over in person: works with no network
+    const card = parseContactCard(raw);
+    if (card) {
+      freenet.saveContactCard(card);
+      targetPk = card.pubkey;
+    }
+
     // 1. Direct 64-hex public key
-    if (/^[0-9a-f]{64}$/i.test(raw)) {
+    if (!targetPk && /^[0-9a-f]{64}$/i.test(raw)) {
       targetPk = raw.toLowerCase();
     }
 
@@ -4515,6 +4524,17 @@ export function createMessengerChat(deps: MessengerDeps) {
       deps.showToast("Enter a valid @handle, Base58 persona, 64-hex key, or pick a contact.", "warning");
     }
   };
+  inModals("#rm-modal-copy-card")?.addEventListener("click", async () => {
+    const identity = deps.getIdentity();
+    if (!identity) return;
+    const name = deps.getAuthorDisplayName(identity.pubkey);
+    try {
+      await navigator.clipboard.writeText(contactCardText({ pubkey: identity.pubkey, encPub: identity.encPub, name }));
+      deps.showToast("Contact card copied: send it, or let them paste it in New Conversation.", "info");
+    } catch {
+      deps.showToast("Could not copy to the clipboard.", "warning");
+    }
+  });
   inModals("#rm-new-chat-go")?.addEventListener("click", () => void startDmFromInput(false));
   inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => void startDmFromInput(true));
   inModals("#rm-modal-new-secret")?.addEventListener("click", () => {
