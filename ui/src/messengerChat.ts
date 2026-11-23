@@ -703,6 +703,11 @@ export function createMessengerChat(deps: MessengerDeps) {
           <input type="file" id="rm-scan-qr-input" accept="image/*" capture="environment" hidden />
         </div>
         <div id="rm-my-qr" class="rm-my-qr" hidden></div>
+        <div id="rm-nearby" class="rm-nearby" hidden>
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Nearby (same Wi-Fi or hotspot)</label>
+          <label class="rm-nearby-toggle"><input type="checkbox" id="rm-nearby-visible" /> Let people on this Wi-Fi find me</label>
+          <div id="rm-nearby-list"></div>
+        </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, 64-hex key, or contact card)</label>
           <div style="display: flex; gap: 6px;">
@@ -2850,9 +2855,33 @@ export function createMessengerChat(deps: MessengerDeps) {
       .join("");
   }
 
+  /** Nearby (lanMesh.ts hellos): Radica users on this Wi-Fi who made themselves visible. Names are theirs to pick, so
+   *  each row says "not verified": a QR scanned in person is the check. */
+  function renderNearby() {
+    const box = newChatModalEl.querySelector("#rm-nearby") as HTMLElement | null;
+    if (!box) return;
+    box.hidden = !hasLanMesh();
+    if (box.hidden) return;
+    (box.querySelector("#rm-nearby-visible") as HTMLInputElement).checked = freenet.isNearbyVisible();
+    const peers = freenet.nearbyPeers().filter((c) => !(deps.isPeerBlocked?.(c.pubkey) ?? false));
+    (box.querySelector("#rm-nearby-list") as HTMLElement).innerHTML = peers.length
+      ? peers
+          .map(
+            (c) => `<button type="button" class="rm-nearby-row" data-nearby-pk="${escapeHtml(c.pubkey)}">
+              <b>${escapeHtml(c.name || "No name")}</b> <span>${escapeHtml(shortenKey(c.pubkey))} · nearby, not verified</span>
+            </button>`
+          )
+          .join("")
+      : `<p class="rm-nearby-empty">Nobody nearby has made themselves visible yet.</p>`;
+  }
+  freenet.onSyncUpdate(() => {
+    if (newChatModalEl.classList.contains("open")) renderNearby();
+  });
+
   function openNewChatModal() {
     newChatInputEl.value = "";
     renderContactPickerList();
+    renderNearby();
     newChatModalEl.classList.add("open");
     setTimeout(() => newChatInputEl.focus(), 30);
   }
@@ -4565,6 +4594,19 @@ export function createMessengerChat(deps: MessengerDeps) {
     }
     newChatInputEl.value = contactCardText(card);
     deps.showToast(`Contact ${card.name || "card"} read: choose Open DM or Secret.`, "info");
+  });
+  inModals("#rm-nearby-visible")?.addEventListener("change", (e) => {
+    freenet.setNearbyVisible((e.target as HTMLInputElement).checked);
+  });
+  inModals("#rm-nearby-list")?.addEventListener("click", (e) => {
+    const pk = (e.target as HTMLElement).closest<HTMLElement>("[data-nearby-pk]")?.dataset.nearbyPk;
+    const card = freenet.nearbyPeers().find((c) => c.pubkey === pk);
+    if (!card) return;
+    freenet.saveContactCard(card);
+    newChatModalEl.classList.remove("open");
+    mobileShowThread = true;
+    workspaceEl.classList.add("mobile-thread-open");
+    void deps.onSelectPeer(card.pubkey, false);
   });
   inModals("#rm-new-chat-go")?.addEventListener("click", () => void startDmFromInput(false));
   inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => void startDmFromInput(true));

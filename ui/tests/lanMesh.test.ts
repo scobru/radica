@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
-import { acceptMeshPacket, meshPacket, MESH_MAX_BYTES } from "../src/lanMesh.ts";
+import { acceptHello, acceptMeshPacket, helloPacket, helloSigMessage, meshPacket, MESH_MAX_BYTES } from "../src/lanMesh.ts";
 import { bytesToHex, formatChatMessageSignatureMessage } from "../src/crypto.ts";
 import { getSecretRoomId } from "../src/secretChat.ts";
 import type { ChatMessage } from "../src/types.ts";
@@ -41,4 +41,30 @@ test("lanMesh: rejects tampered, misaddressed, foreign-room, blocked and oversiz
   assert.equal(await acceptMeshPacket("x".repeat(MESH_MAX_BYTES + 1), bob.pk, none), null);
   assert.equal(await acceptMeshPacket("{not json", bob.pk, none), null);
   assert.equal(await acceptMeshPacket(meshPacket(ok), "", none), null);
+});
+
+async function hello(from: { sk: Uint8Array; pk: string }, ts: number, name = "Alice") {
+  const h = { pubkey: from.pk, encPub: "ef".repeat(32), name, ts };
+  const sig = bytesToHex(await ed.signAsync(new TextEncoder().encode(helloSigMessage(h)), from.sk));
+  return { h, sig };
+}
+
+test("lanMesh: a signed, fresh hello becomes a contact card", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const now = 1_700_000_000_000;
+  const { h, sig } = await hello(alice, now - 5_000);
+  assert.deepEqual(await acceptHello(helloPacket(h, sig), bob.pk, none, now), { pubkey: alice.pk, encPub: "ef".repeat(32), name: "Alice" });
+});
+
+test("lanMesh: rejects stale, forged, own and blocked hellos", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const now = 1_700_000_000_000;
+  const { h, sig } = await hello(alice, now);
+  assert.equal(await acceptHello(helloPacket({ ...h, name: "Mallory" }, sig), bob.pk, none, now), null);
+  assert.equal(await acceptHello(helloPacket(h, sig), bob.pk, none, now + 120_000), null);
+  assert.equal(await acceptHello(helloPacket(h, sig), alice.pk, none, now), null);
+  assert.equal(await acceptHello(helloPacket(h, sig), bob.pk, (pk) => pk === alice.pk, now), null);
+  // a chat packet is not a hello
+  const msg = await signed(alice, bob.pk, getSecretRoomId(alice.pk, bob.pk));
+  assert.equal(await acceptHello(meshPacket(msg), bob.pk, none, now), null);
 });

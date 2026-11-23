@@ -131,7 +131,7 @@ import {
 } from "./secretChat.ts";
 import { dmPeerOf, localReadMarks, seedReadMark } from "./conversationState.ts";
 import { durable } from "./durable.ts";
-import { acceptMeshPacket, meshSend, onMeshPacket } from "./lanMesh.ts";
+import { acceptHello, acceptMeshPacket, HELLO_EVERY_MS, HELLO_FRESH_MS, helloPacket, helloSigMessage, meshBroadcast, meshSend, onMeshPacket } from "./lanMesh.ts";
 import { readContactCards, saveContactCard, type ContactCard } from "./contactCard.ts";
 import { mergeRoomBackup } from "./roomBackup.ts";
 import {
@@ -253,6 +253,12 @@ export class FreenetClient {
     }
     // the LAN mesh (lanMesh.ts): a checked message is handled as if another tab had sent it
     onMeshPacket(async (raw) => {
+      const card = await acceptHello(raw, this.me, (pk) => this.blockedBy(this.me).has(pk));
+      if (card) {
+        this.nearby.set(card.pubkey, { card, seen: Date.now() });
+        this.notifyListeners();
+        return;
+      }
       const message = await acceptMeshPacket(raw, this.me, (pk) => this.blockedBy(this.me).has(pk));
       if (message) this.handlePeerEvent({ type: "chat", message });
     });
@@ -659,6 +665,34 @@ export class FreenetClient {
   private roomsReady: Promise<void> = Promise.resolve();
 
   /** The persona that signs log entries (messages, community actions). Call once at startup. */
+  /** People whose hello I heard on the LAN in the last minute (lanMesh.ts). */
+  private nearby = new Map<string, { card: ContactCard; seen: number }>();
+  public nearbyPeers(): ContactCard[] {
+    const fresh = Date.now() - HELLO_FRESH_MS;
+    return [...this.nearby.values()].filter((n) => n.seen > fresh).map((n) => n.card);
+  }
+
+  private helloTimer: ReturnType<typeof setInterval> | undefined;
+  public isNearbyVisible(): boolean {
+    return localStorage.getItem("radica_nearby_visible") === "1";
+  }
+  /** "Let people on this Wi-Fi find me": broadcast my signed hello while on (per device, off by default). */
+  public setNearbyVisible(on: boolean): void {
+    localStorage.setItem("radica_nearby_visible", on ? "1" : "0");
+    clearInterval(this.helloTimer);
+    this.helloTimer = undefined;
+    if (!on) return;
+    const hello = async () => {
+      const id = this.identity;
+      if (!id) return;
+      const name = this.knownPeers[id.pubkey]?.display_name ?? "";
+      const h = { pubkey: id.pubkey, encPub: id.encPub, name: name.slice(0, 64), ts: Date.now() };
+      meshBroadcast(helloPacket(h, await id.sign(helloSigMessage(h)), id.cert));
+    };
+    void hello();
+    this.helloTimer = setInterval(() => void hello(), HELLO_EVERY_MS);
+  }
+
   /** A contact card I took in person (contactCard.ts). */
   public contactCard(pubkey: string): ContactCard | undefined {
     return this.me ? readContactCards(localStorage, this.me)[pubkey] : undefined;
@@ -673,6 +707,7 @@ export class FreenetClient {
     this.identity = identity;
     this.me = identity.pubkey;
     restoreOwnProfileExtras(localStorage, identity.pubkey);
+    if (this.isNearbyVisible()) this.setNearbyVisible(true);
     for (const c of Object.values(readContactCards(localStorage, this.me)))
       if (c.name && !this.knownPeers[c.pubkey]) this.knownPeers[c.pubkey] = { display_name: c.name };
     this.moveLocalLogs();
