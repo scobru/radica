@@ -89,7 +89,11 @@ async function signIn(): Promise<void> {
       ? "Freenet node connected."
       : `No Freenet node at 127.0.0.1:7509: ${lanMeshUp() ? "chatting over the local network only." : "local network unavailable too."}`
   );
-  if (online) void freenet.announceIdentity(me, null).catch(() => {});
+  if (online) {
+    // as the app does on sign-in: my profile names this device's key, the one people seal their messages to
+    void freenet.syncOwnFeed(me).catch(() => {});
+    void freenet.announceIdentity(me, null).catch(() => {});
+  }
   say("Type /help for commands.");
 }
 
