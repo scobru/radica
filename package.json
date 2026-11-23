@@ -1,6 +1,6 @@
 {
   "name": "radica",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "A 100% decentralized social media platform powered by Freenet",
   "scripts": {
     "dev": "npm --prefix ui run dev",
@@ -23,7 +23,8 @@
     "freenet:filter:publish": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs filter && fdev website publish ui/dist-filter --key radica-filter",
     "freenet:filter:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs filter && fdev website update ui/dist-filter --key radica-filter",
     "freenet:litert:publish": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs litert && fdev website publish ui/dist-litert --key radica-litert",
-    "freenet:litert:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs litert && fdev website update ui/dist-litert --key radica-litert"
+    "freenet:litert:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs litert && fdev website update ui/dist-litert --key radica-litert",
+    "chat": "npm --prefix ui run chat"
   },
   "keywords": [
     "freenet",

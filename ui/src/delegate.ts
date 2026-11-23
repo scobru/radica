@@ -24,28 +24,34 @@ let key: Promise<DelegateKeyT> | undefined;
 const others = new Map<string, Promise<DelegateKeyT>>(); // other delegates by wasm url (ante)
 
 function wsEndpoint(): { url: URL; token: string } {
-  const loc = globalThis.location;
-  const onNode = loc.port === "7509" || loc.pathname.includes("/v1/contract/");
-  const url = new URL(`${loc.protocol === "https:" ? "wss" : "ws"}://${onNode ? loc.host : "127.0.0.1:7509"}/v1/contract/command`);
-  return { url, token: new URLSearchParams(loc.search).get("authToken") ?? "" };
+  const loc = globalThis.location; // undefined in Node (the terminal chat): the default local node, as network.ts
+  const onNode = !!loc && (loc.port === "7509" || loc.pathname.includes("/v1/contract/"));
+  const url = new URL(`${loc?.protocol === "https:" ? "wss" : "ws"}://${onNode ? loc.host : "127.0.0.1:7509"}/v1/contract/command`);
+  return { url, token: new URLSearchParams(loc?.search ?? "").get("authToken") ?? "" };
 }
 
 function api(): Promise<FreenetWsApi> {
   if (globalThis.location?.port === "5199") return Promise.reject(new Error("offline"));
   return (apiP ??= new Promise((resolve, reject) => {
     const { url, token } = wsEndpoint();
+    const closed = () => {
+      apiP = key = undefined;
+      others.clear();
+      waiters.splice(0).forEach((w) => w.reject(new Error("socket closed")));
+      reject(new Error("socket closed"));
+    };
     const a: FreenetWsApi = new FreenetWsApi(url, {
       onContractPut() {}, onContractGet() {}, onContractUpdate() {}, onContractUpdateNotification() {}, onContractNotFound() {},
       onDelegateResponse: (r) => waiters.shift()?.resolve(r), // replies carry no id: one request at a time
       onErr: (e) => console.warn("[Freenet delegate]", e?.cause ?? e),
       onOpen: () => resolve(a),
-      onClose: () => {
-        apiP = key = undefined;
-        others.clear();
-        waiters.splice(0).forEach((w) => w.reject(new Error("socket closed")));
-        reject(new Error("socket closed"));
-      },
+      onClose: closed,
     }, token);
+    // no node: a browser follows the error with a close, Node's WebSocket (the terminal chat) does not
+    let opened = false;
+    const ws = (a as unknown as { ws?: WebSocket }).ws;
+    ws?.addEventListener("open", () => (opened = true));
+    ws?.addEventListener("error", () => opened || closed());
   }));
 }
 

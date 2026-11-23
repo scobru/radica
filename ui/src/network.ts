@@ -217,6 +217,8 @@ export class FreenetNetwork {
             this.drop(api, opened);
           },
         }, new URLSearchParams(globalThis.location?.search ?? "").get("authToken") ?? "")); // "" not undefined: the stdlib would read document.cookie, which throws in the sandboxed iframe
+        // no node to connect to: a browser follows the error with a close, Node's WebSocket (the terminal chat) does not
+        (api as unknown as { ws?: WebSocket }).ws?.addEventListener("error", () => opened || reject(new Error("Freenet WebSocket error")));
         this.sock = api;
       })
     ).catch((e) => {

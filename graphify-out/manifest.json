@@ -6,15 +6,15 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795464529.047514,
-    "seen": 1795464803.3758945,
-    "ast_hash": "d37debbe010b6d39875f1cdc79667f62",
+    "mtime": 1795470303.7453442,
+    "seen": 1795470708.4590638,
+    "ast_hash": "ad05e2309191f517b371e9f5799dbadb",
     "semantic_hash": ""
   },
   "ui/package.json": {
-    "mtime": 1795461374.1993012,
-    "seen": 1795461475.635723,
-    "ast_hash": "182c85b45b01eb618e7d827c15a135cb",
+    "mtime": 1795470303.7450051,
+    "seen": 1795470708.4591973,
+    "ast_hash": "867a9ea4cc994f14a0c75d48f4581e54",
     "semantic_hash": ""
   },
   "ui/src/crypto.ts": {
@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795464561.027672,
-    "seen": 1795464803.3769,
-    "ast_hash": "ab1f00f3a10286117dd556d411efbdd3",
+    "mtime": 1795470535.4345977,
+    "seen": 1795470708.4597895,
+    "ast_hash": "522c91bfd7d56314042df73f2978eca8",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -84,21 +84,21 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795464773.3370337,
-    "seen": 1795464803.3803103,
-    "ast_hash": "73ed773de86e928a287cb1d6b62340a3",
+    "mtime": 1795470697.402415,
+    "seen": 1795470708.4622421,
+    "ast_hash": "26b2aa49002dae65b1727c7f0e6c1938",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795464773.3374925,
-    "seen": 1795464803.380333,
-    "ast_hash": "f4c4c0fad661a9a7429185ec77ccb9a7",
+    "mtime": 1795470697.4029837,
+    "seen": 1795470708.462258,
+    "ast_hash": "d3d1574fc52f9af2231457db465c0588",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795464773.3361309,
-    "seen": 1795464803.3807957,
-    "ast_hash": "48bcc7a1d43584d83c364cc1596cf164",
+    "mtime": 1795470697.4013345,
+    "seen": 1795470708.4625866,
+    "ast_hash": "eb1c95eac4e4ca55b8e3ad3a3febdf21",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -108,9 +108,9 @@
     "semantic_hash": ""
   },
   "ui/src/storage.ts": {
-    "mtime": 1795459463.7203212,
-    "seen": 1795460206.9290857,
-    "ast_hash": "d1cb1932845c69c73b0aa24e6b227ad6",
+    "mtime": 1795470572.6711366,
+    "seen": 1795470708.4606228,
+    "ast_hash": "89b6f9aa37343c25d345c44cecfe0c6b",
     "semantic_hash": ""
   },
   "ui/src/avatar.ts": {
@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "ui/src/delegate.ts": {
-    "mtime": 1795459463.712321,
-    "seen": 1795460206.9290264,
-    "ast_hash": "595da0f048824e38342e26025336a694",
+    "mtime": 1795470484.6631515,
+    "seen": 1795470708.4596407,
+    "ast_hash": "c4ca0fe9370cef48f19275725d716c9a",
     "semantic_hash": ""
   },
   "ui/src/feedmerge.ts": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "ui/src/network.ts": {
-    "mtime": 1795459463.7203212,
-    "seen": 1795460206.9290638,
-    "ast_hash": "1360d33c73b390597af35a9659bab5d1",
+    "mtime": 1795470433.482146,
+    "seen": 1795470708.4602253,
+    "ast_hash": "0b25436cfc6001e5fab9b9f2347ab957",
     "semantic_hash": ""
   },
   "ui/src/refresh.ts": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795464773.334426,
-    "seen": 1795464803.3781698,
-    "ast_hash": "00956685f6e6baec3ce554aa668cdc1a",
+    "mtime": 1795470697.3991246,
+    "seen": 1795470708.4607406,
+    "ast_hash": "7b9c5afc9cd00039ed7e58d3c11291c7",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795464773.3378193,
-    "seen": 1795464803.3803132,
-    "ast_hash": "dca8a91e9bc7e24c0f2b5f6c98fdaae3",
+    "mtime": 1795470697.4032795,
+    "seen": 1795470708.4622436,
+    "ast_hash": "8e3506686b125188ef898f54b51abaf0",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1986,9 +1986,9 @@
     "semantic_hash": ""
   },
   "apps/Cargo.toml": {
-    "mtime": 1795459463.580321,
-    "seen": 1795460206.9289215,
-    "ast_hash": "cd525a4e71f94ffa396b38c398ea3ece",
+    "mtime": 1795469637.086122,
+    "seen": 1795470708.4580019,
+    "ast_hash": "3f78dc3fae6bba7c1257e13b924c9fd1",
     "semantic_hash": ""
   },
   "apps/desktop/Cargo.toml": {
@@ -2046,9 +2046,9 @@
     "semantic_hash": ""
   },
   "ui/src/lanMesh.ts": {
-    "mtime": 1795464561.021955,
-    "seen": 1795464803.377134,
-    "ast_hash": "c40aaff4198c9c36eca47e6cacdcb63f",
+    "mtime": 1795470260.0255122,
+    "seen": 1795470708.4599698,
+    "ast_hash": "136d64496cd23c87c8b4cdd5ad515263",
     "semantic_hash": ""
   },
   "ui/tests/lanMesh.test.ts": {
@@ -2073,6 +2073,30 @@
     "mtime": 1795461413.8393025,
     "seen": 1795461475.6377158,
     "ast_hash": "f49a48b3e7684c21a603f45ca9d0d13e",
+    "semantic_hash": ""
+  },
+  "ui/cli/build.mjs": {
+    "mtime": 1795470115.543963,
+    "seen": 1795470708.4590971,
+    "ast_hash": "934473f436b2d93b1f19912863a65ec0",
+    "semantic_hash": ""
+  },
+  "ui/cli/chat.ts": {
+    "mtime": 1795470535.4351313,
+    "seen": 1795470708.4590986,
+    "ast_hash": "915d606952801ad01c0584ac0c95e8c6",
+    "semantic_hash": ""
+  },
+  "ui/cli/node-bridge.ts": {
+    "mtime": 1795470362.4730036,
+    "seen": 1795470708.4591,
+    "ast_hash": "c6e9d4246ee92c53f1ad0aef67d3d3c7",
+    "semantic_hash": ""
+  },
+  "ui/tests/cli.test.ts": {
+    "mtime": 1795470535.438827,
+    "seen": 1795470708.4610097,
+    "ast_hash": "19f96e0268d23f28d0553db4a3ef8496",
     "semantic_hash": ""
   },
   "attester/package-lock.json": {

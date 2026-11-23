@@ -9,7 +9,9 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "prebuild": "node scripts/fetch-moderation-model.mjs",
     "predev": "node scripts/fetch-moderation-model.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "cli:build": "node cli/build.mjs",
+    "chat": "node cli/build.mjs && node dist-cli/radica-chat.mjs"
   },
   "dependencies": {
     "@browsermt/bergamot-translator": "0.4.9",
