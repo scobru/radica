@@ -167,6 +167,9 @@ const isMessengerApp = (() => {
     return false;
   }
 })();
+const isMessengerMode = (): boolean =>
+  isMessengerApp || document.documentElement.getAttribute("data-app-mode") === "messenger";
+
 if (isMessengerApp) {
   document.documentElement.setAttribute("data-app-mode", "messenger");
   document.title = "Radica Messenger";
@@ -2018,9 +2021,10 @@ function renderBlocklists() {
 document.getElementById("blocklists-open-btn")!.addEventListener("click", () => {
   if (!currentIdentity) return;
   paintModButton();
-  const hasReports = amGlobalMod() && freenet.reportQueue().length > 0;
+  const hasReports = !isMessengerMode() && amGlobalMod() && freenet.reportQueue().length > 0;
   showBlocklistTab(hasReports ? "moderation" : "blocklists");
   blocklistsModal.style.display = "flex";
+  blocklistsModal.scrollTop = 0;
   refreshTrustedBlocklists();
 });
 document.getElementById("blocklists-close-btn")!.addEventListener("click", () => (blocklistsModal.style.display = "none"));
@@ -2153,13 +2157,15 @@ function updateBlocklistsBadge(): void {
 }
 
 const paintModButton = () => {
-  const isMod = amGlobalMod();
+  const messenger = isMessengerMode();
+  const isMod = !messenger && amGlobalMod();
   if (blocklistsTabs) blocklistsTabs.style.display = isMod ? "flex" : "none";
   if (tabBtnModeration) tabBtnModeration.style.display = isMod ? "" : "none";
   if (blocklistsModalTitle) {
     const titleSpan = blocklistsModalTitle.querySelector("span") ?? blocklistsModalTitle;
-    titleSpan.textContent = isMod ? "Blocklists & Moderation" : "Blocklists";
+    titleSpan.textContent = messenger ? "Blocked Contacts" : isMod ? "Blocklists & Moderation" : "Blocklists";
   }
+  if (messenger) return;
   updateBlocklistsBadge();
 };
 
@@ -5772,54 +5778,56 @@ editProfileBtn.addEventListener("click", () => {
     const curH = me && freenet.handleOf(me);
     modalHandleStatus.textContent = curH ? `Registered active handle: @${curH}` : "No handle registered yet.";
   }
-  modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
-  fillWalletInputs(me ? freenet.walletsOf(me) : {});
-  if (modalOrtoInput) modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
-  if (modalAsocialInput) modalAsocialInput.value = (me && freenet.asocialKeyOf(me)) || "";
-  if (modalFreetunesInput) {
-    const existing = (me && freenet.freetunesOf(me)) || "";
-    if (existing) {
-      modalFreetunesInput.value = existing;
-    } else {
-      modalFreetunesInput.value = "";
-      const local = localFreetunesArtist();
-      const localRels = localFreetunesReleases();
-      if (localRels.length > 0) {
-        modalFreetunesInput.value = localRels.map((r) => `#/r/${r.id}.${r.params}`).join(" ");
-        freetunesAutoSuggested = true;
-      } else if (local.artistHex) {
-        modalFreetunesInput.value = `#/a/${local.artistHex}`;
-        freetunesAutoSuggested = true;
-      }
-    }
-  }
-  if (modalFhInput) modalFhInput.value = (me && freenet.fhOf(me)) || "";
-  if (modalFreetreeInput) modalFreetreeInput.value = (me && freenet.freetreeOf(me)) || "";
-
-  if (me) {
-    void freenet.refreshProfileExtras(me, { urgent: true }).then(() => {
-      if (gen !== modalOpenGen || profileModal.style.display === "none") return;
-      const touchedWallets = new Set(WALLET_KINDS.map((w) => w.kind).filter((k) => modalDirtyFields.has(`wallet:${k}`)));
-      const curWallets = Object.fromEntries(walletInputs().map((i) => [i.dataset.wallet!, i.value]));
-      const mergedWallets = mergeLoadedWalletInputs(curWallets, touchedWallets, freenet.walletsOf(me));
-      walletInputs().forEach((i) => {
-        const k = i.dataset.wallet as keyof Wallets;
-        if (k && !touchedWallets.has(k)) i.value = mergedWallets[k] ?? "";
-      });
-      if (!modalDirtyFields.has("delta")) modalDeltaInput.value = freenet.deltaSiteOf(me) ?? "";
-      if (modalOrtoInput && !modalDirtyFields.has("orto")) modalOrtoInput.value = freenet.ortoBlogOf(me) ?? "";
-      if (modalAsocialInput && !modalDirtyFields.has("asocial")) modalAsocialInput.value = freenet.asocialKeyOf(me) ?? "";
-      if (modalFhInput && !modalDirtyFields.has("fh")) modalFhInput.value = freenet.fhOf(me) ?? "";
-      if (modalFreetreeInput && !modalDirtyFields.has("freetree")) modalFreetreeInput.value = freenet.freetreeOf(me) ?? "";
-      if (modalFreetunesInput && !modalDirtyFields.has("freetunes")) {
-        const loadedFt = freenet.freetunesOf(me);
-        if (loadedFt || !freetunesAutoSuggested) {
-          modalFreetunesInput.value = loadedFt ?? "";
-          if (loadedFt) freetunesAutoSuggested = false;
+  if (!isMessengerMode()) {
+    modalDeltaInput.value = (me && freenet.deltaSiteOf(me)) || "";
+    fillWalletInputs(me ? freenet.walletsOf(me) : {});
+    if (modalOrtoInput) modalOrtoInput.value = (me && freenet.ortoBlogOf(me)) || "";
+    if (modalAsocialInput) modalAsocialInput.value = (me && freenet.asocialKeyOf(me)) || "";
+    if (modalFreetunesInput) {
+      const existing = (me && freenet.freetunesOf(me)) || "";
+      if (existing) {
+        modalFreetunesInput.value = existing;
+      } else {
+        modalFreetunesInput.value = "";
+        const local = localFreetunesArtist();
+        const localRels = localFreetunesReleases();
+        if (localRels.length > 0) {
+          modalFreetunesInput.value = localRels.map((r) => `#/r/${r.id}.${r.params}`).join(" ");
+          freetunesAutoSuggested = true;
+        } else if (local.artistHex) {
+          modalFreetunesInput.value = `#/a/${local.artistHex}`;
+          freetunesAutoSuggested = true;
         }
       }
-      refreshOpenProfileExtrasUI();
-    });
+    }
+    if (modalFhInput) modalFhInput.value = (me && freenet.fhOf(me)) || "";
+    if (modalFreetreeInput) modalFreetreeInput.value = (me && freenet.freetreeOf(me)) || "";
+
+    if (me) {
+      void freenet.refreshProfileExtras(me, { urgent: true }).then(() => {
+        if (gen !== modalOpenGen || profileModal.style.display === "none") return;
+        const touchedWallets = new Set(WALLET_KINDS.map((w) => w.kind).filter((k) => modalDirtyFields.has(`wallet:${k}`)));
+        const curWallets = Object.fromEntries(walletInputs().map((i) => [i.dataset.wallet!, i.value]));
+        const mergedWallets = mergeLoadedWalletInputs(curWallets, touchedWallets, freenet.walletsOf(me));
+        walletInputs().forEach((i) => {
+          const k = i.dataset.wallet as keyof Wallets;
+          if (k && !touchedWallets.has(k)) i.value = mergedWallets[k] ?? "";
+        });
+        if (!modalDirtyFields.has("delta")) modalDeltaInput.value = freenet.deltaSiteOf(me) ?? "";
+        if (modalOrtoInput && !modalDirtyFields.has("orto")) modalOrtoInput.value = freenet.ortoBlogOf(me) ?? "";
+        if (modalAsocialInput && !modalDirtyFields.has("asocial")) modalAsocialInput.value = freenet.asocialKeyOf(me) ?? "";
+        if (modalFhInput && !modalDirtyFields.has("fh")) modalFhInput.value = freenet.fhOf(me) ?? "";
+        if (modalFreetreeInput && !modalDirtyFields.has("freetree")) modalFreetreeInput.value = freenet.freetreeOf(me) ?? "";
+        if (modalFreetunesInput && !modalDirtyFields.has("freetunes")) {
+          const loadedFt = freenet.freetunesOf(me);
+          if (loadedFt || !freetunesAutoSuggested) {
+            modalFreetunesInput.value = loadedFt ?? "";
+            if (loadedFt) freetunesAutoSuggested = false;
+          }
+        }
+        refreshOpenProfileExtrasUI();
+      });
+    }
   }
 
   modalAvatarInput.value = currentProfile?.avatar_url || "";
@@ -5966,24 +5974,30 @@ modalHandleClaimBtn?.addEventListener("click", async () => {
 
 modalSaveBtn.addEventListener("click", async () => {
   if (!currentIdentity) return;
+  const messengerOnly = isMessengerMode();
   const me = currentIdentity.pubkey;
   const name = modalNameInput.value.trim() || `Persona @${shortenKey(personaName(me))}`;
   const bio = modalBioInput.value.trim();
   const avatar = modalAvatarInput.value.trim();
-  const deltaRaw = modalDeltaInput.value.trim();
-  const delta = deltaRaw ? deltaPrefixOf(deltaRaw) : null;
-  if (deltaRaw && !delta) return alert("That is not a Delta site address: paste the address of your site in Delta.");
-  const asocialRaw = modalAsocialInput?.value.trim() || "";
-  const asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
-  if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
-  const existingSavedWallets = freenet.walletsOf(me);
-  const walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
-  for (const f of walletFields) {
-    if (!f.raw) continue;
-    // Allow keeping an untouched legacy Monero 4… address while rejecting any new or edited primary address on save
-    if (f.kind === "xmr" && !modalDirtyFields.has("wallet:xmr") && f.raw === (existingSavedWallets.xmr ?? "")) continue;
-    const err = validateWalletForSave(f.kind, f.raw);
-    if (err) return alert(err);
+  let delta: string | null = null;
+  let asocialKey: string | null = null;
+  let walletFields: { kind: keyof Wallets; raw: string }[] = [];
+  if (!messengerOnly) {
+    const deltaRaw = modalDeltaInput.value.trim();
+    delta = deltaRaw ? deltaPrefixOf(deltaRaw) : null;
+    if (deltaRaw && !delta) return alert("That is not a Delta site address: paste the address of your site in Delta.");
+    const asocialRaw = modalAsocialInput?.value.trim() || "";
+    asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
+    if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
+    const existingSavedWallets = freenet.walletsOf(me);
+    walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
+    for (const f of walletFields) {
+      if (!f.raw) continue;
+      // Allow keeping an untouched legacy Monero 4… address while rejecting any new or edited primary address on save
+      if (f.kind === "xmr" && !modalDirtyFields.has("wallet:xmr") && f.raw === (existingSavedWallets.xmr ?? "")) continue;
+      const err = validateWalletForSave(f.kind, f.raw);
+      if (err) return alert(err);
+    }
   }
 
   modalSaveBtn.disabled = true;
@@ -6006,106 +6020,110 @@ modalSaveBtn.addEventListener("click", async () => {
         await freenet.releaseHandle(currentIdentity);
       }
     }
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("delta"),
-        loaded: freenet.hasLoadedLog(`delta/${me}`),
-        nextValue: delta ?? "",
-        currentValue: freenet.deltaSiteOf(me) ?? "",
-      })
-    ) {
-      await freenet.setDeltaSite(delta);
-    }
-
-    const existingWallets = freenet.walletsOf(me);
-    const walletsLoaded = freenet.hasLoadedLog(`wallets/${me}`);
-    const mergedWalletsRaw = Object.fromEntries(
-      walletFields.map((f) => [
-        f.kind,
-        modalDirtyFields.has(`wallet:${f.kind}`) || walletsLoaded ? f.raw : (existingWallets[f.kind] ?? ""),
-      ])
-    );
-    const wallets = cleanWallets(mergedWalletsRaw);
-    if (
-      JSON.stringify(wallets) !== JSON.stringify(existingWallets) &&
-      (walletsLoaded || walletFields.some((f) => modalDirtyFields.has(`wallet:${f.kind}`)))
-    ) {
-      await freenet.setWallets(wallets);
-    }
-
-    const ortoRaw = modalOrtoInput?.value.trim() || "";
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("orto"),
-        loaded: freenet.hasLoadedLog(`orto/${me}`),
-        nextValue: ortoRaw,
-        currentValue: freenet.ortoBlogOf(me) || "",
-      })
-    ) {
-      await freenet.setOrtoBlog(ortoRaw || null);
-    }
-
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("asocial"),
-        loaded: freenet.hasLoadedLog(`asocial/${me}`),
-        nextValue: asocialKey ?? "",
-        currentValue: freenet.asocialKeyOf(me) || "",
-      })
-    ) {
-      await freenet.setAsocialKey(asocialKey);
-    }
-
-    const ftRaw = modalFreetunesInput?.value.trim() || "";
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("freetunes") || freetunesAutoSuggested,
-        loaded: freenet.hasLoadedLog(`freetunes/${me}`),
-        nextValue: ftRaw,
-        currentValue: freenet.freetunesOf(me) || "",
-      })
-    ) {
-      await freenet.setFreetunes(ftRaw || null);
-      if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
-        void renderFreetunes(me);
+    if (!messengerOnly) {
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("delta"),
+          loaded: freenet.hasLoadedLog(`delta/${me}`),
+          nextValue: delta ?? "",
+          currentValue: freenet.deltaSiteOf(me) ?? "",
+        })
+      ) {
+        await freenet.setDeltaSite(delta);
       }
-    }
 
-    const fhRaw = modalFhInput?.value.trim() || "";
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("fh"),
-        loaded: freenet.hasLoadedLog(`fh/${me}`),
-        nextValue: fhRaw,
-        currentValue: freenet.fhOf(me) || "",
-      })
-    ) {
-      await freenet.setFh(fhRaw || null);
-    }
+      const existingWallets = freenet.walletsOf(me);
+      const walletsLoaded = freenet.hasLoadedLog(`wallets/${me}`);
+      const mergedWalletsRaw = Object.fromEntries(
+        walletFields.map((f) => [
+          f.kind,
+          modalDirtyFields.has(`wallet:${f.kind}`) || walletsLoaded ? f.raw : (existingWallets[f.kind] ?? ""),
+        ])
+      );
+      const wallets = cleanWallets(mergedWalletsRaw);
+      if (
+        JSON.stringify(wallets) !== JSON.stringify(existingWallets) &&
+        (walletsLoaded || walletFields.some((f) => modalDirtyFields.has(`wallet:${f.kind}`)))
+      ) {
+        await freenet.setWallets(wallets);
+      }
 
-    const freetreeRaw = modalFreetreeInput?.value.trim() || "";
-    if (
-      shouldPersistProfileField({
-        dirty: modalDirtyFields.has("freetree"),
-        loaded: freenet.hasLoadedLog(`freetree/${me}`),
-        nextValue: freetreeRaw,
-        currentValue: freenet.freetreeOf(me) || "",
-      })
-    ) {
-      await freenet.setFreetree(freetreeRaw || null);
-      if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
-        void renderFreetree(me);
+      const ortoRaw = modalOrtoInput?.value.trim() || "";
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("orto"),
+          loaded: freenet.hasLoadedLog(`orto/${me}`),
+          nextValue: ortoRaw,
+          currentValue: freenet.ortoBlogOf(me) || "",
+        })
+      ) {
+        await freenet.setOrtoBlog(ortoRaw || null);
+      }
+
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("asocial"),
+          loaded: freenet.hasLoadedLog(`asocial/${me}`),
+          nextValue: asocialKey ?? "",
+          currentValue: freenet.asocialKeyOf(me) || "",
+        })
+      ) {
+        await freenet.setAsocialKey(asocialKey);
+      }
+
+      const ftRaw = modalFreetunesInput?.value.trim() || "";
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("freetunes") || freetunesAutoSuggested,
+          loaded: freenet.hasLoadedLog(`freetunes/${me}`),
+          nextValue: ftRaw,
+          currentValue: freenet.freetunesOf(me) || "",
+        })
+      ) {
+        await freenet.setFreetunes(ftRaw || null);
+        if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
+          void renderFreetunes(me);
+        }
+      }
+
+      const fhRaw = modalFhInput?.value.trim() || "";
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("fh"),
+          loaded: freenet.hasLoadedLog(`fh/${me}`),
+          nextValue: fhRaw,
+          currentValue: freenet.fhOf(me) || "",
+        })
+      ) {
+        await freenet.setFh(fhRaw || null);
+      }
+
+      const freetreeRaw = modalFreetreeInput?.value.trim() || "";
+      if (
+        shouldPersistProfileField({
+          dirty: modalDirtyFields.has("freetree"),
+          loaded: freenet.hasLoadedLog(`freetree/${me}`),
+          nextValue: freetreeRaw,
+          currentValue: freenet.freetreeOf(me) || "",
+        })
+      ) {
+        await freenet.setFreetree(freetreeRaw || null);
+        if (userProfileModal.style.display !== "none" && uviewKey.textContent === me) {
+          void renderFreetree(me);
+        }
       }
     }
 
     applyProfile(updated);
-    refreshOpenProfileExtrasUI();
+    if (!messengerOnly) refreshOpenProfileExtrasUI();
     profileModal.style.display = "none";
-    const hasQueued = PROFILE_EXTRA_LOGS.some((k) => freenet.hasUnsentLog(`${k}/${me}`));
+    const hasQueued = !messengerOnly && PROFILE_EXTRA_LOGS.some((k) => freenet.hasUnsentLog(`${k}/${me}`));
     showToast(
       hasQueued
         ? "Profile saved locally — node offline or busy, will sync automatically."
-        : "Profile & details saved and synced to node.",
+        : messengerOnly
+          ? "Profile saved and synced to node."
+          : "Profile & details saved and synced to node.",
       hasQueued ? "warning" : "info"
     );
   } catch (err) {
@@ -7236,6 +7254,8 @@ window.addEventListener("message", (e) => {
     document.title = "Radica Messenger";
     safeStorage.setItem(CHAT_LAYOUT_KEY, "messenger");
     setChatFullscreen(true);
+    if (isOpen(identityModal)) renderIdentityModal();
+    paintModButton();
     if (!isOpen(chatModal)) {
       if (chatModal.dataset.messengerReady) chatModal.style.display = "flex";
       else openChatBtn.click();
@@ -10415,7 +10435,7 @@ function markChatSeen(matches: (n: NotificationItem) => boolean): void {
 }
 
 function syncMailNotifications() {
-  if (!currentIdentity) return;
+  if (!currentIdentity || isMessengerMode()) return;
   const fmail = getOrDeriveFmailIdentity();
   if (!fmail) return;
   const store = loadMailStore(currentIdentity.pubkey, fmail);
@@ -12735,7 +12755,7 @@ function renderIdentityModal() {
 
   // Update Freenet Mail section
   if (identityFmailSection) {
-    if (currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
+    if (!isMessengerMode() && currentIdentity && currentIdentity.secretKey && currentIdentity.secretKey.length >= 32) {
       try {
         const alias = resolveMailAlias(currentIdentity.pubkey, currentIdentity.personaName, currentProfile?.display_name);
         currentFmailIdentity = deriveMailIdentity(alias, currentIdentity.secretKey);
@@ -12770,13 +12790,16 @@ function renderIdentityModal() {
     }
   }
 
-  renderSupporterStatus();
-  updateMailBadges();
+  if (!isMessengerMode()) {
+    renderSupporterStatus();
+    updateMailBadges();
+  }
 }
 
 function openIdentityModal() {
   renderIdentityModal();
   identityModal.style.display = "flex";
+  identityModal.scrollTop = 0;
   const card = identityModal.querySelector<HTMLElement>(".identity-modal-card");
   if (card) card.scrollTop = 0;
 }
@@ -12786,6 +12809,7 @@ function openSettingsModal() {
     settingsSoundToggle.checked = isSoundEnabled();
   }
   settingsModal.style.display = "flex";
+  settingsModal.scrollTop = 0;
   const card = settingsModal.querySelector<HTMLElement>(".identity-modal-card");
   if (card) card.scrollTop = 0;
 }
@@ -13070,7 +13094,7 @@ function watchOwnInbox(fmail: FreenetMailIdentity): void {
 
 let prevMailUnread = -1;
 function updateMailBadges() {
-  if (!currentIdentity) return;
+  if (!currentIdentity || isMessengerMode()) return;
   const fmail = getOrDeriveFmailIdentity();
   if (fmail) watchOwnInbox(fmail);
   const store = loadMailStore(currentIdentity.pubkey, fmail);
@@ -14382,7 +14406,7 @@ async function init() {
   renderIdentityModal();
   updateNotificationsBadge();
   void maybeShowWelcome();
-  void refreshSupporters();
+  if (!isMessengerMode()) void refreshSupporters();
   // a post I was writing when the page closed
   const draft = safeStorage.getItem(draftKey(currentIdentity.pubkey));
   if (draft && !postCaption.value) postCaption.value = draft;
@@ -14411,8 +14435,10 @@ async function init() {
       void freenet.announceIdentity(currentIdentity!, mine.profile);
       if (welcomeModal.style.display !== "none" && !hasDefaultName()) finishWelcome(); // a returning user: their name came late
     }
-    refreshOpenProfileExtrasUI();
-    void refreshSupporters(); // the supporters wall may have changed
+    if (!isMessengerMode()) {
+      refreshOpenProfileExtrasUI();
+      void refreshSupporters(); // the supporters wall may have changed
+    }
     if (mine.following?.length && mine.following.length !== followingKeys.length) {
       followingKeys = [...new Set([...followingKeys, ...mine.following])];
     }

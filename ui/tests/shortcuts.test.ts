@@ -406,4 +406,52 @@ test("shortcuts: notifications view allows j/k stepping, Enter activation, and g
   assert.equal(isGotoActive(), false);
 });
 
+test("shortcuts: Messenger mode gates goto keys and customizes HUD", () => {
+  const origDocument = (globalThis as any).document;
+  const clicked: string[] = [];
+  const hudEl = { innerHTML: "", style: { display: "none" } };
+
+  try {
+    (globalThis as any).document = {
+      documentElement: {
+        getAttribute: (name: string) => (name === "data-app-mode" ? "messenger" : null),
+      },
+      getElementById: (id: string) => {
+        if (id === "keyboard-goto-hud") return hudEl;
+        return { id, click: () => clicked.push(id) };
+      },
+      querySelector: (sel: string) => ({ click: () => clicked.push(sel) }),
+      querySelectorAll: () => [],
+    };
+
+    showGotoHud(true);
+    assert.ok(hudEl.innerHTML.includes("<kbd>c</kbd> chat"));
+    assert.ok(hudEl.innerHTML.includes("<kbd>i</kbd> keys"));
+    assert.ok(hudEl.innerHTML.includes("<kbd>,</kbd> settings"));
+    assert.ok(hudEl.innerHTML.includes("<kbd>b</kbd> blocked"));
+    assert.equal(hudEl.innerHTML.includes("<kbd>h</kbd>"), false);
+    assert.equal(hudEl.innerHTML.includes("<kbd>m</kbd>"), false);
+
+    assert.equal(handleGotoKey("m"), false);
+    assert.equal(handleGotoKey("h"), false);
+    assert.equal(handleGotoKey("r"), false);
+    assert.equal(clicked.length, 0);
+
+    assert.equal(handleGotoKey("i"), true);
+    assert.equal(clicked.pop(), "open-identity-btn");
+
+    assert.equal(handleGotoKey(","), true);
+    assert.equal(clicked.pop(), "settings-open-btn");
+
+    assert.equal(handleGotoKey("b"), true);
+    assert.equal(clicked.pop(), "blocklists-open-btn");
+
+    assert.equal(handleGotoKey("c"), true);
+    assert.equal(clicked.pop(), "open-chat-btn");
+  } finally {
+    showGotoHud(false);
+    (globalThis as any).document = origDocument;
+  }
+});
+
 

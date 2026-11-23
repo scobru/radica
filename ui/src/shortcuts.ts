@@ -133,6 +133,9 @@ export function getActiveView(): ActiveView {
 let gotoActive = false;
 let gotoTimer: ReturnType<typeof setTimeout> | null = null;
 
+const isMessengerAppMode = (): boolean =>
+  typeof document !== "undefined" && document.documentElement?.getAttribute?.("data-app-mode") === "messenger";
+
 export function isGotoActive(): boolean {
   return gotoActive;
 }
@@ -156,9 +159,10 @@ export function showGotoHud(visible: boolean, customText?: string): void {
 
   if (hud) {
     if (visible) {
-      hud.innerHTML =
-        customText ||
-        `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>e</kbd> apps · <kbd>b</kbd> blocklists · <kbd>r</kbd> communities · <kbd>f</kbd> tree · <kbd>v</kbd> media · <kbd>?</kbd> help`;
+      const defaultHudText = isMessengerAppMode()
+        ? `Go to: <kbd>c</kbd> chat · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>b</kbd> blocked · <kbd>?</kbd> help`
+        : `Go to: <kbd>h</kbd> home · <kbd>c</kbd> chat · <kbd>m</kbd> mail · <kbd>n</kbd> notifs · <kbd>i</kbd> keys · <kbd>,</kbd> settings · <kbd>p</kbd> posts · <kbd>s</kbd> saved · <kbd>u</kbd> updates · <kbd>g</kbd> greenhouse · <kbd>e</kbd> apps · <kbd>b</kbd> blocklists · <kbd>r</kbd> communities · <kbd>f</kbd> tree · <kbd>v</kbd> media · <kbd>?</kbd> help`;
+      hud.innerHTML = customText || defaultHudText;
       if (hud.style) hud.style.display = "flex";
       gotoTimer = setTimeout(() => {
         showGotoHud(false);
@@ -182,6 +186,10 @@ export function closeOtherPages(exceptId?: string): void {
 export function handleGotoKey(key: string): boolean {
   const k = key.toLowerCase();
   showGotoHud(false);
+
+  if (isMessengerAppMode() && k !== "c" && k !== "i" && k !== "," && k !== "t" && k !== "b" && k !== "?") {
+    return false;
+  }
 
   switch (k) {
     case "h": {

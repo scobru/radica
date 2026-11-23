@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795388229.6723063,
-    "ast_hash": "2b09302e6bfdc446c0334a0c9365ad31",
+    "mtime": 1795391395.3982983,
+    "ast_hash": "145e80efc9fb31656f4073fef6971100",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795388332.364757,
-    "ast_hash": "03e1d15adbb23fca9e5f9161a2a57e5e",
+    "mtime": 1795391405.9840076,
+    "ast_hash": "b5626327d24437fa0aff7d4f010089bb",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795385875.136889,
-    "ast_hash": "0696f052aea4d4118c78e5b439815ff2",
+    "mtime": 1795391327.6103847,
+    "ast_hash": "a0b06aff3617cc595a4870189fc0e1ee",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795385812.0606055,
-    "ast_hash": "26b4f643d657854e920b22f36c42f47c",
+    "mtime": 1795391292.6381311,
+    "ast_hash": "30d113617ee0d3727b7df3313c8d1802",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795388318.0201752,
-    "ast_hash": "427fbb0840129028ce97c7aab5322859",
+    "mtime": 1795391321.158849,
+    "ast_hash": "2324e98754df1de69997f4bf4d0c15ef",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795363666.35608,
-    "ast_hash": "49ab5366865f051f1699b229b27f9aca",
+    "mtime": 1795391080.0757363,
+    "ast_hash": "05686debb1c861fb03b75aa851b78a69",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795388365.043519,
-    "ast_hash": "8b457385c74d5f1aeed79197733e9a3c",
+    "mtime": 1795391359.5929978,
+    "ast_hash": "e2449f6dc8252dd31b09189713037fd3",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795386003.621339,
-    "ast_hash": "6f7a706188100c1c77b7c0112470f996",
+    "mtime": 1795391498.8452349,
+    "ast_hash": "802a41543f4c889a0d12c861526817e4",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1255,13 +1255,13 @@
     "semantic_hash": ""
   },
   "ui/src/shortcuts.ts": {
-    "mtime": 1794766912.3885658,
-    "ast_hash": "22305f239d8b5ec576f06feca19f05fe",
+    "mtime": 1795391121.170025,
+    "ast_hash": "497d19bfa28b3091b01e7ab34dbf23f6",
     "semantic_hash": ""
   },
   "ui/tests/shortcuts.test.ts": {
-    "mtime": 1794767024.4046483,
-    "ast_hash": "c2b365ad61cf3bf077794ec588a76589",
+    "mtime": 1795391381.5520253,
+    "ast_hash": "c2937f142fb46d3c4c66e2ca3a2cf992",
     "semantic_hash": ""
   },
   "ui/src/freetree.ts": {

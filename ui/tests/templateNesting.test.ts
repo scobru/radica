@@ -366,11 +366,61 @@ test("standalone messenger mode exposes identity, profile & settings menu items 
   assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail/);
   assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s*\{[^}]*display:\s*flex\s*!important;/s);
 
-  // Identity modal handles section
+  // Messenger-mode branding, .messenger-hide / .messenger-only rules, and .rail-page stacking/centering
+  assert.match(messengerTs, /rm-title-icon-messenger/);
+  assert.match(messengerTs, /<span class="rm-title-text-full">Messages<\/span><span class="rm-title-text-messenger">Radica<\/span>/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s+\.rm-title-icon-full/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+#chat-modal\s+\.rm-title-text-messenger/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.messenger-hide\s*\{[^}]*display:\s*none\s*!important;/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.messenger-only\s*\{[^}]*display:\s*inline;/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+body\.page-open\s+\.main-feed\s*\{[^}]*grid-column:\s*1\s*\/\s*-1\s*!important;/);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail-page\s*\{[^}]*z-index:\s*600\s*!important;/s);
+  assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail-page\s*>\s*\.modal-card\s*\{[^}]*max-width:\s*680px\s*!important;/);
+
+  // Identity modal handles section & Messenger-tailored modal sections
   const indexHtml = read("../index.html");
   for (const id of ["identity-handle-section", "identity-handle-val", "identity-copy-handle-btn", "identity-handle-input", "identity-handle-claim-btn"]) {
     assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
   }
+
+  const extrasBlock = indexHtml.match(/<div id="profile-social-extras" class="messenger-hide">([\s\S]*?)<\/div>\s*<div style="display: flex; justify-content: flex-end/)?.[1] ?? "";
+  assert.ok(extrasBlock.length > 0, "Expected #profile-social-extras.messenger-hide wrapper in #profile-modal");
+  for (const id of [
+    "modal-delta-input",
+    "modal-orto-input",
+    "modal-asocial-input",
+    "modal-freetunes-input",
+    "modal-fh-input",
+    "modal-freetree-input",
+    "modal-wallets",
+    "modal-avatar-input",
+  ]) {
+    assert.ok(extrasBlock.includes(`id="${id}"`), `Expected #${id} inside #profile-social-extras`);
+  }
+
+  for (const id of [
+    "identity-fmail-section",
+    "supporter-section",
+    "settings-rail-shortcuts-section",
+    "settings-layout-width-section",
+    "settings-to-updates-btn",
+    "settings-to-guide-btn",
+    "blocklists-tabs",
+    "pane-moderation",
+  ]) {
+    assert.match(
+      indexHtml,
+      new RegExp(`(?:id="${id}"[^>]*class="[^"]*messenger-hide|class="[^"]*messenger-hide[^"]*"[^>]*id="${id}")`),
+      `Expected #${id} to carry .messenger-hide`
+    );
+  }
+
+  assert.match(mainTs, /const\s+isMessengerMode\s*=\s*\(/);
+  assert.match(mainTs, /if\s*\(!isMessengerMode\(\)\)\s*\{[\s\S]*?modalDeltaInput\.value/);
+  assert.match(mainTs, /const\s+messengerOnly\s*=\s*isMessengerMode\(\);/);
+  assert.match(mainTs, /if\s*\(!isMessengerMode\(\)\s*&&\s*currentIdentity/);
+  assert.match(mainTs, /if\s*\(!currentIdentity\s*\|\|\s*isMessengerMode\(\)\)\s*return;/);
+  assert.match(mainTs, /const\s+hasReports\s*=\s*!isMessengerMode\(\)/);
 
   // Android build config & messenger flavor check
   const buildGradle = read("../../apps/android/build.gradle.kts");

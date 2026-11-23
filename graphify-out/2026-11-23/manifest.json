@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795385912.9546833,
-    "ast_hash": "4c334f645a10a2a103a465a6a3d498de",
+    "mtime": 1795388244.4658039,
+    "ast_hash": "84bf47559090b166e8aa3268602cd3a8",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795386425.1028695,
-    "ast_hash": "ed2bcb8ee1d43384a699e335df2e1198",
+    "mtime": 1795388229.6723063,
+    "ast_hash": "2b09302e6bfdc446c0334a0c9365ad31",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795386508.3041174,
-    "ast_hash": "65f9ccc55ddd8f408972f7529535829f",
+    "mtime": 1795388332.364757,
+    "ast_hash": "03e1d15adbb23fca9e5f9161a2a57e5e",
     "semantic_hash": ""
   },
   "README.md": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795386496.854769,
-    "ast_hash": "50a205b7d0821a540125ce022b3324f9",
+    "mtime": 1795388318.0201752,
+    "ast_hash": "427fbb0840129028ce97c7aab5322859",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795385901.0640543,
-    "ast_hash": "3221848cde6d2a5cd196c437a1c69d4a",
+    "mtime": 1795388365.043519,
+    "ast_hash": "8b457385c74d5f1aeed79197733e9a3c",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -1330,8 +1330,8 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795385642.117024,
-    "ast_hash": "389ae1391abd536c0d67c81c7e41e013",
+    "mtime": 1795388210.655673,
+    "ast_hash": "b62c8b6e786fbe1e8c6e4f90d6b3c2b2",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {

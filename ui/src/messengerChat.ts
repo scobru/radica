@@ -398,7 +398,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       <aside class="rm-inbox" aria-label="Conversations">
         <div class="rm-inbox-header">
           <div class="rm-inbox-title-wrap">
-            <h2 class="rm-inbox-title" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Messages</span></h2>
+            <h2 class="rm-inbox-title" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 24 24" class="svg-icon icon-md rm-title-icon-full"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><svg viewBox="0 0 34 34" class="svg-icon icon-md rm-title-icon-messenger" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 4v12"/><path d="M17 16c0-5 4-8 9-8-1 5-4 8-9 8z"/><path d="M17 16c-4 0-7-3-8-7 4 0 8 3 8 7z"/><path d="M17 16v4M17 20c-3 3-7 4-10 4M17 20c3 3 7 4 10 4M17 20v10"/></svg><span class="rm-title-text-full">Messages</span><span class="rm-title-text-messenger">Radica</span></h2>
             <div class="rm-node-pill" id="rm-node-pill">
               <span class="dot"></span>
               <span id="rm-node-label">Connecting to node…</span>

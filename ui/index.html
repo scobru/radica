@@ -951,7 +951,7 @@
           <!-- Local Key Actions (Show, Download, Sign Out) -->
           <div id="identity-backup-actions" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
             <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
-              This identity was generated on this node. Back up your private key to keep access to your posts and profile across devices.
+              This identity was generated on this node. Back up your private key to keep access to <span class="messenger-hide">your posts and profile</span><span class="messenger-only">your chats and profile</span> across devices.
             </p>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn-secondary btn-sm btn-icon-text" id="id-show-key-btn">
@@ -1024,7 +1024,7 @@
         </div>
 
         <!-- Section: Freenet Mail Identity (Post-Quantum) -->
-        <div class="identity-section" id="identity-fmail-section" style="display: none; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.03);">
+        <div class="identity-section messenger-hide" id="identity-fmail-section" style="display: none; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.03);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
             <h4 style="margin: 0;">
               <span class="btn-icon-text">
@@ -1157,7 +1157,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; gap: 12px; flex-wrap: wrap;">
           <div>
             <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;">Preferences &amp; Customization</div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Looking for colour themes, interface width, post translation, or sound alerts?</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);"><span class="messenger-hide">Looking for colour themes, interface width, post translation, or sound alerts?</span><span class="messenger-only">Looking for colour themes, text size, message translation, or sound alerts?</span></div>
           </div>
           <button type="button" class="btn-secondary btn-sm btn-icon-text" id="id-open-settings-btn">
             <svg viewBox="0 0 24 24" class="svg-icon icon-xs"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1166,7 +1166,7 @@
         </div>
 
         <!-- Section: Support Radica & Verified Identity -->
-        <div class="identity-section" id="supporter-section">
+        <div class="identity-section messenger-hide" id="supporter-section">
           <h4>
             <span class="btn-icon-text">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
@@ -1277,8 +1277,8 @@
 
         <!-- Account, Safety & Guide Quick-Navigation Hub -->
         <div class="identity-section">
-          <h4>Account, Safety &amp; Guide</h4>
-          <p>Quick access to your cryptographic identity, blocklists, changelog, and Radica documentation.</p>
+          <h4><span class="messenger-hide">Account, Safety &amp; Guide</span><span class="messenger-only">Account &amp; Safety</span></h4>
+          <p><span class="messenger-hide">Quick access to your cryptographic identity, blocklists, changelog, and Radica documentation.</span><span class="messenger-only">Quick access to your cryptographic identity and blocked contacts.</span></p>
           <div class="settings-hub-grid">
             <button type="button" class="settings-hub-card" id="settings-to-identity-btn">
               <span class="settings-hub-card-top">
@@ -1286,17 +1286,17 @@
                 <strong>Identity &amp; Keys</strong>
                 <kbd>g i</kbd>
               </span>
-              <span class="settings-hub-card-desc">Keys, Viso SSO, Freenet Mail &amp; Supporter badge</span>
+              <span class="settings-hub-card-desc"><span class="messenger-hide">Keys, Viso SSO, Freenet Mail &amp; Supporter badge</span><span class="messenger-only">Keys, @handle &amp; Viso SSO</span></span>
             </button>
             <button type="button" class="settings-hub-card" id="settings-to-blocklists-btn">
               <span class="settings-hub-card-top">
                 <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
-                <strong>Blocklists &amp; Moderation</strong>
+                <strong><span class="messenger-hide">Blocklists &amp; Moderation</span><span class="messenger-only">Blocked Contacts</span></strong>
                 <kbd>g b</kbd>
               </span>
-              <span class="settings-hub-card-desc">Muted users, word filters &amp; moderation queue</span>
+              <span class="settings-hub-card-desc"><span class="messenger-hide">Muted users, word filters &amp; moderation queue</span><span class="messenger-only">Manage blocked and hidden contacts</span></span>
             </button>
-            <button type="button" class="settings-hub-card" id="settings-to-updates-btn">
+            <button type="button" class="settings-hub-card messenger-hide" id="settings-to-updates-btn">
               <span class="settings-hub-card-top">
                 <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
                 <strong>Updates</strong>
@@ -1304,7 +1304,7 @@
               </span>
               <span class="settings-hub-card-desc">What's new, changelog &amp; companion dApps</span>
             </button>
-            <button type="button" class="settings-hub-card" id="settings-to-guide-btn">
+            <button type="button" class="settings-hub-card messenger-hide" id="settings-to-guide-btn">
               <span class="settings-hub-card-top">
                 <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
                 <strong>Guide</strong>
@@ -1316,7 +1316,7 @@
         </div>
 
         <!-- Section: which 3 modules sit in the rail's always-visible slots (the rest live behind More) -->
-        <div class="identity-section">
+        <div class="identity-section messenger-hide" id="settings-rail-shortcuts-section">
           <h4>
             <span class="btn-icon-text">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
@@ -1332,7 +1332,7 @@
         </div>
 
         <!-- Section: Interface width -->
-        <div class="identity-section">
+        <div class="identity-section messenger-hide" id="settings-layout-width-section">
           <h4>
             <span class="btn-icon-text">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 8 22 12 18 16"/><polyline points="6 8 2 12 6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
@@ -1397,10 +1397,10 @@
           <h4>
             <span class="btn-icon-text">
               <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <span>Translate Posts Into</span>
+              <span><span class="messenger-hide">Translate Posts Into</span><span class="messenger-only">Translate Messages Into</span></span>
             </span>
           </h4>
-          <p>Posts and comments in another language show a Translate button. They are translated on this device into the language you pick here.</p>
+          <p><span class="messenger-hide">Posts and comments in another language show a Translate button. They are translated on this device into the language you pick here.</span><span class="messenger-only">Messages in another language show a Translate button. They are translated on this device into the language you pick here.</span></p>
           <div class="identity-field">
             <label for="translate-lang-select">Your language:</label>
             <select id="translate-lang-select"></select>
@@ -1415,7 +1415,7 @@
               <span>Offensive Words</span>
             </span>
           </h4>
-          <p>Posts, comments and messages reach you as their author wrote them. Here you choose whether offensive words show as asterisks, on this device only.</p>
+          <p><span class="messenger-hide">Posts, comments and messages reach you as their author wrote them. Here you choose whether offensive words show as asterisks, on this device only.</span><span class="messenger-only">Messages reach you as their sender wrote them. Here you choose whether offensive words show as asterisks, on this device only.</span></p>
           <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
             <input type="checkbox" id="mask-bad-words-toggle" checked />
             Hide offensive words
@@ -1430,7 +1430,7 @@
               <span>Audio Chimes</span>
             </span>
           </h4>
-          <p>Play chime sound alerts when new messages, chat replies or encrypted mail arrive.</p>
+          <p><span class="messenger-hide">Play chime sound alerts when new messages, chat replies or encrypted mail arrive.</span><span class="messenger-only">Play chime sound alerts when new messages or chat replies arrive.</span></p>
           <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
             <input type="checkbox" id="settings-sound-toggle" checked />
             Enable notification chime sounds
@@ -1441,7 +1441,7 @@
         <div class="identity-section" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <div>
             <h4 style="margin: 0 0 4px;">Keyboard Shortcuts</h4>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Navigate and control Radica entirely from your keyboard.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;"><span class="messenger-hide">Navigate and control Radica entirely from your keyboard.</span><span class="messenger-only">Navigate conversations and settings from your keyboard.</span></p>
           </div>
           <button type="button" class="btn-secondary btn-sm btn-icon-text" id="settings-shortcuts-btn">
             <span>View Shortcuts (?)</span>
@@ -1716,8 +1716,8 @@
         </details>
 
         <details><summary>💬 Radica Messenger (Standalone Desktop &amp; Android Apps)</summary>
-          <p>Alongside the full Radica Desktop and Android apps, <b>Radica Messenger</b> (`radica-messenger` on desktop, `org.freenet.radica.messenger` installable side-by-side on Android) opens directly into full-screen encrypted Messaging (DMs, Double Ratchet Secret Chats, E2EE Private Groups, and Broadcast Channels) powered by your same local Freenet node and identity.</p>
-          <p>Open the inbox <b>⋮</b> menu at any time to copy/back up your keys in <b>Identity &amp; keys</b>, update your display name and photo in <b>Edit profile</b>, or adjust theme/sound/palette in <b>Settings</b> — closing any of them returns straight to your chats.</p>
+          <p>Alongside the full Radica Desktop and Android apps, <b>Radica Messenger</b> (<code>radica-messenger</code> on desktop, <code>org.freenet.radica.messenger</code> installable side-by-side on Android) opens directly into full-screen encrypted Messaging (DMs, Double Ratchet Secret Chats, E2EE Private Groups, and Broadcast Channels) powered by your same local Freenet node and identity, with a streamlined <b>Radica</b> inbox header.</p>
+          <p>Open the inbox <b>⋮</b> menu at any time to copy/back up your keys or manage your <code>@handle</code> in <b>Identity &amp; keys</b>, update your photo, display name, handle, and bio in <b>Edit profile</b>, manage <b>Blocked contacts</b>, or adjust theme/text size/translation/sound/palette in <b>Settings</b> — closing any of them returns straight to your chats.</p>
         </details>
 
         <details><summary>⌨️ Keyboard shortcuts</summary>
@@ -2197,32 +2197,36 @@
             <button class="btn-secondary btn-sm" id="blocklists-close-btn">✕</button>
           </div>
         </div>
-        <div class="composer-tabs blocklists-tabs" id="blocklists-tabs" style="margin-bottom: 16px; display: none;">
+        <div class="composer-tabs blocklists-tabs messenger-hide" id="blocklists-tabs" style="margin-bottom: 16px; display: none;">
           <button type="button" class="composer-tab active" id="tab-btn-blocklists">Blocklists</button>
           <button type="button" class="composer-tab" id="tab-btn-moderation">🛡️ Moderation</button>
         </div>
         <div id="pane-blocklists">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+          <div class="messenger-hide" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
             <div>
               <div style="font-weight: 600; font-size: 0.85rem;">🛡️ Web-of-Trust Moderation</div>
               <div style="font-size: 0.75rem; color: var(--text-muted);">Shield posts downvoted by contacts in your trust network</div>
             </div>
             <input type="checkbox" id="wot-moderation-toggle" checked style="cursor: pointer; width: 16px; height: 16px;" />
           </div>
-          <h4>Lists I trust</h4>
-          <div id="blocklists-trusted" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;"></div>
-          <form id="blocklists-add-form" style="display: flex; gap: 8px; margin-bottom: 16px;">
-            <input type="text" id="blocklists-add-input" class="comment-input" placeholder="Paste a persona public key..." required />
-            <button type="submit" class="btn-primary btn-sm">Trust</button>
-          </form>
+          <div class="messenger-hide" id="blocklists-curators-section">
+            <h4>Lists I trust</h4>
+            <div id="blocklists-trusted" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;"></div>
+            <form id="blocklists-add-form" style="display: flex; gap: 8px; margin-bottom: 16px;">
+              <input type="text" id="blocklists-add-input" class="comment-input" placeholder="Paste a persona public key..." required />
+              <button type="submit" class="btn-primary btn-sm">Trust</button>
+            </form>
+          </div>
           <h4>My public blocklist</h4>
           <div id="blocklists-mine" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 14px;"></div>
           <h4>Hidden users <small style="font-weight: normal; font-size: 0.75rem; color: var(--text-muted);">(this device only)</small></h4>
           <div id="blocklists-hidden" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 14px;"></div>
-          <h4>My reported posts</h4>
-          <div id="blocklists-reports" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;"></div>
+          <div class="messenger-hide" id="blocklists-reports-section">
+            <h4>My reported posts</h4>
+            <div id="blocklists-reports" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;"></div>
+          </div>
         </div>
-        <div id="pane-moderation" style="display: none;">
+        <div id="pane-moderation" class="messenger-hide" style="display: none;">
           <h4 style="margin: 0 0 8px 0;">Reported posts <small id="mod-queue-count" style="color: var(--text-muted);"></small></h4>
           <div id="mod-queue" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;"></div>
           <div id="mod-handled-section" style="display: none; margin-bottom: 18px;">
@@ -2334,31 +2338,33 @@
         <div id="modal-handle-status" style="font-size: 0.78rem; margin-bottom: 12px; color: var(--text-muted);"></div>
 
         <label style="font-size: 0.85rem; font-weight: 600;">Bio <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">(Markdown, line breaks &amp; links supported)</span></label>
-        <textarea id="modal-bio-input" placeholder="Tell people about yourself..." style="min-height: 110px; margin-bottom: 12px; resize: vertical; line-height: 1.5; font-family: inherit; font-size: 0.92rem;"></textarea>
+        <textarea id="modal-bio-input" placeholder="Tell people about yourself..." style="min-height: 110px; margin-bottom: 16px; resize: vertical; line-height: 1.5; font-family: inherit; font-size: 0.92rem;"></textarea>
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Delta Blog (Optional)</label>
-        <input type="text" id="modal-delta-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Delta site address" />
+        <div id="profile-social-extras" class="messenger-hide">
+          <label style="font-size: 0.85rem; font-weight: 600;">Delta Blog (Optional)</label>
+          <input type="text" id="modal-delta-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Delta site address" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Orto Blog (Optional)</label>
-        <input type="text" id="modal-orto-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Orto blog address or link" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Orto Blog (Optional)</label>
+          <input type="text" id="modal-orto-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Orto blog address or link" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Asocial Games Profile (Optional)</label>
-        <input type="text" id="modal-asocial-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Asocial author key or #person/... link" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Asocial Games Profile (Optional)</label>
+          <input type="text" id="modal-asocial-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Asocial author key or #person/... link" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">FreeTunes Releases / Artist (Optional)</label>
-        <input type="text" id="modal-freetunes-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste FreeTunes release link(s) or artist link #/a/<key>" />
+          <label style="font-size: 0.85rem; font-weight: 600;">FreeTunes Releases / Artist (Optional)</label>
+          <input type="text" id="modal-freetunes-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste FreeTunes release link(s) or artist link #/a/<key>" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Fisherman's Horizon Bookmarks (Optional)</label>
-        <input type="text" id="modal-fh-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste FH share link, persona key, or exported JSON" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Fisherman's Horizon Bookmarks (Optional)</label>
+          <input type="text" id="modal-fh-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste FH share link, persona key, or exported JSON" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Freetree Hub (Optional)</label>
-        <input type="text" id="modal-freetree-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Freetree link (use Export in Freetree)" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Freetree Hub (Optional)</label>
+          <input type="text" id="modal-freetree-input" class="composer-input" style="min-height: auto; margin-bottom: 12px; font-size: 0.8rem;" placeholder="Paste your Freetree link (use Export in Freetree)" />
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Wallets (Optional) <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">shown on your profile, tap to copy</span></label>
-        <div id="modal-wallets" style="display: grid; gap: 6px; margin-bottom: 12px;"></div>
+          <label style="font-size: 0.85rem; font-weight: 600;">Wallets (Optional) <span style="font-weight: 400; color: var(--text-muted); font-size: 0.78rem;">shown on your profile, tap to copy</span></label>
+          <div id="modal-wallets" style="display: grid; gap: 6px; margin-bottom: 12px;"></div>
 
-        <label style="font-size: 0.85rem; font-weight: 600;">Avatar Image URL or Data (Optional)</label>
-        <input type="text" id="modal-avatar-input" class="composer-input" style="min-height: auto; margin-bottom: 20px; font-size: 0.8rem;" placeholder="https://... or uploaded image data" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Avatar Image URL or Data (Optional)</label>
+          <input type="text" id="modal-avatar-input" class="composer-input" style="min-height: auto; margin-bottom: 20px; font-size: 0.8rem;" placeholder="https://... or uploaded image data" />
+        </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button class="btn-secondary" id="modal-cancel-btn">Cancel</button>
@@ -2834,20 +2840,21 @@
           <div class="shortcuts-section">
             <div class="shortcuts-section-title">Navigation (from any view)</div>
             <div class="shortcuts-grid">
-              <div class="shortcut-row"><span class="shortcut-label">Home / Timeline</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>h</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Home / Timeline</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>h</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Chat &amp; Direct Messages</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>c</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Mail &amp; Inbox</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>m</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Notifications &amp; Activity</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>n</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Mail &amp; Inbox</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>m</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Notifications &amp; Activity</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>n</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Identity &amp; Keys</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>i</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">My Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>p</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Saved Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>s</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">What's New</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>u</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Greenhouse</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>g</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Communities (r/...)</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>r</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Blocklists</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>b</kbd></span></div>
+              <div class="shortcut-row"><span class="shortcut-label">Settings &amp; Preferences</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>,</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">My Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>p</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Saved Posts</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>s</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">What's New</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>u</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Greenhouse</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>g</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Communities (r/...)</span><span class="shortcut-keys"><kbd>g</kbd> <kbd>r</kbd></span></div>
+              <div class="shortcut-row"><span class="shortcut-label"><span class="messenger-hide">Blocklists</span><span class="messenger-only">Blocked Contacts</span></span><span class="shortcut-keys"><kbd>g</kbd> <kbd>b</kbd></span></div>
             </div>
           </div>
-          <div class="shortcuts-section">
+          <div class="shortcuts-section messenger-hide">
             <div class="shortcuts-section-title">Lists &amp; Posts</div>
             <div class="shortcuts-grid">
               <div class="shortcut-row"><span class="shortcut-label">Next post / notification</span><span class="shortcut-keys"><kbd>j</kbd> or <kbd>↓</kbd></span></div>
@@ -2865,12 +2872,12 @@
             <div class="shortcuts-section-title">Actions &amp; Composing</div>
             <div class="shortcuts-grid">
               <div class="shortcut-row"><span class="shortcut-label">Focus search</span><span class="shortcut-keys"><kbd>/</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">New post composer</span><span class="shortcut-keys"><kbd>n</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Plant post / Send comment</span><span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Refresh feed</span><span class="shortcut-keys"><kbd>.</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">New post composer</span><span class="shortcut-keys"><kbd>n</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Plant post / Send comment</span><span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span></div>
+              <div class="shortcut-row messenger-hide"><span class="shortcut-label">Refresh feed</span><span class="shortcut-keys"><kbd>.</kbd></span></div>
             </div>
           </div>
-          <div class="shortcuts-section">
+          <div class="shortcuts-section messenger-hide">
             <div class="shortcuts-section-title">Media &amp; FreeTunes</div>
             <div class="shortcuts-grid">
               <div class="shortcut-row"><span class="shortcut-label">Play / Pause audio</span><span class="shortcut-keys"><kbd>Space</kbd></span></div>
@@ -2884,7 +2891,7 @@
             <div class="shortcuts-grid">
               <div class="shortcut-row"><span class="shortcut-label">Next / Prev conversation (in chat)</span><span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>↓</kbd> / <kbd>↑</kbd></span></div>
               <div class="shortcut-row"><span class="shortcut-label">Keyboard shortcuts help</span><span class="shortcut-keys"><kbd>?</kbd></span></div>
-              <div class="shortcut-row"><span class="shortcut-label">Close popup / Return to feed</span><span class="shortcut-keys"><kbd>Esc</kbd></span></div>
+              <div class="shortcut-row"><span class="shortcut-label"><span class="messenger-hide">Close popup / Return to feed</span><span class="messenger-only">Close popup / Return to chat</span></span><span class="shortcut-keys"><kbd>Esc</kbd></span></div>
             </div>
           </div>
         </div>

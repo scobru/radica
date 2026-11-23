@@ -3574,3 +3574,63 @@ html[data-app-mode="messenger"] #chat-modal .rm-messenger-card {
   border: none !important;
   margin: 0 !important;
 }
+
+#chat-modal .rm-title-icon-messenger,
+#chat-modal .rm-title-text-messenger {
+  display: none;
+}
+
+html[data-app-mode="messenger"] #chat-modal .rm-title-icon-full,
+html[data-app-mode="messenger"] #chat-modal .rm-title-text-full {
+  display: none !important;
+}
+
+html[data-app-mode="messenger"] #chat-modal .rm-title-icon-messenger {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  color: var(--rm-accent);
+}
+
+html[data-app-mode="messenger"] #chat-modal .rm-title-text-messenger {
+  display: inline;
+}
+
+.messenger-only {
+  display: none;
+}
+
+html[data-app-mode="messenger"] .messenger-hide {
+  display: none !important;
+}
+
+html[data-app-mode="messenger"] .messenger-only {
+  display: inline;
+}
+
+html[data-app-mode="messenger"] body.page-open .main-feed {
+  grid-column: 1 / -1 !important;
+}
+
+html[data-app-mode="messenger"] .rail-page {
+  position: fixed !important;
+  inset: 0 !important;
+  width: calc(100vw / var(--ui-zoom, 1)) !important;
+  width: calc(100dvw / var(--ui-zoom, 1)) !important;
+  height: calc(100vh / var(--ui-zoom, 1)) !important;
+  height: calc(100dvh / var(--ui-zoom, 1)) !important;
+  z-index: 600 !important;
+  background: var(--bg) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+html[data-app-mode="messenger"] .rail-page > .modal-card {
+  max-width: 680px !important;
+  width: 100% !important;
+  margin: 0 auto;
+}
