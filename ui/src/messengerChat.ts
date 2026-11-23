@@ -73,7 +73,7 @@ import { playWalkieChirp } from "./sound.ts";
 import { analyzeImageFile } from "./moderation.ts";
 import { freenet } from "./freenet.ts";
 import { hasLanMesh } from "./lanMesh.ts";
-import { contactCardText, parseContactCard } from "./contactCard.ts";
+import { contactCardQrSvg, contactCardText, parseContactCard, readQrFromImage } from "./contactCard.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { drLevel } from "./secretRatchet.ts";
@@ -698,7 +698,11 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-join-room">${renderIcon("key", { size: 14, className: "icon-xs" })} Join with Invite Code</button>
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
           <button type="button" class="rm-link-btn" id="rm-modal-copy-card" title="Your key as one line of text: whoever pastes it here can write to you even with no network">${renderIcon("key", { size: 14, className: "icon-xs" })} Copy my contact card</button>
+          <button type="button" class="rm-link-btn" id="rm-modal-show-qr">${renderIcon("user", { size: 14, className: "icon-xs" })} My QR</button>
+          <button type="button" class="rm-link-btn" id="rm-modal-scan-qr">${renderIcon("camera", { size: 14, className: "icon-xs" })} Scan a QR</button>
+          <input type="file" id="rm-scan-qr-input" accept="image/*" capture="environment" hidden />
         </div>
+        <div id="rm-my-qr" class="rm-my-qr" hidden></div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, 64-hex key, or contact card)</label>
           <div style="display: flex; gap: 6px;">
@@ -4534,6 +4538,33 @@ export function createMessengerChat(deps: MessengerDeps) {
     } catch {
       deps.showToast("Could not copy to the clipboard.", "warning");
     }
+  });
+  inModals("#rm-modal-show-qr")?.addEventListener("click", async () => {
+    const box = inModals("#rm-my-qr") as HTMLElement | null;
+    const identity = deps.getIdentity();
+    if (!box || !identity) return;
+    if (!box.hidden) {
+      box.hidden = true;
+      return;
+    }
+    const name = deps.getAuthorDisplayName(identity.pubkey);
+    box.innerHTML = `${await contactCardQrSvg({ pubkey: identity.pubkey, encPub: identity.encPub, name })}<p>Let them scan this with <b>Scan a QR</b>: they can write to you even with no network.</p>`;
+    box.hidden = false;
+  });
+  const scanInput = inModals("#rm-scan-qr-input") as HTMLInputElement | null;
+  inModals("#rm-modal-scan-qr")?.addEventListener("click", () => scanInput?.click());
+  scanInput?.addEventListener("change", async () => {
+    const file = scanInput.files?.[0];
+    scanInput.value = "";
+    if (!file) return;
+    const text = await readQrFromImage(file).catch(() => null);
+    const card = text ? parseContactCard(text) : null;
+    if (!card) {
+      deps.showToast("No Radica contact QR found in that photo. Try again closer, with the whole code in view.", "warning");
+      return;
+    }
+    newChatInputEl.value = contactCardText(card);
+    deps.showToast(`Contact ${card.name || "card"} read: choose Open DM or Secret.`, "info");
   });
   inModals("#rm-new-chat-go")?.addEventListener("click", () => void startDmFromInput(false));
   inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => void startDmFromInput(true));

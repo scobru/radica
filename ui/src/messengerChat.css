@@ -4123,3 +4123,17 @@ progress.cm-vnote-ring {
     height: 38px;
   }
 }
+
+/* Contact card QR in New Conversation: black on white with a quiet zone, whatever the theme, so cameras read it */
+#chat-modal .rm-my-qr {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--rm-text-muted);
+}
+#chat-modal .rm-my-qr svg {
+  width: min(240px, 70vw);
+  height: auto;
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+}

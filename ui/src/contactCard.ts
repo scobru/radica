@@ -45,3 +45,23 @@ export function saveContactCard(store: Store, me: string, c: ContactCard): void 
   if (!me || c.pubkey === me) return;
   store.setItem(cardsKey(me), JSON.stringify({ ...readContactCards(store, me), [c.pubkey]: c }));
 }
+
+/** My card as a QR code (an SVG string), black on white so any camera reads it. */
+export async function contactCardQrSvg(c: ContactCard): Promise<string> {
+  const { renderSVG } = await import("uqr");
+  return renderSVG(contactCardText(c), { ecc: "M", border: 2 });
+}
+
+/** The text of the first QR code in a photo, or null. Big photos are scaled down first: a phone camera's 12 MP is slow. */
+export async function readQrFromImage(file: Blob): Promise<string | null> {
+  const { default: jsQR } = await import("jsqr");
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * scale);
+  const h = Math.round(bmp.height * scale);
+  const ctx = Object.assign(document.createElement("canvas"), { width: w, height: h }).getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  return jsQR(ctx.getImageData(0, 0, w, h).data, w, h)?.data ?? null;
+}
