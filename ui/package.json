@@ -23,7 +23,9 @@
     "@noble/hashes": "^2.4.0",
     "@noble/post-quantum": "^0.7.1",
     "freenet-blob": "github:scobru/freenet-blob",
-    "mediabunny": "^1.65.0"
+    "jsqr": "^1.4.0",
+    "mediabunny": "^1.65.0",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
