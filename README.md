@@ -316,7 +316,7 @@ Radica's own client code (`ui/src/freenet.ts`) runs in Node as a terminal chat: 
 npm run chat   # builds ui/dist-cli/radica-chat.mjs and starts it; data in ~/.radica (or RADICA_HOME)
 ```
 
-`/new` or `/import <seed>` to sign in (local identities only, no Viso), then `/me`, `/list`, `/open <who>`, `/secret <who>`, `/nearby`, `/visible on|off`, `/block`, `/help`.
+`/new` or `/import <seed>` to sign in (local identities only, no Viso), then `/me`, `/list`, `/open <who>`, `/secret <who>`, `/nearby`, `/visible on|off`, `/block`, `/help`. Slow? `~/.radica/chat.log` lists every main-thread stall, and `RADICA_PROFILE=1 npm run chat` prints the busiest functions on `/quit`.
 
 ## 🔒 Security & Privacy Model
 

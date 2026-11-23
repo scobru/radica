@@ -2,6 +2,7 @@
 // one JSON file (getAll/setAll), and the LAN mesh as UDP broadcasts on port 47509 (meshSend, received packets posted as
 // `{ type: "radica_mesh" }` messages). Imported before Radica's client code, which then runs unchanged.
 import { createSocket } from "node:dgram";
+import { Session } from "node:inspector/promises";
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +23,13 @@ const toLog = (...a: unknown[]) => {
 };
 console.log = console.info = console.warn = console.error = console.debug = toLog;
 process.on("unhandledRejection", (e) => toLog("unhandled:", e));
+// typing lags when the main thread is busy: note every stall, so a slow terminal can be traced from chat.log
+let tick = Date.now();
+setInterval(() => {
+  const late = Date.now() - tick - 250;
+  if (late > 300) toLog(`event loop blocked ${late} ms`);
+  tick = Date.now();
+}, 250).unref();
 
 // a page's event bus: lanMesh.ts listens for "message", storage.ts flushes on "pagehide"
 const bus = new EventTarget();
@@ -63,10 +71,38 @@ g.__radicaNative = {
 
 export const lanMeshUp = (): boolean => meshUp;
 
-/** Write the store to disk and let go of the socket. */
-export function shutdown(): void {
+// RADICA_PROFILE=1: a CPU profile of the whole run; on quit, the functions that held the main thread longest (what makes
+// typing lag), printed and written to chat.log
+const profiler = process.env.RADICA_PROFILE ? new Session() : null;
+if (profiler) {
+  profiler.connect();
+  void profiler.post("Profiler.enable").then(() => profiler.post("Profiler.start"));
+}
+
+async function profileSummary(): Promise<string> {
+  if (!profiler) return "";
+  type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number };
+  const { profile } = (await profiler.post("Profiler.stop")) as { profile: { nodes: Node[]; samples: number[]; timeDeltas: number[] } };
+  const ms = new Map<number, number>();
+  profile.samples.forEach((id, i) => ms.set(id, (ms.get(id) ?? 0) + (profile.timeDeltas[i] ?? 0) / 1000));
+  const byFn = new Map<string, number>();
+  for (const n of profile.nodes) {
+    const t = ms.get(n.id) ?? 0;
+    if (!t || n.callFrame.functionName === "(idle)" || n.callFrame.functionName === "(program)") continue;
+    const k = `${n.callFrame.functionName || "(anonymous)"} ${n.callFrame.url.split(/[\\/]/).pop()}:${n.callFrame.lineNumber + 1}`;
+    byFn.set(k, (byFn.get(k) ?? 0) + t);
+  }
+  const top = [...byFn].sort((a, z) => z[1] - a[1]).slice(0, 15);
+  const text = `CPU profile, busiest functions (self time):\n${top.map(([k, t]) => `  ${t.toFixed(0).padStart(7)} ms  ${k}`).join("\n")}`;
+  toLog(text);
+  return text;
+}
+
+/** Write the store to disk and let go of the socket; with RADICA_PROFILE, the profile summary to print. */
+export async function shutdown(): Promise<string> {
   bus.dispatchEvent(new Event("pagehide"));
   try {
     udp.close();
   } catch {}
+  return profileSummary().catch(() => "");
 }
