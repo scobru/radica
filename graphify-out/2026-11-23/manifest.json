@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795472285.8276696,
-    "seen": 1795472288.5130336,
-    "ast_hash": "e2490ace9595cab5de141876b0d17058",
+    "mtime": 1795472660.5993073,
+    "seen": 1795472687.1851664,
+    "ast_hash": "d39c19ebd619695e4fd058669e397230",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2082,9 +2082,9 @@
     "semantic_hash": ""
   },
   "ui/cli/chat.ts": {
-    "mtime": 1795472262.4533184,
-    "seen": 1795472288.5097377,
-    "ast_hash": "cdf59c3c8af6d5ca598d862fe647531b",
+    "mtime": 1795472660.597902,
+    "seen": 1795472687.1817858,
+    "ast_hash": "0ddab6614c7785b91a369d5154100b61",
     "semantic_hash": ""
   },
   "ui/cli/node-bridge.ts": {
