@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795438295.9607725,
-    "ast_hash": "a56d70557b2c767966f2f3b2f5fb58f1",
+    "mtime": 1795440819.3510392,
+    "ast_hash": "1c0f6e3c35d9c0c11dab2a04354602fe",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795430075.1702206,
-    "ast_hash": "7e8b56afebe30c3ad714bfb47cc9fce1",
+    "mtime": 1795440909.0072541,
+    "ast_hash": "6e9511ada0286895cd280a6291227755",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795430079.3431337,
-    "ast_hash": "99ef10a6ccb7ad2ddb8774b1b40f2fa0",
+    "mtime": 1795440917.9562464,
+    "ast_hash": "97a5b3fa20cfe0a3df183736a51c9b54",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795430069.6561522,
-    "ast_hash": "8a8076b8a31fd390ed3f66d447f550bb",
+    "mtime": 1795440893.400335,
+    "ast_hash": "25fbd8710f946cac62a01344b9336e3a",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795430065.0712688,
-    "ast_hash": "49f61c4d582736ed07513ab649dcf617",
+    "mtime": 1795440885.8346822,
+    "ast_hash": "800fcee9f3ad6769d432d699ce5dd3be",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795438277.1478639,
-    "ast_hash": "2ab7ac2d307a7c1970efc3d4665d4655",
+    "mtime": 1795440771.5296645,
+    "ast_hash": "4fdbf4b748b039e2da13d61bc3aee238",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -300,8 +300,8 @@
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
-    "mtime": 1795438251.0857804,
-    "ast_hash": "80b6b96aa1b26d3c664596be3e01c9af",
+    "mtime": 1795440677.3409104,
+    "ast_hash": "e4c0661939e8dd0de9a00967ec2e7aa9",
     "semantic_hash": ""
   },
   "ui/src/gifPicker.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795430089.1998384,
-    "ast_hash": "e281254b5acd3376cf3b09cae136ccbd",
+    "mtime": 1795440930.3600123,
+    "ast_hash": "dd9fbe006fea302883c4d1953f57fa45",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "ui/tests/chatMedia.test.ts": {
-    "mtime": 1795438388.148726,
-    "ast_hash": "2b993253a6c59ae3657e8a0f9f3d1e5f",
+    "mtime": 1795440947.735386,
+    "ast_hash": "4cee7b75dc6956e95ef0c3a82bc59936",
     "semantic_hash": ""
   },
   "ui/tests/communityFinder.test.ts": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795430165.351525,
-    "ast_hash": "063dafb4b2edf11de35c16f370d2af07",
+    "mtime": 1795440955.1768274,
+    "ast_hash": "b1ef1d0e0cae96ddb2266028388d51ee",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1330,13 +1330,13 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795415249.0125237,
-    "ast_hash": "909ffffc64d3b9f9b8625b38f5f60669",
+    "mtime": 1795440662.0307255,
+    "ast_hash": "5ba95d516f0c5ba30123074288d1cdd5",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1795342482.54176,
-    "ast_hash": "c1a75d3470a20ab6e6f3d661c748687f",
+    "mtime": 1795440439.5780516,
+    "ast_hash": "9d3fb7e191dd60998fb903ba59b6bcdb",
     "semantic_hash": ""
   },
   "inbox.json": {
@@ -1345,8 +1345,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/desktop.yml": {
-    "mtime": 1795340769.5276573,
-    "ast_hash": "adbfc0d2632010961a502a780bd918a2",
+    "mtime": 1795440467.4323573,
+    "ast_hash": "d19bcc874f560fe998f7a3a1f00b5616",
     "semantic_hash": ""
   },
   "apps/android/src/main/res/mipmap/ic_launcher.png": {
@@ -1860,8 +1860,8 @@
     "semantic_hash": ""
   },
   "apps/desktop/src/lib.rs": {
-    "mtime": 1795340681.9222405,
-    "ast_hash": "28e8bd73ccbf1a6a337742f59f3b5fd7",
+    "mtime": 1795440389.299348,
+    "ast_hash": "4efd2bcc3b3f669d460b3c9810d84860",
     "semantic_hash": ""
   },
   "ui/src/handles.ts": {
@@ -1882,6 +1882,11 @@
   "ui/tests/walkieTalkie.test.ts": {
     "mtime": 1795430152.272674,
     "ast_hash": "24ae7078eea6f534a85b73811606bb86",
+    "semantic_hash": ""
+  },
+  "apps/desktop/src/audio.rs": {
+    "mtime": 1795440380.9131973,
+    "ast_hash": "c9029a5d4022007bda221281baaebff9",
     "semantic_hash": ""
   }
 }

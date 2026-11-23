@@ -112,7 +112,14 @@ fn loading_html(mode: AppMode) -> String {
 /// The web opens profiles, docs and other Freenet apps with `window.open`, and navigates itself away when that returns
 /// null. Here they go to the system browser, and the page gets a stand-in window so it stays where it is.
 const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
-  try { window.ipc.postMessage("open:" + new URL(url, location.href).href); } catch (e) {}
+  try {
+    var m = "open:" + new URL(url, location.href).href;
+    if (window === window.top && window.ipc) {
+      window.ipc.postMessage(m);
+    } else {
+      window.parent.postMessage({ __radica_ipc__: true, msg: m }, "*");
+    }
+  } catch (e) {}
   return { closed: false, opener: null, focus() {}, close() {} };
 };"#;
 
@@ -124,26 +131,56 @@ fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
     format!(
         r#"(function() {{
   if (!/^http:\/\/(?:127\.0\.0\.1|localhost):7509\/v1\/contract\/web\/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw(?:[/?#]|$)/.test(String(location.href || ""))) return;
+  function sendIpc(msg) {{
+    try {{
+      if (window === window.top && window.ipc) {{
+        window.ipc.postMessage(String(msg));
+        return;
+      }}
+    }} catch (e) {{}}
+    try {{
+      window.parent.postMessage({{ __radica_ipc__: true, msg: String(msg) }}, "*");
+    }} catch (e) {{}}
+  }}
+  if (window === window.top && !window.__radicaIpcRelay) {{
+    window.__radicaIpcRelay = true;
+    window.addEventListener("message", function(ev) {{
+      var d = ev && ev.data;
+      if (!d || d.__radica_ipc__ !== true || typeof d.msg !== "string") return;
+      var fs = document.getElementsByTagName("iframe");
+      var trusted = false;
+      for (var i = 0; i < fs.length; i++) {{
+        if (fs[i].contentWindow === ev.source) {{
+          trusted = true;
+          break;
+        }}
+      }}
+      if (!trusted) return;
+      try {{
+        if (window.ipc) window.ipc.postMessage(d.msg);
+      }} catch (e) {{}}
+    }});
+  }}
   var initial = {};
   window.__radicaNative = {{
     getAppMode: function() {{ return {}; }},
     openExternal: function(url) {{
-      try {{ window.ipc.postMessage("open:" + new URL(url, location.href).href); }} catch (e) {{}}
+      try {{ sendIpc("open:" + new URL(url, location.href).href); }} catch (e) {{}}
     }},
     getAll: function() {{ return initial; }},
     setAll: function(json) {{
       initial = json;
-      try {{ window.ipc.postMessage("storage:" + json); }} catch (e) {{}}
+      sendIpc("storage:" + json);
     }},
     canRecordVoice: function() {{ return true; }},
     startVoiceRec: function(maxSec) {{
-      try {{ window.ipc.postMessage("voice:start:" + Math.max(1, Math.min(60, Math.round(Number(maxSec) || 10)))); }} catch (e) {{}}
+      sendIpc("voice:start:" + Math.max(1, Math.min(60, Math.round(Number(maxSec) || 10))));
     }},
     stopVoiceRec: function() {{
-      try {{ window.ipc.postMessage("voice:stop"); }} catch (e) {{}}
+      sendIpc("voice:stop");
     }},
     cancelVoiceRec: function() {{
-      try {{ window.ipc.postMessage("voice:cancel"); }} catch (e) {{}}
+      sendIpc("voice:cancel");
     }}
   }};
 }})();"#,
@@ -506,6 +543,8 @@ mod tests {
         assert!(script.contains("openExternal: function(url)"));
         assert!(script.contains("canRecordVoice: function() { return true; }"));
         assert!(script.contains("startVoiceRec: function(maxSec)"));
+        assert!(script.contains("__radica_ipc__"));
+        assert!(script.contains("function sendIpc("));
         let full_script = native_storage_script("{}", AppMode::Full);
         assert!(full_script.contains("getAppMode: function() { return \"full\"; }"));
     }
