@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "ui/src/whoiam.ts": {
-    "mtime": 1795459463.7403212,
-    "seen": 1795460206.9290986,
-    "ast_hash": "6534dfefa489fbe0ab1d49d1ccea00c0",
+    "mtime": 1795471727.0282645,
+    "seen": 1795471871.8772147,
+    "ast_hash": "1bc16f2db8f253bfefedf899d1216945",
     "semantic_hash": ""
   },
   "ui/tsconfig.json": {
@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795470697.402415,
-    "seen": 1795470708.4622421,
-    "ast_hash": "26b2aa49002dae65b1727c7f0e6c1938",
+    "mtime": 1795471867.937265,
+    "seen": 1795471871.878659,
+    "ast_hash": "9b4a88560054cc3d4fef1f8317851dd6",
     "semantic_hash": ""
   },
   "README.md": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795470697.4032795,
-    "seen": 1795470708.4622436,
-    "ast_hash": "8e3506686b125188ef898f54b51abaf0",
+    "mtime": 1795471867.9377646,
+    "seen": 1795471871.8786604,
+    "ast_hash": "89260b9841f342e4747311c842290883",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -2076,15 +2076,15 @@
     "semantic_hash": ""
   },
   "ui/cli/build.mjs": {
-    "mtime": 1795470115.543963,
-    "seen": 1795470708.4590971,
-    "ast_hash": "934473f436b2d93b1f19912863a65ec0",
+    "mtime": 1795470971.5837538,
+    "seen": 1795471871.8754513,
+    "ast_hash": "474f21eb1d95ed173947e04e9c4c6a6b",
     "semantic_hash": ""
   },
   "ui/cli/chat.ts": {
-    "mtime": 1795470535.4351313,
-    "seen": 1795470708.4590986,
-    "ast_hash": "915d606952801ad01c0584ac0c95e8c6",
+    "mtime": 1795471751.8991303,
+    "seen": 1795471871.875454,
+    "ast_hash": "63416e8628d6baf76a5e85e446cce08f",
     "semantic_hash": ""
   },
   "ui/cli/node-bridge.ts": {
@@ -2097,6 +2097,12 @@
     "mtime": 1795470535.438827,
     "seen": 1795470708.4610097,
     "ast_hash": "19f96e0268d23f28d0553db4a3ef8496",
+    "semantic_hash": ""
+  },
+  "ui/tests/appPath.test.ts": {
+    "mtime": 1795471727.0323002,
+    "seen": 1795471871.877262,
+    "ast_hash": "15b4ec4db65b6345fb700cfedd5e3f1c",
     "semantic_hash": ""
   },
   "attester/package-lock.json": {
