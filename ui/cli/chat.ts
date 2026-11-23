@@ -90,13 +90,15 @@ async function showOpen(): Promise<void> {
 /** The conversation list as the left pane shows it. */
 function refreshConvs(): void {
   if (!me || !tui) return;
-  // a DM and a Secret Chat with the same person are two conversations, as in the app
-  convs = [
-    ...freenet.getSecretChatPeers(me.pubkey).map((pk) => ({ pk, secret: true })),
-    ...freenet.getChatPeers(me.pubkey).map((pk) => ({ pk, secret: false })),
-  ];
-  view.convs = convs.map((c) => ({ label: nameOf(c.pk), secret: c.secret }));
-  view.open = open ? convs.findIndex((c) => c.pk === open!.peer && c.secret === open!.secret) : -1;
+  // one row per person, by name so the list stays put: Enter opens the DM, or the Secret Chat when that is all there is
+  // (🔒 marks one; /secret opens it); the peer lists can repeat a key
+  const secret = new Set(freenet.getSecretChatPeers(me.pubkey));
+  const dm = new Set(freenet.getChatPeers(me.pubkey));
+  convs = [...new Set([...dm, ...secret])]
+    .map((pk) => ({ pk, secret: !dm.has(pk) }))
+    .sort((a, z) => nameOf(a.pk).localeCompare(nameOf(z.pk)));
+  view.convs = convs.map((c) => ({ key: c.pk, label: nameOf(c.pk), secret: secret.has(c.pk) }));
+  view.open = open ? convs.findIndex((c) => c.pk === open!.peer) : -1;
   view.header = `Radica · ${me ? nameOf(me.pubkey) === "you" ? `${me.pubkey.slice(0, 10)}…` : nameOf(me.pubkey) : ""} · ${online ? "Freenet connected" : lanMeshUp() ? "local network only" : "offline"}${open ? ` · ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(open.peer)}` : ""}`;
   tui.render();
 }

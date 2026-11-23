@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795473908.0416439,
-    "seen": 1795473930.6621234,
-    "ast_hash": "4afe3908628548f19e9406c3df0189dd",
+    "mtime": 1795474550.000741,
+    "seen": 1795474553.8103032,
+    "ast_hash": "dd08884d15505850f93164e472f98a89",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2082,9 +2082,9 @@
     "semantic_hash": ""
   },
   "ui/cli/chat.ts": {
-    "mtime": 1795473783.3100076,
-    "seen": 1795473930.658949,
-    "ast_hash": "8d32a8bbfd8db28e605db14b839604ba",
+    "mtime": 1795474302.1387482,
+    "seen": 1795474553.8067336,
+    "ast_hash": "e2e937f9bfafd4b06da45e684222ee8b",
     "semantic_hash": ""
   },
   "ui/cli/node-bridge.ts": {
@@ -2112,9 +2112,15 @@
     "semantic_hash": ""
   },
   "ui/cli/tui.ts": {
-    "mtime": 1795473853.1200402,
-    "seen": 1795473930.6589687,
-    "ast_hash": "b03265afd4720383c74c87694446ffda",
+    "mtime": 1795474390.9391937,
+    "seen": 1795474553.8067546,
+    "ast_hash": "a45b95f386022e9f394d8f2e227cea91",
+    "semantic_hash": ""
+  },
+  "ui/tests/tui.test.ts": {
+    "mtime": 1795474519.1270628,
+    "seen": 1795474553.8100696,
+    "ast_hash": "63a8d71876cc96b0942aa75dfe9e1099",
     "semantic_hash": ""
   },
   "attester/package-lock.json": {
