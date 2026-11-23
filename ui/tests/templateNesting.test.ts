@@ -459,10 +459,12 @@ test("walkie-talkie push-to-talk and circular video message controls, styles, an
   const desktopWeb = read("../../apps/desktop/src/web.rs");
   const desktopAudio = read("../../apps/desktop/src/audio.rs");
   const desktopWorkflow = read("../../.github/workflows/desktop.yml");
+  const ciWorkflow = read("../../.github/workflows/nodejs.yml");
   assert.match(desktopWeb, /canRecordVoice/);
   assert.match(desktopWeb, /voice:start:/);
   assert.match(desktopWeb, /is_radica_url\(&origin_uri\)/);
   assert.match(desktopAudio, /NativeVoiceController/);
   assert.match(desktopWorkflow, /libasound2-dev/);
   assert.match(desktopWorkflow, /NSMicrophoneUsageDescription/);
+  assert.match(ciWorkflow, /libasound2-dev/);
 });
