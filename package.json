@@ -1,6 +1,6 @@
 {
   "name": "radica",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A 100% decentralized social media platform powered by Freenet",
   "scripts": {
     "dev": "npm --prefix ui run dev",
