@@ -2,7 +2,7 @@
 // `*.wasm?url` imports (the contracts' code) become data: URLs, which Node's fetch reads as the browser reads the URL.
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
 
 const wasmAsDataUrl = {
   name: "wasm-url",
@@ -16,12 +16,12 @@ const wasmAsDataUrl = {
 };
 
 await build({
-  entryPoints: [resolve(dirname(new URL(import.meta.url).pathname), "chat.ts")],
+  entryPoints: [resolve(import.meta.dirname, "chat.ts")], // import.meta.dirname: a URL pathname reads /D:/… on Windows
   bundle: true,
   platform: "node",
   format: "esm",
   target: "node22",
-  outfile: resolve(dirname(new URL(import.meta.url).pathname), "../dist-cli/radica-chat.mjs"),
+  outfile: resolve(import.meta.dirname, "../dist-cli/radica-chat.mjs"),
   plugins: [wasmAsDataUrl],
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
   logLevel: "warning",
