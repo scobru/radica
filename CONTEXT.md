@@ -18,6 +18,8 @@ Terms the code and its reviews use. Keep them exact.
 
 - **LAN mesh** (`ui/src/lanMesh.ts`, `apps/desktop/src/mesh.rs`, Android `MainActivity.startMesh`) — a second, local transport for chat beside Freenet: my own signed DM and Secret Chat messages go out as UDP broadcasts (port 47509, ≤ 60 000 bytes, re-sent for 10 min) through `__radicaNative.meshSend`; the native app posts what it hears to the page as `{ type: "radica_mesh", data }`. A packet counts only if addressed to me, in the conversation of me and its sender, signed by the sender, and not from someone I block; then it is a peer event like a BroadcastChannel one, marked `via_lan`. Always on in the native apps, never a separate chat: the transport is invisible except for the 📻 mark. Edits, burns, read marks and typing stay Freenet-only.
 
+- **Contact card** (`ui/src/contactCard.ts`) — `radica:c1:<pubkey>:<enc_pub>:<name>`, handed over in person. Saved per persona in `radica_contact_cards_<me>` (durable). Used only when no valid signed profile is cached: the profile's `enc_pub` always wins. Unsigned on purpose: the trust is the in-person exchange.
+
 ## Device storage
 
 - **Page storage** — `safeStorage`: the page's own key/value store. In Freenet's sandboxed shell it lives in memory, plus the URL hash, and a browser refresh keeps only the hash.
