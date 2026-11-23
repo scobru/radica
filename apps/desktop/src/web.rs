@@ -49,6 +49,7 @@ enum Ui {
     Failed(String),
     Open,
     Retry,
+    VoiceEvent(crate::audio::VoiceEvent),
 }
 
 const LOADING: &str = r#"<!doctype html><meta charset="utf-8"><title>Radica</title>
@@ -133,6 +134,16 @@ fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
     setAll: function(json) {{
       initial = json;
       try {{ window.ipc.postMessage("storage:" + json); }} catch (e) {{}}
+    }},
+    canRecordVoice: function() {{ return true; }},
+    startVoiceRec: function(maxSec) {{
+      try {{ window.ipc.postMessage("voice:start:" + Math.max(1, Math.min(60, Math.round(Number(maxSec) || 10)))); }} catch (e) {{}}
+    }},
+    stopVoiceRec: function() {{
+      try {{ window.ipc.postMessage("voice:stop"); }} catch (e) {{}}
+    }},
+    cancelVoiceRec: function() {{
+      try {{ window.ipc.postMessage("voice:cancel"); }} catch (e) {{}}
     }}
   }};
 }})();"#,
@@ -337,6 +348,10 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
             .map(|d| d.data_local_dir().join(mode.webview_dir_name())),
     );
     let retry = event_loop.create_proxy();
+    let voice_proxy = event_loop.create_proxy();
+    let voice_ctrl = Arc::new(crate::audio::NativeVoiceController::new());
+    let voice_ctrl_ipc = Arc::clone(&voice_ctrl);
+    let voice_ctrl_close = Arc::clone(&voice_ctrl);
     let radica_opened = Arc::new(AtomicBool::new(false));
     let radica_opened_ipc = Arc::clone(&radica_opened);
     let storage_path = storage_path();
@@ -372,6 +387,22 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
                             if let Some(p) = &storage_path {
                                 let _ = write_storage_atomic(p, json);
                             }
+                        }
+                    } else if req.body() == "voice:stop" {
+                        if is_radica_url(&origin_uri) {
+                            voice_ctrl_ipc.stop();
+                        }
+                    } else if req.body() == "voice:cancel" {
+                        if is_radica_url(&origin_uri) {
+                            voice_ctrl_ipc.cancel();
+                        }
+                    } else if let Some(sec_str) = req.body().strip_prefix("voice:start:") {
+                        if is_radica_url(&origin_uri) {
+                            let max_sec = sec_str.trim().parse::<u32>().unwrap_or(10).clamp(1, 60);
+                            let vp = voice_proxy.clone();
+                            voice_ctrl_ipc.start(max_sec, move |ev| {
+                                let _ = vp.send_event(Ui::VoiceEvent(ev));
+                            });
                         }
                     }
                 }
@@ -410,10 +441,21 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
                 status("Looking for your Freenet node…", false);
                 spawn_bring_up(proxy.clone());
             }
+            Event::UserEvent(Ui::VoiceEvent(ev)) => {
+                if let Ok(payload) = serde_json::to_string(&ev.to_json()) {
+                    let js = format!(
+                        "(function(d){{try{{window.postMessage(d,'*');var fs=document.getElementsByTagName('iframe');for(var i=0;i<fs.length;i++){{try{{fs[i].contentWindow.postMessage(d,'*');}}catch(e){{}}}}}}catch(e){{}}}})({payload});"
+                    );
+                    let _ = webview.evaluate_script(&js);
+                }
+            }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *flow = ControlFlow::Exit,
+            } => {
+                voice_ctrl_close.cancel();
+                *flow = ControlFlow::Exit;
+            }
             _ => {}
         }
     });
@@ -462,6 +504,8 @@ mod tests {
         let script = native_storage_script("{\"k\":\"v\"}", AppMode::Messenger);
         assert!(script.contains("getAppMode: function() { return \"messenger\"; }"));
         assert!(script.contains("openExternal: function(url)"));
+        assert!(script.contains("canRecordVoice: function() { return true; }"));
+        assert!(script.contains("startVoiceRec: function(maxSec)"));
         let full_script = native_storage_script("{}", AppMode::Full);
         assert!(full_script.contains("getAppMode: function() { return \"full\"; }"));
     }

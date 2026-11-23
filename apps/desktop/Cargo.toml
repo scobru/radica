@@ -28,6 +28,7 @@ tempfile = "3"
 directories = "6"
 wry = "0.57.1"
 tao = "0.37.2"
+cpal = "0.15"
 
 # The icon inside radica.exe (build.rs). Built on Windows only.
 [target.'cfg(windows)'.build-dependencies]

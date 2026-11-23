@@ -34,7 +34,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libasound2-dev
       - run: cargo build --release --locked --manifest-path apps/Cargo.toml -p radica-desktop --bins --target ${{ matrix.target }}
 
       - name: Package (Linux)
@@ -68,6 +68,7 @@ jobs:
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleShortVersionString</key><string>$VER</string>
             <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSMicrophoneUsageDescription</key><string>Radica uses your microphone to record end-to-end encrypted voice messages.</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF

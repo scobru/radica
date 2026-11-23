@@ -25,13 +25,13 @@
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
-    "mtime": 1794824306.8992682,
-    "ast_hash": "eb4a67acaaf1a00b0f9f9ae0dbccf86e",
+    "mtime": 1795415159.6394398,
+    "ast_hash": "f6c2d0d7fd8d044384009bcf78385aeb",
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795391395.3982983,
-    "ast_hash": "145e80efc9fb31656f4073fef6971100",
+    "mtime": 1795440819.3510392,
+    "ast_hash": "1c0f6e3c35d9c0c11dab2a04354602fe",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,18 +70,18 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795391405.9840076,
-    "ast_hash": "b5626327d24437fa0aff7d4f010089bb",
+    "mtime": 1795440909.0072541,
+    "ast_hash": "6e9511ada0286895cd280a6291227755",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795391327.6103847,
-    "ast_hash": "a0b06aff3617cc595a4870189fc0e1ee",
+    "mtime": 1795440917.9562464,
+    "ast_hash": "97a5b3fa20cfe0a3df183736a51c9b54",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795391292.6381311,
-    "ast_hash": "30d113617ee0d3727b7df3313c8d1802",
+    "mtime": 1795440893.400335,
+    "ast_hash": "25fbd8710f946cac62a01344b9336e3a",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795391321.158849,
-    "ast_hash": "2324e98754df1de69997f4bf4d0c15ef",
+    "mtime": 1795440885.8346822,
+    "ast_hash": "800fcee9f3ad6769d432d699ce5dd3be",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795391080.0757363,
-    "ast_hash": "05686debb1c861fb03b75aa851b78a69",
+    "mtime": 1795440771.5296645,
+    "ast_hash": "4fdbf4b748b039e2da13d61bc3aee238",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -300,8 +300,8 @@
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
-    "mtime": 1795291073.6282716,
-    "ast_hash": "5b8ba2e5a0f2b3e3fe105602d5a7f689",
+    "mtime": 1795440677.3409104,
+    "ast_hash": "e4c0661939e8dd0de9a00967ec2e7aa9",
     "semantic_hash": ""
   },
   "ui/src/gifPicker.ts": {
@@ -400,8 +400,8 @@
     "semantic_hash": ""
   },
   "ui/src/sound.ts": {
-    "mtime": 1793559673.7046745,
-    "ast_hash": "24d35b4c3ebc99658a92e01e8045fc17",
+    "mtime": 1795415093.9863124,
+    "ast_hash": "32261c36487b490c279fccb9e67f013d",
     "semantic_hash": ""
   },
   "ui/public/sounds/pop.mp3": {
@@ -425,8 +425,8 @@
     "semantic_hash": ""
   },
   "ui/src/durable.ts": {
-    "mtime": 1795282034.124196,
-    "ast_hash": "7cb8d785b63e15bf987eed4a43323250",
+    "mtime": 1795415091.3387694,
+    "ast_hash": "689fec8d221c4f2a69bf79a4b4862284",
     "semantic_hash": ""
   },
   "ui/src/html.ts": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795391359.5929978,
-    "ast_hash": "e2449f6dc8252dd31b09189713037fd3",
+    "mtime": 1795440930.3600123,
+    "ast_hash": "dd9fbe006fea302883c4d1953f57fa45",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -835,8 +835,8 @@
     "semantic_hash": ""
   },
   "ui/src/video.ts": {
-    "mtime": 1793901556.639609,
-    "ast_hash": "7ff319d587878d664426750ea4ac3f9f",
+    "mtime": 1795415157.0665424,
+    "ast_hash": "a7bc4374409845f2b602ec64d21683ac",
     "semantic_hash": ""
   },
   "ui/src/viso.ts": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "ui/tests/chatMedia.test.ts": {
-    "mtime": 1795339194.7950113,
-    "ast_hash": "b994106f51416abd13b046e331ecbdf9",
+    "mtime": 1795440947.735386,
+    "ast_hash": "4cee7b75dc6956e95ef0c3a82bc59936",
     "semantic_hash": ""
   },
   "ui/tests/communityFinder.test.ts": {
@@ -1095,8 +1095,8 @@
     "semantic_hash": ""
   },
   "ui/tests/templateNesting.test.ts": {
-    "mtime": 1795391498.8452349,
-    "ast_hash": "802a41543f4c889a0d12c861526817e4",
+    "mtime": 1795440955.1768274,
+    "ast_hash": "b1ef1d0e0cae96ddb2266028388d51ee",
     "semantic_hash": ""
   },
   "ui/tests/translate.test.ts": {
@@ -1330,13 +1330,13 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795388210.655673,
-    "ast_hash": "b62c8b6e786fbe1e8c6e4f90d6b3c2b2",
+    "mtime": 1795440662.0307255,
+    "ast_hash": "5ba95d516f0c5ba30123074288d1cdd5",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
-    "mtime": 1795342482.54176,
-    "ast_hash": "c1a75d3470a20ab6e6f3d661c748687f",
+    "mtime": 1795440439.5780516,
+    "ast_hash": "9d3fb7e191dd60998fb903ba59b6bcdb",
     "semantic_hash": ""
   },
   "inbox.json": {
@@ -1345,8 +1345,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/desktop.yml": {
-    "mtime": 1795340769.5276573,
-    "ast_hash": "adbfc0d2632010961a502a780bd918a2",
+    "mtime": 1795440467.4323573,
+    "ast_hash": "d19bcc874f560fe998f7a3a1f00b5616",
     "semantic_hash": ""
   },
   "apps/android/src/main/res/mipmap/ic_launcher.png": {
@@ -1860,8 +1860,8 @@
     "semantic_hash": ""
   },
   "apps/desktop/src/lib.rs": {
-    "mtime": 1795340681.9222405,
-    "ast_hash": "28e8bd73ccbf1a6a337742f59f3b5fd7",
+    "mtime": 1795440389.299348,
+    "ast_hash": "4efd2bcc3b3f669d460b3c9810d84860",
     "semantic_hash": ""
   },
   "ui/src/handles.ts": {
@@ -1872,6 +1872,21 @@
   "ui/tests/handles.test.ts": {
     "mtime": 1795361847.006592,
     "ast_hash": "1f4359191ba68954d969512af3c26310",
+    "semantic_hash": ""
+  },
+  "ui/src/walkieTalkie.ts": {
+    "mtime": 1795415092.914912,
+    "ast_hash": "daccc2699713b243dedf4ad98bda88ef",
+    "semantic_hash": ""
+  },
+  "ui/tests/walkieTalkie.test.ts": {
+    "mtime": 1795430152.272674,
+    "ast_hash": "24ae7078eea6f534a85b73811606bb86",
+    "semantic_hash": ""
+  },
+  "apps/desktop/src/audio.rs": {
+    "mtime": 1795440380.9131973,
+    "ast_hash": "c9029a5d4022007bda221281baaebff9",
     "semantic_hash": ""
   }
 }

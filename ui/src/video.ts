@@ -4,10 +4,11 @@
 // the poster being the first scanned frame (a JPEG), sealed with the same key.
 import type { ImageModerationResult } from "./moderation";
 import { mediaHashOf } from "./media.ts";
-import { type ChunkProgress, keepChatMediaUrl, sealWithKey, MAX_CHAT_FILE_BYTES, resolveChatMediaUrl, sealChatMediaChunked, uploadChatMedia, type ChatMediaItem } from "./chatMedia.ts";
+import { type ChunkProgress, keepChatMediaUrl, sealWithKey, MAX_CHAT_FILE_BYTES, resolveChatMediaUrl, sealChatMediaChunked, uploadChatMedia, scanTimes, isFragmentedMp4, type ChatMediaItem } from "./chatMedia.ts";
+
+export { scanTimes, isFragmentedMp4 };
 
 export const VIDEO_PREFIX = "radica-video:";
-const SCAN_EVERY_SEC = 2;
 // The MP4 must fit the 25 MB chunked attachment cap, and readers download it whole: the longer the video, the lower
 // the bitrate (and height), down to MIN_VIDEO_BPS. 10% kept for the MP4 container and encoder overshoot.
 const BUDGET_BITS = MAX_CHAT_FILE_BYTES * 0.9 * 8;
@@ -29,14 +30,6 @@ export function videoRef(uri?: string): { hash: string; keyHex: string; posterHa
 }
 
 const item = (hash: string, keyHex: string): ChatMediaItem => ({ raw: "", kind: "file", mime: "video/mp4", hash, keyHex });
-
-/** Seconds to sample for the scan: every SCAN_EVERY_SEC, plus the last frame. */
-export function scanTimes(duration: number): number[] {
-  const out: number[] = [];
-  for (let t = 0; t < duration; t += SCAN_EVERY_SEC) out.push(t);
-  if (duration > 0 && out[out.length - 1] < duration - 0.5) out.push(duration - 0.5);
-  return out;
-}
 
 /**
  * Scan `file` frame by frame with `scan`; stops at the first unverified or blocked (>= stopAt) frame. When nothing
@@ -112,13 +105,6 @@ export function videoPosterUrl(uri: string, get: (hash: string) => Promise<Uint8
   const ref = videoRef(uri);
   if (!ref?.posterHash) return Promise.resolve(null);
   return resolveChatMediaUrl({ raw: "", kind: "img", mime: "image/jpeg", hash: ref.posterHash, keyHex: ref.keyHex }, get);
-}
-
-/** Whether an MP4's first bytes declare movie fragments ("mvex" in its moov): such a file can be played as it arrives. */
-export function isFragmentedMp4(head: Uint8Array): boolean {
-  const n = Math.min(head.byteLength, 1 << 16);
-  for (let i = 0; i + 4 <= n; i++) if (head[i] === 0x6d && head[i + 1] === 0x76 && head[i + 2] === 0x65 && head[i + 3] === 0x78) return true;
-  return false;
 }
 
 /**

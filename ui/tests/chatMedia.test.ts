@@ -21,6 +21,14 @@ import {
   uploadChatMedia,
   sendChatAttachment,
   syncMiniPlayerSlot,
+  normalizeVideoMime,
+  videoNotePlan,
+  canUseLiveMediaCapture,
+  canRecordVoice,
+  canCaptureVideoNote,
+  hasNativeVoiceBridge,
+  startVideoNoteRecording,
+  startVoiceRecording,
 } from "../src/chatMedia.ts";
 import { mediaHashOf } from "../src/media.ts";
 
@@ -382,5 +390,214 @@ test("chatMedia: syncMiniPlayerSlot docks player bar under active header and nev
   } finally {
     (globalThis as any).document = prevDoc;
     (globalThis as any).window = prevWin;
+  }
+});
+
+test("chatMedia: circular video notes (vnote) normalization, planning, tokens, cards, and poster E2EE", async () => {
+  assert.equal(normalizeVideoMime("video/mp4;codecs=avc1"), "video/mp4");
+  assert.equal(normalizeVideoMime("video/quicktime", "clip.mov"), "video/mp4");
+  assert.equal(normalizeVideoMime("", "bubble.webm"), "video/webm");
+  assert.equal(normalizeVideoMime("application/pdf", "doc.pdf"), null);
+
+  const shortPlan = videoNotePlan(12, 720, 1280);
+  assert.ok(shortPlan);
+  assert.equal(shortPlan!.size, 360);
+  assert.equal(shortPlan!.bitrate, 550_000);
+  assert.equal(videoNotePlan(65, 360, 360), null); // exceeds 60s cap
+
+  const videoHash = "a".repeat(64);
+  const posterHash = "b".repeat(64);
+  const keyHex = "c".repeat(64);
+  const tokWithPoster = encodeChatMediaToken({
+    kind: "vnote",
+    mime: "video/mp4",
+    hash: videoHash,
+    keyHex,
+    durationSec: 18.4,
+    posterHash,
+  });
+  assert.equal(tokWithPoster, `[radica-cm1:vnote:video/mp4:${videoHash}:${keyHex}:18.4:${posterHash}]`);
+
+  const tokNoPoster = encodeChatMediaToken({
+    kind: "vnote",
+    mime: "video/webm",
+    hash: videoHash,
+    keyHex,
+    durationSec: 5,
+  });
+  assert.equal(tokNoPoster, `[radica-cm1:vnote:video/webm:${videoHash}:${keyHex}:5]`);
+
+  const parsed = parseChatMedia(`Quick update:\n${tokWithPoster}`);
+  assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.items[0].kind, "vnote");
+  assert.equal(parsed.items[0].posterHash, posterHash);
+  assert.equal(parsed.items[0].durationSec, 18.4);
+  assert.equal(parsed.caption, "Quick update:");
+
+  const { masked, restore } = maskChatMediaTokens(`Number 555-0199 ${tokWithPoster}`);
+  assert.ok(!masked.includes(tokWithPoster));
+  assert.equal(restore(masked.replace("555-0199", "[REDACTED]")), `Number [REDACTED] ${tokWithPoster}`);
+
+  assert.equal(summarizeChatMediaText(tokWithPoster), "🎥 Video message (0:18)");
+  assert.equal(summarizeChatMediaText(`Walkie\n${tokWithPoster}`), "🎥 (0:18) Walkie");
+
+  const html = chatMediaCardsHtml(parsed.items);
+  assert.ok(html.includes('class="cm-card cm-vnote-card"'));
+  assert.ok(html.includes(`data-cm-poster="${posterHash}"`));
+  assert.ok(html.includes('<progress class="cm-vnote-ring"'));
+  assert.ok(html.includes('width="208" height="208"'));
+  assert.ok(html.includes('preload="none" loading="lazy"'));
+  // Ensure no button is nested inside another button
+  assert.doesNotMatch(html, /<button\b(?:(?!<\/button>)[\s\S])*<button\b/i);
+
+  // sendChatAttachment seals both video bytes and posterBlob using same keyHex
+  const videoBytes = crypto.getRandomValues(new Uint8Array(1024));
+  const posterBlob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" });
+  const store = new Map<string, Uint8Array>();
+  const emitted = await sendChatAttachment(
+    {
+      kind: "vnote",
+      bytes: videoBytes,
+      mime: "video/mp4",
+      label: "Video message",
+      previewUrl: "",
+      durationSec: 6,
+      sizeBytes: videoBytes.byteLength,
+      posterBlob,
+    },
+    async (b) => void store.set(mediaHashOf(b), b)
+  );
+  const [emittedItem] = parseChatMedia(emitted).items;
+  assert.equal(emittedItem.kind, "vnote");
+  assert.ok(emittedItem.posterHash);
+  assert.deepEqual(await fetchChatMedia(emittedItem.hash, emittedItem.keyHex, async (h) => store.get(h) ?? null), videoBytes);
+  assert.deepEqual(
+    await fetchChatMedia(emittedItem.posterHash!, emittedItem.keyHex, async (h) => store.get(h) ?? null),
+    new Uint8Array([1, 2, 3, 4])
+  );
+});
+
+test("chatMedia: canUseLiveMediaCapture & sandbox DOMException capture fallback do not throw TypeError", async () => {
+  const prevWin = (globalThis as any).window;
+  const prevNavDesc = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const prevMR = (globalThis as any).MediaRecorder;
+  const setNav = (val: any) =>
+    Object.defineProperty(globalThis, "navigator", { value: val, configurable: true, writable: true });
+  try {
+    // 1. Opaque origin (Freenet shell.html sandbox iframe) -> false
+    (globalThis as any).window = { isSecureContext: false, origin: "null" };
+    setNav({ mediaDevices: { getUserMedia: async () => ({}) } });
+    (globalThis as any).MediaRecorder = function () {};
+    assert.equal(canUseLiveMediaCapture(), false);
+
+    // 2. Secure non-opaque origin with MediaRecorder + getUserMedia -> true
+    (globalThis as any).window = { isSecureContext: true, origin: "http://localhost:5173" };
+    assert.equal(canUseLiveMediaCapture(), true);
+
+    // 3. DOMException (which has a read-only getter for .code) must map cleanly to FALLBACK_CAPTURE
+    setNav({
+      mediaDevices: {
+        getUserMedia: async () => {
+          throw new DOMException("Permission denied due to SecurityError", "NotAllowedError");
+        },
+      },
+    });
+    await assert.rejects(
+      () => startVideoNoteRecording({}),
+      (err: any) => err instanceof Error && err.code === "FALLBACK_CAPTURE"
+    );
+    await assert.rejects(
+      () => startVoiceRecording({}),
+      (err: any) => err instanceof Error && err.code === "FALLBACK_CAPTURE"
+    );
+  } finally {
+    (globalThis as any).window = prevWin;
+    if (prevNavDesc) Object.defineProperty(globalThis, "navigator", prevNavDesc);
+    else delete (globalThis as any).navigator;
+    (globalThis as any).MediaRecorder = prevMR;
+  }
+});
+
+test("chatMedia: native __radicaNative voice bridge records, streams ticks, and hides capture on plain sandboxed desktop", async () => {
+  const prevWin = (globalThis as any).window;
+  const prevNavDesc = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const prevNative = (globalThis as any).__radicaNative;
+  const setNav = (val: any) =>
+    Object.defineProperty(globalThis, "navigator", { value: val, configurable: true, writable: true });
+  const listeners = new Set<(ev: any) => void>();
+
+  try {
+    // Plain desktop browser inside Freenet shell.html sandbox -> both buttons stay hidden
+    (globalThis as any).window = {
+      isSecureContext: false,
+      origin: "null",
+      matchMedia: () => ({ matches: false }),
+      addEventListener: (t: string, cb: (ev: any) => void) => t === "message" && listeners.add(cb),
+      removeEventListener: (t: string, cb: (ev: any) => void) => t === "message" && listeners.delete(cb),
+    };
+    setNav({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" });
+    delete (globalThis as any).__radicaNative;
+
+    assert.equal(hasNativeVoiceBridge(), false);
+    assert.equal(canRecordVoice(), false);
+    assert.equal(canCaptureVideoNote(), false);
+
+    // Desktop native wrapper enables PTT voice even inside sandbox
+    let startedMax = 0;
+    const emit = (data: any) => {
+      for (const cb of listeners) cb({ data });
+    };
+    (globalThis as any).__radicaNative = {
+      canRecordVoice: () => true,
+      startVoiceRec: (maxSec: number) => {
+        startedMax = maxSec;
+        queueMicrotask(() => {
+          emit({ type: "radica_native_voice", event: "started" });
+          emit({ type: "radica_native_voice", event: "tick", elapsedSec: 0.4, level: 9, approxBytes: 12000, maxSec });
+          emit({ type: "radica_native_voice", event: "tick", elapsedSec: 0.8, level: 13, approxBytes: 24000, maxSec });
+          emit({ type: "radica_native_voice", event: "tick", elapsedSec: 1.2, level: 6, approxBytes: 36000, maxSec });
+          emit({ type: "radica_native_voice", event: "tick", elapsedSec: 1.6, level: 10, approxBytes: 48000, maxSec });
+        });
+      },
+      stopVoiceRec: () => {
+        const fakeWavB64 = Buffer.from("RIFF$\x00\x00\x00WAVEfmt ").toString("base64");
+        queueMicrotask(() => {
+          emit({
+            type: "radica_native_voice",
+            event: "done",
+            mime: "audio/wav",
+            base64: fakeWavB64,
+            durationSec: 1.6,
+          });
+        });
+      },
+      cancelVoiceRec: () => {},
+    };
+
+    assert.equal(hasNativeVoiceBridge(), true);
+    assert.equal(canRecordVoice(), true);
+    assert.equal(canCaptureVideoNote(), false);
+
+    const ticks: number[] = [];
+    const session = await startVoiceRecording({
+      maxSec: 10,
+      onTick: (_sec, level) => ticks.push(level),
+    });
+    assert.equal(startedMax, 10);
+    await new Promise((r) => setTimeout(r, 15));
+    assert.equal(ticks.length, 4);
+
+    const prep = await session.stop();
+    assert.ok(prep);
+    assert.equal(prep!.kind, "voice");
+    assert.equal(prep!.mime, "audio/wav");
+    assert.equal(prep!.durationSec, 1.6);
+    assert.equal(prep!.waveform?.length, 28);
+  } finally {
+    (globalThis as any).window = prevWin;
+    if (prevNavDesc) Object.defineProperty(globalThis, "navigator", prevNavDesc);
+    else delete (globalThis as any).navigator;
+    if (prevNative !== undefined) (globalThis as any).__radicaNative = prevNative;
+    else delete (globalThis as any).__radicaNative;
   }
 });

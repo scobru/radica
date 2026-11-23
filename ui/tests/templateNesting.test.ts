@@ -428,3 +428,41 @@ test("standalone messenger mode exposes identity, profile & settings menu items 
   assert.match(buildGradle, /buildConfigField\("boolean",\s*"IS_MESSENGER",\s*"true"\)/);
   assert.match(mainActivity, /BuildConfig\.IS_MESSENGER/);
 });
+
+test("walkie-talkie push-to-talk and circular video message controls, styles, and Android permissions", () => {
+  const indexHtml = read("../index.html");
+  const messengerTs = read("../src/messengerChat.ts");
+  const mainTs = read("../src/main.ts");
+  const chatCss = read("../src/messengerChat.css");
+  const androidManifest = read("../../apps/android/src/main/AndroidManifest.xml");
+  const mainActivity = read("../../apps/android/src/main/java/org/freenet/radica/MainActivity.java");
+
+  for (const id of ["rm-btn-walkie", "rm-walkie-bar", "rm-btn-ptt", "rm-btn-vnote", "rm-vnote-recorder", "rm-file-video"]) {
+    assert.ok(messengerTs.includes(`id="${id}"`), `Expected #${id} in messengerChat.ts`);
+  }
+  for (const id of ["chat-btn-walkie", "chat-walkie-bar", "chat-btn-ptt", "chat-btn-vnote", "chat-file-video"]) {
+    assert.ok(indexHtml.includes(`id="${id}"`), `Expected #${id} in index.html`);
+  }
+
+  assert.match(mainTs, /setVoiceEndedHandler/);
+  assert.match(chatCss, /@property\s+--value/);
+  assert.match(chatCss, /progress\.cm-vnote-ring/);
+  assert.match(chatCss, /@supports\s+not\s*\(background-clip:\s*border-area\)/);
+  assert.match(chatCss, /@media\s*\(forced-colors:\s*active\)[\s\S]*?forced-color-adjust:\s*none/);
+
+  assert.match(androidManifest, /android\.permission\.CAMERA/);
+  assert.match(mainActivity, /RESOURCE_VIDEO_CAPTURE/);
+  assert.match(mainActivity, /canRecordVoice/);
+  assert.match(mainActivity, /startVoiceRec/);
+  assert.match(mainActivity, /ACTION_VIDEO_CAPTURE/);
+
+  const desktopWeb = read("../../apps/desktop/src/web.rs");
+  const desktopAudio = read("../../apps/desktop/src/audio.rs");
+  const desktopWorkflow = read("../../.github/workflows/desktop.yml");
+  assert.match(desktopWeb, /canRecordVoice/);
+  assert.match(desktopWeb, /voice:start:/);
+  assert.match(desktopWeb, /is_radica_url\(&origin_uri\)/);
+  assert.match(desktopAudio, /NativeVoiceController/);
+  assert.match(desktopWorkflow, /libasound2-dev/);
+  assert.match(desktopWorkflow, /NSMicrophoneUsageDescription/);
+});

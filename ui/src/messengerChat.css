@@ -1,3 +1,9 @@
+@property --value {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
 /* ==========================================================================
    RADICA MESSENGER / SIGNAL CHAT INTERFACE (100% Live Freenet Integration)
    Scoped to #chat-modal and .rm-messenger-card — preserves Classic River view
@@ -3633,4 +3639,464 @@ html[data-app-mode="messenger"] .rail-page > .modal-card {
   max-width: 680px !important;
   width: 100% !important;
   margin: 0 auto;
+}
+
+/* ==========================================================================
+   WALKIE-TALKIE (PUSH-TO-TALK) & CIRCULAR VIDEO MESSAGES ("VIDEO NOTES")
+   ========================================================================== */
+
+#chat-modal .rm-walkie-btn.active {
+  background: var(--rm-accent-soft);
+  color: var(--rm-accent);
+  border-color: var(--rm-accent);
+}
+
+#chat-modal .rm-walkie-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--rm-accent);
+  background: var(--rm-accent-soft);
+  border-bottom: 1px solid var(--rm-border);
+  flex-shrink: 0;
+}
+
+#chat-modal .rm-walkie-bar[hidden] {
+  display: none !important;
+}
+
+#chat-modal .rm-walkie-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rm-online, #16a34a);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #chat-modal .rm-walkie-dot {
+    animation: rmPttPulse 1.4s ease-in-out infinite;
+  }
+}
+
+#chat-modal .rm-walkie-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#chat-modal .rm-walkie-resume,
+#chat-modal .rm-walkie-off {
+  border: 1px solid var(--rm-border);
+  background: var(--rm-bg-elevated);
+  color: var(--rm-text-main);
+  font-family: inherit;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#chat-modal .rm-walkie-resume {
+  background: var(--rm-accent);
+  color: var(--rm-on-accent);
+  border-color: var(--rm-accent);
+}
+
+#chat-modal .rm-quick-media-btn,
+#chat-modal .rm-ptt-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--rm-border);
+  background: var(--rm-bg-elevated);
+  color: var(--rm-text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  box-shadow: var(--rm-shadow-sm);
+  touch-action: none;
+  user-select: none;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.12s ease;
+}
+
+#chat-modal .rm-quick-media-btn[hidden],
+#chat-modal .rm-ptt-btn[hidden],
+#chat-modal .rm-send-btn[hidden] {
+  display: none !important;
+}
+
+#chat-modal .rm-quick-media-btn:disabled,
+#chat-modal .rm-ptt-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#chat-modal .rm-ptt-btn.recording {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  transform: scale(1.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #chat-modal .rm-quick-media-btn:hover:not(:disabled),
+  #chat-modal .rm-ptt-btn:hover:not(:disabled):not(.recording) {
+    background: var(--rm-bg-subtle);
+    color: var(--rm-text-main);
+  }
+}
+
+.rm-ptt-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  margin-bottom: 6px;
+  border-radius: 16px;
+  background: var(--rm-bg-elevated, #ffffff);
+  border: 1px solid var(--rm-border, #dfd6c5);
+  box-shadow: var(--rm-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
+}
+
+.rm-ptt-bar[hidden] {
+  display: none !important;
+}
+
+.rm-ptt-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #dc2626;
+  flex-shrink: 0;
+}
+
+@keyframes rmPttPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.84);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rm-ptt-dot {
+    animation: rmPttPulse 1s ease-in-out infinite;
+  }
+}
+
+.rm-ptt-timer {
+  font-family: var(--rm-font-mono, monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--rm-text-main, #1e1a14);
+  flex-shrink: 0;
+}
+
+.rm-ptt-meter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+  flex: 1;
+  min-width: 36px;
+  max-width: 140px;
+}
+
+.rm-ptt-meter span {
+  flex: 1;
+  height: 25%;
+  min-height: 3px;
+  border-radius: 2px;
+  background: var(--rm-accent, #3e7a20);
+  transition: height 0.08s ease;
+}
+
+.rm-ptt-hint {
+  font-size: 0.74rem;
+  color: var(--rm-text-muted, #847968);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: auto;
+}
+
+.rm-ptt-cancel,
+.rm-ptt-send {
+  border: 1px solid var(--rm-border, #dfd6c5);
+  background: var(--rm-bg-subtle, #ece4d5);
+  color: var(--rm-text-main, #1e1a14);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rm-ptt-send {
+  background: var(--rm-accent, #3e7a20);
+  color: var(--rm-on-accent, #ffffff);
+  border-color: var(--rm-accent, #3e7a20);
+}
+
+.rm-ptt-send[hidden] {
+  display: none !important;
+}
+
+/* Circular Video Note Live Recorder Panel */
+#chat-modal .rm-vnote-recorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 18px;
+  background: var(--rm-bg-elevated);
+  border: 1px solid var(--rm-border);
+  box-shadow: var(--rm-shadow-sm);
+}
+
+#chat-modal .rm-vnote-recorder[hidden] {
+  display: none !important;
+}
+
+#chat-modal .rm-vnote-preview.mirrored {
+  transform: scaleX(-1);
+}
+
+#chat-modal .rm-vnote-rec-status {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--rm-text-secondary);
+}
+
+#chat-modal .rm-vnote-rec-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Circular Video Note Bubble & Progress Ring */
+#chat-modal .cm-vnote-card,
+.chat-bubble .cm-vnote-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+#chat-modal .cm-vnote-stage,
+.chat-bubble .cm-vnote-stage {
+  --vnote-size: 208px;
+  --vnote-circle: 196px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--vnote-size);
+  height: var(--vnote-size);
+  cursor: pointer;
+  user-select: none;
+  border-radius: 50%;
+}
+
+progress.cm-vnote-ring::-webkit-progress-bar {
+  display: none;
+  background: none;
+}
+progress.cm-vnote-ring::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+progress.cm-vnote-ring::-moz-progress-bar {
+  display: none;
+  background: none;
+}
+progress.cm-vnote-ring::slider-fill {
+  display: none;
+  background: none;
+}
+
+progress.cm-vnote-ring {
+  --size: 208px;
+  --thickness: 4px;
+  --track-color: rgba(0, 0, 0, 0.14);
+  --fill-color: var(--rm-accent, #3e7a20);
+  --value: attr(value type(<number>));
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: --value 0s ease-in-out;
+  background: conic-gradient(
+    var(--fill-color) calc(var(--value) * 1%),
+    var(--track-color) 0
+  );
+  background-clip: border-area;
+  border: var(--thickness) solid transparent;
+  background-origin: border-box;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  progress.cm-vnote-ring {
+    transition-duration: 0.25s;
+  }
+}
+
+@supports not (background-clip: border-area) {
+  progress.cm-vnote-ring {
+    mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    -webkit-mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    border: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  progress.cm-vnote-ring {
+    forced-color-adjust: none;
+    --fill-color: CanvasText;
+    --track-color: Canvas;
+  }
+}
+
+#chat-modal .rm-msg-row.mine progress.cm-vnote-ring {
+  --fill-color: #ffffff;
+  --track-color: rgba(255, 255, 255, 0.28);
+}
+
+#chat-modal .cm-vnote-circle,
+.chat-bubble .cm-vnote-circle {
+  position: absolute;
+  width: var(--vnote-circle, 196px);
+  height: var(--vnote-circle, 196px);
+  border-radius: 50%;
+  overflow: hidden;
+  background: #14120f;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+#chat-modal .cm-vnote-video,
+.chat-bubble .cm-vnote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+
+#chat-modal .cm-vnote-overlay,
+.chat-bubble .cm-vnote-overlay {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.52);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+#chat-modal .cm-vnote-card.playing .cm-vnote-overlay,
+.chat-bubble .cm-vnote-card.playing .cm-vnote-overlay {
+  opacity: 0;
+}
+
+#chat-modal .cm-vnote-badge,
+.chat-bubble .cm-vnote-badge {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#chat-modal .cm-vnote-controls,
+.chat-bubble .cm-vnote-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#chat-modal .rm-shared-photo-item {
+  position: relative;
+}
+
+#chat-modal .rm-shared-vnote-tag {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.68);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  pointer-events: none;
+}
+
+#chat-modal .rm-shared-vnote-placeholder {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  background: var(--rm-bg-subtle);
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  #chat-modal .cm-vnote-stage,
+  .chat-bubble .cm-vnote-stage {
+    --vnote-size: 188px;
+    --vnote-circle: 176px;
+  }
+
+  progress.cm-vnote-ring {
+    --size: 188px;
+  }
+
+  #chat-modal .rm-quick-media-btn,
+  #chat-modal .rm-ptt-btn {
+    width: 38px;
+    height: 38px;
+  }
 }

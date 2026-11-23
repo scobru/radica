@@ -31,21 +31,46 @@ import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard } from "./freetree.ts";
 import { sporeRadioCard } from "./sporeRadio.ts";
 import {
+  canCaptureVideoNote,
+  canRecordVoice,
+  canUseLiveMediaCapture,
   chatMediaCardsHtml,
   fileExtensionIcon,
   fillChatMedia,
   formatBytes,
   formatMediaDuration,
+  MAX_VNOTE_BYTES,
+  MAX_VNOTE_SEC,
   normalizeAudioMime,
+  normalizeVideoMime,
   parseChatMedia,
+  playChatVoiceByHash,
   prepareChatAudioFile,
   prepareChatDocFile,
   prepareChatImageFile,
+  prepareChatVideoNote,
+  primeChatAudio,
   summarizeChatMediaText,
   type PreparedChatMedia,
+  type VideoNoteRecorderSession,
+  type VoiceRecorderSession,
   sendChatAttachment,
+  startVideoNoteRecording,
+  startVoiceRecording,
   syncMiniPlayerSlot,
 } from "./chatMedia.ts";
+import {
+  createWalkieQueue,
+  MIN_PTT_SEC,
+  nextSequentialHash,
+  PTT_HOLD_THRESHOLD_MS,
+  readWalkieEnabled,
+  STANDARD_VOICE_MAX_SEC,
+  WALKIE_PTT_MAX_SEC,
+  writeWalkieEnabled,
+} from "./walkieTalkie.ts";
+import { playWalkieChirp } from "./sound.ts";
+import { analyzeImageFile } from "./moderation.ts";
 import { freenet } from "./freenet.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
@@ -480,6 +505,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           </div>
 
           <div class="rm-header-controls">
+            <button type="button" class="rm-icon-btn rm-walkie-btn" id="rm-btn-walkie" aria-pressed="false" title="Walkie-Talkie mode: fast 10s push-to-talk &amp; auto-play incoming voice notes">${renderIcon("radio", { className: "icon-sm" })}</button>
             <div class="rm-menu-wrap">
               <button type="button" class="rm-icon-btn" data-menu="rm-header-menu" aria-haspopup="menu" aria-expanded="false" title="More"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><circle cx="12" cy="5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg></button>
               <div class="rm-menu" id="rm-header-menu" role="menu" hidden>
@@ -496,6 +522,13 @@ export function createMessengerChat(deps: MessengerDeps) {
         </header>
 
         <div id="rm-player-slot"></div>
+
+        <div class="rm-walkie-bar" id="rm-walkie-bar" hidden>
+          <span class="rm-walkie-dot" aria-hidden="true"></span>
+          <span class="rm-walkie-text" id="rm-walkie-text">Walkie-Talkie live · Auto-playing incoming voice</span>
+          <button type="button" class="rm-walkie-resume" id="rm-walkie-resume" hidden>▶ Tap to play</button>
+          <button type="button" class="rm-walkie-off" id="rm-walkie-off">Off</button>
+        </div>
 
         <div class="rm-thread-search" id="rm-thread-search-bar">
           <svg viewBox="0 0 24 24" class="svg-icon icon-sm" style="color: var(--rm-text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -543,11 +576,14 @@ export function createMessengerChat(deps: MessengerDeps) {
 
             <input type="file" id="rm-file-image" accept="image/*" hidden />
             <input type="file" id="rm-file-audio" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.aac,.webm" hidden />
+            <input type="file" id="rm-file-video" accept="video/*,.mp4,.webm,.mov,.m4v" capture="user" hidden />
             <input type="file" id="rm-file-doc" hidden />
 
             <div class="rm-mention-popup" id="rm-mention-popup" hidden></div>
 
             <div class="rm-attach-menu" id="rm-attach-menu">
+              <button type="button" class="rm-attach-item" data-attach="voice">${renderIcon("mic", { className: "icon-sm" })}<span>Record Voice / Push-to-Talk</span></button>
+              <button type="button" class="rm-attach-item" data-attach="vnote">${renderIcon("video", { className: "icon-sm" })}<span>Record Video Message (60s)</span></button>
               <button type="button" class="rm-attach-item" data-attach="image">${renderIcon("image", { className: "icon-sm" })}<span>Send Photo / Image</span></button>
               <button type="button" class="rm-attach-item" data-attach="audio">${renderIcon("music", { className: "icon-sm" })}<span>Send Audio File / Memo</span></button>
               <button type="button" class="rm-attach-item" data-attach="file">${renderIcon("fileText", { className: "icon-sm" })}<span>Send Document / File</span></button>
@@ -560,6 +596,32 @@ export function createMessengerChat(deps: MessengerDeps) {
             <div class="rm-typing-bar" id="rm-typing-bar" style="display: none;">
               <span id="rm-typing-text"></span>
               <span class="rm-typing-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+
+            <div class="rm-ptt-bar" id="rm-ptt-bar" hidden>
+              <span class="rm-ptt-dot" aria-hidden="true"></span>
+              <span class="rm-ptt-timer" id="rm-ptt-timer">0:00</span>
+              <div class="rm-ptt-meter" id="rm-ptt-meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+              <span class="rm-ptt-hint" id="rm-ptt-hint">Release to send</span>
+              <button type="button" class="rm-ptt-cancel" id="rm-ptt-cancel">Cancel</button>
+              <button type="button" class="rm-ptt-send" id="rm-ptt-send" hidden>Send</button>
+            </div>
+
+            <div class="rm-vnote-recorder" id="rm-vnote-recorder" hidden>
+              <div class="cm-vnote-stage rm-vnote-rec-stage">
+                <progress class="cm-vnote-ring" id="rm-vnote-rec-ring" value="0" max="100" aria-label="Video recording progress" aria-valuetext="0:00 of 1:00"></progress>
+                <div class="cm-vnote-circle">
+                  <video class="cm-vnote-video rm-vnote-preview mirrored" id="rm-vnote-preview" width="208" height="208" autoplay muted playsinline></video>
+                  <div class="cm-vnote-badge" id="rm-vnote-rec-timer">0:00 / 1:00</div>
+                </div>
+              </div>
+              <div class="rm-vnote-rec-status" id="rm-vnote-rec-status">Recording circular video…</div>
+              <div class="rm-vnote-rec-actions">
+                <button type="button" class="rm-link-btn" id="rm-vnote-rec-cancel">Cancel</button>
+                <button type="button" class="rm-link-btn" id="rm-vnote-rec-flip" title="Switch camera">↻ Flip</button>
+                <button type="button" class="rm-link-btn" id="rm-vnote-rec-file" title="Choose video file">📁 File</button>
+                <button type="button" class="rm-icebreaker-btn rm-vnote-rec-send" id="rm-vnote-rec-send" style="margin-top:0;">Stop &amp; Send</button>
+              </div>
             </div>
 
             <form class="rm-composer-row" id="rm-composer-form">
@@ -577,7 +639,13 @@ export function createMessengerChat(deps: MessengerDeps) {
                 ${draftTranslateHtml("rm-composer-input")}
                 <button type="button" class="rm-emoji-btn" id="rm-btn-quick-emoji" title="Insert 🌱">🌱</button>
               </div>
-              <button type="submit" class="rm-send-btn" id="rm-btn-send" title="Send message (Enter)">
+              <button type="button" class="rm-quick-media-btn" id="rm-btn-vnote" title="Record circular video message (up to 60s)" aria-label="Record video message">
+                ${renderIcon("video", { className: "icon-sm" })}
+              </button>
+              <button type="button" class="rm-ptt-btn" id="rm-btn-ptt" title="Hold for Push-to-Talk (or tap to record)" aria-label="Push to talk voice message">
+                ${renderIcon("mic", { className: "icon-md" })}
+              </button>
+              <button type="submit" class="rm-send-btn" id="rm-btn-send" title="Send message (Enter)" hidden>
                 <svg viewBox="0 0 24 24" class="svg-icon icon-md" style="transform: translateX(1px);">
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -785,6 +853,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   const mediaStageLabelEl = rootEl.querySelector("#rm-media-stage-label") as HTMLElement;
   const fileImageEl = rootEl.querySelector("#rm-file-image") as HTMLInputElement;
   const fileAudioEl = rootEl.querySelector("#rm-file-audio") as HTMLInputElement;
+  const fileVideoEl = rootEl.querySelector("#rm-file-video") as HTMLInputElement;
   const fileDocEl = rootEl.querySelector("#rm-file-doc") as HTMLInputElement;
   const attachMenuEl = rootEl.querySelector("#rm-attach-menu") as HTMLElement;
   const attachBtnEl = rootEl.querySelector("#rm-btn-attach") as HTMLButtonElement;
@@ -792,12 +861,160 @@ export function createMessengerChat(deps: MessengerDeps) {
   const composerFormEl = rootEl.querySelector("#rm-composer-form") as HTMLFormElement;
   const composerInputEl = rootEl.querySelector("#rm-composer-input") as HTMLTextAreaElement;
   const sendBtnEl = rootEl.querySelector("#rm-btn-send") as HTMLButtonElement;
+  const vnoteBtnEl = rootEl.querySelector("#rm-btn-vnote") as HTMLButtonElement;
+  const pttBtnEl = rootEl.querySelector("#rm-btn-ptt") as HTMLButtonElement;
+
+  const walkieBtnEl = rootEl.querySelector("#rm-btn-walkie") as HTMLButtonElement;
+  const walkieBarEl = rootEl.querySelector("#rm-walkie-bar") as HTMLElement;
+  const walkieTextEl = rootEl.querySelector("#rm-walkie-text") as HTMLElement;
+  const walkieResumeBtn = rootEl.querySelector("#rm-walkie-resume") as HTMLButtonElement;
+  const walkieOffBtn = rootEl.querySelector("#rm-walkie-off") as HTMLButtonElement;
+
+  const pttBarEl = rootEl.querySelector("#rm-ptt-bar") as HTMLElement;
+  const pttTimerEl = rootEl.querySelector("#rm-ptt-timer") as HTMLElement;
+  const pttMeterBars = Array.from(rootEl.querySelectorAll<HTMLElement>("#rm-ptt-meter span"));
+  const pttHintEl = rootEl.querySelector("#rm-ptt-hint") as HTMLElement;
+  const pttCancelBtn = rootEl.querySelector("#rm-ptt-cancel") as HTMLButtonElement;
+  const pttSendBtn = rootEl.querySelector("#rm-ptt-send") as HTMLButtonElement;
+
+  const vnoteRecorderEl = rootEl.querySelector("#rm-vnote-recorder") as HTMLElement;
+  const vnotePreviewEl = rootEl.querySelector("#rm-vnote-preview") as HTMLVideoElement;
+  const vnoteRecRingEl = rootEl.querySelector("#rm-vnote-rec-ring") as HTMLProgressElement;
+  const vnoteRecTimerEl = rootEl.querySelector("#rm-vnote-rec-timer") as HTMLElement;
+  const vnoteRecStatusEl = rootEl.querySelector("#rm-vnote-rec-status") as HTMLElement;
+  const vnoteRecCancelBtn = rootEl.querySelector("#rm-vnote-rec-cancel") as HTMLButtonElement;
+  const vnoteRecFlipBtn = rootEl.querySelector("#rm-vnote-rec-flip") as HTMLButtonElement;
+  const vnoteRecFileBtn = rootEl.querySelector("#rm-vnote-rec-file") as HTMLButtonElement;
+  const vnoteRecSendBtn = rootEl.querySelector("#rm-vnote-rec-send") as HTMLButtonElement;
 
   let stagedMedia: PreparedChatMedia | null = null;
   let uploadingMedia = false;
   let editingMessageId: string | null = null;
   // Media tokens of the message being edited, kept so an edit never drops existing attachments.
   let editingMediaTokens = "";
+
+  const walkieQueue = createWalkieQueue(readWalkieEnabled(safeStorage));
+  let walkieNeedsGesture = false;
+  let blockedResumeHash: string | null = null;
+  let walkieDraining = false;
+
+  let activeVoiceRec: VoiceRecorderSession | null = null;
+  let pttStarting = false;
+  let pttPointerId: number | null = null;
+  let pttStartedAt = 0;
+  let pttElapsedSec = 0;
+  let pttReleasedEarly = false;
+  let pttHandsFree = false;
+  let pttFinishing = false;
+
+  let activeVnoteRec: VideoNoteRecorderSession | null = null;
+  let vnoteStarting = false;
+  let vnoteFacingMode: "user" | "environment" = "user";
+  let vnoteFinishing = false;
+
+  function syncComposerButtons() {
+    const canVoice = canRecordVoice();
+    const canVnote = canCaptureVideoNote();
+    const hasDraft = !!composerInputEl.value.trim() || !!stagedMedia || !!editingMessageId;
+    const showQuickMedia = !hasDraft && (canVoice || canVnote);
+    sendBtnEl.hidden = showQuickMedia;
+    pttBtnEl.hidden = !showQuickMedia || !canVoice;
+    vnoteBtnEl.hidden = !showQuickMedia || !canVnote;
+  }
+
+  function syncWalkieUi() {
+    const hasConv = !!activeConvKey();
+    const on = walkieQueue.enabled;
+    walkieBtnEl.classList.toggle("active", on);
+    walkieBtnEl.setAttribute("aria-pressed", on ? "true" : "false");
+    walkieBarEl.hidden = !on || !hasConv;
+    walkieResumeBtn.hidden = !walkieNeedsGesture || !blockedResumeHash;
+    const pending = walkieQueue.pendingCount();
+    walkieTextEl.textContent = walkieNeedsGesture
+      ? "Browser blocked autoplay · Tap to play incoming voice"
+      : pending > 0
+      ? `Walkie-Talkie live · ${pending} voice message${pending > 1 ? "s" : ""} queued`
+      : "Walkie-Talkie live · Auto-playing incoming voice";
+  }
+
+  async function drainWalkieQueue() {
+    if (!isVisible() || !walkieQueue.enabled || walkieDraining || walkieQueue.currentHash) return;
+    walkieDraining = true;
+    try {
+      while (walkieQueue.enabled && isVisible() && !walkieQueue.currentHash) {
+        const next = walkieQueue.dequeueNext();
+        if (!next) break;
+        const res = await playChatVoiceByHash(next.hash, messagesTrackEl);
+        if (res === "started") {
+          walkieNeedsGesture = false;
+          blockedResumeHash = null;
+          playWalkieChirp("start");
+          syncWalkieUi();
+          return;
+        }
+        if (res === "blocked") {
+          walkieNeedsGesture = true;
+          blockedResumeHash = next.hash;
+          walkieQueue.markFinished(next.hash);
+          syncWalkieUi();
+          return;
+        }
+        walkieQueue.markFinished(next.hash);
+      }
+      syncWalkieUi();
+    } finally {
+      walkieDraining = false;
+    }
+  }
+
+  function resetPttUi() {
+    pttBarEl.hidden = true;
+    pttBtnEl.classList.remove("recording");
+    pttSendBtn.hidden = true;
+    pttTimerEl.textContent = "0:00";
+    pttHintEl.textContent = "Release to send";
+    for (const bar of pttMeterBars) bar.style.height = "25%";
+    pttPointerId = null;
+    pttStartedAt = 0;
+    pttElapsedSec = 0;
+    pttReleasedEarly = false;
+    pttHandsFree = false;
+  }
+
+  function cancelVoiceRec() {
+    const rec = activeVoiceRec;
+    activeVoiceRec = null;
+    pttStarting = false;
+    try {
+      rec?.cancel();
+    } catch {}
+    resetPttUi();
+  }
+
+  function resetVnoteUi() {
+    vnoteRecorderEl.hidden = true;
+    vnotePreviewEl.srcObject = null;
+    vnoteRecTimerEl.textContent = `0:00 / ${formatMediaDuration(MAX_VNOTE_SEC)}`;
+    vnoteRecStatusEl.textContent = "Recording circular video…";
+    vnoteRecRingEl.value = 0;
+    vnoteRecRingEl.setAttribute("value", "0");
+    vnoteRecRingEl.style.setProperty("--value", "0");
+  }
+
+  function cancelVnoteRec() {
+    const rec = activeVnoteRec;
+    activeVnoteRec = null;
+    vnoteStarting = false;
+    try {
+      rec?.cancel();
+    } catch {}
+    resetVnoteUi();
+  }
+
+  function cancelActiveRecording() {
+    cancelVoiceRec();
+    cancelVnoteRec();
+  }
 
   function setStagedMedia(next: PreparedChatMedia | null) {
     if (stagedMedia && stagedMedia.previewUrl && stagedMedia.previewUrl !== next?.previewUrl) {
@@ -810,11 +1027,16 @@ export function createMessengerChat(deps: MessengerDeps) {
       mediaStageEl.classList.remove("open");
       mediaStagePreviewEl.innerHTML = "";
       mediaStageLabelEl.textContent = "";
+      syncComposerButtons();
       return;
     }
     mediaStageLabelEl.textContent = next.label;
     if (next.kind === "img") {
       mediaStagePreviewEl.innerHTML = `<img src="${safeUrl(next.previewUrl)}" alt="Staged photo" />`;
+    } else if (next.kind === "vnote") {
+      mediaStagePreviewEl.innerHTML = next.previewUrl
+        ? `<img src="${safeUrl(next.previewUrl)}" alt="Staged video message" style="border-radius:50%;object-fit:cover;" />`
+        : `<span style="display: grid; place-items: center; width: 100%; height: 100%;">${renderIcon("video", { size: 22 })}</span>`;
     } else if (next.kind === "audio" || next.kind === "voice") {
       mediaStagePreviewEl.innerHTML = `<span style="display: grid; place-items: center; width: 100%; height: 100%;">${renderIcon("music", { size: 24 })}</span>`;
     } else {
@@ -822,6 +1044,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       mediaStagePreviewEl.innerHTML = `<span style="font-size: 22px; line-height: 1; display: grid; place-items: center; width: 100%; height: 100%;">${icon}</span>`;
     }
     mediaStageEl.classList.add("open");
+    syncComposerButtons();
   }
 
   const drawerEl = rootEl.querySelector("#rm-info-drawer") as HTMLElement;
@@ -858,12 +1081,14 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (!composerInputEl.value) {
       composerInputEl.style.height = "";
       composerInputEl.style.overflowY = "hidden";
+      syncComposerButtons();
       return;
     }
     composerInputEl.style.height = "auto";
     const sh = composerInputEl.scrollHeight;
     composerInputEl.style.height = `${Math.min(132, sh)}px`;
     composerInputEl.style.overflowY = sh > 132 ? "auto" : "hidden";
+    syncComposerButtons();
   }
 
   // @mention popup: typing "@" opens a list of the current conversation's members, which narrows as more is typed.
@@ -1603,9 +1828,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       safetyTopBtn.style.display = "none";
     }
     const hasActiveConv = !!(st.peer || st.privateRoom);
+    const canSendMedia = hasActiveConv && !composerInputEl.disabled;
     if (!hasActiveConv) {
       attachBtnEl.disabled = true;
     }
+    pttBtnEl.disabled = !canSendMedia || !canRecordVoice();
+    vnoteBtnEl.disabled = !canSendMedia || !canCaptureVideoNote();
+    walkieBtnEl.disabled = !hasActiveConv;
+    pttBtnEl.title = "Hold for Push-to-Talk (or tap to record voice note)";
+    vnoteBtnEl.title = canUseLiveMediaCapture()
+      ? "Record circular video message (up to 60s)"
+      : "Record camera video message (up to 60s)";
+    syncComposerButtons();
+    syncWalkieUi();
   }
 
   function renderReplyBanner() {
@@ -1645,6 +1880,12 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (switchedConv) {
       visibleMsgLimit = CHAT_PAGE_SIZE;
       setStagedMedia(null);
+      cancelActiveRecording();
+      walkieNeedsGesture = false;
+      blockedResumeHash = null;
+      const nextOpenId = deps.openRoomId() || "";
+      walkieQueue.seedRoom(nextOpenId, st.shownMessages);
+      syncWalkieUi();
       editingMessageId = null;
       if (editBannerEl) editBannerEl.style.display = "none";
     }
@@ -2030,6 +2271,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       fillWormhole(messagesTrackEl);
     }
 
+    if (walkieQueue.enabled && openId && !switchedConv) {
+      walkieQueue.ingestMessages(
+        openId,
+        allMsgs,
+        me,
+        (pk) => (deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk)),
+        (sender, caption) =>
+          caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || deps.getAuthorDisplayName(sender)
+      );
+      syncWalkieUi();
+      void drainWalkieQueue();
+    }
+
     const scrollAction = resolveThreadScrollAction({
       scrollToBottom,
       switchedConv,
@@ -2055,7 +2309,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     for (const m of messages) {
       const { items, caption } = parseChatMedia(m.text);
       for (const item of items) {
-        if (item.kind === "img") {
+        if (item.kind === "img" || item.kind === "vnote") {
           photos.push({ msgId: m.id, item });
         } else if (item.kind === "file") {
           files.push({ msgId: m.id, item, sender: m.sender, ts: m.timestamp });
@@ -2086,13 +2340,29 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (photos.length > 0) {
       photosHtml = `<div class="rm-shared-photos-grid">
         ${photos
-          .map(
-            (p) => `
+          .map((p) => {
+            if (p.item.kind === "vnote") {
+              if (p.item.posterHash) {
+                return `
+          <div class="cm-card cm-card-img rm-shared-photo-item rm-shared-vnote-item" data-jump-msg="${escapeHtml(p.msgId)}" data-cm-kind="img" data-cm-hash="${escapeHtml(p.item.posterHash)}" data-cm-key="${escapeHtml(p.item.keyHex)}" data-cm-mime="image/jpeg" title="Jump to video message in chat">
+            <div class="cm-img-wrap"><div class="cm-img-status">Decrypting…</div></div>
+            <span class="rm-shared-vnote-tag">🎥 ${escapeHtml(formatMediaDuration(p.item.durationSec))}</span>
+          </div>
+        `;
+              }
+              return `
+          <div class="rm-shared-photo-item rm-shared-vnote-placeholder" data-jump-msg="${escapeHtml(p.msgId)}" title="Jump to video message in chat">
+            ${renderIcon("video", { size: 22 })}
+            <span class="rm-shared-vnote-tag">${escapeHtml(formatMediaDuration(p.item.durationSec))}</span>
+          </div>
+        `;
+            }
+            return `
           <div class="cm-card cm-card-img rm-shared-photo-item" data-jump-msg="${escapeHtml(p.msgId)}" data-cm-kind="img" data-cm-hash="${escapeHtml(p.item.hash)}" data-cm-key="${escapeHtml(p.item.keyHex)}" data-cm-mime="${escapeHtml(p.item.mime || "image/jpeg")}" title="Jump to photo in chat">
             <div class="cm-img-wrap"><div class="cm-img-status">Decrypting…</div></div>
           </div>
-        `
-          )
+        `;
+          })
           .join("")}
       </div>`;
     } else {
@@ -2834,6 +3104,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   });
 
   const goBackToInboxOnMobile = () => {
+    cancelActiveRecording();
     clearInboxRowFocus();
     // the conversation's Back step is on top: go back through it, so the next Back gesture is one step, not a skipped one
     if (history.state?.radica === "thread") {
@@ -2924,8 +3195,14 @@ export function createMessengerChat(deps: MessengerDeps) {
   rootEl.querySelector("#rm-btn-edit-profile")?.addEventListener("click", () => deps.onOpenEditProfile?.());
   rootEl.querySelector("#rm-btn-blocklists")?.addEventListener("click", () => deps.onOpenBlocklists?.());
   rootEl.querySelector("#rm-btn-settings")?.addEventListener("click", () => deps.onOpenSettings?.());
-  rootEl.querySelector("#rm-btn-close")?.addEventListener("click", () => deps.onCloseChat());
-  rootEl.querySelector("#rm-btn-inbox-close")?.addEventListener("click", () => deps.onCloseChat());
+  rootEl.querySelector("#rm-btn-close")?.addEventListener("click", () => {
+    cancelActiveRecording();
+    deps.onCloseChat();
+  });
+  rootEl.querySelector("#rm-btn-inbox-close")?.addEventListener("click", () => {
+    cancelActiveRecording();
+    deps.onCloseChat();
+  });
 
   // Drawer toggle
   const setDrawer = (open: boolean) => {
@@ -3461,6 +3738,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     editingMessageId = null;
     editingMediaTokens = "";
     if (editBannerEl) editBannerEl.style.display = "none";
+    syncComposerButtons();
   };
 
   editBannerCancelBtn?.addEventListener("click", () => {
@@ -3558,6 +3836,323 @@ export function createMessengerChat(deps: MessengerDeps) {
     setStagedMedia(null);
   });
 
+  // Walkie-Talkie live voice auto-play controls
+  walkieBtnEl.addEventListener("click", () => {
+    const next = !walkieQueue.enabled;
+    if (next) {
+      primeChatAudio();
+      playWalkieChirp("start");
+    } else {
+      playWalkieChirp("end");
+    }
+    walkieQueue.setEnabled(next);
+    writeWalkieEnabled(safeStorage, next);
+    walkieNeedsGesture = false;
+    blockedResumeHash = null;
+    if (next) {
+      walkieQueue.seedRoom(deps.openRoomId() || "", deps.getActiveState().shownMessages);
+    }
+    syncWalkieUi();
+    deps.showToast(next ? "📻 Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
+  });
+
+  walkieOffBtn.addEventListener("click", () => {
+    walkieQueue.setEnabled(false);
+    writeWalkieEnabled(safeStorage, false);
+    walkieNeedsGesture = false;
+    blockedResumeHash = null;
+    playWalkieChirp("end");
+    syncWalkieUi();
+  });
+
+  walkieResumeBtn.addEventListener("click", async () => {
+    primeChatAudio();
+    const target = blockedResumeHash;
+    walkieNeedsGesture = false;
+    blockedResumeHash = null;
+    if (target) {
+      const res = await playChatVoiceByHash(target, messagesTrackEl);
+      if (res === "started") {
+        playWalkieChirp("start");
+        syncWalkieUi();
+        return;
+      }
+    }
+    void drainWalkieQueue();
+  });
+
+  const sendPreparedImmediate = async (prep: PreparedChatMedia) => {
+    if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) {
+      if (prep.previewUrl) {
+        try {
+          URL.revokeObjectURL(prep.previewUrl);
+        } catch {}
+      }
+      return;
+    }
+    uploadingMedia = true;
+    try {
+      const token = await sendChatAttachment(prep, (b) => freenet.putMedia(b));
+      await deps.onSendMessage(token, composerInputEl);
+    } catch (err: any) {
+      deps.showToast(`Could not send media: ${err.message || err}`, "error");
+    } finally {
+      uploadingMedia = false;
+      if (prep.previewUrl) {
+        try {
+          URL.revokeObjectURL(prep.previewUrl);
+        } catch {}
+      }
+    }
+  };
+
+  const finishPttSend = async () => {
+    if (!activeVoiceRec || pttFinishing) return;
+    pttFinishing = true;
+    const rec = activeVoiceRec;
+    activeVoiceRec = null;
+    const elapsed = pttElapsedSec;
+    try {
+      const prep = await rec.stop();
+      resetPttUi();
+      if (!prep || (prep.durationSec ?? elapsed) < MIN_PTT_SEC) {
+        deps.showToast("Hold longer to record a voice note", "info");
+        return;
+      }
+      playWalkieChirp("end");
+      if (composerInputEl.value.trim()) {
+        setStagedMedia(prep);
+        composerInputEl.focus();
+      } else {
+        await sendPreparedImmediate(prep);
+      }
+    } catch (err: any) {
+      resetPttUi();
+      deps.showToast(err.message || String(err), "error");
+    } finally {
+      pttFinishing = false;
+    }
+  };
+
+  const startPtt = async (handsFree: boolean, pointerId: number | null) => {
+    if (activeVoiceRec || pttStarting || activeVnoteRec || vnoteStarting || composerInputEl.disabled || !activeConvKey()) return;
+    primeChatAudio();
+    pttStarting = true;
+    pttHandsFree = handsFree;
+    pttPointerId = pointerId;
+    pttStartedAt = Date.now();
+    pttElapsedSec = 0;
+    pttReleasedEarly = false;
+    pttBarEl.hidden = false;
+    pttBtnEl.classList.add("recording");
+    pttSendBtn.hidden = !handsFree;
+    pttHintEl.textContent = handsFree ? "Recording · tap Send" : "Release to send";
+    try {
+      const session = await startVoiceRecording({
+        maxSec: handsFree ? STANDARD_VOICE_MAX_SEC : WALKIE_PTT_MAX_SEC,
+        onTick: (sec, level, _bytes, maxSec) => {
+          pttElapsedSec = sec;
+          pttTimerEl.textContent = `${formatMediaDuration(sec)} / ${formatMediaDuration(maxSec)}`;
+          const base = Math.max(0.15, Math.min(1, level / 15));
+          pttMeterBars.forEach((b, idx) => {
+            const w = 0.55 + 0.45 * Math.sin(sec * 12 + idx * 1.1);
+            b.style.height = `${Math.round(Math.max(18, Math.min(100, base * w * 100)))}%`;
+          });
+        },
+        onMaxReached: () => {
+          void finishPttSend();
+        },
+      });
+      pttStarting = false;
+      activeVoiceRec = session;
+      playWalkieChirp("start");
+      if (pttReleasedEarly) {
+        if (Date.now() - pttStartedAt < PTT_HOLD_THRESHOLD_MS) {
+          pttHandsFree = true;
+          pttSendBtn.hidden = false;
+          pttHintEl.textContent = "Recording · tap Send";
+        } else {
+          void finishPttSend();
+        }
+      }
+    } catch (err: any) {
+      pttStarting = false;
+      resetPttUi();
+      if (err?.code === "FALLBACK_CAPTURE") {
+        deps.showToast("Microphone blocked in sandbox — pick an audio file instead", "warning");
+        deps.markPickingFile?.(45000);
+        fileAudioEl.value = "";
+        fileAudioEl.click();
+      } else {
+        deps.showToast(err?.message || "Could not start microphone", "error");
+      }
+    }
+  };
+
+  pttBtnEl.addEventListener("pointerdown", (e) => {
+    if (!canRecordVoice()) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    if (activeVoiceRec && pttHandsFree) {
+      void finishPttSend();
+      return;
+    }
+    void startPtt(false, e.pointerId);
+  });
+
+  window.addEventListener("pointerup", (e) => {
+    if (pttPointerId === null || e.pointerId !== pttPointerId) return;
+    pttPointerId = null;
+    if (pttStarting) {
+      pttReleasedEarly = true;
+      return;
+    }
+    if (!activeVoiceRec || pttHandsFree) return;
+    if (Date.now() - pttStartedAt < PTT_HOLD_THRESHOLD_MS) {
+      pttHandsFree = true;
+      pttSendBtn.hidden = false;
+      pttHintEl.textContent = "Recording · tap Send";
+    } else {
+      void finishPttSend();
+    }
+  });
+
+  window.addEventListener("pointercancel", (e) => {
+    if (pttPointerId === null || e.pointerId !== pttPointerId) return;
+    pttPointerId = null;
+    if (!pttHandsFree) cancelVoiceRec();
+  });
+
+  pttCancelBtn.addEventListener("click", () => cancelVoiceRec());
+  pttSendBtn.addEventListener("click", () => void finishPttSend());
+
+  // Circular Video Note recorder + file picker
+  const processAndSendVideoNote = async (file: File | Blob, knownDurationSec?: number) => {
+    if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) return;
+    try {
+      deps.showToast("Preparing circular video note (checking frames on device)…", "info");
+      const prep = await prepareChatVideoNote(file, {
+        knownDurationSec,
+        scan: analyzeImageFile,
+        stopAt: 0.8,
+        onProgress: (stage, pct) => {
+          vnoteRecStatusEl.textContent =
+            stage === "scan"
+              ? `Checking frames on device… ${Math.round(pct * 100)}%`
+              : `Encoding square MP4… ${Math.round(pct * 100)}%`;
+        },
+      });
+      if (composerInputEl.value.trim()) {
+        setStagedMedia(prep);
+        mobileShowThread = true;
+        workspaceEl.classList.add("mobile-thread-open");
+        composerInputEl.focus();
+      } else {
+        await sendPreparedImmediate(prep);
+      }
+    } catch (err: any) {
+      deps.showToast(err.message || String(err), "error");
+    }
+  };
+
+  const finishVnoteRecord = async () => {
+    if (!activeVnoteRec || vnoteFinishing) return;
+    vnoteFinishing = true;
+    const rec = activeVnoteRec;
+    activeVnoteRec = null;
+    try {
+      const res = await rec.stop();
+      resetVnoteUi();
+      if (res && res.blob.size > 0) {
+        await processAndSendVideoNote(res.blob, res.durationSec);
+      }
+    } catch (err: any) {
+      resetVnoteUi();
+      deps.showToast(err.message || String(err), "error");
+    } finally {
+      vnoteFinishing = false;
+    }
+  };
+
+  const openVnoteRecorder = async (facing: "user" | "environment" = vnoteFacingMode) => {
+    if (activeVnoteRec || vnoteStarting || activeVoiceRec || pttStarting || composerInputEl.disabled || !activeConvKey()) return;
+    vnoteFacingMode = facing;
+    vnoteStarting = true;
+    vnoteRecorderEl.hidden = false;
+    vnoteRecStatusEl.textContent = "Starting camera…";
+    try {
+      const session = await startVideoNoteRecording({
+        facingMode: facing,
+        maxSec: MAX_VNOTE_SEC,
+        onTick: (sec, maxSec) => {
+          vnoteRecTimerEl.textContent = `${formatMediaDuration(sec)} / ${formatMediaDuration(maxSec)}`;
+          const pct = Math.min(100, Math.round((sec / maxSec) * 100));
+          vnoteRecRingEl.value = pct;
+          vnoteRecRingEl.setAttribute("value", String(pct));
+          vnoteRecRingEl.style.setProperty("--value", String(pct));
+        },
+        onMaxReached: () => {
+          void finishVnoteRecord();
+        },
+      });
+      vnoteStarting = false;
+      activeVnoteRec = session;
+      vnotePreviewEl.srcObject = session.stream;
+      vnotePreviewEl.play().catch(() => {});
+      vnoteRecStatusEl.textContent = "Recording circular video…";
+    } catch (err: any) {
+      vnoteStarting = false;
+      resetVnoteUi();
+      if (err?.code === "FALLBACK_CAPTURE") {
+        deps.showToast("Camera blocked in sandbox — pick or record a video file", "info");
+        deps.markPickingFile?.(45000);
+        fileVideoEl.value = "";
+        fileVideoEl.click();
+      } else {
+        deps.showToast(err?.message || "Could not start camera", "error");
+      }
+    }
+  };
+
+  vnoteBtnEl.addEventListener("click", () => {
+    if (!canCaptureVideoNote()) return;
+    if (!canUseLiveMediaCapture()) {
+      if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) return;
+      deps.markPickingFile?.(45000);
+      fileVideoEl.value = "";
+      fileVideoEl.click();
+      return;
+    }
+    void openVnoteRecorder("user");
+  });
+  vnoteRecCancelBtn.addEventListener("click", () => cancelVnoteRec());
+  vnoteRecSendBtn.addEventListener("click", () => void finishVnoteRecord());
+  vnoteRecFlipBtn.addEventListener("click", () => {
+    const next = vnoteFacingMode === "user" ? "environment" : "user";
+    cancelVnoteRec();
+    void openVnoteRecorder(next);
+  });
+  vnoteRecFileBtn.addEventListener("click", () => {
+    cancelVnoteRec();
+    deps.markPickingFile?.(45000);
+    fileVideoEl.value = "";
+    fileVideoEl.click();
+  });
+
+  fileVideoEl.addEventListener("change", async () => {
+    deps.clearPickingFile?.(1500);
+    mobileShowThread = true;
+    workspaceEl.classList.add("mobile-thread-open");
+    const f = fileVideoEl.files?.[0];
+    if (!f) return;
+    await processAndSendVideoNote(f);
+  });
+  fileVideoEl.addEventListener("cancel", () => {
+    deps.clearPickingFile?.(1000);
+    mobileShowThread = true;
+    workspaceEl.classList.add("mobile-thread-open");
+  });
+
   // File pickers
   fileImageEl.addEventListener("change", async () => {
     deps.clearPickingFile?.(1500);
@@ -3641,6 +4236,8 @@ export function createMessengerChat(deps: MessengerDeps) {
         deps.showToast("Preparing dropped audio…", "info");
         const prep = await prepareChatAudioFile(file, "audio");
         setStagedMedia(prep);
+      } else if ((file.type.startsWith("video/") || normalizeVideoMime(file.type, file.name)) && file.size <= MAX_VNOTE_BYTES) {
+        await processAndSendVideoNote(file);
       } else {
         deps.showToast("Preparing dropped file…", "info");
         const prep = await prepareChatDocFile(file);
@@ -3688,6 +4285,8 @@ export function createMessengerChat(deps: MessengerDeps) {
               deps.showToast("Pasting audio…", "info");
               const prep = await prepareChatAudioFile(file, "audio");
               setStagedMedia(prep);
+            } else if ((file.type.startsWith("video/") || normalizeVideoMime(file.type, file.name)) && file.size <= MAX_VNOTE_BYTES) {
+              await processAndSendVideoNote(file);
             } else {
               deps.showToast("Pasting file…", "info");
               const prep = await prepareChatDocFile(file);
@@ -3726,6 +4325,10 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (roomLinkBtn) {
       roomLinkBtn.style.display = deps.getAllPrivateRooms().length > 0 ? "flex" : "none";
     }
+    const voiceBtn = attachMenuEl.querySelector<HTMLElement>('[data-attach="voice"]');
+    if (voiceBtn) voiceBtn.style.display = canRecordVoice() ? "flex" : "none";
+    const vnoteBtn = attachMenuEl.querySelector<HTMLElement>('[data-attach="vnote"]');
+    if (vnoteBtn) vnoteBtn.style.display = canCaptureVideoNote() ? "flex" : "none";
     attachMenuEl.classList.toggle("open");
   });
 
@@ -3748,6 +4351,18 @@ export function createMessengerChat(deps: MessengerDeps) {
       deps.markPickingFile?.(45000);
       fileAudioEl.value = "";
       fileAudioEl.click();
+    } else if (kind === "voice") {
+      if (canRecordVoice()) void startPtt(true, null);
+    } else if (kind === "vnote") {
+      if (!canCaptureVideoNote()) return;
+      if (!canUseLiveMediaCapture()) {
+        if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) return;
+        deps.markPickingFile?.(45000);
+        fileVideoEl.value = "";
+        fileVideoEl.click();
+      } else {
+        void openVnoteRecorder("user");
+      }
     } else if (kind === "file") {
       deps.markPickingFile?.(45000);
       fileDocEl.value = "";
@@ -4100,6 +4715,30 @@ export function createMessengerChat(deps: MessengerDeps) {
       pollMultiEl.checked = false;
       pollModalEl.classList.add("open");
       setTimeout(() => pollQuestionEl.focus(), 30);
+    },
+    cancelActiveRecording,
+    onVoiceEnded: (endedHash: string) => {
+      walkieQueue.markFinished(endedHash);
+      if (!isVisible()) {
+        syncWalkieUi();
+        return;
+      }
+      if (walkieQueue.enabled && walkieQueue.pendingCount() > 0) {
+        void drainWalkieQueue();
+        return;
+      }
+      const hashes = Array.from(
+        messagesTrackEl.querySelectorAll<HTMLElement>('.cm-audio-card[data-cm-kind="voice"][data-cm-hash]')
+      ).map((el) => el.dataset.cmHash || "");
+      const nextHash = nextSequentialHash(hashes, endedHash);
+      if (nextHash) {
+        void playChatVoiceByHash(nextHash, messagesTrackEl).then((res) => {
+          if (res === "started" && walkieQueue.enabled) playWalkieChirp("start");
+          syncWalkieUi();
+        });
+      } else {
+        syncWalkieUi();
+      }
     },
   };
 }

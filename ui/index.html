@@ -470,6 +470,9 @@
                   <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   <span>Clear</span>
                 </button>
+                <button class="btn-secondary btn-sm btn-icon-text" id="chat-btn-walkie" aria-pressed="false" title="Walkie-Talkie mode: fast 10s push-to-talk &amp; auto-play incoming voice notes">
+                  <span>📻 Walkie</span>
+                </button>
                 <button class="btn-secondary btn-sm" id="chat-fullscreen-btn" title="Full screen" aria-label="Full screen" aria-pressed="false">
                   <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                 </button>
@@ -477,6 +480,12 @@
               </div>
             </div>
             <div id="rm-classic-player-slot"></div>
+            <div class="rm-walkie-bar" id="chat-walkie-bar" hidden>
+              <span class="rm-walkie-dot" aria-hidden="true"></span>
+              <span class="rm-walkie-text" id="chat-walkie-text">Walkie-Talkie live · Auto-playing incoming voice</span>
+              <button type="button" class="rm-walkie-resume" id="chat-walkie-resume" hidden>▶ Tap to play</button>
+              <button type="button" class="rm-walkie-off" id="chat-walkie-off">Off</button>
+            </div>
 
             <div class="chat-body" id="chat-body">
               <!-- Peers, Private Rooms & Communities list sidebar -->
@@ -567,9 +576,12 @@
 
                 <input type="file" id="chat-file-image" accept="image/*" hidden />
                 <input type="file" id="chat-file-audio" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.aac,.webm" hidden />
+                <input type="file" id="chat-file-video" accept="video/*,.mp4,.webm,.mov,.m4v" capture="user" hidden />
                 <input type="file" id="chat-file-doc" hidden />
 
                 <div class="rm-attach-menu" id="chat-attach-menu" style="left: 20px; bottom: 65px;">
+                  <button type="button" class="rm-attach-item" data-chat-attach="voice">🎙️ Record Voice / Push-to-Talk</button>
+                  <button type="button" class="rm-attach-item" data-chat-attach="vnote">🎥 Record / Send Video Message</button>
                   <button type="button" class="rm-attach-item" data-chat-attach="image">🖼️ Send Photo / Image</button>
                   <button type="button" class="rm-attach-item" data-chat-attach="audio">🎵 Send Audio File / Memo</button>
                   <button type="button" class="rm-attach-item" data-chat-attach="file">📄 Send Document / File</button>
@@ -584,11 +596,22 @@
                   <span id="chat-classic-typing-text">Alice is typing...</span>
                 </div>
 
-                <form id="chat-send-form" style="display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); position: relative;">
+                <div class="rm-ptt-bar" id="chat-ptt-bar" hidden style="margin: 0 0 8px;">
+                  <span class="rm-ptt-dot" aria-hidden="true"></span>
+                  <span class="rm-ptt-timer" id="chat-ptt-timer">0:00</span>
+                  <div class="rm-ptt-meter" id="chat-ptt-meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                  <span class="rm-ptt-hint" id="chat-ptt-hint">Release to send</span>
+                  <button type="button" class="rm-ptt-cancel" id="chat-ptt-cancel">Cancel</button>
+                  <button type="button" class="rm-ptt-send" id="chat-ptt-send" hidden>Send</button>
+                </div>
+
+                <form id="chat-send-form" style="display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); position: relative; align-items: flex-end;">
                   <button type="button" class="rm-plus-btn" id="chat-btn-attach" title="Attachments & Freenet actions" style="flex-shrink: 0; width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--rv-border); background: var(--rv-panel); color: var(--rv-text); cursor: pointer; display: flex; align-items: center; justify-content: center;">
                     <svg viewBox="0 0 24 24" class="svg-icon icon-md"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
                   <textarea id="chat-message-input" class="comment-input" rows="1" autocomplete="off" placeholder="Type a message... (Shift+Enter: new line)"></textarea>
+                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-vnote" title="Record or send video message (up to 60s)" aria-label="Video message" style="height: 38px; flex-shrink: 0;">🎥</button>
+                  <button type="button" class="btn-secondary btn-sm" id="chat-btn-ptt" title="Hold for Push-to-Talk (or tap to record)" aria-label="Push to talk voice message" style="height: 38px; flex-shrink: 0; touch-action: none; user-select: none;">🎙️</button>
                   <button type="submit" class="btn-primary btn-sm" id="chat-send-btn">Send</button>
                 </form>
               </div>
@@ -1706,6 +1729,16 @@
         <details><summary>✏️ Editing and deleting</summary>
           <p><b>Edit</b>: your post shows the new text and an "edited" mark. Apps that are not updated yet still show the original.</p>
           <p><b>Delete</b>: the post is removed from the network and never comes back. But on a network with no owner, anyone who already saw it may have kept a copy: post as if it could last.</p>
+        </details>
+
+        <details><summary>📻 Push-to-Talk Walkie-Talkie &amp; 🎥 Video Messages</summary>
+          <p>Radica Chat supports 100% Freenet-native async voice and video messaging with zero WebRTC, zero peer IP exposure, and zero NAT/STUN/TURN dependencies — encrypted end-to-end through Freenet's chunked `media-contract`:</p>
+          <ul>
+            <li><b>Push-to-Talk (🎙️)</b>: When the text field is empty, hold <b>🎙️</b> to record an instant 2–10s voice burst (release to send automatically), or tap briefly (&lt;450 ms) to lock hands-free recording up to 60s. Voice notes in a thread also advance sequentially once one finishes playing.</li>
+            <li><b>Walkie-Talkie Mode (📻)</b>: Toggle <b>📻</b> in the conversation header so new incoming voice notes chime softly and auto-play in order while the chat is open (persisted in durable storage via <code>radica_walkie_talkie</code>).</li>
+            <li><b>Circular Video Messages (🎥)</b>: Tap <b>🎥</b> (or <b>📎 → Video message</b>) to record or attach up to 60s circular 1:1 video bubbles. Frames are scanned on your device by <b>Desert Ant</b> before AES-GCM encryption, cropped/transcoded to fragmented MP4 via WebCodecs (`mediabunny`), and decrypted progressively on playback.</li>
+            <li><b>Native Apps &amp; Sandboxed Browsers</b>: Freenet's web gateway (`shell.html`) sandboxes web contracts in an opaque-origin iframe without `allow="microphone; camera"`. Radica's native **Desktop** (`radica`, `radica-messenger`, via Rust `cpal`) and **Android** (`org.freenet.radica`, via native `MediaRecorder` + camera video capture) wrappers bridge real mic &amp; camera recording through `window.__radicaNative` directly inside the sandbox, and mobile browsers use native `<input capture="user">` camera capture. On plain desktop browsers inside the Freenet sandbox, redundant capture buttons are hidden automatically while **📻 Walkie-Talkie** auto-play and circular video playback stay enabled.</li>
+          </ul>
         </details>
 
         <details><summary>Standalone Single Post View &amp; Markdown Profile Bio</summary>

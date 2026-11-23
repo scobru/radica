@@ -101,19 +101,41 @@ import { formatTtlLabel } from "./secretChat.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { burnAtOf, checksHtml, createConversationState, deliveryOf, dmPeerOf, nextTtl, tickBurnCountdowns, triggerRowBurnAnimation } from "./conversationState.ts";
 import {
+  canCaptureVideoNote,
+  canRecordVoice,
+  canUseLiveMediaCapture,
   chatMediaCardsHtml,
   fileExtensionIcon,
   fillChatMedia,
+  formatMediaDuration,
   maskChatMediaTokens,
+  MAX_VNOTE_BYTES,
+  normalizeVideoMime,
   parseChatMedia,
+  playChatVoiceByHash,
   prepareChatAudioFile,
   prepareChatDocFile,
   prepareChatImageFile,
-  summarizeChatMediaText,
-  type PreparedChatMedia,
+  prepareChatVideoNote,
+  primeChatAudio,
   sendChatAttachment,
+  setVoiceEndedHandler,
+  startVoiceRecording,
+  summarizeChatMediaText,
   syncMiniPlayerSlot,
+  type PreparedChatMedia,
+  type VoiceRecorderSession,
 } from "./chatMedia.ts";
+import {
+  createWalkieQueue,
+  MIN_PTT_SEC,
+  nextSequentialHash,
+  PTT_HOLD_THRESHOLD_MS,
+  readWalkieEnabled,
+  STANDARD_VOICE_MAX_SEC,
+  WALKIE_PTT_MAX_SEC,
+  writeWalkieEnabled,
+} from "./walkieTalkie.ts";
 import {
   finishSignIn,
   startSignIn,
@@ -236,7 +258,7 @@ import { cleanWallets, validateWalletForSave, WALLET_KINDS, walletUri, type Wall
 import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField } from "./profileExtras.ts";
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
-import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
+import { playPopSound, playWalkieChirp, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
 import { startVersionCheck } from "./versionCheck.ts";
 
 let currentIdentity: UserIdentity | null = null;
@@ -906,6 +928,7 @@ const chatMediaStageLabel = document.getElementById("chat-media-stage-label") as
 const chatMediaStageCancel = document.getElementById("chat-media-stage-cancel") as HTMLButtonElement | null;
 const chatFileImage = document.getElementById("chat-file-image") as HTMLInputElement | null;
 const chatFileAudio = document.getElementById("chat-file-audio") as HTMLInputElement | null;
+const chatFileVideo = document.getElementById("chat-file-video") as HTMLInputElement | null;
 const chatFileDoc = document.getElementById("chat-file-doc") as HTMLInputElement | null;
 const chatAttachMenu = document.getElementById("chat-attach-menu") as HTMLElement | null;
 const chatBtnAttach = document.getElementById("chat-btn-attach") as HTMLButtonElement | null;
@@ -913,6 +936,33 @@ const chatAttachRoomLink = document.getElementById("chat-attach-room-link") as H
 const chatPinBtn = document.getElementById("chat-pin-btn") as HTMLButtonElement | null;
 const chatPinIcon = document.getElementById("chat-pin-icon") as HTMLElement | null;
 const chatPinLabel = document.getElementById("chat-pin-label") as HTMLElement | null;
+const chatWalkieBtn = document.getElementById("chat-btn-walkie") as HTMLButtonElement | null;
+const chatWalkieBar = document.getElementById("chat-walkie-bar") as HTMLElement | null;
+const chatWalkieText = document.getElementById("chat-walkie-text") as HTMLElement | null;
+const chatWalkieResumeBtn = document.getElementById("chat-walkie-resume") as HTMLButtonElement | null;
+const chatWalkieOffBtn = document.getElementById("chat-walkie-off") as HTMLButtonElement | null;
+const chatPttBar = document.getElementById("chat-ptt-bar") as HTMLElement | null;
+const chatPttTimer = document.getElementById("chat-ptt-timer") as HTMLElement | null;
+const chatPttMeterBars = Array.from(document.querySelectorAll<HTMLElement>("#chat-ptt-meter span"));
+const chatPttHint = document.getElementById("chat-ptt-hint") as HTMLElement | null;
+const chatPttCancelBtn = document.getElementById("chat-ptt-cancel") as HTMLButtonElement | null;
+const chatPttSendBtn = document.getElementById("chat-ptt-send") as HTMLButtonElement | null;
+const chatVnoteBtn = document.getElementById("chat-btn-vnote") as HTMLButtonElement | null;
+const chatPttBtn = document.getElementById("chat-btn-ptt") as HTMLButtonElement | null;
+
+const classicWalkieQueue = createWalkieQueue(readWalkieEnabled(safeStorage));
+let classicWalkieNeedsGesture = false;
+let classicBlockedResumeHash: string | null = null;
+let classicWalkieDraining = false;
+let lastClassicRoomId = "";
+let classicVoiceRec: VoiceRecorderSession | null = null;
+let classicPttStarting = false;
+let classicPttPointerId: number | null = null;
+let classicPttStartedAt = 0;
+let classicPttElapsedSec = 0;
+let classicPttReleasedEarly = false;
+let classicPttHandsFree = false;
+let classicPttFinishing = false;
 
 function getActiveChatConvKey(): string | null {
   if (activeChatPrivateRoom) return `priv:${activeChatPrivateRoom.id}`;
@@ -7335,6 +7385,10 @@ new MutationObserver(() => {
   document.body.classList.toggle("chat-open", open);
   document.body.classList.toggle("chat-fullscreen", open && chatModal.classList.contains("fullscreen"));
   syncMiniPlayerSlot();
+  if (!open) {
+    messengerChat.cancelActiveRecording();
+    cancelClassicVoiceRec();
+  }
   if (open === freenet.feedsPaused) return;
   freenet.feedsPaused = open;
   if (!open && currentIdentity) {
@@ -8818,6 +8872,17 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   const chatSendBtn = document.getElementById("chat-send-btn") as HTMLButtonElement | null;
   if (chatSendBtn) chatSendBtn.disabled = !canPost;
   if (chatBtnAttach) chatBtnAttach.disabled = !canPost;
+  const allowVoice = canRecordVoice();
+  const allowVnote = canCaptureVideoNote();
+  if (chatPttBtn) {
+    chatPttBtn.hidden = !allowVoice;
+    chatPttBtn.disabled = !canPost || !allowVoice;
+  }
+  if (chatVnoteBtn) {
+    chatVnoteBtn.hidden = !allowVnote;
+    chatVnoteBtn.disabled = !canPost || !allowVnote;
+  }
+  if (chatWalkieBtn) chatWalkieBtn.disabled = false;
   const chatSendForm = document.getElementById("chat-send-form") as HTMLFormElement | null;
   if (chatSendForm) chatSendForm.style.display = canPost ? "flex" : "none";
   if (chatSafetyBtn) chatSafetyBtn.style.display = "inline-flex";
@@ -8872,6 +8937,24 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
     }
     attachBubbleDeleteListeners();
     if (!preserveScroll || wasNearBottom) chatMessagesList.scrollTop = chatMessagesList.scrollHeight;
+    const switchedClassic = roomId !== lastClassicRoomId;
+    if (switchedClassic) {
+      lastClassicRoomId = roomId;
+      cancelClassicVoiceRec();
+      classicWalkieNeedsGesture = false;
+      classicBlockedResumeHash = null;
+      classicWalkieQueue.seedRoom(roomId, messages);
+    } else if (classicWalkieQueue.enabled) {
+      classicWalkieQueue.ingestMessages(
+        roomId,
+        messages,
+        me,
+        isHiddenAuthor,
+        (sender, caption) => caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || getAuthorDisplayName(sender)
+      );
+      void drainClassicWalkieQueue();
+    }
+    syncClassicWalkieUi();
   }
 
   if (replyingTo && replyingTo.room_id !== roomId) setReply(null); // another conversation
@@ -9018,6 +9101,17 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
   if (chatInviteBtn) chatInviteBtn.style.display = "none";
   if (chatSafetyBtn) chatSafetyBtn.style.display = "inline-flex";
   if (chatBtnAttach) chatBtnAttach.disabled = false;
+  const allowVoice = canRecordVoice();
+  const allowVnote = canCaptureVideoNote();
+  if (chatPttBtn) {
+    chatPttBtn.hidden = !allowVoice;
+    chatPttBtn.disabled = !allowVoice;
+  }
+  if (chatVnoteBtn) {
+    chatVnoteBtn.hidden = !allowVnote;
+    chatVnoteBtn.disabled = !allowVnote;
+  }
+  if (chatWalkieBtn) chatWalkieBtn.disabled = false;
   const chatSendFormPeer = document.getElementById("chat-send-form") as HTMLFormElement | null;
   if (chatSendFormPeer) chatSendFormPeer.style.display = "flex";
 
@@ -9088,6 +9182,24 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
     const chatSendBtn = document.getElementById("chat-send-btn") as HTMLButtonElement | null;
     if (chatSendBtn) chatSendBtn.disabled = false;
     if (!preserveScroll || wasNearBottom) chatMessagesList.scrollTop = chatMessagesList.scrollHeight;
+    const switchedClassic = roomId !== lastClassicRoomId;
+    if (switchedClassic) {
+      lastClassicRoomId = roomId;
+      cancelClassicVoiceRec();
+      classicWalkieNeedsGesture = false;
+      classicBlockedResumeHash = null;
+      classicWalkieQueue.seedRoom(roomId, messages);
+    } else if (classicWalkieQueue.enabled) {
+      classicWalkieQueue.ingestMessages(
+        roomId,
+        messages,
+        currentIdentity!.pubkey,
+        isHiddenAuthor,
+        (sender, caption) => caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || getAuthorDisplayName(sender)
+      );
+      void drainClassicWalkieQueue();
+    }
+    syncClassicWalkieUi();
   }
 
   if (replyingTo && replyingTo.room_id !== roomId) setReply(null); // another conversation
@@ -9280,6 +9392,11 @@ function setClassicStagedMedia(next: PreparedChatMedia | null) {
   if (next.kind === "img" && next.previewUrl) {
     chatMediaStagePreview.innerHTML = `<img src="${next.previewUrl}" alt="" style="max-height: 48px; border-radius: 6px;" />`;
     chatMediaStageLabel.textContent = `🖼️ Photo · ${next.width || "?"}×${next.height || "?"} · ${formatBytes(next.sizeBytes || 0)}`;
+  } else if (next.kind === "vnote") {
+    chatMediaStagePreview.innerHTML = next.previewUrl
+      ? `<img src="${next.previewUrl}" alt="" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;" />`
+      : `<span style="font-size:1.4rem;">🎥</span>`;
+    chatMediaStageLabel.textContent = `🎥 Video message · ${formatMediaDuration(next.durationSec)} · ${formatBytes(next.sizeBytes || 0)}`;
   } else if ((next.kind === "audio" || next.kind === "voice") && next.previewUrl) {
     chatMediaStagePreview.innerHTML = `<span style="font-size:1.4rem;">🎵</span>`;
     chatMediaStageLabel.textContent = `🎵 Audio memo · ${formatBytes(next.sizeBytes || 0)}`;
@@ -9289,6 +9406,332 @@ function setClassicStagedMedia(next: PreparedChatMedia | null) {
     chatMediaStageLabel.textContent = `📄 ${next.filename || "File"} · ${formatBytes(next.sizeBytes || 0)}`;
   }
 }
+
+function isClassicChatVisible(): boolean {
+  return (
+    currentChatLayout() === "classic" &&
+    chatModal.style.display !== "none" &&
+    chatModal.style.display !== ""
+  );
+}
+
+function syncClassicWalkieUi() {
+  const hasConv = !!(activeChatPeer || activeChatPrivateRoom);
+  const on = classicWalkieQueue.enabled;
+  if (chatWalkieBtn) {
+    chatWalkieBtn.classList.toggle("active", on);
+    chatWalkieBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  if (chatWalkieBar) chatWalkieBar.hidden = !on || !hasConv;
+  if (chatWalkieResumeBtn) chatWalkieResumeBtn.hidden = !classicWalkieNeedsGesture || !classicBlockedResumeHash;
+  if (chatWalkieText) {
+    const pending = classicWalkieQueue.pendingCount();
+    chatWalkieText.textContent = classicWalkieNeedsGesture
+      ? "Browser blocked autoplay · Tap to play incoming voice"
+      : pending > 0
+      ? `Walkie-Talkie live · ${pending} voice message${pending > 1 ? "s" : ""} queued`
+      : "Walkie-Talkie live · Auto-playing incoming voice";
+  }
+}
+
+async function drainClassicWalkieQueue() {
+  if (!isClassicChatVisible() || !classicWalkieQueue.enabled || classicWalkieDraining || classicWalkieQueue.currentHash) return;
+  classicWalkieDraining = true;
+  try {
+    while (classicWalkieQueue.enabled && isClassicChatVisible() && !classicWalkieQueue.currentHash) {
+      const next = classicWalkieQueue.dequeueNext();
+      if (!next) break;
+      const res = await playChatVoiceByHash(next.hash, chatMessagesList);
+      if (res === "started") {
+        classicWalkieNeedsGesture = false;
+        classicBlockedResumeHash = null;
+        playWalkieChirp("start");
+        syncClassicWalkieUi();
+        return;
+      }
+      if (res === "blocked") {
+        classicWalkieNeedsGesture = true;
+        classicBlockedResumeHash = next.hash;
+        classicWalkieQueue.markFinished(next.hash);
+        syncClassicWalkieUi();
+        return;
+      }
+      classicWalkieQueue.markFinished(next.hash);
+    }
+    syncClassicWalkieUi();
+  } finally {
+    classicWalkieDraining = false;
+  }
+}
+
+function resetClassicPttUi() {
+  if (chatPttBar) chatPttBar.hidden = true;
+  chatPttBtn?.classList.remove("recording");
+  if (chatPttSendBtn) chatPttSendBtn.hidden = true;
+  if (chatPttTimer) chatPttTimer.textContent = "0:00";
+  if (chatPttHint) chatPttHint.textContent = "Release to send";
+  for (const bar of chatPttMeterBars) bar.style.height = "25%";
+  classicPttPointerId = null;
+  classicPttStartedAt = 0;
+  classicPttElapsedSec = 0;
+  classicPttReleasedEarly = false;
+  classicPttHandsFree = false;
+}
+
+function cancelClassicVoiceRec() {
+  const rec = classicVoiceRec;
+  classicVoiceRec = null;
+  classicPttStarting = false;
+  try {
+    rec?.cancel();
+  } catch {}
+  resetClassicPttUi();
+}
+
+function onClassicVoiceEnded(endedHash: string) {
+  classicWalkieQueue.markFinished(endedHash);
+  if (!isClassicChatVisible()) {
+    syncClassicWalkieUi();
+    return;
+  }
+  if (classicWalkieQueue.enabled && classicWalkieQueue.pendingCount() > 0) {
+    void drainClassicWalkieQueue();
+    return;
+  }
+  const hashes = Array.from(
+    chatMessagesList.querySelectorAll<HTMLElement>('.cm-audio-card[data-cm-kind="voice"][data-cm-hash]')
+  ).map((el) => el.dataset.cmHash || "");
+  const nextHash = nextSequentialHash(hashes, endedHash);
+  if (nextHash) {
+    void playChatVoiceByHash(nextHash, chatMessagesList).then((res) => {
+      if (res === "started" && classicWalkieQueue.enabled) playWalkieChirp("start");
+      syncClassicWalkieUi();
+    });
+  } else {
+    syncClassicWalkieUi();
+  }
+}
+
+setVoiceEndedHandler((endedHash) => {
+  if (currentChatLayout() === "messenger") messengerChat.onVoiceEnded(endedHash);
+  else onClassicVoiceEnded(endedHash);
+});
+
+async function sendClassicPreparedImmediate(prep: PreparedChatMedia) {
+  if (chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) {
+    if (prep.previewUrl) {
+      try {
+        URL.revokeObjectURL(prep.previewUrl);
+      } catch {}
+    }
+    return;
+  }
+  try {
+    const token = await sendChatAttachment(prep, (b) => freenet.putMedia(b));
+    await sendActiveChatText(token, chatMessageInput);
+  } catch (err: any) {
+    showToast(`Could not send media: ${err.message || err}`, "error");
+  } finally {
+    if (prep.previewUrl) {
+      try {
+        URL.revokeObjectURL(prep.previewUrl);
+      } catch {}
+    }
+  }
+}
+
+async function finishClassicPttSend() {
+  if (!classicVoiceRec || classicPttFinishing) return;
+  classicPttFinishing = true;
+  const rec = classicVoiceRec;
+  classicVoiceRec = null;
+  const elapsed = classicPttElapsedSec;
+  try {
+    const prep = await rec.stop();
+    resetClassicPttUi();
+    if (!prep || (prep.durationSec ?? elapsed) < MIN_PTT_SEC) {
+      showToast("Hold longer to record a voice note", "info");
+      return;
+    }
+    playWalkieChirp("end");
+    if (chatMessageInput.value.trim()) {
+      setClassicStagedMedia(prep);
+      chatMessageInput.focus();
+    } else {
+      await sendClassicPreparedImmediate(prep);
+    }
+  } catch (err: any) {
+    resetClassicPttUi();
+    showToast(err.message || String(err), "error");
+  } finally {
+    classicPttFinishing = false;
+  }
+}
+
+async function startClassicPtt(handsFree: boolean, pointerId: number | null) {
+  if (classicVoiceRec || classicPttStarting || chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) return;
+  primeChatAudio();
+  classicPttStarting = true;
+  classicPttHandsFree = handsFree;
+  classicPttPointerId = pointerId;
+  classicPttStartedAt = Date.now();
+  classicPttElapsedSec = 0;
+  classicPttReleasedEarly = false;
+  if (chatPttBar) chatPttBar.hidden = false;
+  chatPttBtn?.classList.add("recording");
+  if (chatPttSendBtn) chatPttSendBtn.hidden = !handsFree;
+  if (chatPttHint) chatPttHint.textContent = handsFree ? "Recording · tap Send" : "Release to send";
+  try {
+    const session = await startVoiceRecording({
+      maxSec: handsFree ? STANDARD_VOICE_MAX_SEC : WALKIE_PTT_MAX_SEC,
+      onTick: (sec, level, _bytes, maxSec) => {
+        classicPttElapsedSec = sec;
+        if (chatPttTimer) chatPttTimer.textContent = `${formatMediaDuration(sec)} / ${formatMediaDuration(maxSec)}`;
+        const base = Math.max(0.15, Math.min(1, level / 15));
+        chatPttMeterBars.forEach((b, idx) => {
+          const w = 0.55 + 0.45 * Math.sin(sec * 12 + idx * 1.1);
+          b.style.height = `${Math.round(Math.max(18, Math.min(100, base * w * 100)))}%`;
+        });
+      },
+      onMaxReached: () => {
+        void finishClassicPttSend();
+      },
+    });
+    classicPttStarting = false;
+    classicVoiceRec = session;
+    playWalkieChirp("start");
+    if (classicPttReleasedEarly) {
+      if (Date.now() - classicPttStartedAt < PTT_HOLD_THRESHOLD_MS) {
+        classicPttHandsFree = true;
+        if (chatPttSendBtn) chatPttSendBtn.hidden = false;
+        if (chatPttHint) chatPttHint.textContent = "Recording · tap Send";
+      } else {
+        void finishClassicPttSend();
+      }
+    }
+  } catch (err: any) {
+    classicPttStarting = false;
+    resetClassicPttUi();
+    if (err?.code === "FALLBACK_CAPTURE") {
+      showToast("Microphone blocked in sandbox — pick an audio file instead", "warning");
+      if (chatFileAudio) {
+        chatFileAudio.value = "";
+        chatFileAudio.click();
+      }
+    } else {
+      showToast(err?.message || "Could not start microphone", "error");
+    }
+  }
+}
+
+async function processClassicVideoNote(file: File | Blob) {
+  if (chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) return;
+  try {
+    showToast("Preparing circular video note (checking frames on device)…", "info");
+    const prep = await prepareChatVideoNote(file, {
+      scan: analyzeImageFile,
+      stopAt: NSFW_BLOCK,
+    });
+    setClassicStagedMedia(prep);
+    chatMessageInput.focus();
+  } catch (err: any) {
+    showToast(err.message || String(err), "error");
+  }
+}
+
+chatWalkieBtn?.addEventListener("click", () => {
+  const next = !classicWalkieQueue.enabled;
+  if (next) {
+    primeChatAudio();
+    playWalkieChirp("start");
+  } else {
+    playWalkieChirp("end");
+  }
+  classicWalkieQueue.setEnabled(next);
+  writeWalkieEnabled(safeStorage, next);
+  classicWalkieNeedsGesture = false;
+  classicBlockedResumeHash = null;
+  if (next) {
+    classicWalkieQueue.seedRoom(openRoomId() || "", shownMessages);
+  }
+  syncClassicWalkieUi();
+  showToast(next ? "📻 Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
+});
+
+chatWalkieOffBtn?.addEventListener("click", () => {
+  classicWalkieQueue.setEnabled(false);
+  writeWalkieEnabled(safeStorage, false);
+  classicWalkieNeedsGesture = false;
+  classicBlockedResumeHash = null;
+  playWalkieChirp("end");
+  syncClassicWalkieUi();
+});
+
+chatWalkieResumeBtn?.addEventListener("click", async () => {
+  primeChatAudio();
+  const target = classicBlockedResumeHash;
+  classicWalkieNeedsGesture = false;
+  classicBlockedResumeHash = null;
+  if (target) {
+    const res = await playChatVoiceByHash(target, chatMessagesList);
+    if (res === "started") {
+      playWalkieChirp("start");
+      syncClassicWalkieUi();
+      return;
+    }
+  }
+  void drainClassicWalkieQueue();
+});
+
+chatPttBtn?.addEventListener("pointerdown", (e) => {
+  if (!canRecordVoice()) return;
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  e.preventDefault();
+  if (classicVoiceRec && classicPttHandsFree) {
+    void finishClassicPttSend();
+    return;
+  }
+  void startClassicPtt(false, e.pointerId);
+});
+
+window.addEventListener("pointerup", (e) => {
+  if (classicPttPointerId === null || e.pointerId !== classicPttPointerId) return;
+  classicPttPointerId = null;
+  if (classicPttStarting) {
+    classicPttReleasedEarly = true;
+    return;
+  }
+  if (!classicVoiceRec || classicPttHandsFree) return;
+  if (Date.now() - classicPttStartedAt < PTT_HOLD_THRESHOLD_MS) {
+    classicPttHandsFree = true;
+    if (chatPttSendBtn) chatPttSendBtn.hidden = false;
+    if (chatPttHint) chatPttHint.textContent = "Recording · tap Send";
+  } else {
+    void finishClassicPttSend();
+  }
+});
+
+window.addEventListener("pointercancel", (e) => {
+  if (classicPttPointerId === null || e.pointerId !== classicPttPointerId) return;
+  classicPttPointerId = null;
+  if (!classicPttHandsFree) cancelClassicVoiceRec();
+});
+
+chatPttCancelBtn?.addEventListener("click", () => cancelClassicVoiceRec());
+chatPttSendBtn?.addEventListener("click", () => void finishClassicPttSend());
+
+chatVnoteBtn?.addEventListener("click", () => {
+  if (chatFileVideo) {
+    chatFileVideo.value = "";
+    chatFileVideo.click();
+  }
+});
+
+chatFileVideo?.addEventListener("change", async () => {
+  const f = chatFileVideo.files?.[0];
+  if (!f) return;
+  await processClassicVideoNote(f);
+});
 
 chatMediaStageCancel?.addEventListener("click", () => setClassicStagedMedia(null));
 
@@ -9335,6 +9778,10 @@ chatFileDoc?.addEventListener("change", async () => {
 // Attachment plus button & popover menu for Classic Chat
 chatBtnAttach?.addEventListener("click", (e) => {
   e.stopPropagation();
+  const vBtn = chatAttachMenu?.querySelector<HTMLElement>('[data-chat-attach="voice"]');
+  if (vBtn) vBtn.style.display = canRecordVoice() ? "flex" : "none";
+  const vnBtn = chatAttachMenu?.querySelector<HTMLElement>('[data-chat-attach="vnote"]');
+  if (vnBtn) vnBtn.style.display = canCaptureVideoNote() ? "flex" : "none";
   chatAttachMenu?.classList.toggle("open");
 });
 document.addEventListener("click", () => chatAttachMenu?.classList.remove("open"));
@@ -9356,6 +9803,14 @@ chatAttachMenu?.addEventListener("click", async (e) => {
     if (chatFileAudio) {
       chatFileAudio.value = "";
       chatFileAudio.click();
+    }
+  } else if (kind === "voice") {
+    if (canRecordVoice()) void startClassicPtt(true, null);
+  } else if (kind === "vnote") {
+    if (!canCaptureVideoNote()) return;
+    if (chatFileVideo) {
+      chatFileVideo.value = "";
+      chatFileVideo.click();
     }
   } else if (kind === "file") {
     if (chatFileDoc) {
@@ -9408,6 +9863,8 @@ const handleClassicDropFiles = async (files: FileList | null) => {
       const prep = await prepareChatAudioFile(file, "audio");
       setClassicStagedMedia(prep);
       chatMessageInput.focus();
+    } else if ((file.type.startsWith("video/") || normalizeVideoMime(file.type, file.name)) && file.size <= MAX_VNOTE_BYTES) {
+      await processClassicVideoNote(file);
     } else {
       showToast("Preparing dropped document…", "info");
       const prep = await prepareChatDocFile(file);

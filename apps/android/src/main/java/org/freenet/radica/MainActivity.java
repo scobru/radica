@@ -7,12 +7,15 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -28,6 +31,8 @@ import android.widget.FrameLayout;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -56,6 +61,8 @@ public class MainActivity extends Activity {
     private static final String NODE_APP_RELEASES = "https://github.com/HostFat/freenet-android-node/releases/latest";
     private static final int PICK_FILES = 1;
     private static final int MIC = 2;
+    private static final int MIC_NATIVE = 4;
+    private static final int MAX_NATIVE_AUDIO_BYTES = 4 * 1024 * 1024;
 
     private enum Node { CHECKING, MISSING, STOPPED }
 
@@ -66,6 +73,37 @@ public class MainActivity extends Activity {
     private Node shown;
     private ValueCallback<Uri[]> pendingFiles;
     private PermissionRequest pendingMic;
+    private String[] pendingMediaResources;
+    private MediaRecorder nativeRecorder;
+    private File nativeVoiceFile;
+    private long nativeVoiceStartedAt = 0L;
+    private int nativeVoiceMaxSec = 10;
+    private int pendingNativeVoiceMaxSec = 0;
+
+    private final Runnable nativeVoiceTick = new Runnable() {
+        @Override
+        public void run() {
+            if (nativeRecorder == null) return;
+            double elapsedSec = Math.max(0.0, (System.currentTimeMillis() - nativeVoiceStartedAt) / 1000.0);
+            int amp = 0;
+            try {
+                amp = nativeRecorder.getMaxAmplitude();
+            } catch (Exception ignored) {}
+            double scaled = Math.min(1.0, (amp / 18000.0) * 1.4);
+            int level = Math.max(2, Math.min(15, (int) Math.round(scaled * 13.0) + 2));
+            long approxBytes = Math.round(elapsedSec * 3000.0);
+            dispatchNativeVoiceEvent(String.format(
+                    java.util.Locale.US,
+                    "{\"type\":\"radica_native_voice\",\"event\":\"tick\",\"elapsedSec\":%.2f,\"level\":%d,\"approxBytes\":%d,\"maxSec\":%d}",
+                    elapsedSec, level, approxBytes, nativeVoiceMaxSec
+            ));
+            if (elapsedSec >= nativeVoiceMaxSec) {
+                finishNativeVoiceRecording(false);
+            } else {
+                main.postDelayed(this, 120);
+            }
+        }
+    };
 
     private final Runnable check = new Runnable() {
         @Override
@@ -124,6 +162,13 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         main.removeCallbacks(check);
+        if (nativeRecorder != null) finishNativeVoiceRecording(true);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (nativeRecorder != null) finishNativeVoiceRecording(true);
+        super.onDestroy();
     }
 
     @Override
@@ -353,7 +398,108 @@ public class MainActivity extends Activity {
         return out.toByteArray();
     }
 
-    private WebResourceResponse tryInjectMessengerDocument(WebResourceRequest req, String urlStr) {
+    private void dispatchNativeVoiceEvent(String jsonLiteral) {
+        main.post(() -> {
+            if (web == null) return;
+            String js = "(function(d){try{window.postMessage(d,'*');var fs=document.getElementsByTagName('iframe');for(var i=0;i<fs.length;i++){try{fs[i].contentWindow.postMessage(d,'*');}catch(e){}}}catch(e){}})(" + jsonLiteral + ");";
+            try {
+                web.evaluateJavascript(js, null);
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private void beginNativeVoiceRecording(int maxSec) {
+        if (nativeRecorder != null) finishNativeVoiceRecording(true);
+        int clamped = Math.max(1, Math.min(60, maxSec));
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingNativeVoiceMaxSec = clamped;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_NATIVE);
+            return;
+        }
+        File outFile = new File(getCacheDir(), "radica_ptt.m4a");
+        if (outFile.exists()) {
+            outFile.delete();
+        }
+        MediaRecorder rec = new MediaRecorder();
+        try {
+            rec.setAudioSource(MediaRecorder.AudioSource.MIC);
+            rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            rec.setAudioSamplingRate(24000);
+            rec.setAudioEncodingBitRate(24000);
+            rec.setAudioChannels(1);
+            rec.setMaxDuration(clamped * 1000);
+            rec.setOutputFile(outFile.getAbsolutePath());
+            rec.prepare();
+            rec.start();
+            nativeRecorder = rec;
+            nativeVoiceFile = outFile;
+            nativeVoiceMaxSec = clamped;
+            nativeVoiceStartedAt = System.currentTimeMillis();
+            main.removeCallbacks(nativeVoiceTick);
+            main.postDelayed(nativeVoiceTick, 120);
+            dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"started\"}");
+        } catch (Exception e) {
+            try { rec.release(); } catch (Exception ignored) {}
+            if (outFile.exists()) outFile.delete();
+            String msg = String.valueOf(e.getMessage() != null ? e.getMessage() : e).replace("\\", "\\\\").replace("\"", "\\\"");
+            dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"error\",\"message\":\"" + msg + "\"}");
+        }
+    }
+
+    private void finishNativeVoiceRecording(boolean cancel) {
+        main.removeCallbacks(nativeVoiceTick);
+        MediaRecorder rec = nativeRecorder;
+        File file = nativeVoiceFile;
+        long started = nativeVoiceStartedAt;
+        nativeRecorder = null;
+        nativeVoiceFile = null;
+        nativeVoiceStartedAt = 0L;
+        if (rec == null) {
+            if (cancel) dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"cancelled\"}");
+            return;
+        }
+        try {
+            rec.stop();
+        } catch (Exception ignored) {}
+        try {
+            rec.release();
+        } catch (Exception ignored) {}
+
+        if (cancel || file == null || !file.exists()) {
+            if (file != null && file.exists()) file.delete();
+            dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"cancelled\"}");
+            return;
+        }
+
+        double durationSec = Math.max(0.5, Math.round(((System.currentTimeMillis() - started) / 1000.0) * 10.0) / 10.0);
+        try (FileInputStream fis = new FileInputStream(file);
+             ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[8192];
+            int n;
+            int total = 0;
+            while ((n = fis.read(buf)) != -1) {
+                total += n;
+                if (total > MAX_NATIVE_AUDIO_BYTES) {
+                    throw new java.io.IOException("Voice recording exceeded size limit");
+                }
+                bos.write(buf, 0, n);
+            }
+            String b64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+            dispatchNativeVoiceEvent(String.format(
+                    java.util.Locale.US,
+                    "{\"type\":\"radica_native_voice\",\"event\":\"done\",\"mime\":\"audio/mp4\",\"base64\":\"%s\",\"durationSec\":%.1f}",
+                    b64, durationSec
+            ));
+        } catch (Exception e) {
+            String msg = String.valueOf(e.getMessage() != null ? e.getMessage() : e).replace("\\", "\\\\").replace("\"", "\\\"");
+            dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"error\",\"message\":\"" + msg + "\"}");
+        } finally {
+            file.delete();
+        }
+    }
+
+    private WebResourceResponse tryInjectRadicaBridgeDocument(WebResourceRequest req, String urlStr) {
         if (req.getMethod() != null && !"GET".equalsIgnoreCase(req.getMethod())) return null;
         if (!isLikelyHtmlUrl(urlStr) || !isLikelyHtmlRequest(req, urlStr)) return null;
         HttpURLConnection conn = null;
@@ -388,13 +534,24 @@ public class MainActivity extends Activity {
             if (!lower.contains("<html") && !lower.contains("<!doctype")) {
                 return null;
             }
+            String messengerPart = isMessengerApp()
+                    ? "document.documentElement.setAttribute('data-app-mode','messenger');"
+                    + "window.__radica_app_mode='messenger';"
+                    + "window.__radicaNative.getAppMode=function(){return'messenger';};"
+                    + "window.__radicaNative.isMessenger=function(){return true;};"
+                    : "";
+            String voicePart =
+                    "if(typeof window.__radicaNative.canRecordVoice!=='function'){"
+                    + "window.__radicaNative.canRecordVoice=function(){return true;};"
+                    + "window.__radicaNative.startVoiceRec=function(m){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'start',maxSec:m},'*');}catch(e){}};"
+                    + "window.__radicaNative.stopVoiceRec=function(){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'stop'},'*');}catch(e){}};"
+                    + "window.__radicaNative.cancelVoiceRec=function(){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'cancel'},'*');}catch(e){}};"
+                    + "}";
             String script = "<script>" +
                     "try{" +
-                    "document.documentElement.setAttribute('data-app-mode','messenger');" +
-                    "window.__radica_app_mode='messenger';" +
                     "window.__radicaNative=window.__radicaNative||{};" +
-                    "window.__radicaNative.getAppMode=function(){return'messenger';};" +
-                    "window.__radicaNative.isMessenger=function(){return true;};" +
+                    messengerPart +
+                    voicePart +
                     "}catch(e){}" +
                     "</script>";
             String modified;
@@ -405,7 +562,7 @@ public class MainActivity extends Activity {
             } else {
                 modified = script + html;
             }
-            if (modified.contains("<html") && !modified.contains("data-app-mode=")) {
+            if (isMessengerApp() && modified.contains("<html") && !modified.contains("data-app-mode=")) {
                 modified = modified.replaceFirst("(<html[^>]*)(>)", "$1 data-app-mode=\"messenger\"$2");
             }
             byte[] outBytes = modified.getBytes(StandardCharsets.UTF_8);
@@ -479,6 +636,30 @@ public class MainActivity extends Activity {
             if (json == null || json.length() > MAX_STORAGE_BYTES) return;
             getSharedPreferences("radica_storage", MODE_PRIVATE).edit().putString("blob", json).apply();
         }
+
+        @JavascriptInterface
+        public boolean canRecordVoice() {
+            return isRadicaUrl(currentTopUrl);
+        }
+
+        @JavascriptInterface
+        public void startVoiceRec(int maxSec) {
+            if (!isRadicaUrl(currentTopUrl)) return;
+            int clamped = Math.max(1, Math.min(60, maxSec));
+            main.post(() -> beginNativeVoiceRecording(clamped));
+        }
+
+        @JavascriptInterface
+        public void stopVoiceRec() {
+            if (!isRadicaUrl(currentTopUrl)) return;
+            main.post(() -> finishNativeVoiceRecording(false));
+        }
+
+        @JavascriptInterface
+        public void cancelVoiceRec() {
+            if (!isRadicaUrl(currentTopUrl)) return;
+            main.post(() -> finishNativeVoiceRecording(true));
+        }
     }
 
     private class Client extends WebViewClient {
@@ -491,6 +672,24 @@ public class MainActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            if (isRadicaUrl(url)) {
+                try {
+                    view.evaluateJavascript(
+                        "(function(){" +
+                        "if(window.__radicaVoiceRelay)return;" +
+                        "window.__radicaVoiceRelay=true;" +
+                        "window.addEventListener('message',function(ev){" +
+                        "  var d=ev&&ev.data;" +
+                        "  if(!d||d.type!=='radica_native_voice_cmd'||!window.__radicaNative)return;" +
+                        "  if(d.cmd==='start'&&window.__radicaNative.startVoiceRec)window.__radicaNative.startVoiceRec(d.maxSec||10);" +
+                        "  else if(d.cmd==='stop'&&window.__radicaNative.stopVoiceRec)window.__radicaNative.stopVoiceRec();" +
+                        "  else if(d.cmd==='cancel'&&window.__radicaNative.cancelVoiceRec)window.__radicaNative.cancelVoiceRec();" +
+                        "});" +
+                        "})();",
+                        null
+                    );
+                } catch (Exception ignored) {}
+            }
             if (isMessengerApp()) {
                 Runnable postMode = () -> {
                     try {
@@ -534,8 +733,8 @@ public class MainActivity extends Activity {
                         new ByteArrayInputStream("Forbidden subframe navigation".getBytes(StandardCharsets.UTF_8))
                 );
             }
-            if (isMessengerApp() && isRadicaUrl(url)) {
-                WebResourceResponse injected = tryInjectMessengerDocument(req, url);
+            if (isRadicaUrl(url)) {
+                WebResourceResponse injected = tryInjectRadicaBridgeDocument(req, url);
                 if (injected != null) return injected;
             }
             return super.shouldInterceptRequest(view, req);
@@ -622,7 +821,27 @@ public class MainActivity extends Activity {
             if (pendingFiles != null) pendingFiles.onReceiveValue(null);
             pendingFiles = callback;
             try {
-                startActivityForResult(params.createIntent(), PICK_FILES);
+                Intent base = params.createIntent();
+                boolean wantsVideo = false;
+                String[] accepts = params.getAcceptTypes();
+                if (accepts != null) {
+                    for (String t : accepts) {
+                        if (t != null && t.toLowerCase().contains("video")) {
+                            wantsVideo = true;
+                            break;
+                        }
+                    }
+                }
+                if (wantsVideo && params.isCaptureEnabled()) {
+                    Intent cam = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+                    cam.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);
+                    cam.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 0);
+                    Intent chooser = Intent.createChooser(base, "Record or pick video");
+                    chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{ cam });
+                    startActivityForResult(chooser, PICK_FILES);
+                } else {
+                    startActivityForResult(base, PICK_FILES);
+                }
             } catch (ActivityNotFoundException e) {
                 pendingFiles = null;
                 return false;
@@ -630,17 +849,37 @@ public class MainActivity extends Activity {
             return true;
         }
 
-        /** Voice notes: the microphone, for Radica only. */
+        /** Voice notes and circular video messages: mic and camera, for Radica only. */
         @Override
         public void onPermissionRequest(PermissionRequest req) {
-            boolean mic = java.util.Arrays.asList(req.getResources()).contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
-            if (!mic || !isRadicaUrl(currentTopUrl)) {
+            if (!isRadicaUrl(currentTopUrl)) {
                 req.deny();
-            } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                req.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                return;
+            }
+            List<String> requested = java.util.Arrays.asList(req.getResources());
+            java.util.ArrayList<String> wantedRes = new java.util.ArrayList<>();
+            java.util.ArrayList<String> missingAndroid = new java.util.ArrayList<>();
+            if (requested.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                wantedRes.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    missingAndroid.add(Manifest.permission.RECORD_AUDIO);
+                }
+            }
+            if (requested.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                wantedRes.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE);
+                if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    missingAndroid.add(Manifest.permission.CAMERA);
+                }
+            }
+            if (wantedRes.isEmpty()) {
+                req.deny();
+            } else if (missingAndroid.isEmpty()) {
+                req.grant(wantedRes.toArray(new String[0]));
             } else {
+                if (pendingMic != null) pendingMic.deny();
                 pendingMic = req;
-                requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, MIC);
+                pendingMediaResources = wantedRes.toArray(new String[0]);
+                requestPermissions(missingAndroid.toArray(new String[0]), MIC);
             }
         }
     }
@@ -649,20 +888,47 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == PICK_FILES && pendingFiles != null) {
-            pendingFiles.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
+            Uri[] parsed = WebChromeClient.FileChooserParams.parseResult(result, data);
+            if ((parsed == null || parsed.length == 0) && result == RESULT_OK && data != null && data.getData() != null) {
+                parsed = new Uri[]{ data.getData() };
+            }
+            pendingFiles.onReceiveValue(parsed);
             pendingFiles = null;
         }
     }
 
     @Override
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        if (request == MIC_NATIVE) {
+            int maxSec = pendingNativeVoiceMaxSec > 0 ? pendingNativeVoiceMaxSec : 10;
+            pendingNativeVoiceMaxSec = 0;
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                beginNativeVoiceRecording(maxSec);
+            } else {
+                dispatchNativeVoiceEvent("{\"type\":\"radica_native_voice\",\"event\":\"error\",\"message\":\"Microphone permission denied\"}");
+            }
+            return;
+        }
         if (request == MIC && pendingMic != null) {
-            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-                pendingMic.grant(new String[] {PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            java.util.ArrayList<String> granted = new java.util.ArrayList<>();
+            if (pendingMediaResources != null) {
+                for (String res : pendingMediaResources) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(res)
+                            && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        granted.add(res);
+                    } else if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(res)
+                            && checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        granted.add(res);
+                    }
+                }
+            }
+            if (!granted.isEmpty()) {
+                pendingMic.grant(granted.toArray(new String[0]));
             } else {
                 pendingMic.deny();
             }
             pendingMic = null;
+            pendingMediaResources = null;
         }
     }
 }

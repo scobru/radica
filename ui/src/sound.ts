@@ -179,3 +179,46 @@ export function playPopSound(force = false): boolean {
     return false;
   }
 }
+
+/**
+ * Play a short walkie-talkie chirp ("start": rising double-tone, "end": falling roger-beep).
+ * Respects the user's global sound setting (`isSoundEnabled()`).
+ */
+export function playWalkieChirp(kind: "start" | "end"): boolean {
+  if (!isSoundEnabled()) return false;
+  const ctx = getAudioContext();
+  if (!ctx) return false;
+  try {
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    if (kind === "start") {
+      osc.frequency.setValueAtTime(660, t);
+      osc.frequency.setValueAtTime(880, t + 0.036);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.14, t + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.075);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    } else {
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.setValueAtTime(587, t + 0.042);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.14, t + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.095);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
