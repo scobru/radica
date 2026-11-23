@@ -99,6 +99,8 @@ Terms the code and its reviews use. Keep them exact.
 
 ## Decisions
 
+- Beyond Freenet: core first, CLI last (2026-11-23): Radica's data (signed ed25519 logs, E2E sealing, Double Ratchet) does not depend on Freenet; only the transport does (`network.ts`, `freenet.ts`, which also mix in browser APIs). If Radica ever has to run outside Freenet (a web gateway, Nostr/HTTP relays, more mesh links), the first step is a `radica-core` package of the pure modules (`crypto`, `logfold`, `lanMesh`, `contactCard`, …) behind a transport interface, as `SecretChatTransport` already does for Secret Chats; Freenet and the LAN mesh become two transports. A `radicactl` CLI (bots, LAN↔Freenet bridge, gateway, tests) is then a thin program on that core, as `attester/` already is today. Not built until a concrete need: no speculative core or CLI.
+
 - LAN mesh is always on, not a fallback (2026-11-23): "Freenet unreachable" cannot be told from the page (the local node still answers while it has no peers), and the packet is the same sealed, signed message the public inbox log holds, so it is sent on both and the receiver dedups by id. One interface for both transports; a public "nearby" channel for strangers, if ever built, goes in its own section.
 
 - Freenet Mail v1/v2 Dual-Format Interoperability (2026-11): Native Freenet Mail (v0.2.x) runs on the v1 contract system and rejects 36-char compact addresses (`invalid inbox address`). Radica delivers only to the 44-char `ContractInstanceId` (v1 inbox) and shows only that, as `alias@<inbox>`. The 36-char address (`FreenetMailIdentity.address`, Freenet Mail inbox v2 format) is derived but never routed to: `sendMailMessage` refuses it for anyone but this persona.
