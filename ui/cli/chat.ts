@@ -92,7 +92,8 @@ async function signIn(): Promise<void> {
   if (online) {
     // as the app does on sign-in: my profile names this device's key, the one people seal their messages to
     void freenet.syncOwnFeed(me).catch(() => {});
-    void freenet.announceIdentity(me, null).catch(() => {});
+    // no announceIdentity: the directory (Explore's phone book) is not loaded yet at start, so it would grind a 20-bit
+    // proof of work on the main thread (no Worker in Node) and append a duplicate hello on every run; chat needs neither
   }
   say("Type /help for commands.");
 }

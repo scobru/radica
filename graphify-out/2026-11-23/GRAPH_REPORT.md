@@ -1,7 +1,7 @@
 # Graph Report - radica  (2026-11-23)
 
 ## Corpus Check
-- 310 files · ~435,083 words
+- 310 files · ~435,165 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 41 file(s) not represented in the graph (top: (none) 13, .wasm 13, .css 5)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `61e36bc7`
+- Built from commit: `0e40456a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -202,8 +202,8 @@
   README.md → ui/src/viso.ts
 - `📜 Origin & Acknowledgments` --references--> `DelegationProofV1`  [INFERRED]
   README.md → ui/src/viso.ts
-- `6. 💬 P2P Direct Chat & Interactive Feeds` --references--> `fromBase58()`  [INFERRED]
-  README.md → ui/src/base58.ts
+- `What it does` --references--> `parseArticleCaption()`  [INFERRED]
+  folio/README.md → ui/src/articles.ts
 
 ## Import Cycles
 - 2-file cycle: `ui/src/handles.ts -> ui/src/logfold.ts -> ui/src/handles.ts`
@@ -785,17 +785,17 @@ Nodes (4): bundle_ui(), collect(), HEAVY, main()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `FreenetClient` connect `FreenetClient` to `mediaHashOf`, `init`, `🌟 Key Features`, `.logEntries`, `freenames.ts`, `UserIdentity`, `secretChatTransport.ts`, `versionCheck.ts`, `UserIdentity`, `asocial.ts`, `delta.ts`, `nodeOrigin`, `createMessengerChat`, `icons.ts`, `.applyLog`, `freenet.ts`, `network.ts`, `lanMesh.ts`, `Post`, `.refresh`, `renderIdentityModal`, `media.ts`, `pow.ts`, `CHANGELOG.md`, `rootsfx.ts`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Why does `Decisions` connect `init` to `openUserProfile`, `feedlight.ts`, `isCanonicalPost`, `renderIcon`, `FreenetClient`, `freenames.ts`, `init`, `secretChatTransport.ts`, `messengerChat.ts`, `.shouldInterceptRequest`, `renderCommunitiesPage`, `asocial.ts`, `NotificationItem`, `createMessengerChat`, `Reader`, `delegate.ts`, `handleJoinFromInviteUrl`, `.applyLog`, `mailClient.ts`, `freenet.ts`, `linfa.ts`, `lanMesh.ts`, `.isRadicaUrl`, `Override`, `communitiesPage.ts`, `treeGraph.ts`?**
+  _High betweenness centrality (0.042) - this node is a cross-community bridge._
 - **Are the 6 inferred relationships involving `createMessengerChat()` (e.g. with `closeMentionPopup()` and `onViewportResize()`) actually correct?**
   _`createMessengerChat()` has 6 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Binary`, `Downloading`, `FindingRelease` to the rest of the system?**
   _65 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `freenetMail.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.06390977443609022 - nodes in this community are weakly interconnected._
-- **Why does `Decisions` connect `init` to `openUserProfile`, `feedlight.ts`, `isCanonicalPost`, `renderIcon`, `FreenetClient`, `freenames.ts`, `init`, `secretChatTransport.ts`, `messengerChat.ts`, `.shouldInterceptRequest`, `renderCommunitiesPage`, `asocial.ts`, `NotificationItem`, `createMessengerChat`, `Reader`, `delegate.ts`, `handleJoinFromInviteUrl`, `.applyLog`, `mailClient.ts`, `freenet.ts`, `linfa.ts`, `lanMesh.ts`, `.isRadicaUrl`, `Override`, `communitiesPage.ts`, `treeGraph.ts`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `MainActivity` connect `MainActivity` to `.onShowFileChooser`, `.isRadicaUrl`, `Override`, `MainActivity.java`, `.shouldInterceptRequest`, `.onCreate`?**
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
 - **Should `lib.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.05001139211665528 - nodes in this community are weakly interconnected._
-- **Why does `MainActivity` connect `MainActivity` to `.onShowFileChooser`, `.isRadicaUrl`, `Override`, `MainActivity.java`, `.shouldInterceptRequest`, `.onCreate`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+- **Why does `FreenetClient` connect `FreenetClient` to `mediaHashOf`, `init`, `🌟 Key Features`, `.logEntries`, `freenames.ts`, `UserIdentity`, `secretChatTransport.ts`, `versionCheck.ts`, `UserIdentity`, `asocial.ts`, `delta.ts`, `nodeOrigin`, `createMessengerChat`, `icons.ts`, `.applyLog`, `freenet.ts`, `network.ts`, `lanMesh.ts`, `Post`, `.refresh`, `renderIdentityModal`, `media.ts`, `pow.ts`, `CHANGELOG.md`, `rootsfx.ts`?**
+  _High betweenness centrality (0.031) - this node is a cross-community bridge._
