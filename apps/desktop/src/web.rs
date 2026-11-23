@@ -50,6 +50,7 @@ enum Ui {
     Open,
     Retry,
     VoiceEvent(crate::audio::VoiceEvent),
+    Mesh(String),
 }
 
 const LOADING: &str = r#"<!doctype html><meta charset="utf-8"><title>Radica</title>
@@ -181,11 +182,21 @@ fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
     }},
     cancelVoiceRec: function() {{
       sendIpc("voice:cancel");
+    }},
+    meshSend: function(json) {{
+      sendIpc("mesh:" + String(json));
     }}
   }};
 }})();"#,
         serde_json::to_string(initial_blob).unwrap_or_else(|_| "\"\"".to_string()),
         serde_json::to_string(mode.js_mode()).unwrap_or_else(|_| "\"full\"".to_string())
+    )
+}
+
+/// Script that posts the JSON value `payload` to the window and each of its frames (Radica runs in the node's iframe).
+fn post_to_frames(payload: &str) -> String {
+    format!(
+        "(function(d){{try{{window.postMessage(d,'*');var fs=document.getElementsByTagName('iframe');for(var i=0;i<fs.length;i++){{try{{fs[i].contentWindow.postMessage(d,'*');}}catch(e){{}}}}}}catch(e){{}}}})({payload});"
     )
 }
 
@@ -392,6 +403,10 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
     let radica_opened = Arc::new(AtomicBool::new(false));
     let radica_opened_ipc = Arc::clone(&radica_opened);
     let storage_path = storage_path();
+    let mesh_proxy = event_loop.create_proxy();
+    let mesh = crate::mesh::Mesh::start(move |packet| {
+        let _ = mesh_proxy.send_event(Ui::Mesh(packet));
+    });
     let initial_storage_blob = storage_path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_html(loading_html(mode))
@@ -423,6 +438,12 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
                         if is_radica_url(&origin_uri) && json.len() <= MAX_STORAGE_BYTES {
                             if let Some(p) = &storage_path {
                                 let _ = write_storage_atomic(p, json);
+                            }
+                        }
+                    } else if let Some(packet) = req.body().strip_prefix("mesh:") {
+                        if is_radica_url(&origin_uri) {
+                            if let Some(m) = &mesh {
+                                m.send(packet);
                             }
                         }
                     } else if req.body() == "voice:stop" {
@@ -480,11 +501,12 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
             }
             Event::UserEvent(Ui::VoiceEvent(ev)) => {
                 if let Ok(payload) = serde_json::to_string(&ev.to_json()) {
-                    let js = format!(
-                        "(function(d){{try{{window.postMessage(d,'*');var fs=document.getElementsByTagName('iframe');for(var i=0;i<fs.length;i++){{try{{fs[i].contentWindow.postMessage(d,'*');}}catch(e){{}}}}}}catch(e){{}}}})({payload});"
-                    );
-                    let _ = webview.evaluate_script(&js);
+                    let _ = webview.evaluate_script(&post_to_frames(&payload));
                 }
+            }
+            Event::UserEvent(Ui::Mesh(packet)) => {
+                let d = serde_json::json!({ "type": "radica_mesh", "data": packet });
+                let _ = webview.evaluate_script(&post_to_frames(&d.to_string()));
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -544,6 +566,7 @@ mod tests {
         assert!(script.contains("canRecordVoice: function() { return true; }"));
         assert!(script.contains("startVoiceRec: function(maxSec)"));
         assert!(script.contains("__radica_ipc__"));
+        assert!(script.contains("sendIpc(\"mesh:\" + String(json))"));
         assert!(script.contains("function sendIpc("));
         let full_script = native_storage_script("{}", AppMode::Full);
         assert!(full_script.contains("getAppMode: function() { return \"full\"; }"));

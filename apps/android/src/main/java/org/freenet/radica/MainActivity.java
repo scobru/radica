@@ -9,6 +9,7 @@ import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.media.MediaRecorder;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,6 +35,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -41,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
+import org.json.JSONObject;
 
 /**
  * Radica web, served by the Freenet node on this phone. Android has no Freenet of its own: the node comes from
@@ -78,6 +84,11 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingMic;
     private String[] pendingMediaResources;
     private MediaRecorder nativeRecorder;
+    /** LAN mesh (CONTEXT.md, ui/src/lanMesh.ts): UDP broadcasts of the page's signed chat packets. */
+    private static final int MESH_PORT = 47509;
+    private static final int MESH_MAX_BYTES = 60000;
+    private volatile DatagramSocket mesh;
+    private WifiManager.MulticastLock meshLock;
     private File nativeVoiceFile;
     private long nativeVoiceStartedAt = 0L;
     private int nativeVoiceMaxSec = 10;
@@ -146,6 +157,7 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new Chrome());
         web.addJavascriptInterface(new NativeStorage(isMessengerApp()), "__radicaNative");
         setContentView(fitted(web));
+        startMesh();
         if (saved != null && web.restoreState(saved) != null) {
             opened = true;
         } else {
@@ -171,6 +183,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (nativeRecorder != null) finishNativeVoiceRecording(true);
+        stopMesh();
         super.onDestroy();
     }
 
@@ -411,6 +424,44 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** Listen for other Radica devices on the LAN; the page checks each packet, this only carries bytes. */
+    private void startMesh() {
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wifi != null) {
+                meshLock = wifi.createMulticastLock("radica-mesh");
+                meshLock.setReferenceCounted(false);
+                meshLock.acquire();
+            }
+        } catch (Exception ignored) {}
+        new Thread(() -> {
+            try {
+                DatagramSocket s = new DatagramSocket(null);
+                s.setReuseAddress(true);
+                s.setBroadcast(true);
+                s.bind(new InetSocketAddress(MESH_PORT));
+                mesh = s;
+                byte[] buf = new byte[65535];
+                while (!s.isClosed()) {
+                    DatagramPacket p = new DatagramPacket(buf, buf.length);
+                    s.receive(p);
+                    if (p.getLength() > MESH_MAX_BYTES || !isRadicaUrl(currentTopUrl)) continue;
+                    String text = new String(p.getData(), 0, p.getLength(), StandardCharsets.UTF_8);
+                    dispatchNativeVoiceEvent(new JSONObject().put("type", "radica_mesh").put("data", text).toString());
+                }
+            } catch (Exception ignored) {
+                // port taken or socket closed: the app works on without the mesh
+            }
+        }, "radica-mesh").start();
+    }
+
+    private void stopMesh() {
+        DatagramSocket s = mesh;
+        mesh = null;
+        if (s != null) s.close();
+        if (meshLock != null && meshLock.isHeld()) meshLock.release();
+    }
+
     private void beginNativeVoiceRecording(int maxSec) {
         if (nativeRecorder != null) finishNativeVoiceRecording(true);
         int clamped = Math.max(1, Math.min(60, maxSec));
@@ -549,6 +600,9 @@ public class MainActivity extends Activity {
                     + "window.__radicaNative.startVoiceRec=function(m){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'start',maxSec:m},'*');}catch(e){}};"
                     + "window.__radicaNative.stopVoiceRec=function(){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'stop'},'*');}catch(e){}};"
                     + "window.__radicaNative.cancelVoiceRec=function(){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'cancel'},'*');}catch(e){}};"
+                    + "}"
+                    + "if(typeof window.__radicaNative.meshSend!=='function'){"
+                    + "window.__radicaNative.meshSend=function(j){try{window.parent.postMessage({type:'radica_native_voice_cmd',cmd:'mesh',data:String(j)},'*');}catch(e){}};"
                     + "}";
             String script = "<script>" +
                     "try{" +
@@ -641,6 +695,19 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void meshSend(String json) {
+            DatagramSocket s = mesh;
+            if (s == null || json == null || !isRadicaUrl(currentTopUrl)) return;
+            byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length > MESH_MAX_BYTES) return;
+            new Thread(() -> {
+                try {
+                    s.send(new DatagramPacket(bytes, bytes.length, InetAddress.getByName("255.255.255.255"), MESH_PORT));
+                } catch (Exception ignored) {}
+            }).start();
+        }
+
+        @JavascriptInterface
         public boolean canRecordVoice() {
             return isRadicaUrl(currentTopUrl);
         }
@@ -687,6 +754,7 @@ public class MainActivity extends Activity {
                         "  if(d.cmd==='start'&&window.__radicaNative.startVoiceRec)window.__radicaNative.startVoiceRec(d.maxSec||10);" +
                         "  else if(d.cmd==='stop'&&window.__radicaNative.stopVoiceRec)window.__radicaNative.stopVoiceRec();" +
                         "  else if(d.cmd==='cancel'&&window.__radicaNative.cancelVoiceRec)window.__radicaNative.cancelVoiceRec();" +
+                        "  else if(d.cmd==='mesh'&&typeof d.data==='string'&&window.__radicaNative.meshSend)window.__radicaNative.meshSend(d.data);" +
                         "});" +
                         "})();",
                         null

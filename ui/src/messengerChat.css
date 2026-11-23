@@ -2869,6 +2869,12 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 }
 
 /* Edited indicator on bubble meta */
+#chat-modal .rm-lan-tag {
+  display: inline-flex;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+
 #chat-modal .rm-edited-tag {
   font-size: 0.68rem;
   opacity: 0.75;

@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795450180.0239718,
-    "ast_hash": "aa4e371fae8e62b918856ef52a550990",
+    "mtime": 1795453820.2964492,
+    "ast_hash": "e68b48e287187b5a1f374c0080613d52",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "ui/src/main.ts": {
-    "mtime": 1795440819.3510392,
-    "ast_hash": "1c0f6e3c35d9c0c11dab2a04354602fe",
+    "mtime": 1795453911.8569067,
+    "ast_hash": "1b1842a978b584ae67d33f5415313f7b",
     "semantic_hash": ""
   },
   "ui/src/moderation.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795440909.0072541,
-    "ast_hash": "6e9511ada0286895cd280a6291227755",
+    "mtime": 1795453832.3819897,
+    "ast_hash": "df31cd84f390e42deb18775b1d2fa6bb",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795440893.400335,
-    "ast_hash": "25fbd8710f946cac62a01344b9336e3a",
+    "mtime": 1795453636.5281565,
+    "ast_hash": "cc0be2539c79214f2f8a1bc83c31747a",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795440771.5296645,
-    "ast_hash": "4fdbf4b748b039e2da13d61bc3aee238",
+    "mtime": 1795453813.6231794,
+    "ast_hash": "8e8bbe5f842ec8514658f4b6efb26d03",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -300,8 +300,8 @@
     "semantic_hash": ""
   },
   "ui/src/chatMedia.ts": {
-    "mtime": 1795440677.3409104,
-    "ast_hash": "e4c0661939e8dd0de9a00967ec2e7aa9",
+    "mtime": 1795453795.2961836,
+    "ast_hash": "51cd663affbb4c9a9bdbef2a70f28607",
     "semantic_hash": ""
   },
   "ui/src/gifPicker.ts": {
@@ -1330,8 +1330,8 @@
     "semantic_hash": ""
   },
   "apps/android/src/main/java/org/freenet/radica/MainActivity.java": {
-    "mtime": 1795440662.0307255,
-    "ast_hash": "5ba95d516f0c5ba30123074288d1cdd5",
+    "mtime": 1795453621.0337126,
+    "ast_hash": "2cc0485c60e8b2d6360a1d3620b95a6d",
     "semantic_hash": ""
   },
   "apps/desktop/src/web.rs": {
