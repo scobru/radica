@@ -131,8 +131,14 @@ export const certShowsHost = (c?: Cert): boolean => {
 export const canonicalBase = (): string => `http://127.0.0.1:7509${appPath()}`;
 
 /** The path Radica is served at (`/v1/contract/web/<key>/`): Viso delegations and the contracts are bound to it. */
+/** Where the node serves the published Radica: its path is part of every contract's parameters. */
+export const RADICA_APP_PATH = "/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
+
 export const appPath = (): string => {
-  if (typeof location === "undefined") return "";
+  // Radica not served by the node (the terminal chat in Node, "Open without Freenet" in the apps): the published app's
+  // contracts, or it would read and write logs no one else sees
+  if (typeof location === "undefined" || location.protocol === "radica:" || /^radica\.local(host)?$/.test(location.hostname))
+    return RADICA_APP_PATH;
   // same app, same contracts: "…/<key>", "…/<key>/" and "…/<key>/index.html" must not become different networks
   const m = /^\/v1\/contract\/web\/[^/]+/.exec(location.pathname);
   return m ? `${m[0]}/` : location.pathname;
