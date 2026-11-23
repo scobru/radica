@@ -4137,3 +4137,33 @@ progress.cm-vnote-ring {
   padding: 8px;
   border-radius: 8px;
 }
+
+/* Nearby: Radica users on this Wi-Fi (lanMesh.ts hellos) */
+#chat-modal .rm-nearby {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#chat-modal .rm-nearby[hidden] {
+  display: none;
+}
+#chat-modal .rm-nearby-toggle {
+  font-size: 0.8rem;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+#chat-modal .rm-nearby-row {
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--rm-bg-secondary);
+  color: inherit;
+  cursor: pointer;
+}
+#chat-modal .rm-nearby-row span,
+#chat-modal .rm-nearby-empty {
+  font-size: 0.75rem;
+  color: var(--rm-text-muted);
+}

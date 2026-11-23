@@ -22,6 +22,8 @@ Terms the code and its reviews use. Keep them exact.
 
 - **Bundled Radica** — the Radica web inside the desktop binary (`build.rs`, `radica` protocol: `https://radica.localhost/` on Windows, `radica://localhost/` elsewhere) and the APK (`assets/radica-ui`, `https://radica.local/`), without its heavy containers. Opened only on **Open without Freenet**; same native storage blob, so the same identity and chats. It still tries `127.0.0.1:7509`, so offline it runs as Local-First Storage plus the LAN mesh.
 
+- **Nearby** (`lanMesh.ts` hellos) — signed contact cards broadcast every 15 s on the LAN while **Let people on this Wi-Fi find me** is on (per device, off by default); listed for 60 s after the last one heard. A hello proves the key, never the name: Nearby rows read "not verified".
+
 ## Device storage
 
 - **Page storage** — `safeStorage`: the page's own key/value store. In Freenet's sandboxed shell it lives in memory, plus the URL hash, and a browser refresh keeps only the hash.

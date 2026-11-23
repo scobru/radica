@@ -8,6 +8,7 @@ import type { ChatMessage } from "./types.ts";
 import type { Cert } from "./whoiam.ts";
 import { formatChatMessageSignatureMessage, verifyAuthorSignature } from "./crypto.ts";
 import { dmPeerOf } from "./conversationState.ts";
+import type { ContactCard } from "./contactCard.ts";
 
 /** One UDP datagram, with room to spare under its 65 507-byte limit. */
 export const MESH_MAX_BYTES = 60_000;
@@ -84,4 +85,46 @@ export function onMeshPacket(fn: (raw: string) => void): void {
     const d = ev.data as { type?: unknown; data?: unknown } | null;
     if (d?.type === "radica_mesh" && typeof d.data === "string") fn(d.data);
   });
+}
+
+// Nearby: with "Let people on this Wi-Fi find me" on, the app broadcasts a signed hello (my contact card) every
+// HELLO_EVERY_MS; others list it for HELLO_FRESH_MS. Off by default: it tells everyone on the network I use Radica.
+export const HELLO_EVERY_MS = 15_000;
+export const HELLO_FRESH_MS = 60_000;
+const HEX64 = /^[0-9a-f]{64}$/;
+
+export interface Hello extends ContactCard {
+  ts: number;
+}
+
+export const helloSigMessage = (h: Hello): string => `radica-hello:v1:${h.pubkey}:${h.encPub}:${h.name}:${h.ts}`;
+
+export function helloPacket(h: Hello, sig: string, cert?: Cert): string {
+  return JSON.stringify({ v: 1, hello: h, sig, ...(cert ? { cert } : {}) });
+}
+
+/** A hello from the LAN, checked (signed by its key, fresh, not me, not blocked): the card, or null. */
+export async function acceptHello(raw: unknown, me: string, isBlocked: (pubkey: string) => boolean, now = Date.now()): Promise<ContactCard | null> {
+  if (typeof raw !== "string" || raw.length > 4096) return null;
+  let p: { v?: unknown; hello?: Partial<Hello>; sig?: unknown; cert?: Cert };
+  try {
+    p = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const h = p?.hello;
+  if (p?.v !== 1 || !h || typeof p.sig !== "string") return null;
+  const { pubkey, encPub, name, ts } = h;
+  if (typeof pubkey !== "string" || !HEX64.test(pubkey) || typeof encPub !== "string" || !HEX64.test(encPub)) return null;
+  if (typeof name !== "string" || name.length > 64 || typeof ts !== "number" || Math.abs(now - ts) > HELLO_FRESH_MS) return null;
+  if (pubkey === me || isBlocked(pubkey)) return null;
+  const ok = await verifyAuthorSignature(helloSigMessage({ pubkey, encPub, name, ts }), p.sig, pubkey, p.cert);
+  return ok ? { pubkey, encPub, name } : null;
+}
+
+/** Broadcast once, with no resend (a hello is sent again on its own schedule). */
+export function meshBroadcast(json: string): void {
+  try {
+    bridge()?.meshSend?.(json);
+  } catch {}
 }
