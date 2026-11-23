@@ -131,6 +131,7 @@ import {
 } from "./secretChat.ts";
 import { dmPeerOf, localReadMarks, seedReadMark } from "./conversationState.ts";
 import { durable } from "./durable.ts";
+import { acceptMeshPacket, meshSend, onMeshPacket } from "./lanMesh.ts";
 import { mergeRoomBackup } from "./roomBackup.ts";
 import {
   backupOwnProfileExtras,
@@ -249,6 +250,11 @@ export class FreenetClient {
         this.handlePeerEvent(ev.data);
       };
     }
+    // the LAN mesh (lanMesh.ts): a checked message is handled as if another tab had sent it
+    onMeshPacket(async (raw) => {
+      const message = await acceptMeshPacket(raw, this.me, (pk) => this.blockedBy(this.me).has(pk));
+      if (message) this.handlePeerEvent({ type: "chat", message });
+    });
 
     if (import.meta.hot) {
       import.meta.hot.on("radica:peer-event", (data: any) => {
@@ -333,6 +339,8 @@ export class FreenetClient {
     try {
       this.bc?.postMessage(data);
     } catch {}
+    const m = data?.type === "chat" ? (data.message as ChatMessage | undefined) : undefined;
+    if (m && m.sender === this.me && dmPeerOf(m.room_id, this.me)) meshSend(m, this.identity?.cert);
     if (import.meta.hot) {
       import.meta.hot.send("radica:peer-event", data);
     }

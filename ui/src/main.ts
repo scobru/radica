@@ -148,6 +148,7 @@ import {
   restart,
 } from "./whoiam";
 import { freenet } from "./freenet";
+import { hasLanMesh } from "./lanMesh.ts";
 import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
@@ -8979,7 +8980,7 @@ function setChatStatus(online: boolean) {
   chatOnlineState = online;
   document.getElementById("chat-status-pill")?.classList.toggle("online", online);
   const t = document.getElementById("chat-status-text");
-  if (t) t.textContent = online ? "Connected" : "Offline";
+  if (t) t.textContent = online ? "Connected" : hasLanMesh() ? "Local network" : "Offline";
   messengerChat.updateStatusBanner();
 }
 

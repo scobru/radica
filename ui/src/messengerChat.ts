@@ -72,6 +72,7 @@ import {
 import { playWalkieChirp } from "./sound.ts";
 import { analyzeImageFile } from "./moderation.ts";
 import { freenet } from "./freenet.ts";
+import { hasLanMesh } from "./lanMesh.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { drLevel } from "./secretRatchet.ts";
@@ -1667,7 +1668,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     nodePillEl.classList.toggle("online", st.online);
     nodeLabelEl.textContent = st.online
       ? `Freenet connected${rootsCount ? ` · ${rootsCount} roots` : ""}`
-      : "Local archive · Offline";
+      : hasLanMesh() ? "Offline · Local network on" : "Local archive · Offline";
   }
 
   /** Computes real shared rooms & communities with a peer for the Signal First-Contact card & Drawer! */
@@ -2246,6 +2247,7 @@ export function createMessengerChat(deps: MessengerDeps) {
               <span class="rm-meta-float">
                 <span>${escapeHtml(formatClock(m.timestamp))}</span>
                 ${editedTagHtml}
+                ${m.via_lan ? `<span class="rm-lan-tag" title="Arrived over the local network">${renderIcon("radio", { size: 11, className: "icon-xs" })}</span>` : ""}
                 ${ttlTagHtml}
                 ${msgChecksHtml}
               </span>

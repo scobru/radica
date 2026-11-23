@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- LAN mesh: receive other Radica devices' UDP broadcasts on Wi-Fi (MulticastLock) -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- to tell "Freenet Android Node is not installed" from "installed but its node is stopped" -->
     <queries>

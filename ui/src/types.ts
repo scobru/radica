@@ -129,6 +129,7 @@ export interface ChatMessage {
   burn_at?: number; // exact timestamp when this message expires and must be destroyed
   burn_started?: boolean; // local-only flag: true once recipient has opened/started counting down a disappearing message
   is_read?: boolean; // true when peer has read the message
+  via_lan?: boolean; // local-only: this copy arrived over the LAN mesh (lanMesh.ts), not from Freenet
   system_event?: "join" | "leave"; // room events (e.g. user joined notice like River)
   join_members?: string[]; // author pubkeys or names who joined
 }
