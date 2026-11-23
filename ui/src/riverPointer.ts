@@ -11,8 +11,8 @@ import { hexToBytes, bytesToHex } from "./crypto.ts";
 import type { RiverCall } from "./river.ts";
 import { safeStorage } from "./storage.ts";
 
-/** The room contract river.wasm is built against (River's pointer record version 11). */
-export const BUNDLED_ROOM_CODE = "bc9b4066fccc37435556295871c567e455b48832eb0a72623d399b354471aef5";
+/** The room contract river.wasm is built against (River's pointer record version 12). */
+export const BUNDLED_ROOM_CODE = "86c0fce06032efc32c024f3cb03b767f399592c5464272f677fa48567c1b10bf";
 /** The pointer contract's frozen code hash (8wnAPaSRY1oYZCz723fdwK6BgzL6q8ozP3buVovXnt6v). */
 const POINTER_CODE = "760a3ca41c6309112f1ddbff032fde9b6429c8fb0ad6f5a2bcb7184508ee300b";
 /** River's author key and the app id of its room-contract pointer (River's FREENET.md). */

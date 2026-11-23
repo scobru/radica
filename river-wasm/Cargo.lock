@@ -1069,8 +1069,8 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "river-core"
-version = "0.4.0"
-source = "git+https://github.com/freenet/river?rev=1e44e895f4fcc7c6278c70ac80ee6c4350ecd79d#1e44e895f4fcc7c6278c70ac80ee6c4350ecd79d"
+version = "0.5.0"
+source = "git+https://github.com/freenet/river?rev=7395e85f6a3b9e3a3a2acd0245a464127b3f5b3f#7395e85f6a3b9e3a3a2acd0245a464127b3f5b3f"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
