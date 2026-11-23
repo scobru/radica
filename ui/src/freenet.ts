@@ -685,8 +685,7 @@ export class FreenetClient {
     const hello = async () => {
       const id = this.identity;
       if (!id) return;
-      const name = this.knownPeers[id.pubkey]?.display_name ?? "";
-      const h = { pubkey: id.pubkey, encPub: id.encPub, name: name.slice(0, 64), ts: Date.now() };
+      const h = { pubkey: id.pubkey, encPub: id.encPub, name: this.nickname().slice(0, 64), ts: Date.now() };
       meshBroadcast(helloPacket(h, await id.sign(helloSigMessage(h)), id.cert));
     };
     void hello();

@@ -80,8 +80,10 @@ export function meshSend(message: ChatMessage, cert?: Cert): void {
 
 /** Packets the native app received on the LAN (posted to every frame as `{ type: "radica_mesh", data }`). */
 export function onMeshPacket(fn: (raw: string) => void): void {
-  if (typeof window === "undefined") return;
-  window.addEventListener("message", (ev) => {
+  // globalThis: the window in a page, the terminal chat's own event bus in Node (cli/node-bridge.ts)
+  const g = globalThis as { addEventListener?: (type: string, fn: (ev: MessageEvent) => void) => void };
+  if (typeof g.addEventListener !== "function") return;
+  g.addEventListener("message", (ev) => {
     const d = ev.data as { type?: unknown; data?: unknown } | null;
     if (d?.type === "radica_mesh" && typeof d.data === "string") fn(d.data);
   });

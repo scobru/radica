@@ -24,6 +24,8 @@ Terms the code and its reviews use. Keep them exact.
 
 - **Nearby** (`lanMesh.ts` hellos) — signed contact cards broadcast every 15 s on the LAN while **Let people on this Wi-Fi find me** is on (per device, off by default); listed for 60 s after the last one heard. A hello proves the key, never the name: Nearby rows read "not verified".
 
+- **Terminal chat** (`ui/cli/`) — Radica's client bundled for Node with a Node `__radicaNative` (`node-bridge.ts`: file store, UDP mesh, event bus on `globalThis`). Shared code must therefore not assume `window`, `location` or a WebSocket `close` after a failed connect.
+
 ## Device storage
 
 - **Page storage** — `safeStorage`: the page's own key/value store. In Freenet's sandboxed shell it lives in memory, plus the URL hash, and a browser refresh keeps only the hash.

@@ -308,6 +308,16 @@ npm run test:app       # Freenet installer/probe + desktop mode tests
 
 ---
 
+### 7. Terminal Chat
+
+Radica's own client code (`ui/src/freenet.ts`) runs in Node as a terminal chat: DMs and Secret Chats through the local Freenet node, and over the LAN mesh (UDP 47509, Nearby) when there is none, so it talks to the desktop and Android apps nearby.
+
+```bash
+npm run chat   # builds ui/dist-cli/radica-chat.mjs and starts it; data in ~/.radica (or RADICA_HOME)
+```
+
+`/new` or `/import <seed>` to sign in (local identities only, no Viso), then `/me`, `/list`, `/open <who>`, `/secret <who>`, `/nearby`, `/visible on|off`, `/block`, `/help`.
+
 ## 🔒 Security & Privacy Model
 
 - **No Remote Telemetry**: Zero external tracking, analytics, or third-party cookies.

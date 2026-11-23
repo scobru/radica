@@ -80,6 +80,7 @@ ui/dist-app/
 ui/dist-assets/
 ui/dist-filter/
 ui/dist-litert/
+ui/dist-cli/
 ui/translation-models/
 
 # Test state artifacts for fdev verify-merge

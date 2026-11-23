@@ -434,7 +434,7 @@ class SafeStorage {
 
   private syncPersistence(): void {
     try {
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined") return this.syncNativeBridge(); // Node (the terminal chat): its only store
 
       // Only sandboxed contexts without localStorage need window.name + URL hash persistence.
       if (!this.isLocalStorageAvailable()) {
