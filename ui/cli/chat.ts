@@ -30,6 +30,7 @@ let me: UserIdentity | null = null;
 let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
 let lastList: string[] = [];
+let online = false;
 
 const say = (line: string) => {
   process.stdout.write(`\r\x1b[K${line}\n`);
@@ -82,7 +83,7 @@ async function signIn(): Promise<void> {
   }
   freenet.setIdentity(me);
   say(`Signed in as ${nameOf(me.pubkey)} (${me.pubkey.slice(0, 12)}…). Connecting to your Freenet node…`);
-  const online = await freenet.connect();
+  online = await freenet.connect();
   say(
     online
       ? "Freenet node connected."
@@ -160,7 +161,12 @@ async function command(line: string): Promise<void> {
 
 async function send(text: string): Promise<void> {
   if (!me || !open) return say("Open a conversation first: /list, then /open <number>.");
-  printMessage(open.secret ? await freenet.sendSecretChatMessage(me, open.peer, text) : await freenet.sendChatMessage(me, open.peer, text));
+  const { peer, secret } = open;
+  // shown at once: sealing waits on the peer's profile, which a slow network can take seconds to bring
+  say(`[${clock(Date.now())}] you: ${text}  (sending…)`);
+  const m = secret ? await freenet.sendSecretChatMessage(me, peer, text) : await freenet.sendChatMessage(me, peer, text);
+  shown.add(m.id);
+  say(`  sent to ${nameOf(peer)}${online ? "" : " over the local network only"}.`);
 }
 
 say(`Radica chat for the terminal. Data: ${HOME}`);
