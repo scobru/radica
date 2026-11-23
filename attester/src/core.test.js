@@ -56,13 +56,15 @@ test("receipts verify in Radica, log entries verify with the log contract's mess
 
 test("log entry message matches Radica's formatLogEntryMessage", async () => {
   const { formatLogEntryMessage } = await import("../../ui/src/crypto.ts");
-  // outside a browser Radica's appPath() is "", so compare with app ""
-  assert.equal(logEntryMessage("supporter-claims", "", "aa", "id1", 5, "{}"), formatLogEntryMessage("supporter-claims", "aa", "id1", 5, "{}"));
+  const { RADICA_APP_PATH } = await import("../../ui/src/whoiam.ts");
+  // outside a browser Radica's appPath() is the published app's path, the attester's default APP
+  assert.equal(logEntryMessage("supporter-claims", RADICA_APP_PATH, "aa", "id1", 5, "{}"), formatLogEntryMessage("supporter-claims", "aa", "id1", 5, "{}"));
 });
 
 test("v2 log entry message matches Radica's logMsg2 and log-contract entry_msg2", async () => {
   const { logMsg2 } = await import("../../ui/src/crypto.ts");
-  assert.equal(logEntryMessage2("supporter-claims", "", "aa", "id1", 5, "{}", 7), logMsg2("supporter-claims", "aa", "id1", 5, "{}", 7));
+  const { RADICA_APP_PATH } = await import("../../ui/src/whoiam.ts");
+  assert.equal(logEntryMessage2("supporter-claims", RADICA_APP_PATH, "aa", "id1", 5, "{}", 7), logMsg2("supporter-claims", "aa", "id1", 5, "{}", 7));
   // log-contract v2_vector_matches_the_ui, with params "7a"
   const m = logEntryMessage2("x", "", "ab".repeat(32), "x:1", 5, "{}", 7);
   assert.match(m, /^radica\/log\/v2\|\d+:[0-9a-f]+64:(ab){32}3:x:11:564:[0-9a-f]{64}1:7$/);
