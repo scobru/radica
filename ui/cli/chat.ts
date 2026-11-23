@@ -11,6 +11,7 @@ import { contactCardText, parseContactCard } from "../src/contactCard.ts";
 import { fromBase58 } from "../src/base58.ts";
 import { maskProfanity } from "../src/moderation.ts";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
+import { startTui, type TuiState } from "./tui.ts";
 
 const HELP = `Commands:
   /me                      your key, contact card and QR code
@@ -21,21 +22,43 @@ const HELP = `Commands:
   /secret <who>            open a Secret Chat
   /nearby                  Radica users on this Wi-Fi
   /visible on|off          let people on this Wi-Fi find you
+  /clear                   empty the open conversation (on your devices; theirs keep it)
+  /delete                  remove the open conversation from your list
   /block                   block the person in the open conversation
   /help, /quit
 Anything else is sent to the open conversation.`;
 
-const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
+// full screen in a real terminal; line by line when piped (scripts, tests) or with RADICA_PLAIN=1
+const fullScreen = !!process.stdin.isTTY && !!process.stdout.isTTY && !process.env.RADICA_PLAIN;
+const rl = fullScreen ? null : createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
 let me: UserIdentity | null = null;
 let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
 let lastList: string[] = [];
 let online = false;
 
+const view: TuiState = { header: "Radica", convs: [], open: -1, lines: [], panel: null, status: "" };
+let convs: { pk: string; secret: boolean }[] = [];
+const tui = fullScreen
+  ? startTui(view, {
+      submit: (t) => void run(t),
+      openAt: (i) => void command(`/${convs[i].secret ? "secret" : "open"} ${convs[i].pk}`).catch(fail),
+      deleteAt: (i) => void removeConversation(convs[i].pk, convs[i].secret).catch(fail),
+      quit: () => void quit(),
+    })
+  : null;
+
 const say = (line: string) => {
+  if (tui) {
+    // one line: the status bar; more (help, /me): the right pane until Esc
+    if (line.includes("\n")) view.panel = line;
+    else view.status = line;
+    return tui.render();
+  }
   process.stdout.write(`\r\x1b[K${line}\n`);
-  rl.prompt(true);
+  rl!.prompt(true);
 };
+const fail = (e: unknown) => say(`Error: ${(e as Error)?.message ?? e}`);
 const nameOf = (pk: string): string =>
   pk === me?.pubkey ? "you" : freenet.knownPeers[pk]?.display_name || freenet.contactCard(pk)?.name || personaName(pk).slice(0, 14);
 const clock = (ts: number) => new Date(ts).toTimeString().slice(0, 5);
@@ -47,15 +70,49 @@ async function messagesOf(peer: string, secret: boolean): Promise<ChatMessage[]>
   return list.filter((m) => !blocked.has(m.sender)).sort((a, z) => a.timestamp - z.timestamp);
 }
 
+// the app masks bad words by default (caption.ts); so does the terminal
+const formatted = (m: ChatMessage) => `[${clock(m.timestamp)}] ${nameOf(m.sender)}: ${maskProfanity(m.text)}${m.via_lan ? "  (local network)" : ""}`;
+
 function printMessage(m: ChatMessage): void {
   if (shown.has(m.id)) return;
   shown.add(m.id);
-  // the app masks bad words by default (caption.ts); so does the terminal
-  say(`[${clock(m.timestamp)}] ${nameOf(m.sender)}: ${maskProfanity(m.text)}${m.via_lan ? "  (local network)" : ""}`);
+  if (!tui) say(formatted(m));
 }
 
 async function showOpen(): Promise<void> {
-  if (open) for (const m of await messagesOf(open.peer, open.secret)) printMessage(m);
+  if (!open) return;
+  const list = await messagesOf(open.peer, open.secret);
+  if (!tui) return list.forEach(printMessage);
+  view.lines = list.map(formatted);
+  tui.render();
+}
+
+/** The conversation list as the left pane shows it. */
+function refreshConvs(): void {
+  if (!me || !tui) return;
+  // a DM and a Secret Chat with the same person are two conversations, as in the app
+  convs = [
+    ...freenet.getSecretChatPeers(me.pubkey).map((pk) => ({ pk, secret: true })),
+    ...freenet.getChatPeers(me.pubkey).map((pk) => ({ pk, secret: false })),
+  ];
+  view.convs = convs.map((c) => ({ label: nameOf(c.pk), secret: c.secret }));
+  view.open = open ? convs.findIndex((c) => c.pk === open!.peer && c.secret === open!.secret) : -1;
+  view.header = `Radica · ${me ? nameOf(me.pubkey) === "you" ? `${me.pubkey.slice(0, 10)}…` : nameOf(me.pubkey) : ""} · ${online ? "Freenet connected" : lanMeshUp() ? "local network only" : "offline"}${open ? ` · ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(open.peer)}` : ""}`;
+  tui.render();
+}
+
+const roomOf = (peer: string, secret: boolean) => (secret ? freenet.getSecretRoomId(me!.pubkey, peer) : [me!.pubkey, peer].sort().join(":"));
+
+/** As the app's "Remove from recent chats": gone from my list until they write again. */
+async function removeConversation(peer: string, secret: boolean): Promise<void> {
+  if (secret) freenet.removeSecretChatPeer(me!.pubkey, peer);
+  else freenet.removeChatPeer(me!.pubkey, peer);
+  if (open?.peer === peer && open.secret === secret) {
+    open = null;
+    view.lines = [];
+  }
+  say(`Removed ${secret ? "the Secret Chat with " : ""}${nameOf(peer)} from your list.`);
+  refreshConvs();
 }
 
 /** A person from what was typed: a /list number, a contact card, a key, or an @handle. */
@@ -134,7 +191,10 @@ async function command(line: string): Promise<void> {
       if (freenet.blockedBy(me!.pubkey).has(peer)) return say("You blocked this person.");
       open = { peer, secret: cmd === "/secret" };
       shown.clear();
+      view.lines = [];
+      view.panel = null;
       say(`— ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(peer)} —`);
+      refreshConvs();
       return showOpen();
     }
     case "/nearby": {
@@ -150,6 +210,18 @@ async function command(line: string): Promise<void> {
       if (rest[0] !== "on" && rest[0] !== "off") return say(`Visible on this Wi-Fi: ${freenet.isNearbyVisible() ? "on" : "off"}. /visible on|off`);
       freenet.setNearbyVisible(rest[0] === "on");
       return say(rest[0] === "on" ? "Visible: everyone on this network can see you use Radica." : "Hidden from people nearby.");
+    }
+    case "/clear": {
+      if (!open) return say("Open a conversation first.");
+      await freenet.clearChatRoom(roomOf(open.peer, open.secret));
+      shown.clear();
+      view.lines = [];
+      say(`Emptied the conversation with ${nameOf(open.peer)} (on your devices; theirs keep it).`);
+      return showOpen();
+    }
+    case "/delete": {
+      if (!open) return say("Open a conversation first.");
+      return removeConversation(open.peer, open.secret);
     }
     case "/block": {
       if (!open) return say("Open a conversation first.");
@@ -167,13 +239,23 @@ async function send(text: string): Promise<void> {
   if (!me || !open) return say("Open a conversation first: /list, then /open <number>.");
   const { peer, secret } = open;
   // shown at once: sealing waits on the peer's profile, which a slow network can take seconds to bring
-  say(`[${clock(Date.now())}] you: ${text}  (sending…)`);
+  const pending = `[${clock(Date.now())}] you: ${text}  (sending…)`;
+  if (tui) view.lines = [...view.lines, pending];
+  say(tui ? "Sending…" : pending);
   const m = secret ? await freenet.sendSecretChatMessage(me, peer, text) : await freenet.sendChatMessage(me, peer, text);
   shown.add(m.id);
-  say(`  sent to ${nameOf(peer)}${online ? "" : " over the local network only"}.`);
+  say(`${tui ? "Sent" : "  sent"} to ${nameOf(peer)}${online ? "" : " over the local network only"}.`);
+  await showOpen();
+}
+
+/** A typed line: a command or a message to the open conversation. */
+async function run(t: string): Promise<void> {
+  await (t.startsWith("/") ? command(t) : send(t)).catch(fail);
+  refreshConvs();
 }
 
 async function quit(): Promise<never> {
+  if (tui) process.stdout.write("\x1b[?25h\x1b[?1049l");
   const profile = await shutdown();
   if (profile) process.stdout.write(`\n${profile}\n`);
   process.exit(0);
@@ -181,13 +263,20 @@ async function quit(): Promise<never> {
 
 say(`Radica chat for the terminal. Data: ${HOME}`);
 await signIn();
-freenet.onSyncUpdate(() => void showOpen().catch(() => {}));
+const refresh = () => {
+  refreshConvs();
+  void showOpen().catch(() => {});
+};
+freenet.onSyncUpdate(refresh);
 // the inbox is fetched on each read; a slow poll keeps the open conversation fresh between pushes
-setInterval(() => void showOpen().catch(() => {}), 5000);
-rl.prompt();
-rl.on("line", (line) => {
-  const t = line.trim();
-  if (!t) return rl.prompt();
-  (t.startsWith("/") ? command(t) : send(t)).catch((e) => say(`Error: ${(e as Error).message ?? e}`)).finally(() => rl.prompt());
-});
-rl.on("close", () => void quit());
+setInterval(refresh, 5000);
+refreshConvs();
+if (rl) {
+  rl.prompt();
+  rl.on("line", (line) => {
+    const t = line.trim();
+    if (!t) return rl.prompt();
+    void run(t).finally(() => rl.prompt());
+  });
+  rl.on("close", () => void quit());
+}
