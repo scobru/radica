@@ -63,6 +63,9 @@ public class MainActivity extends Activity {
     private static final String VISO_PREFIX_LOCALHOST = "http://localhost:7509/v1/contract/web/" + VISO_KEY + "/";
     private static final String RADICA = RADICA_PREFIX_LOOPBACK;
     private static final int MAX_STORAGE_BYTES = 8 * 1024 * 1024;
+    /** Radica web shipped in the APK (build.gradle.kts copies ui/dist into assets/radica-ui), opened when no node
+     *  answers so the chat still works over the local network. https: WebCrypto needs a secure context. */
+    private static final String BUNDLED = "https://radica.local/";
     private static final String NODE_APP = "org.freenet.androidnode";
     private static final String NODE_APP_RELEASES = "https://github.com/HostFat/freenet-android-node/releases/latest";
     private static final int PICK_FILES = 1;
@@ -285,13 +288,15 @@ public class MainActivity extends Activity {
                         + "<li>Open it and press <b>Start network node</b>.</li>"
                         + "<li>Come back here: " + title + " opens by itself.</li></ol>"
                         + "<a class=b href=\"radica://install\">Get Freenet Android Node</a>"
-                        + "<a class=l href=\"radica://retry\">Check again</a>";
+                        + "<a class=l href=\"radica://retry\">Check again</a>"
+                        + offlineLink();
                 break;
             case STOPPED:
                 body = "<p>Freenet Android Node is installed, but its node is not running.</p>"
                         + "<p>Open it and press <b>Start network node</b>, then come back: " + title + " opens by itself.</p>"
                         + "<a class=b href=\"radica://node\">Open Freenet Android Node</a>"
-                        + "<a class=l href=\"radica://retry\">Check again</a>";
+                        + "<a class=l href=\"radica://retry\">Check again</a>"
+                        + offlineLink();
                 break;
             default:
                 body = "<p>Looking for your Freenet node…</p>";
@@ -306,6 +311,52 @@ public class MainActivity extends Activity {
                 + "a.b{border-radius:999px;padding:12px 20px;background:var(--accent);color:#fff}a.l{color:var(--muted)}</style>"
                 + "<main><h1>" + title + "</h1>" + body + "</main>";
         web.loadDataWithBaseURL("radica://status", html, "text/html", "utf-8", null);
+    }
+
+    private boolean hasBundledUi() {
+        try (InputStream in = getAssets().open("radica-ui/index.html")) {
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String offlineLink() {
+        return hasBundledUi()
+                ? "<a class=l href=\"radica://offline\">Open without Freenet (chat with people on this Wi-Fi only)</a>"
+                : "";
+    }
+
+    /** A file of the Radica web in the APK, for a request under BUNDLED. */
+    private WebResourceResponse bundledAsset(Uri uri) {
+        String path = uri.getPath() == null || uri.getPath().equals("/") ? "index.html" : uri.getPath().substring(1);
+        if (path.contains("..")) return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
+        try {
+            return new WebResourceResponse(mimeOf(path), null, getAssets().open("radica-ui/" + path));
+        } catch (Exception e) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
+        }
+    }
+
+    private static String mimeOf(String path) {
+        String ext = path.substring(path.lastIndexOf('.') + 1).toLowerCase(java.util.Locale.ROOT);
+        switch (ext) {
+            case "html": return "text/html";
+            case "js": case "mjs": return "text/javascript";
+            case "css": return "text/css";
+            case "json": case "webmanifest": return "application/json";
+            case "wasm": return "application/wasm";
+            case "svg": return "image/svg+xml";
+            case "png": return "image/png";
+            case "jpg": case "jpeg": return "image/jpeg";
+            case "gif": return "image/gif";
+            case "webp": return "image/webp";
+            case "mp3": return "audio/mpeg";
+            case "ogg": return "audio/ogg";
+            case "wav": return "audio/wav";
+            case "woff2": return "font/woff2";
+            default: return "application/octet-stream";
+        }
     }
 
     private void openOutside(Uri uri) {
@@ -323,6 +374,7 @@ public class MainActivity extends Activity {
 
     private static boolean isRadicaUrl(String url) {
         if (url == null) return false;
+        if (url.startsWith(BUNDLED)) return true;
         String base1 = "http://127.0.0.1:7509/v1/contract/web/" + RADICA_KEY;
         String base2 = "http://localhost:7509/v1/contract/web/" + RADICA_KEY;
         return url.startsWith(base1 + "/") || url.equals(base1) || url.startsWith(base1 + "?") || url.startsWith(base1 + "#")
@@ -788,6 +840,7 @@ public class MainActivity extends Activity {
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
             Uri uri = req.getUrl();
             String url = uri != null ? uri.toString() : "";
+            if (url.startsWith(BUNDLED)) return bundledAsset(uri);
             if (isSubframeDocumentRequest(req) && !isAllowedSubframeUrl(url)) {
                 if (isAllowedInAppUrl(url)) {
                     main.post(() -> {
@@ -823,6 +876,13 @@ public class MainActivity extends Activity {
                     case "node":
                         Intent launch = getPackageManager().getLaunchIntentForPackage(NODE_APP);
                         if (launch != null) startActivity(launch);
+                        break;
+                    case "offline":
+                        // stays offline until the app is reopened: the node turning up must not reload the chat
+                        opened = true;
+                        main.removeCallbacks(check);
+                        currentTopUrl = BUNDLED + "index.html";
+                        web.loadUrl(currentTopUrl);
                         break;
                     default:
                         shown = null;

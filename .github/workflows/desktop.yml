@@ -30,6 +30,11 @@ jobs:
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: node -e "const v='v'+require('./package.json').version; if(process.env.TAG_NAME!==v){console.error('Tag '+process.env.TAG_NAME+' does not match '+v); process.exit(1);}"
+      # Radica web goes inside the app (offline mode: build.rs / build.gradle.kts embed ui/dist)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix ui && npm --prefix ui run build
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -95,6 +100,11 @@ jobs:
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: node -e "const v='v'+require('./package.json').version; if(process.env.TAG_NAME!==v){console.error('Tag '+process.env.TAG_NAME+' does not match '+v); process.exit(1);}"
+      # Radica web goes inside the app (offline mode: build.rs / build.gradle.kts embed ui/dist)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix ui && npm --prefix ui run build
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

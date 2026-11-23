@@ -20,6 +20,8 @@ Terms the code and its reviews use. Keep them exact.
 
 - **Contact card** (`ui/src/contactCard.ts`) — `radica:c1:<pubkey>:<enc_pub>:<name>`, handed over in person. Saved per persona in `radica_contact_cards_<me>` (durable). Used only when no valid signed profile is cached: the profile's `enc_pub` always wins. Unsigned on purpose: the trust is the in-person exchange. Shown and scanned as a QR code (`uqr` / `jsqr`, loaded on demand).
 
+- **Bundled Radica** — the Radica web inside the desktop binary (`build.rs`, `radica` protocol: `https://radica.localhost/` on Windows, `radica://localhost/` elsewhere) and the APK (`assets/radica-ui`, `https://radica.local/`), without its heavy containers. Opened only on **Open without Freenet**; same native storage blob, so the same identity and chats. It still tries `127.0.0.1:7509`, so offline it runs as Local-First Storage plus the LAN mesh.
+
 ## Device storage
 
 - **Page storage** — `safeStorage`: the page's own key/value store. In Freenet's sandboxed shell it lives in memory, plus the URL hash, and a browser refresh keeps only the hash.

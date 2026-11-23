@@ -12,9 +12,9 @@
     "semantic_hash": ""
   },
   "ui/package.json": {
-    "mtime": 1795041304.5761268,
-    "seen": 1795460206.9290001,
-    "ast_hash": "4cfc8b480f2a115e631a99c7d4f66491",
+    "mtime": 1795461374.1993012,
+    "seen": 1795461475.635723,
+    "ast_hash": "182c85b45b01eb618e7d827c15a135cb",
     "semantic_hash": ""
   },
   "ui/src/crypto.ts": {
@@ -24,8 +24,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795460713.0247626,
-    "seen": 1795460772.9009488,
+    "mtime": 1795460783.8403935,
+    "seen": 1795461475.636365,
     "ast_hash": "c49e810293840ed96bdcb5c298fbcb11",
     "semantic_hash": ""
   },
@@ -84,21 +84,21 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795460753.8700414,
-    "seen": 1795460772.9035501,
-    "ast_hash": "9d2e749226a6866109a638cdff3d782d",
+    "mtime": 1795461423.1260242,
+    "seen": 1795461475.6388845,
+    "ast_hash": "665770398f68a78e481db1890c54c408",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795460753.8709044,
-    "seen": 1795460772.9035692,
-    "ast_hash": "2a81b3312e3acb06675386fae6b6d0f9",
+    "mtime": 1795461423.1265872,
+    "seen": 1795461475.6389015,
+    "ast_hash": "2042bbafbefb77c41dce8fb18442e484",
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795460753.8683884,
-    "seen": 1795460772.903923,
-    "ast_hash": "1c7c60422bb17861de24b40ac0cfe44a",
+    "mtime": 1795461423.1248617,
+    "seen": 1795461475.6392162,
+    "ast_hash": "7f11b498698eec8351bbd8b03f1fca73",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795460753.865078,
-    "seen": 1795460772.901987,
-    "ast_hash": "d1c13ac761650534e7a8ce34287008ad",
+    "mtime": 1795461423.1227424,
+    "seen": 1795461475.6373343,
+    "ast_hash": "e10a64c31f0c2d304e623ba42976f55f",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795460722.9830632,
-    "seen": 1795460772.9012837,
-    "ast_hash": "ade915b3c989766c0e2627af1ddd9e91",
+    "mtime": 1795461403.9748583,
+    "seen": 1795461475.6366904,
+    "ast_hash": "478c84c34d0d3c3e950965a611e83495",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "ui/src/durable.ts": {
-    "mtime": 1795460709.4263732,
-    "seen": 1795460772.900816,
+    "mtime": 1795460783.8402586,
+    "seen": 1795461475.636199,
     "ast_hash": "6b7c97cfcccc263816581e94fc258188",
     "semantic_hash": ""
   },
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1795460753.8715389,
-    "seen": 1795460772.9035523,
-    "ast_hash": "bca30e93f30aa10c3e5224abf4a999e7",
+    "mtime": 1795461423.1269228,
+    "seen": 1795461475.6388862,
+    "ast_hash": "3cb1ff5797e871a96d9754ee0c708900",
     "semantic_hash": ""
   },
   "ui/public/icon-192.png": {
@@ -2064,15 +2064,15 @@
     "semantic_hash": ""
   },
   "ui/src/contactCard.ts": {
-    "mtime": 1795460702.0363655,
-    "seen": 1795460772.9007146,
-    "ast_hash": "c06668dfbd9a89e359c3b667f161690f",
+    "mtime": 1795461389.7873018,
+    "seen": 1795461475.6361217,
+    "ast_hash": "8168127294afae711aea1f571b8e341f",
     "semantic_hash": ""
   },
   "ui/tests/contactCard.test.ts": {
-    "mtime": 1795460730.476196,
-    "seen": 1795460772.9023404,
-    "ast_hash": "8cc3abc4e7c574a23ed8679e040aaf07",
+    "mtime": 1795461413.8393025,
+    "seen": 1795461475.6377158,
+    "ast_hash": "f49a48b3e7684c21a603f45ca9d0d13e",
     "semantic_hash": ""
   },
   "attester/package-lock.json": {
@@ -2106,9 +2106,9 @@
     "semantic_hash": ""
   },
   "ui/package-lock.json": {
-    "mtime": 1795041304.5761268,
-    "seen": 1795460206.929236,
-    "ast_hash": "0b0bf5b8a972b2ab6b037db9ba3c8c23",
+    "mtime": 1795461374.2113013,
+    "seen": 1795461475.6399462,
+    "ast_hash": "6117b10e265a4195dca375d81469d793",
     "semantic_hash": ""
   }
 }
