@@ -22,6 +22,44 @@ const RADICA_WEB_URL: &str =
     "http://127.0.0.1:7509/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/";
 const MAX_STORAGE_BYTES: usize = 8 * 1024 * 1024;
 
+/// Radica web built into this binary (`build.rs`), opened when the user asks to go on without a node: chat over the
+/// local network still works. Windows serves custom protocols as `https://<name>.localhost`, the others as `<name>://`;
+/// either way a secure context, which WebCrypto needs.
+mod bundled {
+    include!(concat!(env!("OUT_DIR"), "/bundled_ui.rs"));
+}
+#[cfg(windows)]
+const BUNDLED_ORIGIN: &str = "https://radica.localhost/";
+#[cfg(not(windows))]
+const BUNDLED_ORIGIN: &str = "radica://localhost/";
+
+/// The response for `path` under the `radica` protocol: a bundled file, or 404.
+fn bundled_response(path: &str) -> wry::http::Response<std::borrow::Cow<'static, [u8]>> {
+    let path = path.trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+    let found = bundled::FILES.iter().find(|(p, _)| *p == path);
+    let mime = match path.rsplit('.').next().unwrap_or("") {
+        "html" => "text/html",
+        "js" | "mjs" => "text/javascript",
+        "css" => "text/css",
+        "json" | "webmanifest" => "application/json",
+        "wasm" => "application/wasm",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "mp3" => "audio/mpeg",
+        "ogg" => "audio/ogg",
+        "wav" => "audio/wav",
+        "woff2" => "font/woff2",
+        _ => "application/octet-stream",
+    };
+    let builder = wry::http::Response::builder();
+    match found {
+        Some((_, bytes)) => builder.header("Content-Type", mime).body(std::borrow::Cow::Borrowed(*bytes)),
+        None => builder.status(404).body(std::borrow::Cow::Borrowed(&[][..])),
+    }
+    .unwrap()
+}
+
 fn is_contract_prefix(url: &str, key: &str) -> bool {
     let loopback = format!("http://127.0.0.1:7509/v1/contract/web/{key}");
     let localhost = format!("http://localhost:7509/v1/contract/web/{key}");
@@ -34,7 +72,7 @@ fn is_contract_prefix(url: &str, key: &str) -> bool {
 }
 
 fn is_radica_url(url: &str) -> bool {
-    is_contract_prefix(url, RADICA_KEY)
+    is_contract_prefix(url, RADICA_KEY) || url.starts_with(BUNDLED_ORIGIN)
 }
 
 fn is_allowed_nav(url: &str) -> bool {
@@ -49,6 +87,7 @@ enum Ui {
     Failed(String),
     Open,
     Retry,
+    Offline,
     VoiceEvent(crate::audio::VoiceEvent),
     Mesh(String),
 }
@@ -63,9 +102,10 @@ h1{font:600 28px Georgia,serif;margin:0 0 12px}
 p{color:var(--muted);margin:0 0 16px;white-space:pre-wrap}
 button{display:none;border:0;border-radius:999px;padding:8px 20px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
 .failed button{display:inline-block}.failed p{color:var(--fg)}
+button.off{display:inline-block;background:none;color:var(--muted);margin-top:8px}
 </style>
 <main><h1>Radica</h1><p id="s">Looking for your Freenet node…</p>
-<button onclick="window.ipc.postMessage('retry')">Try again</button></main>
+<button onclick="window.ipc.postMessage('retry')">Try again</button><br>OFFLINE_BUTTON</main>
 <script>
 function setStatus(t,failed){document.getElementById('s').textContent=t;document.body.className=failed?'failed':''}
 </script>"#;
@@ -107,7 +147,12 @@ impl AppMode {
 }
 
 fn loading_html(mode: AppMode) -> String {
-    LOADING.replace("Radica", mode.title())
+    let offline = if bundled::FILES.is_empty() {
+        ""
+    } else {
+        r#"<button class="off" onclick="window.ipc.postMessage('offline')">Open without Freenet (chat with people on this Wi-Fi only)</button>"#
+    };
+    LOADING.replace("Radica", mode.title()).replace("OFFLINE_BUTTON", offline)
 }
 
 /// The web opens profiles, docs and other Freenet apps with `window.open`, and navigates itself away when that returns
@@ -131,7 +176,7 @@ const OPEN_IN_BROWSER: &str = r#"window.open = function (url) {
 fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
     format!(
         r#"(function() {{
-  if (!/^http:\/\/(?:127\.0\.0\.1|localhost):7509\/v1\/contract\/web\/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw(?:[/?#]|$)/.test(String(location.href || ""))) return;
+  if (!/^(?:http:\/\/(?:127\.0\.0\.1|localhost):7509\/v1\/contract\/web\/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw(?:[/?#]|$)|https:\/\/radica\.localhost\/|radica:\/\/localhost\/)/.test(String(location.href || ""))) return;
   function sendIpc(msg) {{
     try {{
       if (window === window.top && window.ipc) {{
@@ -396,6 +441,7 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
             .map(|d| d.data_local_dir().join(mode.webview_dir_name())),
     );
     let retry = event_loop.create_proxy();
+    let offline_proxy = event_loop.create_proxy();
     let voice_proxy = event_loop.create_proxy();
     let voice_ctrl = Arc::new(crate::audio::NativeVoiceController::new());
     let voice_ctrl_ipc = Arc::clone(&voice_ctrl);
@@ -412,6 +458,7 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
         .with_html(loading_html(mode))
         .with_initialization_script_for_main_only(OPEN_IN_BROWSER, false)
         .with_initialization_script_for_main_only(&native_storage_script(&initial_storage_blob, mode), false)
+        .with_custom_protocol("radica".into(), |_, req| bundled_response(req.uri().path()))
         .with_navigation_handler(|url| {
             if is_allowed_nav(&url) {
                 true
@@ -426,6 +473,11 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
                 Some(url) => {
                     if is_radica_url(&origin_uri) {
                         open_external(url);
+                    }
+                }
+                None if req.body() == "offline" => {
+                    if !radica_opened_ipc.load(Ordering::Relaxed) {
+                        let _ = offline_proxy.send_event(Ui::Offline);
                     }
                 }
                 None if req.body() == "retry" => {
@@ -471,6 +523,12 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
             open_external(&url);
             NewWindowResponse::Deny
         });
+    // BUNDLED_ORIGIN on Windows: https, so the bundled page is a secure context
+    #[cfg(target_os = "windows")]
+    let builder = {
+        use wry::WebViewBuilderExtWindows;
+        builder.with_https_scheme(true)
+    };
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     let webview = builder.build(&window)?;
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -482,6 +540,8 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
 
     spawn_bring_up(event_loop.create_proxy());
     let proxy = event_loop.create_proxy();
+    // once the user goes on without a node, the node turning up later must not reload the chat under them
+    let mut offline = false;
     event_loop.run(move |event, _, flow| {
         *flow = ControlFlow::Wait;
         let status = |text: &str, failed: bool| {
@@ -491,6 +551,12 @@ pub fn run_with_mode(mode: AppMode) -> wry::Result<()> {
         match event {
             Event::UserEvent(Ui::Status(s)) => status(&s, false),
             Event::UserEvent(Ui::Failed(e)) => status(&e, true),
+            Event::UserEvent(Ui::Open) if offline => {}
+            Event::UserEvent(Ui::Offline) => {
+                offline = true;
+                radica_opened.store(true, Ordering::Relaxed);
+                let _ = webview.load_url(&format!("{BUNDLED_ORIGIN}index.html"));
+            }
             Event::UserEvent(Ui::Open) => {
                 radica_opened.store(true, Ordering::Relaxed);
                 let _ = webview.load_url(RADICA_WEB_URL);
@@ -548,6 +614,20 @@ mod tests {
         assert!(is_safe_external_url("spore:radio:123"));
         assert!(!is_safe_external_url("https://freenet.org/\nevil"));
         assert!(!is_safe_external_url("file:///etc/passwd"));
+    }
+
+    #[test]
+    fn bundled_ui_is_served_and_unknown_paths_are_404() {
+        if bundled::FILES.is_empty() {
+            return; // no ui/dist was built: the app has no offline mode, nothing to serve
+        }
+        let index = bundled_response("/");
+        assert_eq!(index.status(), 200);
+        assert_eq!(index.headers()["Content-Type"], "text/html");
+        assert!(!bundled::FILES.iter().any(|(p, _)| p.starts_with("moderation/")));
+        assert_eq!(bundled_response("/nope.js").status(), 404);
+        assert!(is_radica_url(&format!("{BUNDLED_ORIGIN}index.html")));
+        assert!(loading_html(AppMode::Messenger).contains("postMessage('offline')"));
     }
 
     #[test]

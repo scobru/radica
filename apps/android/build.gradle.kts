@@ -40,3 +40,14 @@ android {
         }
     }
 }
+
+// Radica web inside the APK (MainActivity's BUNDLED): opened when no Freenet node answers, so chat over the local network
+// still works. Only the app itself: the image filter, translation engine and GIFs (~58 MB) stay in their Freenet
+// containers. Build the UI first (npm --prefix ui run build); without ui/dist the APK simply has no offline mode.
+val bundledUi = layout.buildDirectory.dir("generated/radica-ui-assets")
+val copyRadicaUi by tasks.registering(Sync::class) {
+    from(rootDir.resolve("../../ui/dist")) { exclude("moderation/**", "gifs/**", "translate/**") }
+    into(bundledUi.map { it.dir("radica-ui") })
+}
+android.sourceSets["main"].assets.srcDir(bundledUi)
+tasks.named("preBuild") { dependsOn(copyRadicaUi) }
