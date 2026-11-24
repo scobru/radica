@@ -2207,6 +2207,7 @@ export class FreenetClient {
   }
 
   private async profileNamesOtherKey(pubkey: string): Promise<boolean> {
+    await this.refresh(pubkey); // a store that never saw this feed (the terminal chat's first run) has no profile yet
     const pr = (await this.getFeed(pubkey)).profile;
     return !!pr?.enc_pub && pr.enc_pub !== pubkey && /^[0-9a-f]{64}$/.test(pr.enc_pub) && (await this.profileSigOk(pubkey, pr));
   }
@@ -2236,7 +2237,7 @@ export class FreenetClient {
   }
 
   /** Publish this device's key once, so the messages sent to me reach it too. A local key is the same on every device. */
-  private async announceDevice(identity: UserIdentity): Promise<void> {
+  public async announceDevice(identity: UserIdentity): Promise<void> {
     // a local key is the same on every device, unless the profile names another one (this persona also signs in with Viso):
     // then this device must say it reads with the persona key too, or senders seal to the profile's key only
     if (identity.encPub === identity.pubkey && !(await this.profileNamesOtherKey(identity.pubkey))) return;

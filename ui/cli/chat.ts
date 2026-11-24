@@ -184,8 +184,9 @@ async function signIn(): Promise<void> {
       : `No Freenet node at 127.0.0.1:7509: ${lanMeshUp() ? "chatting over the local network only." : "local network unavailable too."}`
   );
   if (online) {
-    // as the app does on sign-in: my profile names this device's key, the one people seal their messages to
-    void freenet.syncOwnFeed(me).catch(() => {});
+    // say which key this device reads with, so senders seal to it too; the profile and feed are not touched (the app owns them:
+    // syncOwnFeed would re-sign and push them from this store, which has no avatar, bio or posts of its own)
+    void freenet.announceDevice(me).catch(() => {});
     // no announceIdentity: the directory (Explore's phone book) is not loaded yet at start, so it would grind a 20-bit
     // proof of work on the main thread (no Worker in Node) and append a duplicate hello on every run; chat needs neither
   }
