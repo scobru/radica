@@ -558,20 +558,20 @@ export class FreenetClient {
       await this.net.connect();
       this.isConnected = true;
       void this.refreshLog("handles", true);
-      if (opts?.chatOnly) return true;
-      void this.refreshLog("directory", true); // learn who else is on the network, and publish my own entry
-      void this.refreshLog("supporters", true);
-      void this.refreshLog("ghostkeys", true);
-      void this.refreshLog("poh", true);
-      void this.refreshLog("delegations", true);
-      void this.refreshLog("supporter-receipts", true);
-      void this.refreshLog("post-edits", true);
+      if (!opts?.chatOnly) void this.connectSocial();
     } catch (err) {
       console.warn("[Freenet] Could not connect to the Freenet node, using local storage only:", err);
       this.isConnected = false;
       this.connectError = String((err as Error)?.message ?? err);
     }
     return this.isConnected;
+  }
+
+  /** The social logs the feed needs and chat does not (the terminal chat loads them when a feed is opened). */
+  public connectSocial(): Promise<unknown> {
+    return Promise.allSettled(
+      ["directory", "supporters", "ghostkeys", "poh", "delegations", "supporter-receipts", "post-edits"].map((l) => this.refreshLog(l, true)) // directory: learn who else is on the network, and publish my own entry
+    );
   }
 
   /** Fetch a feed from the network into the local cache (at most once a minute unless `force`). */
