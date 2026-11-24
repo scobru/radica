@@ -11,7 +11,7 @@ import { contactCardText, parseContactCard } from "../src/contactCard.ts";
 import { fromBase58 } from "../src/base58.ts";
 import { maskProfanity } from "../src/moderation.ts";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
-import { startTui, type TuiState } from "./tui.ts";
+import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
 
 const HELP = `Commands:
   /me                      your key, contact card and QR code
@@ -73,6 +73,14 @@ async function messagesOf(peer: string, secret: boolean): Promise<ChatMessage[]>
 // the app masks bad words by default (caption.ts); so does the terminal
 const formatted = (m: ChatMessage) => `[${clock(m.timestamp)}] ${nameOf(m.sender)}: ${maskProfanity(m.text)}${m.via_lan ? "  (local network)" : ""}`;
 
+const toMsg = (m: ChatMessage): TuiMsg => ({
+  time: clock(m.timestamp),
+  who: nameOf(m.sender),
+  mine: m.sender === me?.pubkey,
+  text: maskProfanity(m.text),
+  note: m.via_lan ? "local network" : undefined,
+});
+
 function printMessage(m: ChatMessage): void {
   if (shown.has(m.id)) return;
   shown.add(m.id);
@@ -83,22 +91,22 @@ async function showOpen(): Promise<void> {
   if (!open) return;
   const list = await messagesOf(open.peer, open.secret);
   if (!tui) return list.forEach(printMessage);
-  view.lines = list.map(formatted);
+  view.lines = list.map(toMsg);
   tui.render();
 }
 
 /** The conversation list as the left pane shows it. */
 function refreshConvs(): void {
   if (!me || !tui) return;
-  // one row per person, by name so the list stays put: Enter opens the DM, or the Secret Chat when that is all there is
-  // (🔒 marks one; /secret opens it); the peer lists can repeat a key
-  const secret = new Set(freenet.getSecretChatPeers(me.pubkey));
-  const dm = new Set(freenet.getChatPeers(me.pubkey));
-  convs = [...new Set([...dm, ...secret])]
-    .map((pk) => ({ pk, secret: !dm.has(pk) }))
-    .sort((a, z) => nameOf(a.pk).localeCompare(nameOf(z.pk)));
-  view.convs = convs.map((c) => ({ key: c.pk, label: nameOf(c.pk), secret: secret.has(c.pk) }));
-  view.open = open ? convs.findIndex((c) => c.pk === open!.peer) : -1;
+  // one row per (person, kind): a DM and a Secret Chat with the same person are separate rows (🔒 marks the secret one)
+  convs = [
+    ...freenet.getChatPeers(me.pubkey).map((pk) => ({ pk, secret: false })),
+    ...freenet.getSecretChatPeers(me.pubkey).map((pk) => ({ pk, secret: true })),
+  ]
+    .filter((c, i, all) => all.findIndex((d) => d.pk === c.pk && d.secret === c.secret) === i)
+    .sort((a, z) => nameOf(a.pk).localeCompare(nameOf(z.pk)) || Number(a.secret) - Number(z.secret));
+  view.convs = convs.map((c) => ({ key: `${c.pk}:${c.secret}`, label: nameOf(c.pk), secret: c.secret }));
+  view.open = open ? convs.findIndex((c) => c.pk === open!.peer && c.secret === open!.secret) : -1;
   view.header = `Radica · ${me ? nameOf(me.pubkey) === "you" ? `${me.pubkey.slice(0, 10)}…` : nameOf(me.pubkey) : ""} · ${online ? "Freenet connected" : lanMeshUp() ? "local network only" : "offline"}${open ? ` · ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(open.peer)}` : ""}`;
   tui.render();
 }
@@ -242,7 +250,7 @@ async function send(text: string): Promise<void> {
   const { peer, secret } = open;
   // shown at once: sealing waits on the peer's profile, which a slow network can take seconds to bring
   const pending = `[${clock(Date.now())}] you: ${text}  (sending…)`;
-  if (tui) view.lines = [...view.lines, pending];
+  if (tui) view.lines = [...view.lines, { time: clock(Date.now()), who: "you", mine: true, text, note: "sending…" }];
   say(tui ? "Sending…" : pending);
   const m = secret ? await freenet.sendSecretChatMessage(me, peer, text) : await freenet.sendChatMessage(me, peer, text);
   shown.add(m.id);
