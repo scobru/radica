@@ -10,6 +10,7 @@ import { safeStorage } from "../src/storage.ts";
 import { contactCardText, parseContactCard } from "../src/contactCard.ts";
 import { fromBase58 } from "../src/base58.ts";
 import { maskProfanity } from "../src/moderation.ts";
+import { UNREADABLE } from "../src/secretChatTransport.ts";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
 import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
 
@@ -81,6 +82,29 @@ const toMsg = (m: ChatMessage): TuiMsg => ({
   note: m.via_lan ? "local network" : undefined,
 });
 
+const UNREAD_TEXT = "Secret Chat not readable here (opened on another device, or its key was already used)";
+
+/** The open conversation for the screen: a run of unreadable messages from one person becomes one row with a count. */
+function toMsgs(list: ChatMessage[]): TuiMsg[] {
+  const out: TuiMsg[] = [];
+  let run = 0;
+  for (const m of list) {
+    const t = toMsg(m);
+    if (m.text === UNREADABLE) {
+      const prev = out[out.length - 1];
+      if (prev?.text.startsWith(UNREAD_TEXT) && prev.who === t.who) {
+        prev.text = `${UNREAD_TEXT} ×${++run}`;
+        prev.time = t.time;
+        continue;
+      }
+      run = 1;
+      t.text = UNREAD_TEXT;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
 function printMessage(m: ChatMessage): void {
   if (shown.has(m.id)) return;
   shown.add(m.id);
@@ -91,7 +115,7 @@ async function showOpen(): Promise<void> {
   if (!open) return;
   const list = await messagesOf(open.peer, open.secret);
   if (!tui) return list.forEach(printMessage);
-  view.lines = list.map(toMsg);
+  view.lines = toMsgs(list);
   tui.render();
 }
 

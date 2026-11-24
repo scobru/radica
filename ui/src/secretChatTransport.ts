@@ -23,7 +23,7 @@ export interface SecretChatTransport {
 
 /** The scratchpad keeps the newest messages of a Secret Chat only. */
 const MAX_STORED = 25;
-const UNREADABLE = "[Secret message - unable to decrypt or forward secrecy key expired]";
+export const UNREADABLE = "[Secret message - unable to decrypt or forward secrecy key expired]";
 
 const peersKey = (me: string) => `radica_secret_peers_${me}`;
 const removedKey = (me: string, peer: string) => `radica_secret_removed_${me}_${peer}`;
