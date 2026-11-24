@@ -886,3 +886,20 @@ export function compactLog(name: string, entries: Record<string, LogEntry>): Rec
   }
   return out;
 }
+
+/** A device's key is announced again at most this often (while the app starts), and a Secret Chat sender drops a key
+ *  not announced for `SECRET_DEVICE_TTL_MS`: a lost or retired device stops receiving copies on its own. */
+export const DEVICE_HEARTBEAT_MS = 7 * 24 * 60 * 60 * 1000;
+export const SECRET_DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** The encryption keys `persona`'s devices announced in `devices/<persona>`, each with the time of its newest
+ *  announcement, oldest first (entries by that persona only: the log contract checks the author). */
+export function deviceKeyTimes(entries: LogEntry[], persona: string): Map<string, number> {
+  const seen = new Map<string, number>();
+  for (const e of entries) {
+    if (e.author !== persona) continue;
+    const k = (parseBody(e) as { enc_pub?: unknown } | null)?.enc_pub;
+    if (typeof k === "string" && /^[0-9a-f]{64}$/.test(k)) seen.set(k, Math.max(seen.get(k) ?? 0, e.ts));
+  }
+  return new Map([...seen].sort((a, z) => a[1] - z[1]));
+}
