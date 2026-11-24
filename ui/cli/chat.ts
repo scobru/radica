@@ -9,10 +9,12 @@ import { getIdentity, personaName } from "../src/crypto.ts";
 import { safeStorage } from "../src/storage.ts";
 import { contactCardText, parseContactCard } from "../src/contactCard.ts";
 import { fromBase58 } from "../src/base58.ts";
-import { maskProfanity } from "../src/moderation.ts";
+import { maskProfanity, personalDataIn } from "../src/moderation.ts";
+import { solvePoW, POST_POW_BITS } from "../src/pow.ts";
 import { UNREADABLE } from "../src/secretChatTransport.ts";
-import type { ChatMessage, UserIdentity } from "../src/types.ts";
+import { RADICA_MAINTAINER, type ChatMessage, type Post, type UserIdentity } from "../src/types.ts";
 import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
+import { postLine, visiblePosts, type FeedFilter } from "./feed.ts";
 
 const HELP = `Commands:
   /me                      your key, contact card and QR code
@@ -25,6 +27,10 @@ const HELP = `Commands:
   /visible on|off          let people on this Wi-Fi find you
   /devices                 your devices' keys and when each was last heard from
   /revoke <n> confirm      stop sending to device n of /devices, for good
+  /feed [following|explore|me|<who>]   posts, text only (numbered; Esc closes)
+  /post <text>             publish a post (/post! <text> to publish one with personal data)
+  /report <n> [reason]     report post n of the last /feed
+  /hide <n>, /unhide <who> hide an author's posts here / show them again
   /clear                   empty the open conversation (on your devices; theirs keep it)
   /delete                  remove the open conversation from your list
   /block                   block the person in the open conversation
@@ -38,6 +44,10 @@ let me: UserIdentity | null = null;
 let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
 let lastList: string[] = [];
+let lastPosts: Post[] = [];
+let socialLoaded = false;
+let lastPostAt = 0;
+const recentPosts: string[] = [];
 let lastDevices: { key: string; seen: number; current: boolean }[] = [];
 let online = false;
 
@@ -137,6 +147,84 @@ function refreshConvs(): void {
   view.header = `Radica · ${me ? nameOf(me.pubkey) === "you" ? `${me.pubkey.slice(0, 10)}…` : nameOf(me.pubkey) : ""} · ${online ? "Freenet connected" : lanMeshUp() ? "local network only" : "offline"}${open ? ` · ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(open.peer)}` : ""}`;
   tui.render();
 }
+
+// ---- the feed (text only). Moderation as the app does: bad words masked, hidden/blocked authors, reported and AI-held
+// posts dropped (my own stay), and Report / Hide on every post. ----
+const HIDDEN_KEY = "radica_hidden_users"; // the app's key: authors I hid on this device
+const TRUSTED_KEY = "radica_trusted_blocklists"; // curators I trust; Radica's maintainer by default
+const readList = (key: string): string[] | null => {
+  try {
+    const list = JSON.parse(safeStorage.getItem(key) ?? "null");
+    return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string") : null;
+  } catch {
+    return null;
+  }
+};
+const hiddenUsers = () => readList(HIDDEN_KEY) ?? [];
+function curators(): string[] {
+  const trusted = readList(TRUSTED_KEY) ?? [RADICA_MAINTAINER];
+  return trusted.includes(RADICA_MAINTAINER) ? [...new Set([...trusted, ...freenet.modsOf(RADICA_MAINTAINER)])] : trusted;
+}
+async function feedFilter(): Promise<FeedFilter> {
+  await Promise.allSettled([...new Set([...curators(), me!.pubkey])].map((c) => freenet.refreshLog(`blocklist/${c}`)).concat(freenet.refreshLog("reports")));
+  const lists = [...new Set([...curators(), me!.pubkey])]; // after the refresh: it may name new moderators
+  const reported = new Set<string>(freenet.aiHeldTargets());
+  for (const c of lists) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+  return { me: me!.pubkey, hidden: new Set(hiddenUsers()), blocked: (pk) => lists.some((c) => freenet.blockedBy(c).has(pk)), reported };
+}
+const settle = (p: Promise<unknown>, ms: number) => Promise.race([p.catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+
+async function showFeed(what: string): Promise<void> {
+  if (!online) return say("The feed needs your Freenet node.");
+  say("Loading the feed… the first time can take a while.");
+  if (!socialLoaded) {
+    socialLoaded = true;
+    await settle(freenet.connectSocial(), 20000);
+  }
+  const f = await feedFilter();
+  const mine = me!;
+  let posts: Post[];
+  if (what === "me") posts = Object.values((await freenet.getFeed(mine.pubkey)).posts);
+  else if (what === "explore") {
+    const skip = (pk: string) => f.hidden.has(pk) || f.blocked(pk);
+    await freenet.getExploreTimeline(mine, { skip }); // starts fetching the feeds: wait for them, then read again
+    await new Promise((r) => setTimeout(r, 6000));
+    posts = await freenet.getExploreTimeline(mine, { skip });
+  } else if (what === "following") {
+    const own = await freenet.getFeed(mine.pubkey);
+    await settle(Promise.allSettled(own.following.slice(0, 60).map((pk) => freenet.refresh(pk, false, true))), 15000);
+    posts = await freenet.getTimeline(mine);
+  } else {
+    const pk = resolvePeer(what);
+    if (!pk) return say("Whose feed? following, explore, me, an @handle, a key or a contact card.");
+    await freenet.refresh(pk, true, true);
+    posts = Object.values((await freenet.getFeed(pk)).posts);
+  }
+  lastPosts = visiblePosts(posts, f).slice(0, 30);
+  if (!lastPosts.length) return say("No posts to show (yet). Follow people in the app, or try /feed explore.\n");
+  const lines = lastPosts.map((p, i) => postLine(i + 1, p, nameOf(p.author), freenet.postEdit(p.author, p.id)?.caption ?? p.caption, maskProfanity));
+  say(`${lines.join("\n\n")}\n\n/post <text> · /report <n> [reason] · /hide <n>`);
+}
+
+async function publish(text: string, force: boolean): Promise<void> {
+  if (!online) return say("Posting needs your Freenet node.");
+  if (!text) return say("/post <text>");
+  const found = personalDataIn(text);
+  if (found.length && !force) return say(`This contains: ${found.join(", ")}. Everyone who can read it will see it. /post! <text> publishes it as written.`);
+  const normalized = text.toLowerCase().replace(/\s+/g, " ");
+  if (recentPosts.includes(normalized)) return say("You recently published this exact message.");
+  const wait = 15000 - (Date.now() - lastPostAt);
+  if (wait > 0) return say(`Wait ${Math.ceil(wait / 1000)} s before the next post.`);
+  say("Computing the anti-bot proof…");
+  const pow = await solvePoW(me!.pubkey, Date.now(), POST_POW_BITS, "post");
+  await freenet.publishPost(me!, "thought", text, undefined, undefined, undefined, undefined, false, 0, pow);
+  lastPostAt = Date.now();
+  recentPosts.push(normalized);
+  if (recentPosts.length > 20) recentPosts.shift();
+  say("Posted.");
+}
+
+const postAt = (n: string): Post | null => lastPosts[Number(n) - 1] ?? null;
 
 const roomOf = (peer: string, secret: boolean) => (secret ? freenet.getSecretRoomId(me!.pubkey, peer) : [me!.pubkey, peer].sort().join(":"));
 
@@ -262,6 +350,28 @@ async function command(line: string): Promise<void> {
       await freenet.revokeDevice(d.key);
       lastDevices = [];
       return say(`Revoked ${d.key.slice(0, 12)}….`);
+    }
+    case "/feed":
+      return showFeed(arg || "following");
+    case "/post":
+    case "/post!":
+      return publish(arg, cmd === "/post!");
+    case "/report": {
+      const p = postAt(rest[0]);
+      if (!p) return say("Which post? Run /feed, then /report <number> [reason].");
+      await freenet.reportPost(p.author, p.id, rest.slice(1).join(" ") || "Reported from the terminal", null, !p.community_id); // a public post also goes to Radica's moderators
+      lastPosts = lastPosts.filter((x) => x !== p);
+      return say(`Reported post by ${nameOf(p.author)}; it is hidden from your feed.`);
+    }
+    case "/hide":
+    case "/unhide": {
+      const pk = cmd === "/hide" ? postAt(rest[0])?.author : resolvePeer(arg);
+      if (!pk) return say(cmd === "/hide" ? "Which post? Run /feed, then /hide <number>." : "Whose posts? An @handle, a key or a contact card.");
+      if (pk === me!.pubkey) return say("That is you.");
+      const rest2 = hiddenUsers().filter((k) => k !== pk);
+      safeStorage.setItem(HIDDEN_KEY, JSON.stringify(cmd === "/hide" ? [...rest2, pk] : rest2));
+      if (cmd === "/hide") lastPosts = lastPosts.filter((p) => p.author !== pk);
+      return say(`${cmd === "/hide" ? "Hidden" : "Showing again"}: ${nameOf(pk)}.`);
     }
     case "/clear": {
       if (!open) return say("Open a conversation first.");

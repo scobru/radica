@@ -316,7 +316,7 @@ Radica's own client code (`ui/src/freenet.ts`) runs in Node as a terminal chat: 
 npm run chat   # builds ui/dist-cli/radica-chat.mjs and starts it; data in ~/.radica (or RADICA_HOME)
 ```
 
-In a terminal it runs full screen: conversations on the left (↑ ↓, Enter, Del twice to remove), the open one on the right, input at the bottom (Tab switches, PgUp/PgDn scroll); `RADICA_PLAIN=1` keeps it line by line. `/new` or `/import <seed>` to sign in (local identities only, no Viso), then `/me`, `/list`, `/open <who>`, `/secret <who>`, `/devices` and `/revoke <n> confirm` (stop other people sealing messages to one of your devices, for good; the app has the same in Identity & keys > Devices), `/clear`, `/delete`, `/nearby`, `/visible on|off`, `/block`, `/help`. Slow? `~/.radica/chat.log` lists every main-thread stall, and `RADICA_PROFILE=1 npm run chat` prints the busiest functions on `/quit`.
+In a terminal it runs full screen: conversations on the left (↑ ↓, Enter, Del twice to remove), the open one on the right, input at the bottom (Tab switches, PgUp/PgDn scroll); `RADICA_PLAIN=1` keeps it line by line. `/new` or `/import <seed>` to sign in (local identities only, no Viso), then `/me`, `/list`, `/open <who>`, `/secret <who>`, `/devices` and `/revoke <n> confirm` (stop other people sealing messages to one of your devices, for good; the app has the same in Identity & keys > Devices), `/feed [following|explore|me|<who>]` (posts, text only), `/post <text>`, `/report <n>`, `/hide <n>`, `/clear`, `/delete`, `/nearby`, `/visible on|off`, `/block`, `/help`. Slow? `~/.radica/chat.log` lists every main-thread stall, and `RADICA_PROFILE=1 npm run chat` prints the busiest functions on `/quit`.
 
 ## 🔒 Security & Privacy Model
 
