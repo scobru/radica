@@ -25,36 +25,59 @@ export interface TuiState {
   lines: TuiMsg[];
   /** Multi-line output of a command (/help, /me): shown instead of the conversation until Esc. */
   panel: string | null;
+  /** The feed: shown instead of the conversation (a panel still goes over it); ↑ ↓ choose, Enter opens, Esc closes. */
+  feed: TuiMsg[] | null;
+  feedSel: number;
   status: string;
 }
 export interface TuiHandlers {
   submit(text: string): void;
   openAt(index: number): void;
   deleteAt(index: number): void;
+  openFeedItem(index: number): void;
   quit(): void;
 }
 
 const ESC = "\x1b[";
+// Symbols that show as emoji (2 columns) without a variation selector; the rest of the 0x2600-0x27bf block is narrow text
+const EMOJI_SYMBOLS: [number, number][] = [
+  [0x231a, 0x231b], [0x23e9, 0x23ec], [0x23f0, 0x23f0], [0x23f3, 0x23f3], [0x25fd, 0x25fe], [0x2614, 0x2615], [0x2648, 0x2653], [0x267f, 0x267f],
+  [0x2693, 0x2693], [0x26a1, 0x26a1], [0x26aa, 0x26ab], [0x26bd, 0x26be], [0x26c4, 0x26c5], [0x26ce, 0x26ce], [0x26d4, 0x26d4], [0x26ea, 0x26ea],
+  [0x26f2, 0x26f3], [0x26f5, 0x26f5], [0x26fa, 0x26fa], [0x26fd, 0x26fd], [0x2705, 0x2705], [0x270a, 0x270b], [0x2728, 0x2728], [0x274c, 0x274c],
+  [0x274e, 0x274e], [0x2753, 0x2755], [0x2757, 0x2757], [0x2795, 0x2797], [0x27b0, 0x27b0], [0x27bf, 0x27bf], [0x2b1b, 0x2b1c], [0x2b50, 0x2b50], [0x2b55, 0x2b55],
+];
 /** Terminal columns of one code point: emoji and East Asian wide characters take 2, combining marks and joiners 0. */
 function cols(cp: number): number {
   if ((cp >= 0x300 && cp <= 0x36f) || cp === 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0x1f3fb && cp <= 0x1f3ff)) return 0;
   if (
     (cp >= 0x1100 && cp <= 0x115f) || (cp >= 0x2e80 && cp <= 0xa4cf && cp !== 0x303f) || (cp >= 0xac00 && cp <= 0xd7a3) ||
     (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xfe30 && cp <= 0xfe4f) || (cp >= 0xff00 && cp <= 0xff60) || (cp >= 0xffe0 && cp <= 0xffe6) ||
-    (cp >= 0x1f300 && cp <= 0x1faff) || (cp >= 0x2600 && cp <= 0x27bf) || (cp >= 0x20000 && cp <= 0x3fffd)
+    (cp >= 0x1f300 && cp <= 0x1faff) || (cp >= 0x20000 && cp <= 0x3fffd) || EMOJI_SYMBOLS.some(([lo, hi]) => cp >= lo && cp <= hi)
   )
     return 2;
   return 1;
 }
+/** Each character with its columns: a symbol followed by the emoji selector (U+FE0F, as in a red heart) is wide. */
+function* glyphs(s: string): Generator<[string, number]> {
+  const cs = [...s];
+  for (let i = 0; i < cs.length; i++) {
+    const cp = cs[i].codePointAt(0)!;
+    const w = cols(cp);
+    yield [cs[i], w === 1 && cs[i + 1] === "\ufe0f" && cp >= 0x203c ? 2 : w];
+  }
+}
 // shortcut: a hand-made width table (no dependency); rare symbols may still be off by a column, use a full wcwidth table if seen
-export const width = (s: string): number => [...s].reduce((n, ch) => n + cols(ch.codePointAt(0)!), 0);
+export const width = (s: string): number => {
+  let n = 0;
+  for (const [, w] of glyphs(s)) n += w;
+  return n;
+};
 /** Exactly `w` columns: padded, or cut with an ellipsis. */
 export function cut(s: string, w: number): string {
   if (width(s) <= w) return s + " ".repeat(w - width(s));
   let out = "";
   let n = 0;
-  for (const ch of s) {
-    const c = cols(ch.codePointAt(0)!);
+  for (const [ch, c] of glyphs(s)) {
     if (n + c > w - 1) break;
     out += ch;
     n += c;
@@ -92,6 +115,9 @@ export function startTui(state: TuiState, on: TuiHandlers): { render(): void } {
   let selKey = "";
   let input = "";
   let scroll = 0; // lines up from the bottom of the right pane
+  let feedTop = 0; // the feed is read from the top: first row shown
+  let feedRef: TuiMsg[] | null = null;
+  let follow = true; // keep the chosen post in view (not after PgUp/PgDn)
   let confirmDelete = -1;
   let queued = false;
 
@@ -124,9 +150,31 @@ export function startTui(state: TuiState, on: TuiHandlers): { render(): void } {
 
     // right pane rows: colored text and its visible width, so padding stays exact
     type Row = { s: string; w: number };
+    const feedMode = !!state.feed && !state.panel;
+    if (state.feed !== feedRef) {
+      feedRef = state.feed;
+      feedTop = 0;
+      follow = true;
+    }
+    let selTop = 0;
+    let selBottom = 0;
     const plain = (t: string, f = (x: string) => x): Row[] => wrap(t, R).map((l) => ({ s: f(l), w: width(l) }));
     let rows: Row[];
     if (state.panel) rows = plain(state.panel);
+    else if (state.feed?.length) {
+      rows = [];
+      state.feed.forEach((m, i) => {
+        const chosen = i === state.feedSel;
+        if (chosen) selTop = rows.length;
+        const note = m.note ? `  ${m.note}` : "";
+        if (chosen) rows.push({ s: `${ESC}7m${cut(`> ${m.time} ${m.who}${note}`, R)}${ESC}27m`, w: R });
+        else rows.push({ s: `  ${dim(m.time)} ${fg(m.mine ? 114 : colorOf(m.who), m.who)}${note ? dim(note) : ""}`, w: 2 + width(m.time) + 1 + width(m.who) + width(note) });
+        for (const l of wrap(m.text, R - 4)) rows.push({ s: `    ${l}`, w: 4 + width(l) });
+        if (chosen) selBottom = rows.length - 1;
+        rows.push({ s: "", w: 0 });
+      });
+      rows.pop();
+    } else if (state.feed) rows = plain("No posts to show.", dim);
     else if (!state.lines.length)
       rows = plain(state.open >= 0 ? "No messages yet: type below and press Enter." : "Pick a chat on the left (↑ ↓ Enter), or type /help.", dim);
     else {
@@ -140,18 +188,26 @@ export function startTui(state: TuiState, on: TuiHandlers): { render(): void } {
       }
       rows.pop();
     }
-    scroll = Math.max(0, Math.min(scroll, rows.length - body));
-    const rightView = rows.slice(Math.max(0, rows.length - body - scroll), rows.length - scroll);
+    let rightView: Row[];
+    if (feedMode) {
+      if (follow) feedTop = selTop < feedTop || selBottom - selTop >= body ? selTop : selBottom >= feedTop + body ? selBottom - body + 1 : feedTop;
+      feedTop = Math.max(0, Math.min(feedTop, rows.length - body));
+      rightView = rows.slice(feedTop, feedTop + body);
+    } else {
+      scroll = Math.max(0, Math.min(scroll, rows.length - body));
+      rightView = rows.slice(Math.max(0, rows.length - body - scroll), rows.length - scroll);
+    }
     const pad = (r?: Row) => (r ? r.s + " ".repeat(Math.max(0, R - r.w)) : " ".repeat(R));
 
     // every row at its own position: a row that overflows can never scroll the screen
     const row = (y: number, text: string) => `${ESC}${y};1H${text}${ESC}0m`;
     const bar = `${dim("│")} `;
     let out = row(1, `${ESC}1;97;48;5;61m${cut(` ${state.header}`, W)}`);
-    out += row(2, `${ESC}1;38;5;147m${cut(" CHATS", L)}${ESC}0m${bar}${dim(cut(state.open >= 0 && state.convs[state.open] ? ` ${state.convs[state.open].label} · ${state.convs[state.open].secret ? "Secret Chat 🔒" : "DM"}` : "", R))}`);
+    out += row(2, `${ESC}1;38;5;147m${cut(" CHATS", L)}${ESC}0m${bar}${dim(cut(feedMode ? ` Feed ${state.feedSel + 1}/${state.feed?.length ?? 0}` : state.open >= 0 && state.convs[state.open] ? ` ${state.convs[state.open].label} · ${state.convs[state.open].secret ? "Secret Chat 🔒" : "DM"}` : "", R))}`);
     for (let r = 0; r < cap; r++) out += row(r + 3, `${left[leftTop + r] ?? " ".repeat(L)}${bar}${pad(rightView[r])}`);
-    const hint =
-      focus === "list"
+    const hint = feedMode
+      ? "↑↓ choose a post · Enter opens it · PgUp/PgDn scroll · Esc closes the feed · /more older · /report /hide act on the chosen post"
+      : focus === "list"
         ? "↑↓ select · Enter open · Del remove · type to write · PgUp/PgDn scroll · Ctrl+C quit"
         : "↑↓ select · Enter send (empty: open selected) · Esc list · /help · Ctrl+C quit";
     out += row(H - 1, `${ESC}48;5;236m${ESC}38;5;250m${cut(` ${state.status || hint}`, W)}`);
@@ -188,19 +244,26 @@ export function startTui(state: TuiState, on: TuiHandlers): { render(): void } {
       focus = "input";
       on.openAt(sel);
     };
-    // ↑↓ always move through the list, also while typing: nothing else in the input needs them
-    if (key.name === "up") pick(sel - 1);
-    else if (key.name === "down") pick(sel + 1);
-    else if (key.name === "pageup") scroll += 5;
-    else if (key.name === "pagedown") scroll = Math.max(0, scroll - 5);
+    // ↑↓ always move through the list, also while typing: nothing else in the input needs them; with a feed open they choose a post
+    const feedOn = !!state.feed && !state.panel;
+    const choose = (d: number) => {
+      state.feedSel = Math.max(0, Math.min((state.feed?.length ?? 1) - 1, state.feedSel + d));
+      follow = true;
+    };
+    if (key.name === "up") feedOn ? choose(-1) : pick(sel - 1);
+    else if (key.name === "down") feedOn ? choose(1) : pick(sel + 1);
+    else if (key.name === "pageup") feedOn ? ((feedTop = Math.max(0, feedTop - 5)), (follow = false)) : (scroll += 5);
+    else if (key.name === "pagedown") feedOn ? ((feedTop += 5), (follow = false)) : (scroll = Math.max(0, scroll - 5));
     else if (key.name === "tab") focus = focus === "list" ? "input" : "list";
     else if (key.name === "escape") {
-      state.panel = null;
+      if (state.panel) state.panel = null;
+      else state.feed = null; // a post opened from the feed closes first; then the feed
       focus = "list";
     } else if (key.name === "return") {
       const text = input.trim();
       input = "";
-      if (focus === "list" || !text) openSelected();
+      if (feedOn && !text) on.openFeedItem(state.feedSel);
+      else if (focus === "list" || !text) openSelected();
       else {
         scroll = 0;
         on.submit(text);
