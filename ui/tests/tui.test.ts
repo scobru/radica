@@ -6,6 +6,9 @@ test("tui: emoji and CJK take two columns, combining marks none", () => {
   assert.equal(width("abc"), 3);
   assert.equal(width("🔒"), 2);
   assert.equal(width("日本"), 4);
+  assert.equal(width("❤"), 1); // a text symbol: narrow
+  assert.equal(width("❤\ufe0f"), 2); // with the emoji selector: wide
+  assert.equal(width("✅"), 2); // emoji by default: wide
   assert.equal(width("é"), 1); // e + combining acute
   assert.equal(width("👍🏽"), 2); // skin tone modifier joins
 });

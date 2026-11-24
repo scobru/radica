@@ -14,7 +14,7 @@ import { solvePoW, POST_POW_BITS } from "../src/pow.ts";
 import { UNREADABLE } from "../src/secretChatTransport.ts";
 import { RADICA_MAINTAINER, type ChatMessage, type Post, type UserIdentity } from "../src/types.ts";
 import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
-import { postLine, visiblePosts, type FeedFilter } from "./feed.ts";
+import { postDetail, postItem, postLine, visiblePosts, type FeedFilter } from "./feed.ts";
 
 const HELP = `Commands:
   /me                      your key, contact card and QR code
@@ -29,8 +29,9 @@ const HELP = `Commands:
   /revoke <n> confirm      stop sending to device n of /devices, for good
   /feed [following|explore|me|<who>]   posts, text only (numbered; Esc closes)
   /post <text>             publish a post (/post! <text> to publish one with personal data)
-  /report <n> [reason]     report post n of the last /feed
-  /hide <n>, /unhide <who> hide an author's posts here / show them again
+  /more                    show 30 more (older) posts of the last /feed
+  /report [n] [reason]     report post n of the last /feed (or the chosen one)
+  /hide [n], /unhide <who> hide an author's posts here / show them again
   /clear                   empty the open conversation (on your devices; theirs keep it)
   /delete                  remove the open conversation from your list
   /block                   block the person in the open conversation
@@ -45,19 +46,23 @@ let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
 let lastList: string[] = [];
 let lastPosts: Post[] = [];
+let allPosts: Post[] = []; // every post the last /feed found (visible ones), lastPosts the part shown
+let lastFilter: FeedFilter | null = null;
+let feedLimit = 30;
 let socialLoaded = false;
 let lastPostAt = 0;
 const recentPosts: string[] = [];
 let lastDevices: { key: string; seen: number; current: boolean }[] = [];
 let online = false;
 
-const view: TuiState = { header: "Radica", convs: [], open: -1, lines: [], panel: null, status: "" };
+const view: TuiState = { header: "Radica", convs: [], open: -1, lines: [], panel: null, feed: null, feedSel: 0, status: "" };
 let convs: { pk: string; secret: boolean }[] = [];
 const tui = fullScreen
   ? startTui(view, {
       submit: (t) => void run(t),
       openAt: (i) => void command(`/${convs[i].secret ? "secret" : "open"} ${convs[i].pk}`).catch(fail),
       deleteAt: (i) => void removeConversation(convs[i].pk, convs[i].secret).catch(fail),
+      openFeedItem: (i) => openPost(i),
       quit: () => void quit(),
     })
   : null;
@@ -200,11 +205,35 @@ async function showFeed(what: string): Promise<void> {
     await freenet.refresh(pk, true, true);
     posts = Object.values((await freenet.getFeed(pk)).posts);
   }
-  lastPosts = visiblePosts(posts, f).slice(0, 30);
-  if (!lastPosts.length) return say("No posts to show (yet). Follow people in the app, or try /feed explore.\n");
-  const lines = lastPosts.map((p, i) => postLine(i + 1, p, nameOf(p.author), freenet.postEdit(p.author, p.id)?.caption ?? p.caption, maskProfanity));
-  say(`${lines.join("\n\n")}\n\n/post <text> · /report <n> [reason] · /hide <n>`);
+  lastFilter = f;
+  allPosts = visiblePosts(posts, f);
+  feedLimit = 30;
+  renderFeed();
 }
+
+/** Show the first `feedLimit` posts of the last /feed: in the feed pane (↑ ↓ Enter), or as lines when piped. */
+function renderFeed(): void {
+  const f = lastFilter!;
+  lastPosts = allPosts.slice(0, feedLimit);
+  const captionOf = (p: Post) => freenet.postEdit(p.author, p.id)?.caption ?? p.caption;
+  if (!lastPosts.length) return say("No posts to show (yet). Follow people in the app, or try /feed explore.\n");
+  if (!tui) return say(lastPosts.map((p, i) => postLine(i + 1, p, nameOf(p.author), captionOf(p), maskProfanity, f)).join("\n\n") + "\n\n/post <text> · /report <n> [reason] · /hide <n> · /more");
+  view.feed = lastPosts.map((p, i) => postItem(i + 1, p, nameOf(p.author), captionOf(p), maskProfanity, f));
+  view.feedSel = Math.min(view.feedSel, lastPosts.length - 1);
+  view.panel = null;
+  say(`${lastPosts.length} of ${allPosts.length} posts · ↑↓ choose · Enter opens · /more older · Esc closes`);
+}
+
+/** One post in full, with its comments, over the feed (Esc goes back). */
+function openPost(i: number): void {
+  const p = lastPosts[i];
+  if (!p || !lastFilter) return;
+  view.panel = postDetail(p, nameOf(p.author), freenet.postEdit(p.author, p.id)?.caption ?? p.caption, maskProfanity, lastFilter, nameOf);
+  tui?.render();
+}
+
+/** The post a command means: its number, or the one chosen in the feed pane. */
+const postFor = (n?: string): Post | null => (n ? lastPosts[Number(n) - 1] : view.feed ? lastPosts[view.feedSel] : undefined) ?? null;
 
 async function publish(text: string, force: boolean): Promise<void> {
   if (!online) return say("Posting needs your Freenet node.");
@@ -223,8 +252,6 @@ async function publish(text: string, force: boolean): Promise<void> {
   if (recentPosts.length > 20) recentPosts.shift();
   say("Posted.");
 }
-
-const postAt = (n: string): Post | null => lastPosts[Number(n) - 1] ?? null;
 
 const roomOf = (peer: string, secret: boolean) => (secret ? freenet.getSecretRoomId(me!.pubkey, peer) : [me!.pubkey, peer].sort().join(":"));
 
@@ -319,6 +346,7 @@ async function command(line: string): Promise<void> {
       shown.clear();
       view.lines = [];
       view.panel = null;
+      view.feed = null; // a conversation replaces the feed pane
       say(`— ${open.secret ? "Secret Chat" : "DM"} with ${nameOf(peer)} —`);
       refreshConvs();
       return showOpen();
@@ -353,24 +381,33 @@ async function command(line: string): Promise<void> {
     }
     case "/feed":
       return showFeed(arg || "following");
+    case "/more":
+      if (!allPosts.length) return say("Run /feed first.");
+      feedLimit += 30;
+      return renderFeed();
     case "/post":
     case "/post!":
       return publish(arg, cmd === "/post!");
     case "/report": {
-      const p = postAt(rest[0]);
+      const p = postFor(rest[0]);
       if (!p) return say("Which post? Run /feed, then /report <number> [reason].");
       await freenet.reportPost(p.author, p.id, rest.slice(1).join(" ") || "Reported from the terminal", null, !p.community_id); // a public post also goes to Radica's moderators
-      lastPosts = lastPosts.filter((x) => x !== p);
+      allPosts = allPosts.filter((x) => x !== p);
+      renderFeed();
       return say(`Reported post by ${nameOf(p.author)}; it is hidden from your feed.`);
     }
     case "/hide":
     case "/unhide": {
-      const pk = cmd === "/hide" ? postAt(rest[0])?.author : resolvePeer(arg);
+      const pk = cmd === "/hide" ? postFor(rest[0])?.author : resolvePeer(arg);
       if (!pk) return say(cmd === "/hide" ? "Which post? Run /feed, then /hide <number>." : "Whose posts? An @handle, a key or a contact card.");
       if (pk === me!.pubkey) return say("That is you.");
       const rest2 = hiddenUsers().filter((k) => k !== pk);
       safeStorage.setItem(HIDDEN_KEY, JSON.stringify(cmd === "/hide" ? [...rest2, pk] : rest2));
-      if (cmd === "/hide") lastPosts = lastPosts.filter((p) => p.author !== pk);
+      if (cmd === "/hide") {
+        allPosts = allPosts.filter((p) => p.author !== pk);
+        if (lastFilter) lastFilter.hidden.add(pk);
+        if (lastPosts.length) renderFeed();
+      }
       return say(`${cmd === "/hide" ? "Hidden" : "Showing again"}: ${nameOf(pk)}.`);
     }
     case "/clear": {
