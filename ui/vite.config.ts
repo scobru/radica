@@ -4,6 +4,8 @@ import { defineConfig, type Plugin } from "vite";
 import { UPDATES } from "./src/updates.ts";
 import zlib from "node:zlib";
 
+const PKG = JSON.parse(fs.readFileSync(path.resolve("../package.json"), "utf8"));
+
 /** This build's id: the page knows it, and version.json tells an open page when a newer build is published. */
 const BUILD = String(Date.now());
 /** Keys of the radica-assets / -filter / -litert web containers holding the heavy files (see scripts/split-freenet-dist.mjs); "" = none. */
@@ -249,6 +251,11 @@ export default defineConfig({
   server: {
     port: 5173,
   },
-  define: { __RADICA_BUILD__: JSON.stringify(BUILD), __RADICA_ASSET_KEYS__: JSON.stringify(ASSET_KEYS), __RADICA_LANG_KEYS__: JSON.stringify(LANG_KEYS) },
+  define: {
+    __RADICA_BUILD__: JSON.stringify(BUILD),
+    __RADICA_VERSION__: JSON.stringify(PKG.version),
+    __RADICA_ASSET_KEYS__: JSON.stringify(ASSET_KEYS),
+    __RADICA_LANG_KEYS__: JSON.stringify(LANG_KEYS),
+  },
   plugins: [desertAntWasmPlugin(), moderatorWasmPlugin(), litertWasmPlugin(), bergamotPlugin(), peerSyncPlugin(), versionFilePlugin()],
 });

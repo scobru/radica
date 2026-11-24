@@ -112,20 +112,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.14.3
-      # shortcut: a debug-signed APK (each CI runner signs with its own key, so an update needs an uninstall first);
-      # sign releases with a keystore kept in repository secrets once the app is published
-      - run: gradle -p apps/android assembleDebug
+      - name: Decode keystore secret if configured
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > apps/android/release.keystore
+      - run: gradle -p apps/android assembleRelease
       - run: |
-          cp apps/android/build/outputs/apk/full/debug/*.apk radica-android-debug.apk
-          cp apps/android/build/outputs/apk/messenger/debug/*.apk radica-messenger-android-debug.apk
+          cp apps/android/build/outputs/apk/full/release/*.apk radica-android.apk
+          cp apps/android/build/outputs/apk/messenger/release/*.apk radica-messenger-android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: radica-android
-          path: radica-android-debug.apk
+          path: radica-android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: radica-messenger-android
-          path: radica-messenger-android-debug.apk
+          path: radica-messenger-android.apk
 
   release:
     needs: [build, android]

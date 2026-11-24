@@ -207,7 +207,7 @@
               <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-arm64.zip">macOS (Apple Silicon)</a>
               <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-macos-x86_64.zip">macOS (Intel)</a>
               <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-linux-x86_64.tar.gz">Linux</a>
-              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">Android APK</a>
+              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-android.apk">Android APK</a>
             </div>
           </div>
 
@@ -226,12 +226,13 @@
               <a class="btn btn-ghost" data-os="mac" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-macos-arm64.zip">macOS (Apple Silicon)</a>
               <a class="btn btn-ghost" data-os="mac-intel" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-macos-x86_64.zip">macOS (Intel)</a>
               <a class="btn btn-ghost" data-os="lin" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-linux-x86_64.tar.gz">Linux</a>
-              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-android-debug.apk">Android Messenger APK</a>
+              <a class="btn btn-ghost" data-os="and" href="https://github.com/scobru/radica/releases/latest/download/radica-messenger-android.apk">Android Messenger APK</a>
             </div>
           </div>
         </div>
 
         <ul>
+          <li><strong>Offline &amp; Local Mesh:</strong> the apps carry Radica inside so you can open your identity and chats even without Freenet running. When internet or Freenet is down, nearby devices continue chatting directly over the local Wi-Fi or phone hotspot.</li>
           <li><strong>macOS:</strong> the apps are not signed yet. The first time, right-click the app and choose Open.</li>
           <li><strong>Linux:</strong> requires WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code> on Debian and Ubuntu).</li>
           <li><strong>Android:</strong> install <a href="https://github.com/HostFat/freenet-android-node/releases/latest">Freenet Android Node</a> and press <strong>Start network node</strong>. Both Radica and Radica Messenger can be installed side-by-side on the same phone.</li>
@@ -316,9 +317,11 @@
       <h2>Good to know</h2>
       <details><summary>Is Radica free?</summary><p>Yes. No ads and no subscription. Radica is open source, and anyone can read its code on GitHub.</p></details>
       <details><summary>What is Radica Messenger?</summary><p><b>Radica Messenger</b> is a dedicated, chat-only application designed exclusively for private communication without feeds, algorithms, or distractions. Think of it like Signal or Telegram, but running completely peer-to-peer on Freenet with no central servers. It features end-to-end encrypted direct messages (X25519 + AES-256-GCM), device-only ephemeral Secret Chats with auto-burn countdown timers, E2EE private groups, broadcast channels, and native @handles. It shares your cryptographic identity and contacts seamlessly with the full Radica app.</p></details>
+      <details><summary>Can I chat without internet or when Freenet is offline?</summary><p>Yes. The native Desktop and Android apps feature an offline <b>LAN mesh</b> transport: direct messages and Secret Chats travel over your local Wi-Fi or phone hotspot directly to nearby Radica devices. If your Freenet node is stopped or unavailable, the apps offer <b>Open without Freenet</b> so you can access your identity and local chats. You can also exchange contact cards in person using QR codes with zero network connection.</p></details>
+      <details><summary>Is there a terminal / command line client?</summary><p>Yes. Developers and terminal enthusiasts can run <code>npm run chat</code> in the Radica repository. It provides a full-screen ANSI terminal interface with end-to-end encrypted DMs, Secret Chats, LAN mesh support, contact cards, device management (<code>/devices</code>, <code>/revoke</code>), and a text-only feed browser with post creation (<code>/feed</code>, <code>/post</code>).</p></details>
       <details><summary>Why do I have to install something?</summary><p>On Freenet there is no company server to visit: your own computer is your way into the network. Radica then opens in your normal browser, from your computer.</p></details>
       <details><summary>Can I try it without installing anything?</summary><p>Yes: <a href="https://try.freenet.org/v1/contract/web/Ex88TLL48HQPA6CuYQuhc2zKFjcEdUeHbreNBrfVL2Sw/">open Radica on try.freenet.org</a>, a public node run by the Freenet Project. It is for a first look: you depend on their node, and it sees what you do. To own your corner of the network, install Freenet (step 1).</p></details>
-      <details><summary>Can I use it on my phone?</summary><p>On Android, yes: <a href="https://github.com/scobru/radica/releases/latest/download/radica-android-debug.apk">the Radica app</a> runs on <a href="https://github.com/HostFat/freenet-android-node">Freenet Android Node</a>, an unofficial, early app that runs a Freenet node on the phone (see the Android tab in step 1). There is nothing for iPhone yet. The official Freenet installs on Windows, macOS and Linux.</p></details>
+      <details><summary>Can I use it on my phone?</summary><p>On Android, yes: <a href="https://github.com/scobru/radica/releases/latest/download/radica-android.apk">the Radica app</a> runs on <a href="https://github.com/HostFat/freenet-android-node">Freenet Android Node</a>, an unofficial, early app that runs a Freenet node on the phone (see the Android tab in step 1). There is nothing for iPhone yet. The official Freenet installs on Windows, macOS and Linux.</p></details>
       <details><summary>Who can see my posts?</summary><p>Posts and communities are public on the network, like a public social network. Direct messages and private rooms are end-to-end encrypted: only the people in the chat can read them.</p></details>
       <details><summary>What if I lose my key?</summary><p>Nobody can reset it for you: there is no company behind it. Keep the backup Radica shows you, or sign in with Viso, which keeps your persona for you.</p></details>
       <details><summary>Something doesn't work</summary><p>Ask in the Freenet <a href="https://matrix.to/#/#freenet-locutus:matrix.org">Matrix chat</a>, or open an issue on <a href="https://github.com/scobru/radica/issues">Radica's GitHub</a>.</p></details>

@@ -260,7 +260,7 @@ import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField 
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
 import { playPopSound, playWalkieChirp, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
-import { startVersionCheck } from "./versionCheck.ts";
+import { startVersionCheck, checkNativeAppUpdate, getAppVersion } from "./versionCheck.ts";
 
 let currentIdentity: UserIdentity | null = null;
 let currentProfile: ProfileInfo | null = null;
@@ -13366,6 +13366,36 @@ if (settingsSoundToggle) {
 if (settingsShortcutsBtn) {
   settingsShortcutsBtn.addEventListener("click", () => {
     toggleShortcutsModal(true);
+  });
+}
+
+const settingsAppVersionLabel = document.getElementById("settings-app-version-label");
+if (settingsAppVersionLabel) {
+  settingsAppVersionLabel.textContent = `v${getAppVersion()}`;
+}
+
+const settingsCheckUpdateBtn = document.getElementById("settings-check-update-btn");
+if (settingsCheckUpdateBtn) {
+  settingsCheckUpdateBtn.addEventListener("click", async () => {
+    const textEl = document.getElementById("settings-check-update-btn-text");
+    const originalText = textEl?.textContent || "Check for updates";
+    if (textEl) textEl.textContent = "Checking…";
+    settingsCheckUpdateBtn.setAttribute("disabled", "true");
+    try {
+      await checkNativeAppUpdate({
+        force: true,
+        onResult: (res) => {
+          if (!res.hasUpdate) {
+            showToast(`You are on the latest version of Radica (v${getAppVersion()}).`);
+          }
+        },
+      });
+    } catch {
+      showToast("Unable to reach update servers. Check your connection.", "warning");
+    } finally {
+      if (textEl) textEl.textContent = originalText;
+      settingsCheckUpdateBtn.removeAttribute("disabled");
+    }
   });
 }
 

@@ -23,6 +23,27 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("release.keystore")
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val resolvedFile = if (keystorePath != null && file(keystorePath).exists()) file(keystorePath) else keystoreFile
+            if (resolvedFile.exists()) {
+                storeFile = resolvedFile
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "radica-release"
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "radica"
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "radica-release"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
     flavorDimensions += "mode"
     productFlavors {
         create("full") {

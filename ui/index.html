@@ -1470,6 +1470,18 @@
           </label>
         </div>
 
+        <!-- Section: App Version & Updates -->
+        <div class="identity-section" id="settings-app-update-section" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h4 style="margin: 0 0 4px;">App Version &amp; Updates</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Installed version: <span id="settings-app-version-label" style="font-weight: 600;">v1.0.10</span> · Check for native release updates.</p>
+          </div>
+          <button type="button" class="btn-secondary btn-sm btn-icon-text" id="settings-check-update-btn">
+            <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span id="settings-check-update-btn-text">Check for updates</span>
+          </button>
+        </div>
+
         <!-- Section: Keyboard Shortcuts & Help -->
         <div class="identity-section" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <div>
@@ -1768,7 +1780,7 @@
           <p>Messages stay end-to-end encrypted and signed: a device keeps only messages meant for it, from the other person in that chat, and never from someone you blocked. When Freenet is back, what you sent reaches their inbox too. Text only; photos, voice and video still need Freenet. A plain browser tab cannot use the local network.</p>
           <p>If your Freenet node is off or will not start, the Desktop and Android apps offer <b>Open without Freenet</b> on their startup screen: Radica opens from inside the app with your identity and chats, for talking to people on the same network.</p>
           <p><b>Nearby</b> in New Conversation lists Radica users on the same Wi-Fi who turned on <b>Let people on this Wi-Fi find me</b>; tap one to chat. The switch is off by default, since anyone on that network then sees you use Radica. Names there are not verified: a QR scanned in person is.</p>
-          <p>Prefer a terminal? <code>npm run chat</code> in Radica's source folder opens the same chat there (DMs, Secret Chats, Nearby, local network), with its own identity in <code>~/.radica</code>.</p>
+          <p>Prefer a terminal? <code>npm run chat</code> in Radica's source folder opens a full-screen terminal app with the same identity, end-to-end encryption, DMs, Secret Chats, Nearby, and local network support. It also includes text-only feed browsing and posting (<code>/feed</code>, <code>/post</code>), and device management (<code>/devices</code>, <code>/revoke</code>), with data stored in <code>~/.radica</code>.</p>
           <p>With no network you cannot look someone up by @handle. Instead, in <b>New Conversation</b> tap <b>My QR</b> and let them use <b>Scan a QR</b> (a photo of the code; on Android it opens the camera), or tap <b>Copy my contact card</b> and hand that line over; they can write to you at once. Swap cards in person: whoever gives you a card decides which key your messages go to.</p>
         </details>
 
