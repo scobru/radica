@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "../src/types.ts";
-import { deviceKeyTimes, foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { deviceKeyTimes, revokedDeviceKeys, foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -818,4 +818,17 @@ test("logfold: device keys come from the persona's own announcements, with the n
     entry(user, 70, { type: "device", enc_pub: "short" }),
   ];
   assert.deepEqual([...deviceKeyTimes(log, user)], [[k2, 30], [k1, 50]]);
+});
+
+test("logfold: a revoked device key stays revoked even when it is announced again, and only the persona can revoke", () => {
+  const [k1, k2] = ["1", "2"].map((c) => c.repeat(64));
+  const log = [
+    entry(user, 10, { type: "device", enc_pub: k1 }),
+    entry(user, 20, { type: "device", enc_pub: k2 }),
+    entry(user, 30, { type: "device_revoke", enc_pub: k1 }),
+    entry(user, 40, { type: "device", enc_pub: k1 }), // announced again after the revoke
+    entry(mallory, 50, { type: "device_revoke", enc_pub: k2 }), // not the persona's own entry
+  ];
+  assert.deepEqual([...revokedDeviceKeys(log, user)], [k1]);
+  assert.deepEqual([...deviceKeyTimes(log, user)], [[k2, 20]]);
 });

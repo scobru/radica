@@ -1047,6 +1047,15 @@
           </div>
         </div>
 
+        <!-- Section: Devices (keys other people seal messages to) -->
+        <div class="identity-section" id="identity-devices-section">
+          <h4 style="margin: 0 0 8px;">Devices</h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+            The devices that announced a key for this identity: people seal Secret Chats (and a copy of each direct message) to each of them. A device not opened for 30 days drops out of Secret Chats by itself. <b>Revoke</b> stops everyone from sealing new messages to a device, for good: use it for a lost or retired one. The device keeps what it already received.
+          </p>
+          <div id="identity-devices-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;"></div>
+        </div>
+
         <!-- Section: Freenet Mail Identity (Post-Quantum) -->
         <div class="identity-section messenger-hide" id="identity-fmail-section" style="display: none; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.03);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
@@ -1531,7 +1540,7 @@
 
         <details><summary>👀 Who sees what</summary>
           <p><b>Public:</b> your profile, posts, comments, likes, who you follow, and communities. Anyone on Freenet can read them.</p>
-          <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses the Double Ratchet (as in Signal): every message key is used once and then deleted, and every reply moves to a new key, so a key stolen later cannot open what was already read. From the first reply on it is also post-quantum (ML-KEM-768 mixed into every new key), against traffic stored today and decrypted later. Each device of a person opens its own sealed copy, up to 4 devices (for example Radica Messenger and the terminal chat): nothing is synced between devices: what you send from one device is also sealed for your other devices (up to 4 copies for them and 4 for the other person), each with its own keys. Two devices that share one identity key (the same seed imported twice) cannot each keep their own keys, so only one of them reads. A device you have not opened for 30 days stops receiving Secret Chat copies until you open it again. Disappearing message timers are supported.</p>
+          <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses the Double Ratchet (as in Signal): every message key is used once and then deleted, and every reply moves to a new key, so a key stolen later cannot open what was already read. From the first reply on it is also post-quantum (ML-KEM-768 mixed into every new key), against traffic stored today and decrypted later. Each device of a person opens its own sealed copy, up to 4 devices (for example Radica Messenger and the terminal chat): nothing is synced between devices: what you send from one device is also sealed for your other devices (up to 4 copies for them and 4 for the other person), each with its own keys. Two devices that share one identity key (the same seed imported twice) cannot each keep their own keys, so only one of them reads. A device you have not opened for 30 days stops receiving Secret Chat copies until you open it again, and <b>Identity &amp; keys &gt; Devices</b> lists your devices with a <b>Revoke</b> button to cut one off for good. Disappearing message timers are supported.</p>
           <p><b>River contacts</b> (marked "River") are people using River, Freenet's chat app. You can message them, but River's direct messages carry text only: no reactions, reply quotes or edits.</p>
         </details>
 
