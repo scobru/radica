@@ -8,13 +8,21 @@ export interface TuiConv {
   label: string;
   secret: boolean;
 }
+export interface TuiMsg {
+  time: string;
+  who: string;
+  mine: boolean;
+  text: string;
+  /** Dim suffix after the name: "sending…", "local network". */
+  note?: string;
+}
 export interface TuiState {
   header: string;
   convs: TuiConv[];
   /** Index in convs of the open conversation, or -1. */
   open: number;
-  /** The open conversation, one entry per message (already formatted, may be long: wrapped here). */
-  lines: string[];
+  /** The open conversation, one entry per message (wrapped and colored here). */
+  lines: TuiMsg[];
   /** Multi-line output of a command (/help, /me): shown instead of the conversation until Esc. */
   panel: string | null;
   status: string;
@@ -92,41 +100,65 @@ export function startTui(state: TuiState, on: TuiHandlers): { render(): void } {
     const W = process.stdout.columns || 80;
     const H = process.stdout.rows || 24;
     const L = Math.max(18, Math.min(32, Math.floor(W * 0.3)));
-    const R = W - L - 1;
+    const R = W - L - 2;
     const body = H - 3;
     const keep = state.convs.findIndex((c) => c.key === selKey);
     sel = keep >= 0 ? keep : Math.min(sel, Math.max(0, state.convs.length - 1));
     selKey = state.convs[sel]?.key ?? "";
 
-    const left = state.convs.length
-      ? state.convs.map((c, i) => {
-          const mark = i === state.open ? "●" : " ";
-          const text = cut(`${mark} ${c.label}${c.secret ? " [secret]" : ""}`, L);
-          // the selection always shows (reverse; underlined while typing), the open one is bold
-          const style = i === sel ? (focus === "list" ? "7" : "4") : i === state.open ? "1" : "";
-          return style ? `${ESC}${style}m${text}${ESC}0m` : text;
-        })
-      : [cut(" No conversations yet", L), cut(" /open <who> or /nearby", L)];
-    const leftTop = Math.max(0, Math.min(sel - body + 1, state.convs.length - body));
+    // palette: a stable color per name, so people are told apart at a glance
+    const PALETTE = [81, 213, 221, 114, 209, 147, 180, 117];
+    const colorOf = (name: string) => PALETTE[[...name].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7) % PALETTE.length];
+    const fg = (c: number, t: string) => `${ESC}38;5;${c}m${t}${ESC}39m`;
+    const dim = (t: string) => `${ESC}2m${t}${ESC}22m`;
+    const cap = body - 1; // the first left row is the title
+    const left = state.convs.map((c, i) => {
+      const mark = i === state.open ? "●" : " ";
+      const text = cut(` ${mark} ${c.label}${c.secret ? " 🔒" : ""}`, L);
+      // the selection always shows (reverse; underlined while typing), the open one is bold
+      const style = i === sel ? (focus === "list" ? "7" : "4") : i === state.open ? "1" : "";
+      return style ? `${ESC}${style}m${text}${ESC}0m` : text;
+    });
+    if (!left.length) left.push(dim(cut(" No chats yet", L)), dim(cut(" /open <who> or /nearby", L)));
+    const leftTop = Math.max(0, Math.min(sel - cap + 1, state.convs.length - cap));
 
-    const empty = state.open >= 0 ? "No messages yet: type below and press Enter." : "Pick a conversation on the left (↑ ↓ Enter), or type /help.";
-    const right = wrap(state.panel ?? (state.lines.length ? state.lines.join("\n") : empty), R);
-    scroll = Math.max(0, Math.min(scroll, right.length - body));
-    const rightView = right.slice(Math.max(0, right.length - body - scroll), right.length - scroll);
+    // right pane rows: colored text and its visible width, so padding stays exact
+    type Row = { s: string; w: number };
+    const plain = (t: string, f = (x: string) => x): Row[] => wrap(t, R).map((l) => ({ s: f(l), w: width(l) }));
+    let rows: Row[];
+    if (state.panel) rows = plain(state.panel);
+    else if (!state.lines.length)
+      rows = plain(state.open >= 0 ? "No messages yet: type below and press Enter." : "Pick a chat on the left (↑ ↓ Enter), or type /help.", dim);
+    else {
+      rows = [];
+      for (const m of state.lines) {
+        const name = m.mine ? `${ESC}1;38;5;114m${m.who}${ESC}0m` : `${ESC}1;38;5;${colorOf(m.who)}m${m.who}${ESC}0m`;
+        const head = `${dim(m.time)} ${name}${m.note ? dim(`  ${m.note}`) : ""}`;
+        rows.push({ s: head, w: width(m.time) + 1 + width(m.who) + (m.note ? 2 + width(m.note) : 0) });
+        for (const l of wrap(m.text, R - 2)) rows.push({ s: `  ${l}`, w: 2 + width(l) });
+        rows.push({ s: "", w: 0 });
+      }
+      rows.pop();
+    }
+    scroll = Math.max(0, Math.min(scroll, rows.length - body));
+    const rightView = rows.slice(Math.max(0, rows.length - body - scroll), rows.length - scroll);
+    const pad = (r?: Row) => (r ? r.s + " ".repeat(Math.max(0, R - r.w)) : " ".repeat(R));
 
     // every row at its own position: a row that overflows can never scroll the screen
     const row = (y: number, text: string) => `${ESC}${y};1H${text}${ESC}0m`;
-    let out = row(1, `${ESC}7m${cut(` ${state.header}`, W)}`);
-    for (let r = 0; r < body; r++) out += row(r + 2, `${left[leftTop + r] ?? " ".repeat(L)}${ESC}2m│${ESC}0m${cut(rightView[r] ?? "", R)}`);
+    const bar = `${dim("│")} `;
+    let out = row(1, `${ESC}1;97;48;5;61m${cut(` ${state.header}`, W)}`);
+    out += row(2, `${ESC}1;38;5;147m${cut(" CHATS", L)}${ESC}0m${bar}${dim(cut(state.open >= 0 && state.convs[state.open] ? ` ${state.convs[state.open].label} · ${state.convs[state.open].secret ? "Secret Chat 🔒" : "DM"}` : "", R))}`);
+    for (let r = 0; r < cap; r++) out += row(r + 3, `${left[leftTop + r] ?? " ".repeat(L)}${bar}${pad(rightView[r])}`);
     const hint =
       focus === "list"
         ? "↑↓ select · Enter open · Del remove · type to write · PgUp/PgDn scroll · Ctrl+C quit"
         : "↑↓ select · Enter send (empty: open selected) · Esc list · /help · Ctrl+C quit";
-    out += row(H - 1, `${ESC}2m${cut(` ${state.status || hint}`, W)}`);
+    out += row(H - 1, `${ESC}48;5;236m${ESC}38;5;250m${cut(` ${state.status || hint}`, W)}`);
     const prompt = focus === "input" ? "> " : "  ";
     let shown = input;
     while (width(shown) > W - 3) shown = [...shown].slice(1).join("");
-    out += row(H, cut(prompt + shown, W - 1)) + `${ESC}${H};${Math.min(W, prompt.length + width(shown) + 1)}H${focus === "input" ? `${ESC}?25h` : `${ESC}?25l`}`;
+    out += row(H, `${ESC}38;5;81m${prompt}${ESC}39m${cut(shown, W - 1 - prompt.length)}`) + `${ESC}${H};${Math.min(W, prompt.length + width(shown) + 1)}H${focus === "input" ? `${ESC}?25h` : `${ESC}?25l`}`;
     process.stdout.write(out);
   };
   const render = () => {
