@@ -6,7 +6,7 @@ import type { ChatMessage, UserIdentity } from "./types.ts";
 import { cancelMessageBurn, decryptSecretMessage, getActiveSecretChatTTL, getSecretChatSession, getSecretRoomId } from "./secretChat.ts";
 import { drDecrypt, drEncrypt, PREFIX_V2 } from "./secretRatchet.ts";
 import { burnAtOf } from "./conversationState.ts";
-import { formatChatMessageSignatureMessage } from "./crypto.ts";
+import { formatChatMessageSignatureMessage, readEncPubs } from "./crypto.ts";
 
 export interface SecretChatTransport {
   /** Page storage (messages, peers). */
@@ -19,7 +19,12 @@ export interface SecretChatTransport {
   deliver(entry: object, inboxes: string[]): Promise<void>;
   /** The key `pubkey` decrypts with (Viso: their app key). */
   encPubOf(pubkey: string): Promise<string>;
+  /** Every key `pubkey`'s devices decrypt with, the main one (`encPubOf`) first: each gets its own sealed copy. */
+  encPubsOf(pubkey: string): Promise<string[]>;
 }
+
+/** Keys one message is sealed to at most: every copy carries a post-quantum key and ciphertext (~4.5 KB), and a log entry holds 64 KB. */
+export const MAX_SECRET_KEYS = 4;
 
 /** The scratchpad keeps the newest messages of a Secret Chat only. */
 const MAX_STORED = 25;
@@ -115,6 +120,17 @@ export function removeSecretChatPeer(t: SecretChatTransport, me: string, peer: s
   t.store.setItem(peersKey(me), JSON.stringify(readList<string>(t, peersKey(me)).filter((p) => p !== peer)));
 }
 
+/** The same payload sealed to each key, in order (one ratchet step each, so one at a time). */
+function sealToKeys(t: SecretChatTransport, identity: UserIdentity, peer: string, keys: string[], payload: object): Promise<string[]> {
+  return serial(`${identity.pubkey}|${peer}`, async () => {
+    const out: string[] = [];
+    for (const k of keys) out.push(await drEncrypt(t.store, identity.secretKey, identity.pubkey, peer, k, payload));
+    return out;
+  });
+}
+/** Every copy but the first (the main text), by the key it is sealed to. */
+const copiesOf = (keys: string[], sealed: string[]): Record<string, string> => Object.fromEntries(keys.slice(1).map((k, i) => [k, sealed[i + 1]]));
+
 /** Seal `text` with a fresh ratchet key, keep the ciphertext, and deliver it to both inboxes. Returns the message with
  *  its plain text, for the sender's own screen. */
 export async function sendSecretChatMessage(
@@ -131,11 +147,11 @@ export async function sendSecretChatMessage(
   const timestamp = Date.now();
   const ttl = ttlSeconds ?? getActiveSecretChatTTL(roomId);
 
-  // shortcut: sealed to the peer's profile key only, so a Viso peer's other devices cannot read it; add per-device copies like DMs if asked
-  const toEncPub = await t.encPubOf(recipient);
-  const ciphertext = await serial(`${identity.pubkey}|${recipient}`, () =>
-    drEncrypt(t.store, identity.secretKey, identity.pubkey, recipient, toEncPub, { text, ttl, sentAt: timestamp })
-  );
+  // one copy per key of the peer's devices, each on its own ratchet session: a device reads only its own copy
+  const keys = (await t.encPubsOf(recipient)).slice(0, MAX_SECRET_KEYS);
+  const toEncPub = keys[0];
+  const sealed = await sealToKeys(t, identity, recipient, keys, { text, ttl, sentAt: timestamp });
+  const ciphertext = sealed[0];
   const burnAt = ttl > 0 ? timestamp + ttl * 1000 : undefined;
   keepPlain(t, identity.pubkey, id, { r: roomId, c: tagOf(ciphertext), text, ttl, sentAt: timestamp, ...(burnAt ? { burnAt } : {}) });
   const sig = await identity.sign(formatChatMessageSignatureMessage(id, roomId, identity.pubkey, recipient, ciphertext, timestamp));
@@ -151,6 +167,7 @@ export async function sendSecretChatMessage(
     is_secret: true,
     enc_pub: identity.encPub,
     to_enc_pub: toEncPub,
+    ...(keys.length > 1 ? { copies: copiesOf(keys, sealed) } : {}),
     ttl_seconds: ttl,
     burn_at: burnAt,
     ...(replyTo ? { reply_to: replyTo } : {}),
@@ -173,15 +190,16 @@ export async function editSecretMessage(t: SecretChatTransport, identity: UserId
   const msg = list.find((m) => m.id === messageId);
   if (!msg || msg.sender !== identity.pubkey) throw new Error("Only my own message can be edited");
   const ttl = msg.ttl_seconds ?? 0; // the message keeps its burn time
-  const toEncPub = msg.to_enc_pub || (await t.encPubOf(peer));
-  const ciphertext = await serial(`${identity.pubkey}|${peer}`, () =>
-    drEncrypt(t.store, identity.secretKey, identity.pubkey, peer, toEncPub, { text: newText, ttl, sentAt: msg.timestamp })
-  );
+  const keys = (await t.encPubsOf(peer)).slice(0, MAX_SECRET_KEYS);
+  const sealed = await sealToKeys(t, identity, peer, keys, { text: newText, ttl, sentAt: msg.timestamp });
+  const ciphertext = sealed[0];
+  const copies = keys.length > 1 ? copiesOf(keys, sealed) : undefined;
   keepPlain(t, identity.pubkey, messageId, { r: roomId, c: tagOf(ciphertext), text: newText, ttl, sentAt: msg.timestamp });
   msg.text = ciphertext;
+  msg.copies = copies;
   msg.edited_at = Date.now();
   t.store.setItem(roomKey(roomId), JSON.stringify(list));
-  await t.deliver({ type: "chat_edit", roomId, messageId, text: ciphertext }, [peer, identity.pubkey]);
+  await t.deliver({ type: "chat_edit", roomId, messageId, text: ciphertext, copies: copies ?? {} }, [peer, identity.pubkey]);
 }
 
 const secretPlainCache = new Map<string, { text: string; ttl: number }>();
@@ -193,7 +211,12 @@ const isSealedSecret = (m: Pick<ChatMessage, "text">): boolean =>
 export async function readSecretChat(t: SecretChatTransport, identity: UserIdentity, peer: string): Promise<ChatMessage[]> {
   const me = identity.pubkey;
   const roomId = getSecretRoomId(me, peer);
-  const messages = t.visibleChat(roomId);
+  // a message sealed to several devices: this device reads the copy sealed to its key
+  const mine = [identity.encPub, ...(await readEncPubs())];
+  const messages = t.visibleChat(roomId).map((m) => {
+    const k = mine.find((x) => m.copies?.[x]);
+    return k ? { ...m, text: m.copies![k] } : m;
+  });
   const now = Date.now();
   const burned = readBurnedSecretIds(t.store, me);
   const existingPlain = readPlain(t, me);

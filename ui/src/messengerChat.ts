@@ -1940,7 +1940,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <div class="rm-secret-banner-content">
             <div class="rm-secret-banner-title">Secret Chat (Chat Segreta)</div>
             <div class="rm-secret-banner-desc">
-              Protected by ephemeral ratchet keys (Forward Secrecy). Messages exist only on this device and can auto-destruct.
+              Protected by ephemeral ratchet keys (Forward Secrecy). Each device opens its own sealed copy; messages exist only on the devices that received them and can auto-destruct.
             </div>
             <div style="font-size: 0.74rem; color: #10b981; font-weight: 600; margin-top: 2px;">
               <span style="display:inline-flex;align-items:center;gap:4px;">${renderIcon("clock", { size: 12 })} Disappearing timer:</span> <span id="rm-secret-banner-ttl">${ttlLabel}</span>
