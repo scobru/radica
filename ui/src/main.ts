@@ -13147,6 +13147,43 @@ function reapplyDurablePreferences() {
 
 // ---- Identity & Key Management Modal ----
 
+/** The Devices section of Identity & keys: my announced device keys, and a Revoke button on each but this device's own. */
+async function renderDevices(): Promise<void> {
+  const box = document.getElementById("identity-devices-list");
+  if (!box) return;
+  const me = currentIdentity?.pubkey;
+  const list = me ? await freenet.ownDevices().catch(() => []) : [];
+  if (currentIdentity?.pubkey !== me) return; // signed out or switched while the log loaded
+  box.innerHTML = list.length
+    ? ""
+    : `<span style="color: var(--text-muted);">No device has announced a key yet.</span>`;
+  for (const d of list) {
+    const row = document.createElement("div");
+    row.style.cssText = "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;";
+    row.innerHTML = `<code>${d.key.slice(0, 12)}…</code><span style="color: var(--text-muted);">last heard ${new Date(d.seen).toISOString().slice(0, 10)}</span>${d.current ? `<span class="identity-badge local">This device</span>` : ""}`;
+    if (!d.current) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-secondary btn-sm";
+      btn.style.cssText = "color: var(--danger); margin-left: auto;";
+      btn.textContent = "Revoke";
+      btn.onclick = async () => {
+        if (!confirm(`Revoke ${d.key.slice(0, 12)}…? It stops receiving new messages, for good: it keeps what it already has and can only come back with a new key.`)) return;
+        btn.disabled = true;
+        try {
+          await freenet.revokeDevice(d.key);
+          showToast("Device revoked", "info");
+        } catch (e) {
+          showToast((e as Error).message || "Could not revoke", "error");
+        }
+        void renderDevices();
+      };
+      row.appendChild(btn);
+    }
+    box.appendChild(row);
+  }
+}
+
 function renderIdentityModal() {
   identityCloseBtn.style.display = currentIdentity ? "" : "none"; // nothing to go back to before signing in
   if (!currentIdentity) {
@@ -13179,6 +13216,8 @@ function renderIdentityModal() {
   visoStatusMsg.textContent = "";
   localCreateMsg.textContent = "";
   localImportMsg.textContent = "";
+
+  void renderDevices();
 
   // Update Radica @handle section
   const idHandleVal = document.getElementById("identity-handle-val");

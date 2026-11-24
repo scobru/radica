@@ -2221,7 +2221,7 @@ export class FreenetClient {
   // A Viso persona has one app key per device, and the profile names only one: each device also publishes its key in
   // the log devices/<persona>, and direct messages carry a copy encrypted to every one of them.
   // shortcut: DM copies go to every key ever announced and not revoked; Secret Chats also drop keys not announced for 30
-  // days. A revoke is for good and any device of the persona can sign one; the app has no device list yet (the terminal chat does).
+  // days. A revoke is for good and any device of the persona can sign one; the UI is the Devices section of Identity & keys and `/devices`, `/revoke` in the terminal chat.
 
   /** Encryption keys `pubkey`'s devices published (entries by that persona only: the log contract checks the author). */
   private deviceKeys(pubkey: string, maxAgeMs = Infinity): string[] {
