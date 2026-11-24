@@ -43,5 +43,4 @@ export const isInteractiveContract = (id: string): boolean =>
   id.startsWith("log:inbox/") ||
   id.startsWith("log:dm/") ||
   id.startsWith("log:devices/") ||
-  id.startsWith("log:room/") ||
-  id.startsWith("log:wallets/");
+  id.startsWith("log:room/");

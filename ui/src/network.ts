@@ -35,6 +35,7 @@ import { changeOf, isInteractiveContract, type Change } from "./refresh.ts";
 
 const PROBED = "radica_legacy_probed"; // contracts already looked up under earlier generations
 const TIMEOUT_MS = 45000; // a get/put for a contract the node has not got goes looking on the network
+const LEGACY_TIMEOUT_MS = 8000; // legacy contract fallback must never stall bgGate for 45s
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -54,8 +55,24 @@ function wsUrl(): URL {
 const fgGate = limiter(4);
 const bgGate = limiter(4);
 
-const withTimeout = <T>(p: Promise<T>): Promise<T> =>
-  Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), TIMEOUT_MS))]);
+const withTimeout = <T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> =>
+  Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), ms))]);
+
+/** Logs introduced in or after log-contract v2 never existed under earlier WASM generations. */
+function canHaveLegacy(id: ContractId): boolean {
+  return !(
+    id.startsWith("log:dm/") ||
+    id.startsWith("log:devices/") ||
+    id === "log:handles" ||
+    id === "log:poh" ||
+    id === "log:delegations" ||
+    id.startsWith("log:orto/") ||
+    id.startsWith("log:asocial/") ||
+    id.startsWith("log:freetunes/") ||
+    id.startsWith("log:freetree/") ||
+    id.startsWith("log:fh/")
+  );
+}
 
 /** A contract on the network: the feed of a persona (`feed:<pubkey>`), a named log (`log:<name>`), or a River room
  *  (`river:<owner key>`, raw CBOR state, see riverRooms.ts). */
@@ -254,9 +271,6 @@ export class FreenetNetwork {
       const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, true)))); // the timeout starts when the lookup is sent, not while it waits
       this.known.add(id);
       if (r.state.length) this.live.set(id, Date.now()); // nothing published yet: no subscription to rely on
-      // a log someone else started under this generation (a contact writing to my new inbox) still gets my older
-      // entries: the merge is a union, so carrying them in later loses nothing
-      if (r.state.length && id.startsWith("log:")) void this.fromLegacy(id).catch(() => {});
       return r.state.length ? dec.decode(toU8(r.state)) : null;
     } catch (e) {
       // a contract nobody has PUT under this build yet often times out instead of "not found": look in earlier builds either way
@@ -357,7 +371,7 @@ export class FreenetNetwork {
       buf.set(hash, 0);
       buf.set(params, hash.length);
       const key = new ContractKey(blake3(buf), hash);
-      const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)))).catch((e) => ((failed = e), null));
+      const r = await bgGate(() => withTimeout(api.get(new GetRequest(key, false, false)), LEGACY_TIMEOUT_MS)).catch((e) => ((failed = e), null));
       if (r?.state.length) return JSON.parse(dec.decode(toU8(r.state))) as T;
     }
     if (failed) throw failed;
@@ -366,19 +380,19 @@ export class FreenetNetwork {
 
   /** Nothing under the current code: look under earlier generations, once per contract, and carry what is found forward. */
   private async fromLegacy<T>(id: ContractId): Promise<T | null> {
+    if (!canHaveLegacy(id)) return null;
     const kind = id.startsWith("feed:") ? "feed" : "log";
     const mark = `${PROBED}:${CURRENT[kind]}`; // a new generation probes everything again
     const done: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
     if (done.includes(id) || this.probing.has(id)) return null;
     this.probing.add(id); // push below calls get again
     try {
-      let state: T | null;
+      let state: T | null = null;
       try {
         state = await this.legacy<T>(id);
       } catch {
-        return null; // a lookup failed: not marked done, so the next read probes again and nothing is left behind
+        return null;
       }
-      safeStorage.setItem(mark, JSON.stringify([...JSON.parse(safeStorage.getItem(mark) || "[]"), id]));
       if (state === null) return null;
       // a log moves without what no longer counts (superseded state, an inbox's conversations): it stays small
       const log = state as { entries?: Record<string, LogEntry> };
@@ -391,6 +405,8 @@ export class FreenetNetwork {
         return null;
       }
     } finally {
+      const cur: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
+      if (!cur.includes(id)) safeStorage.setItem(mark, JSON.stringify([...cur, id]));
       this.probing.delete(id);
     }
   }

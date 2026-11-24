@@ -46,6 +46,8 @@ export const DURABLE_PREFIXES = [
   "radica_apps_pinned_", // Pinned Freenet apps in launcher
   "radica_apps_custom_", // Custom Freenet sites added to launcher
   "radica_dashboard_slots_", // Which 3 rail buttons always show vs. live behind More
+  "radica_legacy_probed", // completed legacy contract probes so missing contracts are not re-probed every refresh
+  "radica_dm_history_", // one-time pre-v2 DM history migration
 ];
 
 /** The delegate refuses values over 256 KB. */

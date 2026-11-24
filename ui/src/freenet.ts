@@ -558,6 +558,7 @@ export class FreenetClient {
       await this.net.connect();
       this.isConnected = true;
       void this.refreshLog("handles", true);
+      if (this.me) void this.refreshLog(`inbox/${this.me}`, true);
       if (!opts?.chatOnly) void this.connectSocial();
     } catch (err) {
       console.warn("[Freenet] Could not connect to the Freenet node, using local storage only:", err);
@@ -570,7 +571,7 @@ export class FreenetClient {
   /** The social logs the feed needs and chat does not (the terminal chat loads them when a feed is opened). */
   public connectSocial(): Promise<unknown> {
     return Promise.allSettled(
-      ["directory", "supporters", "ghostkeys", "poh", "delegations", "supporter-receipts", "post-edits"].map((l) => this.refreshLog(l, true)) // directory: learn who else is on the network, and publish my own entry
+      ["communities", "directory", "supporters", "ghostkeys", "poh", "delegations", "supporter-receipts", "post-edits"].map((l) => this.refreshLog(l, true)) // directory: learn who else is on the network, and publish my own entry
     );
   }
 
@@ -3109,6 +3110,7 @@ export class FreenetClient {
     if (this.riverOnly.has(peerPubkey)) return this.riverDmThread(identity, peerPubkey);
     void this.refreshLog(`inbox/${identity.pubkey}`);
     const roomId = this.getRoomId(identity.pubkey, peerPubkey);
+    void this.refreshLog(`dm/${roomId}`);
     const messages = this.visibleChat(roomId);
 
     // Decrypt messages asynchronously using peer's pubkey

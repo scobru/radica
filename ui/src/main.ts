@@ -14999,10 +14999,17 @@ async function init() {
   bootStep("Connecting to your Freenet node…");
   const connected = await freenet.connect();
   if (connected) {
+    void freenet.refreshLog("communities", true, true);
+    refreshTrustedBlocklists();
+    void freenet.getPrivateRooms(currentIdentity!).then((r) => {
+      allPrivateRooms = r;
+      updateChatBadge();
+    });
+    void updateNotificationsBadge();
     void freenet.syncOwnFeed(currentIdentity!); // in background: publish my feed, pick up what my other devices wrote
-    void freenet.refreshProfileExtras(currentIdentity!.pubkey, { force: true, urgent: true }).then(() => refreshOpenProfileExtrasUI());
-    void freenet.freenamesOf(currentIdentity!.pubkey);
-    void freenet.freenameSites(currentIdentity!.pubkey);
+    if (!safeStorage.getItem(`radica_profile_extras_${currentIdentity!.pubkey}`)) {
+      void freenet.refreshProfileExtras(currentIdentity!.pubkey, { force: false, urgent: false }).then(() => refreshOpenProfileExtrasUI());
+    }
     freenetDot.classList.add("online");
     freenetStatusLabel.textContent = "Your node is online";
     setChatStatus(true);
@@ -15025,9 +15032,6 @@ async function init() {
   // Load Timeline (Explore by default so all posts on network are immediately visible)
   bootStep("Loading posts…");
   await reloadPosts();
-  if (connected) {
-    freenet.warmPeerWallets([...followingKeys, ...timelinePosts.map((p) => p.author)]);
-  }
   if (!timelinePosts.length && connected) {
     bootStep("Fetching new posts from the network…");
     const t0 = Date.now();
