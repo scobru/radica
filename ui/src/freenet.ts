@@ -66,7 +66,7 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, deviceKeyTimes, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, type LogEntry } from "./logfold.ts";
 
 function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
@@ -2220,20 +2220,13 @@ export class FreenetClient {
 
   // A Viso persona has one app key per device, and the profile names only one: each device also publishes its key in
   // the log devices/<persona>, and direct messages carry a copy encrypted to every one of them.
-  // shortcut: a key is never withdrawn (a lost device keeps getting copies), add a "revoke" entry when that matters
+  // shortcut: DM copies go to every key ever announced (a lost device keeps getting them); Secret Chats drop keys not
+  // announced for 30 days. No "revoke" entry yet: add one with a device list in the UI.
 
   /** Encryption keys `pubkey`'s devices published (entries by that persona only: the log contract checks the author). */
-  private deviceKeys(pubkey: string): string[] {
-    const keys = this.logEntries(`devices/${pubkey}`)
-      .filter((e) => e.author === pubkey)
-      .map((e) => {
-        try {
-          return JSON.parse(e.body).enc_pub;
-        } catch {
-          return null;
-        }
-      });
-    return keys.filter((k): k is string => typeof k === "string" && /^[0-9a-f]{64}$/.test(k));
+  private deviceKeys(pubkey: string, maxAgeMs = Infinity): string[] {
+    const since = Date.now() - maxAgeMs;
+    return [...deviceKeyTimes(this.logEntries(`devices/${pubkey}`), pubkey)].filter(([, ts]) => ts >= since).map(([k]) => k);
   }
 
   /** Every key a direct message to `pubkey` must be readable with: their profile's and their devices'. */
@@ -2249,7 +2242,9 @@ export class FreenetClient {
     if (identity.encPub === identity.pubkey && !(await this.profileNamesOtherKey(identity.pubkey))) return;
     const name = `devices/${identity.pubkey}`;
     await this.refreshLog(name, true);
-    if (!this.deviceKeys(identity.pubkey).includes(identity.encPub)) await this.logAppend(name, { type: "device", enc_pub: identity.encPub });
+    // announced again once a week: a Secret Chat sender drops keys not heard from in 30 days
+    const last = deviceKeyTimes(this.logEntries(name), identity.pubkey).get(identity.encPub) ?? 0;
+    if (Date.now() - last > DEVICE_HEARTBEAT_MS) await this.logAppend(name, { type: "device", enc_pub: identity.encPub });
   }
 
   /** Append to a room's log. In a one-to-one conversation the other side's inbox gets a "this conversation changed"
@@ -3202,12 +3197,12 @@ export class FreenetClient {
       if (pr?.enc_pub === k && (await this.profileSigOk(k, pr))) return k;
       // no key in their profile (a new Viso persona may have no profile yet): the key their device published, as DMs do
       await this.refreshLog(`devices/${k}`);
-      return this.deviceKeys(k).pop() ?? k; // the newest device
+      return this.deviceKeys(k, SECRET_DEVICE_TTL_MS).pop() ?? k; // the newest device still heard from
     },
     // the main key first, then the newest devices: each gets its own sealed copy (secretChatTransport.ts caps the count)
     encPubsOf: async (k) => {
       const main = await this.secretTransport.encPubOf(k);
-      return [...new Set([main, ...this.deviceKeys(k).reverse()])];
+      return [...new Set([main, ...this.deviceKeys(k, SECRET_DEVICE_TTL_MS).reverse()])];
     },
   };
 
