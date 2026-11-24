@@ -892,14 +892,29 @@ export function compactLog(name: string, entries: Record<string, LogEntry>): Rec
 export const DEVICE_HEARTBEAT_MS = 7 * 24 * 60 * 60 * 1000;
 export const SECRET_DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** The encryption keys `persona`'s devices announced in `devices/<persona>`, each with the time of its newest
- *  announcement, oldest first (entries by that persona only: the log contract checks the author). */
+const isKey = (k: unknown): k is string => typeof k === "string" && /^[0-9a-f]{64}$/.test(k);
+
+/** Device keys `persona` revoked: for good, a later announcement of the same key does not bring it back (a thief's device
+ *  could announce too, so an announcement cannot undo a revoke). */
+export function revokedDeviceKeys(entries: LogEntry[], persona: string): Set<string> {
+  const out = new Set<string>();
+  for (const e of entries) {
+    const b = e.author === persona ? (parseBody(e) as { type?: unknown; enc_pub?: unknown } | null) : null;
+    if (b?.type === "device_revoke" && isKey(b.enc_pub)) out.add(b.enc_pub);
+  }
+  return out;
+}
+
+/** The encryption keys `persona`'s devices announced in `devices/<persona>` and did not revoke, each with the time of its
+ *  newest announcement, oldest first (entries by that persona only: the log contract checks the author). */
 export function deviceKeyTimes(entries: LogEntry[], persona: string): Map<string, number> {
+  const revoked = revokedDeviceKeys(entries, persona);
   const seen = new Map<string, number>();
   for (const e of entries) {
     if (e.author !== persona) continue;
-    const k = (parseBody(e) as { enc_pub?: unknown } | null)?.enc_pub;
-    if (typeof k === "string" && /^[0-9a-f]{64}$/.test(k)) seen.set(k, Math.max(seen.get(k) ?? 0, e.ts));
+    const b = parseBody(e) as { type?: unknown; enc_pub?: unknown } | null;
+    if (b?.type === "device_revoke" || !isKey(b?.enc_pub) || revoked.has(b.enc_pub)) continue;
+    seen.set(b.enc_pub, Math.max(seen.get(b.enc_pub) ?? 0, e.ts));
   }
   return new Map([...seen].sort((a, z) => a[1] - z[1]));
 }

@@ -23,6 +23,8 @@ const HELP = `Commands:
   /secret <who>            open a Secret Chat
   /nearby                  Radica users on this Wi-Fi
   /visible on|off          let people on this Wi-Fi find you
+  /devices                 your devices' keys and when each was last heard from
+  /revoke <n> confirm      stop sending to device n of /devices, for good
   /clear                   empty the open conversation (on your devices; theirs keep it)
   /delete                  remove the open conversation from your list
   /block                   block the person in the open conversation
@@ -36,6 +38,7 @@ let me: UserIdentity | null = null;
 let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
 let lastList: string[] = [];
+let lastDevices: { key: string; seen: number; current: boolean }[] = [];
 let online = false;
 
 const view: TuiState = { header: "Radica", convs: [], open: -1, lines: [], panel: null, status: "" };
@@ -244,6 +247,20 @@ async function command(line: string): Promise<void> {
       if (rest[0] !== "on" && rest[0] !== "off") return say(`Visible on this Wi-Fi: ${freenet.isNearbyVisible() ? "on" : "off"}. /visible on|off`);
       freenet.setNearbyVisible(rest[0] === "on");
       return say(rest[0] === "on" ? "Visible: everyone on this network can see you use Radica." : "Hidden from people nearby.");
+    }
+    case "/devices": {
+      lastDevices = await freenet.ownDevices();
+      if (!lastDevices.length) return say("No other device has announced a key yet.");
+      return say(lastDevices.map((d, i) => `  ${i + 1}. ${d.key.slice(0, 12)}…  last heard ${new Date(d.seen).toISOString().slice(0, 10)}${d.current ? "  (this device)" : ""}`).join("\n") + "\n/revoke <number> confirm stops others sending to one of them, for good.");
+    }
+    case "/revoke": {
+      const d = lastDevices[Number(rest[0]) - 1];
+      if (!d) return say("Which device? Run /devices, then /revoke <number> confirm.");
+      if (d.current) return say("That is this device.");
+      if (rest[1] !== "confirm") return say(`Revoking ${d.key.slice(0, 12)}… is permanent: that device stops receiving new messages (it keeps what it already has) and can only come back with a new key. /revoke ${rest[0]} confirm to do it.`);
+      await freenet.revokeDevice(d.key);
+      lastDevices = [];
+      return say(`Revoked ${d.key.slice(0, 12)}….`);
     }
     case "/clear": {
       if (!open) return say("Open a conversation first.");

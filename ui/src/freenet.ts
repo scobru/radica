@@ -66,7 +66,7 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, deviceKeyTimes, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, type LogEntry } from "./logfold.ts";
 
 function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
@@ -2220,8 +2220,8 @@ export class FreenetClient {
 
   // A Viso persona has one app key per device, and the profile names only one: each device also publishes its key in
   // the log devices/<persona>, and direct messages carry a copy encrypted to every one of them.
-  // shortcut: DM copies go to every key ever announced (a lost device keeps getting them); Secret Chats drop keys not
-  // announced for 30 days. No "revoke" entry yet: add one with a device list in the UI.
+  // shortcut: DM copies go to every key ever announced and not revoked; Secret Chats also drop keys not announced for 30
+  // days. A revoke is for good and any device of the persona can sign one; the app has no device list yet (the terminal chat does).
 
   /** Encryption keys `pubkey`'s devices published (entries by that persona only: the log contract checks the author). */
   private deviceKeys(pubkey: string, maxAgeMs = Infinity): string[] {
@@ -2242,9 +2242,28 @@ export class FreenetClient {
     if (identity.encPub === identity.pubkey && !(await this.profileNamesOtherKey(identity.pubkey))) return;
     const name = `devices/${identity.pubkey}`;
     await this.refreshLog(name, true);
+    if (revokedDeviceKeys(this.logEntries(name), identity.pubkey).has(identity.encPub)) return; // revoked for good: never announce again
     // announced again once a week: a Secret Chat sender drops keys not heard from in 30 days
     const last = deviceKeyTimes(this.logEntries(name), identity.pubkey).get(identity.encPub) ?? 0;
     if (Date.now() - last > DEVICE_HEARTBEAT_MS) await this.logAppend(name, { type: "device", enc_pub: identity.encPub });
+  }
+
+  /** My devices' keys not revoked, with when each was last heard from; `current` marks this device's. */
+  public async ownDevices(): Promise<{ key: string; seen: number; current: boolean }[]> {
+    const me = this.identity;
+    if (!me) return [];
+    await this.refreshLog(`devices/${me.pubkey}`, true);
+    return [...deviceKeyTimes(this.logEntries(`devices/${me.pubkey}`), me.pubkey)].map(([key, seen]) => ({ key, seen, current: key === me.encPub }));
+  }
+
+  /** Revoke one of my devices' keys for good: senders stop sealing to it (DM copies and Secret Chat copies). It still
+   *  reads what was already sealed to it. Not this device's own key, and not the key my profile names. */
+  public async revokeDevice(key: string): Promise<void> {
+    const me = this.identity;
+    if (!me) throw new Error("Sign in first");
+    if (key === me.encPub) throw new Error("That is this device");
+    if (!(await this.ownDevices()).some((d) => d.key === key)) throw new Error("Not one of your announced devices");
+    await this.logAppend(`devices/${me.pubkey}`, { type: "device_revoke", enc_pub: key });
   }
 
   /** Append to a room's log. In a one-to-one conversation the other side's inbox gets a "this conversation changed"
