@@ -505,6 +505,8 @@ export class FreenetClient {
         const idx = messages.findIndex((m) => m.id === data.messageId);
         if (idx >= 0) {
           messages[idx].text = data.text;
+          // a Secret Chat edit always names its copies (maybe none); a DM edit does not and keeps what the message had
+          if (data.copies) messages[idx].copies = Object.keys(data.copies).length ? data.copies : undefined;
           messages[idx].edited_at = Date.now();
           localStorage.setItem(roomKey, JSON.stringify(messages));
         }
@@ -2204,6 +2206,11 @@ export class FreenetClient {
     return (await this.profileSigOk(pubkey, pr)) ? enc : pubkey;
   }
 
+  private async profileNamesOtherKey(pubkey: string): Promise<boolean> {
+    const pr = (await this.getFeed(pubkey)).profile;
+    return !!pr?.enc_pub && pr.enc_pub !== pubkey && /^[0-9a-f]{64}$/.test(pr.enc_pub) && (await this.profileSigOk(pubkey, pr));
+  }
+
   private profileSigOk(pubkey: string, pr: NonNullable<Awaited<ReturnType<FreenetClient["getFeed"]>>["profile"]>): Promise<boolean> {
     const msg = pr.v === 3
       ? profileMsg4(pubkey, pr)
@@ -2237,7 +2244,9 @@ export class FreenetClient {
 
   /** Publish this device's key once, so the messages sent to me reach it too. A local key is the same on every device. */
   private async announceDevice(identity: UserIdentity): Promise<void> {
-    if (identity.encPub === identity.pubkey) return;
+    // a local key is the same on every device, unless the profile names another one (this persona also signs in with Viso):
+    // then this device must say it reads with the persona key too, or senders seal to the profile's key only
+    if (identity.encPub === identity.pubkey && !(await this.profileNamesOtherKey(identity.pubkey))) return;
     const name = `devices/${identity.pubkey}`;
     await this.refreshLog(name, true);
     if (!this.deviceKeys(identity.pubkey).includes(identity.encPub)) await this.logAppend(name, { type: "device", enc_pub: identity.encPub });
@@ -3194,6 +3203,11 @@ export class FreenetClient {
       // no key in their profile (a new Viso persona may have no profile yet): the key their device published, as DMs do
       await this.refreshLog(`devices/${k}`);
       return this.deviceKeys(k).pop() ?? k; // the newest device
+    },
+    // the main key first, then the newest devices: each gets its own sealed copy (secretChatTransport.ts caps the count)
+    encPubsOf: async (k) => {
+      const main = await this.secretTransport.encPubOf(k);
+      return [...new Set([main, ...this.deviceKeys(k).reverse()])];
     },
   };
 

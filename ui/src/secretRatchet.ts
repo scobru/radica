@@ -24,7 +24,7 @@ const MAX_SKIP = 500;
 /** Skipped keys a session keeps; the oldest go first. */
 const MAX_SKIPPED_KEPT = 1000;
 /** Sessions kept per peer; the least recently used go first. */
-const MAX_SESSIONS = 4;
+const MAX_SESSIONS = 8; // one per device key a message is sealed to (secretChatTransport.ts MAX_SECRET_KEYS = 4), and as many started by the peer
 
 export interface DrStore {
   getItem(key: string): string | null;

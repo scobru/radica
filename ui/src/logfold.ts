@@ -227,7 +227,7 @@ export function foldChat(
   // Key messages by `${sender}:${messageId}` so a colliding `message.id` from another author can never overwrite or hijack.
   const msgs = new Map<string, ChatMessage>();
   const deletes: { author: string; id: string }[] = [];
-  const edits: { author: string; id: string; text: string; ts: number }[] = [];
+  const edits: { author: string; id: string; text: string; copies?: Record<string, string>; ts: number }[] = [];
   const reacts = new Map<string, { author: string; id: string; emoji: string; on: boolean; ts: number }>(); // the latest word of each person on each emoji
   for (const { e, b } of bodies(entries)) {
     const a = norm(e.author);
@@ -237,7 +237,7 @@ export function foldChat(
     } else if ((b.type === "chat_delete" || b.type === "chat_burn") && b.roomId === roomId && typeof b.messageId === "string") {
       deletes.push({ author: a, id: b.messageId });
     } else if (b.type === "chat_edit" && b.roomId === roomId && typeof b.messageId === "string" && typeof b.text === "string") {
-      edits.push({ author: a, id: b.messageId, text: b.text, ts: e.ts });
+      edits.push({ author: a, id: b.messageId, text: b.text, copies: b.copies && typeof b.copies === "object" ? b.copies : undefined, ts: e.ts });
     } else if (b.type === "chat_react" && b.roomId === roomId && typeof b.messageId === "string" && CHAT_REACTIONS.includes(b.emoji)) {
       const k = `${a}|${b.messageId}|${b.emoji}`;
       if ((reacts.get(k)?.ts ?? -1) <= e.ts) reacts.set(k, { author: a, id: b.messageId, emoji: b.emoji, on: b.on === true, ts: e.ts });
@@ -247,7 +247,8 @@ export function foldChat(
     const mk = `${ed.author}:${ed.id}`;
     const m = msgs.get(mk);
     if (m && ed.author === m.sender && (!m.edited_at || ed.ts >= m.edited_at)) {
-      msgs.set(mk, { ...m, text: ed.text, edited_at: ed.ts });
+      // a Secret Chat edit always names its copies (maybe none); a DM edit does not and keeps what the message had
+      msgs.set(mk, { ...m, text: ed.text, ...(ed.copies ? { copies: Object.keys(ed.copies).length ? ed.copies : undefined } : {}), edited_at: ed.ts });
     }
   }
   for (const d of deletes) {
