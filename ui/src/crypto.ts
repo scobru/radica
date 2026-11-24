@@ -76,14 +76,15 @@ export async function getIdentity(): Promise<UserIdentity | null> {
   };
 }
 
-const MAX_SIG_CACHE = 1000;
-const sigVerifyCache = new Map<string, boolean>();
+// Logs are checked whole on every refresh (takeLog verifies local entries too): the cache must hold every entry of every
+// log, or a log bigger than it misses on every entry, every time (seconds of main-thread ed25519 per refresh).
+const MAX_SIG_CACHE = 50_000;
+const sigVerifyCache = new Map<string, boolean>(); // keys are one 64-char hash: ~5 MB when full
 
 /** Ed25519 check of a hex signature by a hex pubkey; false on any malformed input. Cached by pubkey, signature, and message hash. */
 export async function verifySignature(msg: string, sigHex: string, pubHex: string): Promise<boolean> {
   if (!sigHex || !pubHex) return false;
-  const msgHash = bytesToHex(blake3(enc.encode(msg)));
-  const cacheKey = `${pubHex}:${sigHex}:${msgHash}`;
+  const cacheKey = bytesToHex(blake3(enc.encode(`${pubHex}:${sigHex}:${msg}`)));
   const hit = sigVerifyCache.get(cacheKey);
   if (hit !== undefined) return hit;
   try {
@@ -98,6 +99,8 @@ export async function verifySignature(msg: string, sigHex: string, pubHex: strin
     return false;
   }
 }
+
+const proofCache = new Map<string, boolean>();
 
 /** Verify a record signed directly by `authorHex` or via a Viso delegation `cert` for this app. */
 export async function verifyAuthorSignature(
@@ -118,8 +121,16 @@ export async function verifyAuthorSignature(
       return false;
     }
   }
-  const { verifyProof } = await import("./whoiam.ts");
-  if (!(await verifyProof({ ...cert, pk: authorHex }))) return false;
+  // one delegation signs all of a persona's entries: check it once, not once per entry (up to three ed25519 checks each)
+  const proofKey = `${authorHex}:${cert.sig}:${cert.challenge}:${cert.ts}:${cert.base}`;
+  let proofOk = proofCache.get(proofKey);
+  if (proofOk === undefined) {
+    const { verifyProof } = await import("./whoiam.ts");
+    proofOk = await verifyProof({ ...cert, pk: authorHex });
+    if (proofCache.size >= MAX_SIG_CACHE) proofCache.delete(proofCache.keys().next().value!);
+    proofCache.set(proofKey, proofOk);
+  }
+  if (!proofOk) return false;
   return verifySignature(msg, sigHex, m[1].toLowerCase());
 }
 
