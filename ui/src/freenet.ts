@@ -2201,11 +2201,14 @@ export class FreenetClient {
     const enc = pr?.enc_pub;
     // no signed profile (offline, or not published yet): the key from a contact card taken in person
     if (!pr || !enc || !/^[0-9a-f]{64}$/.test(enc) || enc === pubkey) return this.contactCard(pubkey)?.encPub ?? pubkey;
+    return (await this.profileSigOk(pubkey, pr)) ? enc : pubkey;
+  }
+
+  private profileSigOk(pubkey: string, pr: NonNullable<Awaited<ReturnType<FreenetClient["getFeed"]>>["profile"]>): Promise<boolean> {
     const msg = pr.v === 3
       ? profileMsg4(pubkey, pr)
-      : formatProfileSignatureMessage(pubkey, pr.display_name ?? "", pr.bio ?? "", pr.avatar_url ?? "", enc, pr.updated_at ?? 0);
-    const ok = await verifyAuthorSignature(msg, pr.sig ?? "", pubkey, pr.cert);
-    return ok ? enc : pubkey;
+      : formatProfileSignatureMessage(pubkey, pr.display_name ?? "", pr.bio ?? "", pr.avatar_url ?? "", pr.enc_pub ?? "", pr.updated_at ?? 0);
+    return verifyAuthorSignature(msg, pr.sig ?? "", pubkey, pr.cert);
   }
 
   // A Viso persona has one app key per device, and the profile names only one: each device also publishes its key in
@@ -3185,6 +3188,9 @@ export class FreenetClient {
       await this.refresh(k); // not forced, as for direct messages
       const fromProfile = await this.encPubOf(k);
       if (fromProfile !== k) return fromProfile;
+      // their signed profile names their own key (a local identity): stale device entries must not override it
+      const pr = (await this.getFeed(k)).profile;
+      if (pr?.enc_pub === k && (await this.profileSigOk(k, pr))) return k;
       // no key in their profile (a new Viso persona may have no profile yet): the key their device published, as DMs do
       await this.refreshLog(`devices/${k}`);
       return this.deviceKeys(k).pop() ?? k; // the newest device
