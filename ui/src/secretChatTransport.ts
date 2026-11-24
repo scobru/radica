@@ -241,8 +241,9 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
           ...(burnAt ? { burnAt } : {}),
         };
         plainChanged = true;
-      } catch {
-        // not ours, damaged, or its key already used: shown as unreadable below
+      } catch (e) {
+        // not ours, damaged, or its key already used: shown as unreadable below; the reason goes to the log
+        console.warn("[secret] cannot open", msg.id, "from", peer.slice(0, 8), "sealed by", (msg.enc_pub || peer).slice(0, 8), "to", (msg.to_enc_pub ?? "?").slice(0, 8), "me", identity.encPub.slice(0, 8), "-", (e as Error)?.message ?? e);
       }
     }
     if (plainChanged) writePlain(t, me, plain);
