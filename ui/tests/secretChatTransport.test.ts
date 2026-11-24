@@ -320,3 +320,34 @@ test("secretChatTransport: a message and its edit are sealed to each device of t
   assert.deepEqual((await readSecretChat(tb1, bob1, alice.pubkey)).map((m) => m.text), ["ciao ciao"]);
   assert.deepEqual((await readSecretChat(tb2, bob2, alice.pubkey)).map((m) => m.text), ["ciao ciao"]);
 });
+
+test("secretChatTransport: what Alice sends from one device reads on her other device, as a message and as an edit", async () => {
+  const alice1 = await person(true);
+  const sk2 = crypto.getRandomValues(new Uint8Array(32));
+  const enc2 = ed.etc.bytesToHex(await ed.getPublicKeyAsync(sk2));
+  const alice2: UserIdentity = { pubkey: alice1.pubkey, secretKey: sk2, encPub: enc2, sign: async () => "sig" };
+  const bob = await person();
+  const network = new Map<string, SecretChatTransport>();
+  const wire: any[] = [];
+  const [ta1, ta2, tb] = [device(network, [], wire), device(network), device(network)];
+  network.set(bob.pubkey, tb);
+  ta1.encPubsOf = async (k) => (k === alice1.pubkey ? [alice1.encPub, enc2] : [encPubs.get(k) ?? k]);
+
+  const sent = await sendSecretChatMessage(ta1, alice1, bob.pubkey, "da un dispositivo", 0);
+  const msg = wire.find((e) => e.type === "chat").message as ChatMessage;
+  assert.deepEqual(Object.keys(msg.copies ?? {}), [enc2], "a copy for Alice's other device, none for Bob (one key)");
+  ta2.store.setItem(`freenet_chat_${msg.room_id}`, JSON.stringify([msg])); // the entry also lands in her own inbox
+
+  assert.deepEqual((await readSecretChat(ta2, alice2, bob.pubkey)).map((m) => m.text), ["da un dispositivo"]);
+  assert.deepEqual((await readSecretChat(tb, bob, alice1.pubkey)).map((m) => m.text), ["da un dispositivo"]);
+  assert.deepEqual((await readSecretChat(ta1, alice1, bob.pubkey)).map((m) => m.text), ["da un dispositivo"]);
+
+  await editSecretMessage(ta1, alice1, bob.pubkey, sent.id, "modificato");
+  const edit = wire.find((e) => e.type === "chat_edit");
+  const key = `freenet_chat_${msg.room_id}`;
+  const list: ChatMessage[] = JSON.parse(ta2.store.getItem(key)!);
+  list[0].text = edit.text;
+  list[0].copies = edit.copies;
+  ta2.store.setItem(key, JSON.stringify(list));
+  assert.deepEqual((await readSecretChat(ta2, alice2, bob.pubkey)).map((m) => m.text), ["modificato"]);
+});

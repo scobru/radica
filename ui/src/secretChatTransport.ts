@@ -131,6 +131,14 @@ function sealToKeys(t: SecretChatTransport, identity: UserIdentity, peer: string
 /** Every copy but the first (the main text), by the key it is sealed to. */
 const copiesOf = (keys: string[], sealed: string[]): Record<string, string> => Object.fromEntries(keys.slice(1).map((k, i) => [k, sealed[i + 1]]));
 
+/** The copies for my other devices, by key (sessions live under the pair (me, me)): what I send from one device must
+ *  read on the others. Empty when I have no other device key. */
+async function ownCopies(t: SecretChatTransport, identity: UserIdentity, payload: object, skip: string[]): Promise<Record<string, string>> {
+  const keys = (await t.encPubsOf(identity.pubkey)).filter((k) => k !== identity.encPub && !skip.includes(k)).slice(0, MAX_SECRET_KEYS - 1);
+  const sealed = await sealToKeys(t, identity, identity.pubkey, keys, payload);
+  return Object.fromEntries(keys.map((k, i) => [k, sealed[i]]));
+}
+
 /** Seal `text` with a fresh ratchet key, keep the ciphertext, and deliver it to both inboxes. Returns the message with
  *  its plain text, for the sender's own screen. */
 export async function sendSecretChatMessage(
@@ -152,6 +160,7 @@ export async function sendSecretChatMessage(
   const toEncPub = keys[0];
   const sealed = await sealToKeys(t, identity, recipient, keys, { text, ttl, sentAt: timestamp });
   const ciphertext = sealed[0];
+  const copies = { ...copiesOf(keys, sealed), ...(await ownCopies(t, identity, { text, ttl, sentAt: timestamp }, keys)) };
   const burnAt = ttl > 0 ? timestamp + ttl * 1000 : undefined;
   keepPlain(t, identity.pubkey, id, { r: roomId, c: tagOf(ciphertext), text, ttl, sentAt: timestamp, ...(burnAt ? { burnAt } : {}) });
   const sig = await identity.sign(formatChatMessageSignatureMessage(id, roomId, identity.pubkey, recipient, ciphertext, timestamp));
@@ -167,7 +176,7 @@ export async function sendSecretChatMessage(
     is_secret: true,
     enc_pub: identity.encPub,
     to_enc_pub: toEncPub,
-    ...(keys.length > 1 ? { copies: copiesOf(keys, sealed) } : {}),
+    ...(Object.keys(copies).length ? { copies } : {}),
     ttl_seconds: ttl,
     burn_at: burnAt,
     ...(replyTo ? { reply_to: replyTo } : {}),
@@ -193,7 +202,8 @@ export async function editSecretMessage(t: SecretChatTransport, identity: UserId
   const keys = (await t.encPubsOf(peer)).slice(0, MAX_SECRET_KEYS);
   const sealed = await sealToKeys(t, identity, peer, keys, { text: newText, ttl, sentAt: msg.timestamp });
   const ciphertext = sealed[0];
-  const copies = keys.length > 1 ? copiesOf(keys, sealed) : undefined;
+  const all = { ...copiesOf(keys, sealed), ...(await ownCopies(t, identity, { text: newText, ttl, sentAt: msg.timestamp }, keys)) };
+  const copies = Object.keys(all).length ? all : undefined;
   keepPlain(t, identity.pubkey, messageId, { r: roomId, c: tagOf(ciphertext), text: newText, ttl, sentAt: msg.timestamp });
   msg.text = ciphertext;
   msg.copies = copies;
@@ -213,8 +223,10 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
   const roomId = getSecretRoomId(me, peer);
   // a message sealed to several devices: this device reads the copy sealed to its key
   const mine = [identity.encPub, ...(await readEncPubs())];
+  const ownCopyIds = new Set<string>(); // my messages sent from another device of mine
   const messages = t.visibleChat(roomId).map((m) => {
     const k = mine.find((x) => m.copies?.[x]);
+    if (k && m.sender === me) ownCopyIds.add(m.id);
     return k ? { ...m, text: m.copies![k] } : m;
   });
   const now = Date.now();
@@ -249,9 +261,10 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
       }
     for (const msg of [...live].sort((a, z) => a.timestamp - z.timestamp)) {
       if (!msg.text?.startsWith(PREFIX_V2) || plain[msg.id]?.c === tagOf(msg.text)) continue;
-      if (msg.sender === me) continue; // mine from another device: its key never was here
+      if (msg.sender === me && !ownCopyIds.has(msg.id)) continue; // mine from another device, sent without a copy for this one
+      const from = msg.sender === me ? me : peer; // a copy from my other device: its sessions are under (me, me)
       try {
-        const d = (await drDecrypt(t.store, identity.secretKey, me, peer, msg.enc_pub || peer, msg.text)) as Partial<Plain>;
+        const d = (await drDecrypt(t.store, identity.secretKey, me, from, msg.enc_pub || from, msg.text)) as Partial<Plain>;
         const ttl = typeof d.ttl === "number" ? d.ttl : (msg.ttl_seconds ?? 0);
         const readNow = Date.now();
         const burnAt = ttl > 0 ? (plain[msg.id]?.burnAt ?? (readNow + ttl * 1000)) : undefined;
