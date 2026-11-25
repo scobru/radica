@@ -2868,6 +2868,37 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   white-space: nowrap;
 }
 
+/* attachments an edit keeps (messengerChat.ts showEditMedia): small, in one scrollable row under the banner */
+#chat-modal .rm-edit-media {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 4px 12px 0;
+  max-height: 96px;
+}
+#chat-modal .rm-edit-media[hidden] {
+  display: none;
+}
+#chat-modal .rm-edit-media .cm-card {
+  flex: none;
+  width: auto;
+  max-width: 220px;
+  max-height: 88px;
+  overflow: hidden;
+  margin: 0;
+}
+#chat-modal .rm-edit-media .cm-img-card {
+  width: 88px;
+}
+#chat-modal .rm-edit-media .cm-img-status {
+  font-size: 0.62rem;
+}
+#chat-modal .rm-edit-media img,
+#chat-modal .rm-edit-media video {
+  max-height: 88px;
+  object-fit: cover;
+}
+
 /* Edited indicator on bubble meta */
 #chat-modal .rm-lan-tag {
   display: inline-flex;

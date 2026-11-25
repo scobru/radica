@@ -287,3 +287,27 @@ test("My Circle Only moves the feed from Explore to Following, and Home keeps it
   await expect(page.locator("#scope-following-btn")).toHaveClass(/\bactive\b/);
   await expect(page.locator("#scope-explore-btn")).not.toHaveClass(/\bactive\b/);
 });
+
+test("editing a chat message with a photo shows the photo it keeps, and Cancel hides it", async ({ page }) => {
+  await signIn(page);
+  const peer = Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+  await page.evaluate(async (peer) => {
+    const { freenet } = await import("/src/freenet.ts");
+    const { encodeChatMediaToken } = await import("/src/chatMedia.ts");
+    const f = freenet as unknown as { me: string; getRoomId(a: string, b: string): string; handlePeerEvent(d: unknown): void };
+    const photo = encodeChatMediaToken({ kind: "img", mime: "image/webp", hash: "a".repeat(64), keyHex: "b".repeat(64), width: 40, height: 40 });
+    const text = `holiday pics\n${photo}`;
+    const message = { id: `m_${Date.now()}`, room_id: f.getRoomId(f.me, peer), sender: f.me, recipient: peer, text, timestamp: Date.now(), sig: "" };
+    f.handlePeerEvent({ type: "chat", message });
+  }, peer);
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item").first().click();
+  const row = page.locator(".rm-msg-row", { hasText: "holiday pics" }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.hover();
+  await row.locator("[data-edit-msg]").click({ force: true });
+  await expect(page.locator("#rm-composer-input")).toHaveValue("holiday pics"); // the caption only
+  await expect(page.locator("#rm-edit-media .cm-img-card")).toHaveCount(1);
+  await page.click("#rm-edit-banner-cancel");
+  await expect(page.locator("#rm-edit-media")).toBeHidden();
+});
