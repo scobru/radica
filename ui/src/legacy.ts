@@ -18,3 +18,9 @@ export const LEGACY: Record<keyof typeof CURRENT, string[]> = {
   log: ["004279a5303a2bda886df679cef284433b396ceb7e68132049d91b748d5acb6e", "4c17282a893595cb167387b785554e0bd100990d8b2a14a3fea290d65e306437", "690d6439e24f4dbd523f61c343b12a7276fd7466d9da8df741e5e371b12c4e8e"], // last v1 build; before: an author's newer entry did not replace the older under one key; 42c394a
   media: [],
 };
+
+/** Logs first written after log contract v2 shipped (b607b0a, 2026-11-20) have nothing under an earlier generation, so
+ *  they skip the lookup. Only list a log here if no build before v2 ever wrote it. */
+const BORN_AFTER_V2 = ["log:handles"];
+
+export const canHaveLegacy = (id: string): boolean => !BORN_AFTER_V2.includes(id);
