@@ -5,6 +5,12 @@ import type { Cert } from "./whoiam.ts";
 import { isDelegationProofShape, type DelegationProofV1, type PohLogEntry } from "./viso.ts";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { ANNOUNCE_POW_BITS, powBits } from "./pow.ts";
+import {
+  foldBlocklist as sharedFoldBlocklist,
+  foldPostEdits as sharedFoldPostEdits,
+  foldRoom as sharedFoldRoom,
+  roomJoinProofs as sharedRoomJoinProofs,
+} from "../../shared/roomFold.js";
 
 export type LogEntry = { author: string; id: string; ts: number; body: string; sig: string; cert?: Cert; v?: number; nonce?: number };
 
@@ -277,84 +283,7 @@ export function foldChat(
  * A kicked member cannot come back through an invite link (`room_join`); only the creator listing them again lets them in.
  */
 export function foldRoom(entries: LogEntry[], roomId: string): PrivateRoom | null {
-  let room: PrivateRoom | null = null;
-  const kicked = new Set<string>();
-  const joined: Record<string, string> = {}; // who came in by link -> their key copy
-  for (const { e, b } of bodies(entries)) {
-    const a = norm(e.author);
-    if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && norm(b.room.creator) === a) {
-      room = structuredClone(b.room);
-      room!.creator = a;
-      room!.members = (room!.members ?? []).map((m) => norm(m));
-      room!.moderators = (room!.moderators ?? []).map((m) => norm(m)).filter((m) => m !== room!.creator && room!.members.includes(m));
-      for (const m of room!.members) kicked.delete(m); // the creator listing someone again lets them in
-      // the creator's copy may predate the joins by link: they stay in
-      for (const [m, k] of Object.entries(joined)) {
-        if (room!.members.includes(m)) continue;
-        room!.members.push(m);
-        if (k) room!.encrypted_keys = { ...room!.encrypted_keys, [m]: k };
-      }
-    } else if (b.type === "room_join" && b.roomId === roomId && room && !room.members.includes(a) && !kicked.has(a)) {
-      room.members.push(a);
-      joined[a] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
-      // the key the joiner encrypted to themselves, so the room opens again after a reload
-      if (typeof b.encrypted_key === "string") room.encrypted_keys = { ...room.encrypted_keys, [a]: b.encrypted_key };
-    } else if (b.type === "room_leave" && b.roomId === roomId && room && a !== room.creator && room.members.includes(a)) {
-      // a member leaves on their own: gone from the list, and their key copy with them
-      room.members = room.members.filter((m) => m !== a);
-      delete joined[a];
-      room.moderators = (room.moderators ?? []).filter((m) => m !== a);
-      room.encrypted_keys = Object.fromEntries(Object.entries(room.encrypted_keys ?? {}).filter(([m]) => m !== a));
-    } else if (b.type === "room_kick" && b.roomId === roomId && room && typeof b.target === "string") {
-      const t = norm(b.target);
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      const targetIsGardener = AI_REPORTERS.some((g) => norm(g) === t);
-      const allowed = byCreator || mods.includes(a);
-      if (!allowed || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t) && !targetIsGardener)) continue;
-      room.members = room.members.filter((m) => m !== t);
-      room.moderators = mods.filter((m) => m !== t);
-      kicked.add(t);
-      delete joined[t];
-      const keys: Record<string, string> = typeof b.encrypted_keys === "object" && b.encrypted_keys ? b.encrypted_keys : {};
-      room.encrypted_keys = Object.fromEntries(Object.entries(keys).filter(([m]) => room!.members.includes(m)));
-      for (const m of Object.keys(joined)) joined[m] = room.encrypted_keys[m] ?? "";
-      if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
-      room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? b.keys_enc_pub : undefined;
-      room.gardener_enc_pub = undefined;
-    } else if (b.type === "room_gardener" && b.roomId === roomId && room && typeof b.target === "string") {
-      const t = norm(b.target);
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      if (a !== norm(RADICA_MAINTAINER) || !(byCreator || mods.includes(a)) || !AI_REPORTERS.some((g) => norm(g) === t)) continue;
-      if (b.on === true) {
-        kicked.delete(t);
-        if (!room.members.includes(t)) room.members.push(t);
-        room.moderators = mods;
-        if (t !== room.creator && !room.moderators.includes(t)) room.moderators.push(t);
-        if (typeof b.encrypted_key === "string" && b.encrypted_key) {
-          room.encrypted_keys = { ...room.encrypted_keys, [t]: b.encrypted_key };
-        }
-        room.gardener_enc_pub =
-          typeof b.inviter_enc_pub === "string" && /^[0-9a-f]{64}$/i.test(b.inviter_enc_pub)
-            ? norm(b.inviter_enc_pub)
-            : a;
-      }
-    } else if (b.type === "room_avatar" && b.roomId === roomId && room) {
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      if (byCreator || mods.includes(a)) {
-        room.avatar_url = typeof b.avatar_url === "string" && b.avatar_url.trim() ? b.avatar_url.trim() : undefined;
-      }
-    } else if (b.type === "room_pin" && b.roomId === roomId && room) {
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      if (byCreator || mods.includes(a)) {
-        room.pinned_message_id = typeof b.messageId === "string" && b.messageId.trim() ? b.messageId.trim() : undefined;
-      }
-    }
-  }
-  return room;
+  return sharedFoldRoom(entries, roomId, { maintainerPk: RADICA_MAINTAINER, aiReporters: AI_REPORTERS });
 }
 
 /** Creator-authorized members vs link-join proofs (`room_join.key_proof`) so a kick never rotates keys to spoofed joiners. */
@@ -362,46 +291,7 @@ export function roomJoinProofs(
   entries: LogEntry[],
   roomId: string,
 ): { creatorListed: Set<string>; joinProofs: Map<string, string> } {
-  const creatorListed = new Set<string>();
-  const moderators = new Set<string>();
-  const joinProofs = new Map<string, string>();
-  let creator = "";
-  for (const { e, b } of bodies(entries)) {
-    const a = norm(e.author);
-    if ((b.type === "private_room" || b.type === "room_invite") && b.room?.id === roomId && norm(b.room.creator) === a) {
-      creator = a;
-      creatorListed.add(a);
-      moderators.clear();
-      for (const m of b.room.moderators ?? []) {
-        const ml = norm(m);
-        if (ml && ml !== creator) moderators.add(ml);
-      }
-      for (const m of b.room.members ?? []) {
-        const ml = norm(m);
-        if (ml) creatorListed.add(ml);
-      }
-    } else if (b.type === "room_join" && b.roomId === roomId && creator) {
-      if (typeof b.key_proof === "string" && /^[0-9a-f]{64}$/i.test(b.key_proof)) {
-        joinProofs.set(a, b.key_proof.toLowerCase());
-      }
-    } else if (b.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && a === norm(RADICA_MAINTAINER) && (a === creator || moderators.has(a)) && typeof b.target === "string") {
-      const t = norm(b.target);
-      if (AI_REPORTERS.some((g) => norm(g) === t)) {
-        creatorListed.add(t);
-        if (t !== creator) moderators.add(t);
-      }
-    } else if (b.type === "room_leave" && b.roomId === roomId) {
-      creatorListed.delete(a);
-      moderators.delete(a);
-      joinProofs.delete(a);
-    } else if (b.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
-      const t = norm(b.target);
-      creatorListed.delete(t);
-      moderators.delete(t);
-      joinProofs.delete(t);
-    }
-  }
-  return { creatorListed, joinProofs };
+  return sharedRoomJoinProofs(entries, roomId, { maintainerPk: RADICA_MAINTAINER, aiReporters: AI_REPORTERS });
 }
 
 /** Did `me` leave this room: they are no longer in it and their last join or leave entry in the room log is a leave. */
@@ -439,15 +329,7 @@ export function roomJoiners(entries: LogEntry[], roomId: string, removers: Reado
 
 /** Authors a curator blocked, from their `blocklist/<curator>` log. Only the curator's own entries count; the newest per target wins. */
 export function foldBlocklist(entries: LogEntry[], curator: string, type: "block" | "mod" = "block", initial: Iterable<string> = []): Set<string> {
-  const cur = norm(curator);
-  const blocked = new Set<string>([...initial].map((x) => norm(x)));
-  for (const { e, b } of bodies(entries)) {
-    if (norm(e.author) !== cur || b.type !== type || typeof b.target !== "string") continue;
-    const t = norm(b.target);
-    if (b.on === false) blocked.delete(t);
-    else blocked.add(t);
-  }
-  return blocked;
+  return sharedFoldBlocklist(entries, curator, type, initial);
 }
 
 /** The communities a curator hid (`c_<slug>` -> reason), from their `blocklist/<curator>` log: only their own entries count, the
@@ -802,14 +684,7 @@ export function foldPostDislikes(entries: LogEntry[]): Map<string, string[]> {
 /** The newest edit of each post, keyed `<author>:<post id>`. The key's author is the entry's signer, so only a post's
  *  own author can change what it says; readers look an edit up by the post's author. Captions over `max` are ignored. */
 export function foldPostEdits(entries: LogEntry[], max = 4000): Map<string, { caption: string; ts: number }> {
-  const out = new Map<string, { caption: string; ts: number }>();
-  for (const { e, b } of bodies(entries)) {
-    if (b?.type !== "edit" || typeof b.post !== "string" || typeof b.caption !== "string" || b.caption.length > max) continue;
-    const key = `${e.author}:${b.post}`;
-    const cur = out.get(key);
-    if (!cur || e.ts >= cur.ts) out.set(key, { caption: b.caption, ts: e.ts });
-  }
-  return out;
+  return sharedFoldPostEdits(entries, max);
 }
 
 /** Entries that only matter as of now, and what each is about: one per author and subject is enough. */

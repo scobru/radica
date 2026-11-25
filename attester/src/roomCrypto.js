@@ -5,6 +5,7 @@ import { sha512 } from "@noble/hashes/sha2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+import { connectMessage, profileMessageV3, profileMessageV4, roomJoinProofMessage } from "../../shared/protocol.js";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -150,29 +151,9 @@ export async function decryptWithSymmetricKey(keyBytes, encryptedText) {
   return aesGcmDecrypt(keyBytes, encryptedText, "sym");
 }
 
-/** Compute the HMAC-SHA256 `key_proof` matching `ui/src/freenet.ts` `computeRoomJoinProof`. */
+/** Compute the HMAC-SHA256 `key_proof` matching `ui/src/privateRooms.ts` `computeRoomJoinProof`. */
 export function computeRoomJoinProof(roomKeyBytes, roomId, pubkeyHex) {
-  return bytesToHex(hmac(sha256, roomKeyBytes, enc.encode(`radica/room-join/v1|${roomId}|${String(pubkeyHex).toLowerCase()}`)));
-}
-
-function lp(tag, fields) {
-  return `${tag}|` + fields.map((f) => `${enc.encode(String(f)).length}:${f}`).join("");
-}
-
-function connectMessage(pk, base, challenge, ts) {
-  const bBase = enc.encode(base);
-  const bChal = enc.encode(challenge);
-  const out = new Uint8Array(17 + pk.length + 4 + bBase.length + 4 + bChal.length + 8);
-  const dv = new DataView(out.buffer);
-  let o = 0;
-  out.set(enc.encode("whoiam-connect-v1"), o); o += 17;
-  out.set(pk, o); o += pk.length;
-  dv.setUint32(o, bBase.length, true); o += 4;
-  out.set(bBase, o); o += bBase.length;
-  dv.setUint32(o, bChal.length, true); o += 4;
-  out.set(bChal, o); o += bChal.length;
-  dv.setBigUint64(o, BigInt(ts), true);
-  return out;
+  return bytesToHex(hmac(sha256, roomKeyBytes, enc.encode(roomJoinProofMessage(roomId, pubkeyHex))));
 }
 
 async function verifyVisoProof(pkHex, cert) {
@@ -199,8 +180,8 @@ export async function verifyProfileEncPub(pubkeyHex, profile, appPath = "") {
   const encPub = typeof profile?.enc_pub === "string" ? profile.enc_pub.toLowerCase() : "";
   if (!profile || !HEX64_RE.test(pubLow) || !HEX64_RE.test(encPub) || encPub === pubLow) return pubLow;
   const msg = profile.v === 3
-    ? lp("radica/profile/v4", [pubLow, profile.display_name ?? "", profile.bio ?? "", profile.avatar_url ?? "", encPub, profile.updated_at ?? 0])
-    : `radica/profile/v3:${pubLow}:${profile.display_name ?? ""}:${profile.bio ?? ""}:${profile.avatar_url ?? ""}:${encPub}:${profile.updated_at ?? 0}`;
+    ? profileMessageV4(pubLow, { ...profile, enc_pub: encPub })
+    : profileMessageV3(pubLow, profile.display_name ?? "", profile.bio ?? "", profile.avatar_url ?? "", encPub, profile.updated_at ?? 0);
   const sigHex = String(profile.sig ?? "");
   if (!sigHex) return pubLow;
   const cert = profile.cert;

@@ -1,6 +1,13 @@
 // The AI moderation helper's decisions, with no network: it reads public posts, asks a model which ones look harmful,
 // and reports those to the public `reports` log, the queue Radica's human moderators work through. It only reports:
 // its key is on nobody's blocklist and is no moderator, so nothing is hidden until a person agrees.
+import {
+  foldBlocklist,
+  foldPostEdits,
+  foldRoom,
+  orderedEntries,
+  roomJoinProofs as sharedRoomJoinProofs,
+} from "../../shared/roomFold.js";
 
 const DAY = 864e5;
 export const REPORTS_LOG = "reports";
@@ -43,25 +50,7 @@ export function recordHoldOutcome(stats, category, outcome) {
  *  `blocklist/<maintainer>` log, newest per target wins (whatever order `entries` comes in), seeded with
  *  `defaults`. Mirrors ui/src/logfold.ts's foldBlocklist("mod"). */
 export function modsOf(maintainerBlocklistEntries, defaults = [], maintainer = "") {
-  const maintNorm = maintainer ? String(maintainer).toLowerCase() : "";
-  const defSet = new Set(defaults.map((d) => String(d).toLowerCase()));
-  const latest = new Map(); // target -> { on, ts }
-  for (const e of maintainerBlocklistEntries ?? []) {
-    if (maintNorm && String(e?.author ?? "").toLowerCase() !== maintNorm) continue;
-    let b;
-    try {
-      b = JSON.parse(e.body);
-    } catch {
-      continue;
-    }
-    if (b?.type !== "mod" || typeof b.target !== "string") continue;
-    const t = maintNorm ? b.target.toLowerCase() : b.target;
-    if (maintNorm && !/^[0-9a-f]{64}$/.test(t) && !defSet.has(t)) continue;
-    if (!(latest.get(t)?.ts > e.ts)) latest.set(t, { on: b.on !== false, ts: e.ts });
-  }
-  const mods = new Set(maintNorm ? defaults.map((d) => String(d).toLowerCase()) : defaults);
-  for (const [target, { on }] of latest) (on ? mods.add(target) : mods.delete(target));
-  return mods;
+  return foldBlocklist(maintainerBlocklistEntries, maintainer, "mod", defaults, { requireHexTarget: true });
 }
 
 /** A moderator's most recent decision on `target`, from their own `blocklist/<curator>` log entries
@@ -111,19 +100,7 @@ export function recentAuthors(directory, now = Date.now()) {
 /** The newest edit of each post, `<author>:<post id>` -> `{ caption, ts }`, from the `post-edits` log (as ui/src/logfold.ts
  *  foldPostEdits): an entry is signed by its author, so only a post's own author can change what it says. */
 export function postEdits(entries) {
-  const out = new Map();
-  for (const e of Object.values(entries ?? {})) {
-    let b;
-    try {
-      b = JSON.parse(e.body);
-    } catch {
-      continue;
-    }
-    if (b?.type !== "edit" || typeof b.post !== "string" || typeof b.caption !== "string" || b.caption.length > 4000) continue;
-    const key = `${e.author}:${b.post}`;
-    if (!(out.get(key)?.ts > e.ts)) out.set(key, { caption: b.caption, ts: e.ts });
-  }
-  return out;
+  return foldPostEdits(entries, 4000);
 }
 
 /**
@@ -213,9 +190,7 @@ export function reportBody(post, v, hold = false) {
 }
 
 function sortedParsed(entries) {
-  const list = Array.isArray(entries) ? entries : Object.values(entries ?? {});
-  return [...list]
-    .sort((a, b) => (a?.ts ?? 0) - (b?.ts ?? 0) || String(a?.id ?? "").localeCompare(String(b?.id ?? "")))
+  return orderedEntries(entries)
     .map((e) => {
       try { return { e, b: JSON.parse(e.body) }; } catch { return null; }
     })
@@ -317,126 +292,16 @@ export function ownerInvitedRoomIds(inboxEntries, ownerPk) {
   return invited;
 }
 
-/** Fold `room/<id>` entries into the authoritative native PrivateRoom roster + encrypted_keys (mirrors ui/src/logfold.ts foldRoom). */
+/** Fold `room/<id>` entries into the authoritative native PrivateRoom roster + encrypted_keys (shared via shared/roomFold.js). */
 export function foldRoomState(entries, roomId, gardenerPk = "", maintainerPk = "") {
-  let room = null;
-  const kicked = new Set();
-  const joined = {};
-  const gardenerNorm = normHex(gardenerPk);
-  const maintNorm = normHex(maintainerPk);
-  const gardenerSet = new Set(HEX64_RE.test(gardenerNorm) ? [gardenerNorm] : []);
-  for (const { e, b } of sortedParsed(entries)) {
-    const a = normHex(e?.author);
-    if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
-      room = structuredClone(b.room);
-      room.creator = a;
-      if (typeof room.creator_enc_pub === "string") room.creator_enc_pub = room.creator_enc_pub.toLowerCase();
-      if (typeof room.keys_enc_pub === "string") room.keys_enc_pub = room.keys_enc_pub.toLowerCase();
-      if (typeof room.gardener_enc_pub === "string") room.gardener_enc_pub = room.gardener_enc_pub.toLowerCase();
-      room.members = (room.members ?? []).map((m) => normHex(m)).filter(Boolean);
-      room.moderators = (room.moderators ?? []).map((m) => normHex(m)).filter((m) => m !== room.creator && room.members.includes(m));
-      const ek = {};
-      for (const [k, v] of Object.entries(room.encrypted_keys ?? {})) ek[normHex(k)] = v;
-      room.encrypted_keys = ek;
-      for (const m of room.members) kicked.delete(m);
-      for (const [m, k] of Object.entries(joined)) {
-        if (room.members.includes(m)) continue;
-        room.members.push(m);
-        if (k) room.encrypted_keys[m] = k;
-      }
-    } else if (b?.type === "room_join" && b.roomId === roomId && room && !room.members.includes(a) && !kicked.has(a)) {
-      room.members.push(a);
-      joined[a] = typeof b.encrypted_key === "string" ? b.encrypted_key : "";
-      if (typeof b.encrypted_key === "string") room.encrypted_keys[a] = b.encrypted_key;
-    } else if (b?.type === "room_gardener" && b.roomId === roomId && room && typeof b.target === "string") {
-      const t = normHex(b.target);
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      if ((maintNorm && a !== maintNorm) || !(byCreator || mods.includes(a)) || !HEX64_RE.test(t) || (gardenerNorm && t !== gardenerNorm)) continue;
-      if (b.on === true) {
-        gardenerSet.add(t);
-        kicked.delete(t);
-        if (!room.members.includes(t)) room.members.push(t);
-        room.moderators = mods;
-        if (t !== room.creator && !room.moderators.includes(t)) room.moderators.push(t);
-        if (typeof b.encrypted_key === "string" && b.encrypted_key) room.encrypted_keys[t] = b.encrypted_key;
-        room.gardener_enc_pub = HEX64_RE.test(String(b.inviter_enc_pub ?? "")) ? normHex(b.inviter_enc_pub) : a;
-      }
-    } else if (b?.type === "room_leave" && b.roomId === roomId && room && a !== room.creator && room.members.includes(a)) {
-      room.members = room.members.filter((m) => m !== a);
-      delete joined[a];
-      room.moderators = (room.moderators ?? []).filter((m) => m !== a);
-      delete room.encrypted_keys[a];
-    } else if (b?.type === "room_kick" && b.roomId === roomId && room && typeof b.target === "string") {
-      const t = normHex(b.target);
-      const byCreator = a === room.creator;
-      const mods = room.moderators ?? [];
-      if (!(byCreator || mods.includes(a)) || t === room.creator || !room.members.includes(t) || (!byCreator && mods.includes(t) && !gardenerSet.has(t))) continue;
-      room.members = room.members.filter((m) => m !== t);
-      room.moderators = mods.filter((m) => m !== t);
-      kicked.add(t);
-      delete joined[t];
-      const keys = {};
-      if (b.encrypted_keys && typeof b.encrypted_keys === "object") {
-        for (const [m, v] of Object.entries(b.encrypted_keys)) {
-          const ml = normHex(m);
-          if (room.members.includes(ml)) keys[ml] = v;
-        }
-      }
-      room.encrypted_keys = keys;
-      for (const m of Object.keys(joined)) joined[m] = typeof keys[m] === "string" ? keys[m] : "";
-      if (typeof b.name_encrypted === "string") room.name_encrypted = b.name_encrypted;
-      room.keys_enc_pub = typeof b.keys_enc_pub === "string" ? normHex(b.keys_enc_pub) : undefined;
-      delete room.gardener_enc_pub;
-    }
-  }
-  return room;
+  return foldRoom(entries, roomId, { gardenerPk, maintainerPk });
 }
 
-/** Creator-listed members and HMAC `key_proof` values from `room/<id>` entries (mirrors ui/src/logfold.ts roomJoinProofs). */
+/** Creator-authorized members and HMAC `key_proof` values from `room/<id>` entries (shared via shared/roomFold.js). */
 export function roomJoinProofs(entries, roomId, maintainerPk = "") {
-  const creatorListed = new Set();
-  const moderators = new Set();
-  const joinProofs = new Map();
-  const maintNorm = normHex(maintainerPk);
-  let creator = "";
-  for (const { e, b } of sortedParsed(entries)) {
-    const a = normHex(e?.author);
-    if ((b?.type === "private_room" || b?.type === "room_invite") && b.room?.id === roomId && normHex(b.room.creator) === a) {
-      creator = a;
-      creatorListed.add(a);
-      moderators.clear();
-      for (const m of b.room.moderators ?? []) {
-        const ml = normHex(m);
-        if (ml && ml !== creator) moderators.add(ml);
-      }
-      for (const m of b.room.members ?? []) {
-        const ml = normHex(m);
-        if (ml) creatorListed.add(ml);
-      }
-    } else if (b?.type === "room_join" && b.roomId === roomId && creator) {
-      if (HEX64_RE.test(String(b.key_proof ?? ""))) joinProofs.set(a, String(b.key_proof).toLowerCase());
-    } else if (b?.type === "room_gardener" && b.roomId === roomId && b.on === true && creator && (!maintNorm || a === maintNorm) && (a === creator || moderators.has(a)) && typeof b.target === "string") {
-      const t = normHex(b.target);
-      if (HEX64_RE.test(t)) {
-        creatorListed.add(t);
-        if (t !== creator) moderators.add(t);
-      }
-    } else if (b?.type === "room_leave" && b.roomId === roomId) {
-      creatorListed.delete(a);
-      moderators.delete(a);
-      joinProofs.delete(a);
-    } else if (b?.type === "room_kick" && b.roomId === roomId && typeof b.target === "string") {
-      const t = normHex(b.target);
-      creatorListed.delete(t);
-      moderators.delete(t);
-      joinProofs.delete(t);
-    }
-  }
-  return { creatorListed, joinProofs };
+  return sharedRoomJoinProofs(entries, roomId, { maintainerPk });
 }
 
-/** Recent decrypted native-room messages not yet judged, not deleted, and not sent by protected owners/mods. */
 export async function freshRoomMessages(entries, room, roomKey, seenIds, protectedSet, decryptSymFn, now = Date.now()) {
   if (!room || !roomKey) return [];
   const parsed = sortedParsed(entries);

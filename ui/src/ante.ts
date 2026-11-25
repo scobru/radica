@@ -4,6 +4,7 @@
 import * as ed from "@noble/ed25519";
 import { blake3 } from "@noble/hashes/blake3.js";
 import { asBytes, asNumber, asString, cborDecode, cborEncode, mapGet, type CborValue } from "./cbor.ts";
+import { anteChallengeBytes, anteSigningBytes, leadingZeroBits } from "../../shared/protocol.js";
 
 const enc = new TextEncoder();
 
@@ -21,15 +22,10 @@ const u64le = (n: number) => new Uint8Array(new BigUint64Array([BigInt(n)]).buff
 const cat = (...p: Uint8Array[]) => { const o = new Uint8Array(p.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of p) { o.set(x, i); i += x.length; } return o; };
 
 /** ante_core::pow::challenge_bytes: what a nonce is ground against. The delegate returns the same bytes. */
-export function challengeBytes(purpose: string, vk: Uint8Array): Uint8Array {
-  const p = enc.encode(purpose);
-  return cat(enc.encode("ante:pow-challenge:v1"), u32le(p.length), p, vk);
-}
-
-const zeroBits = (d: Uint8Array) => { let n = 0; for (const b of d) { n += Math.clz32(b) - 24; if (b) break; } return n; };
+export const challengeBytes = anteChallengeBytes;
 
 /** Leading zero bits of blake3(challenge || nonce as u64 le). */
-export const bitsOf = (challenge: Uint8Array, nonce: number) => zeroBits(blake3(cat(challenge, u64le(nonce))));
+export const bitsOf = (challenge: Uint8Array, nonce: number) => leadingZeroBits(blake3(cat(challenge, u64le(nonce))));
 
 /** Find the smallest nonce reaching `bits` (about 2^bits hashes). Yields to the page now and then. */
 export async function grind(challenge: Uint8Array, bits: number, progress?: (tried: number) => void): Promise<number> {
@@ -37,7 +33,7 @@ export async function grind(challenge: Uint8Array, bits: number, progress?: (tri
   input.set(challenge);
   for (let nonce = 0; ; nonce++) {
     view.setBigUint64(challenge.length, BigInt(nonce), true);
-    if (zeroBits(blake3(input)) >= bits) return nonce;
+    if (leadingZeroBits(blake3(input)) >= bits) return nonce;
     if (nonce % 4000 === 3999) { progress?.(nonce + 1); await new Promise((r) => setTimeout(r)); }
   }
 }
@@ -53,10 +49,7 @@ export function decodeProof(b: Uint8Array): Proof {
 }
 
 /** ante_core::proof::signing_bytes */
-const signingBytes = (p: Proof) => {
-  const purpose = enc.encode(p.purpose);
-  return cat(enc.encode("ante:proof-signature:v1"), p.vk, u32le(purpose.length), purpose, u64le(p.nonce), u64le(p.ts));
-};
+const signingBytes = (p: Proof) => anteSigningBytes(p.vk, p.purpose, p.nonce, p.ts);
 
 /** Same checks as the contract (purpose, work, signature), so a bad proof is caught here rather than as a silent timeout. */
 export async function checkProof(b: Uint8Array, expectedPurpose: string, minBits = VOTE_BITS): Promise<Proof> {

@@ -2,6 +2,7 @@ import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { fromBase58, toBase58 } from "./base58.ts";
 import { roomOwnerSk } from "./riverRooms.ts";
+import { connectMessage as sharedConnectMessage } from "../../shared/protocol.js";
 
 // Ensure noble ed25519 uses sha512
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -22,21 +23,7 @@ export const personaName = (pkHex: string): string => {
 };
 
 /** Message signed by Viso/whoiam: "whoiam-connect-v1" || pk || u32le len || base || u32le len || challenge || u64le ts */
-export function connectMessage(pk: Uint8Array, base: string, challenge: string, ts: number): Uint8Array {
-  const parts = [enc.encode("whoiam-connect-v1"), pk];
-  for (const f of [base, challenge]) {
-    const b = enc.encode(f);
-    parts.push(new Uint8Array(new Uint32Array([b.length]).buffer), b);
-  }
-  parts.push(new Uint8Array(new BigUint64Array([BigInt(ts)]).buffer));
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let o = 0;
-  for (const p of parts) {
-    out.set(p, o);
-    o += p.length;
-  }
-  return out;
-}
+export const connectMessage = sharedConnectMessage;
 
 export interface Proof {
   pk: string;

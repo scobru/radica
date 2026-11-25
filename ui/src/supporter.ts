@@ -4,6 +4,7 @@
 
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
+import { receiptMessageText } from "../../shared/protocol.js";
 import { RADICA_MAINTAINER } from "./types.ts";
 import { safeStorage } from "./storage.ts";
 import { appPath, verifyProof, type Cert } from "./whoiam.ts";
@@ -56,9 +57,7 @@ export function receiptMessage(r: {
   tx_hash: string;
   ts: number;
 }): Uint8Array {
-  const normDonor = r.donor_pk.trim().toLowerCase();
-  const normTx = r.tx_hash.trim().toLowerCase();
-  return enc.encode(`radica/receipt/v1:${normDonor}:${r.tier}:${r.chain}:${normTx}:${r.ts}`);
+  return enc.encode(receiptMessageText(r));
 }
 
 /** Base64 helper supporting UTF-8 strings */

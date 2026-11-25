@@ -1,6 +1,10 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **REFACTOR / FIX** Shared UI ↔ Attester protocol, Feed Store & Private Rooms (`shared/{protocol,roomFold}.js`, `ui/src/{feedStore,feedlight,privateRooms,roomBackup,freenet,logfold,crypto,supporter,whoiam,ante,types}.ts`, `attester/{Dockerfile,Dockerfile.caprover,src/{core,roomCrypto,freetunes,moderator,main}.js}`, `ui/tests/{sharedProtocol,feedStore,privateRooms}.test.ts`):
+    * Extracted runtime-agnostic wire formats and folds (`shared/protocol.js`, `shared/roomFold.js`, typed via `.d.ts`) shared directly by `ui/` and `attester/`, eliminating drift (`moderator.js` `foldRoomState` now handles `room_avatar`/`room_pin` and consistent lowercase `encrypted_keys`) and copying `shared/` into attester Docker images.
+    * Extracted `FeedStore` (`ui/src/feedStore.ts`) and eliminated the duplicated `overlayFeed`/`lightFeed` copy in `ui/src/feedlight.ts` worker source while protecting `feedCache` from caller `following` mutations.
+    * Extracted `PrivateRoomManager` (`ui/src/privateRooms.ts`, absorbing `roomBackup.ts`) behind explicit storage/log/River/delegate adapters so native E2EE and River room lifecycles are unit-tested independently of `FreenetClient`.
   * **FIX** Legacy log migration regressions from the startup speed-up (`ui/src/{network,legacy}.ts`, `ui/tests/legacy.test.ts`): `canHaveLegacy` skipped `dm/`, `devices/`, `poh`, `delegations`, `orto/`, `asocial/`, `freetunes/`, `freetree/` and `fh/`, which all existed before log contract v2 (2026-11-20), so their pre-v2 data was never carried forward; only `handles` is now skipped. A legacy lookup that throws or times out is no longer marked as probed (it is retried on the next read), and `log:inbox/` and `log:dm/` contracts that already exist under v2 again union in the older generation once.
 
   * **REFACTOR / FIX** Log Engine & Memoized Fold Store (`ui/src/{logStore,logfold,freenet}.ts`, `ui/tests/logStore.test.ts`):

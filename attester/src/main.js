@@ -26,6 +26,7 @@ import {
   computeRoomJoinProof, verifyProfileEncPub,
 } from "./roomCrypto.js";
 import { liveReleases, trackTitles, mbUrl, mbMatch, reportOf, reportDelta } from "./freetunes.js";
+import { RADICA_DEFAULT_MODS, RADICA_MAINTAINER } from "../../shared/protocol.js";
 import { legacyHashes, sweep } from "./sweep.js";
 
 const env = process.env;
@@ -45,8 +46,8 @@ const MOD_LIMITS = {
   holds: Number(env.MOD_DAILY_HOLDS || 5),
 };
 // Whose blocklists decide a hold's outcome (same set Radica's own moderation queue reads; see ui/src/types.ts).
-const MOD_MAINTAINER = env.RADICA_MAINTAINER || "464b576da4cc5bcf31febd41a863ac251d04024c19f1786b24ca6620a0cce53b";
-const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split(",") : ["3ac3e7f1f7535888597dbd8b25e362fa153eb10bfedd1e2df1b50299d7f2bf98"];
+const MOD_MAINTAINER = env.RADICA_MAINTAINER || RADICA_MAINTAINER;
+const MOD_DEFAULT_MODS = env.RADICA_DEFAULT_MODS ? env.RADICA_DEFAULT_MODS.split(",") : [...RADICA_DEFAULT_MODS];
 const GITHUB_REPO = env.GITHUB_REPO ?? "scobru/radica";
 const GITHUB_TOKEN = env.GITHUB_TOKEN || "";
 const GH_POLL_MS = Number(env.GH_POLL_MS || 30 * 60_000);

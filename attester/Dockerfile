@@ -2,6 +2,7 @@
 FROM node:22-slim
 WORKDIR /app
 COPY donate-app/src/lib.js donate-app/src/config.js donate-app/src/
+COPY shared/ shared/
 COPY ui/src/wasm/log.wasm ui/src/wasm/contract.wasm ui/src/wasm/
 COPY ui/src/legacy.ts ui/src/
 COPY attester/package.json attester/package-lock.json attester/

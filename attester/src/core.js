@@ -5,6 +5,13 @@ import { blake3 } from "@noble/hashes/blake3.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { stringToHex } from "viem";
 import { decodeProofToken, pubkeyOf, SCOPE } from "../../donate-app/src/lib.js";
+import {
+  LOG_POW_BITS,
+  leadingZeroBits,
+  logEntryMessage as sharedLogEntryMessage,
+  logEntryMessage2 as sharedLogEntryMessage2,
+  receiptMessageText,
+} from "../../shared/protocol.js";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -15,26 +22,16 @@ export const RECEIPTS_LOG = "supporter-receipts";
 export const SCOPE_FIELD = BigInt(stringToHex(SCOPE, { size: 32 })).toString();
 
 /** Log entry signature: must match log-contract entry_msg and ui/src/crypto.ts formatLogEntryMessage. */
-export function logEntryMessage(log, app, author, id, ts, body) {
-  const params = bytesToHex(enc.encode(`radica/${log}|${app}`));
-  return `radica/log/v1:${params}:${author}:${id}:${ts}:${body}`;
-}
+export const logEntryMessage = sharedLogEntryMessage;
 
 /** v2 log entry message: must match log-contract entry_msg2 and ui/src/crypto.ts logMsg2. */
 export function logEntryMessage2(log, app, author, id, ts, body, nonce) {
-  const params = bytesToHex(enc.encode(`radica/${log}|${app}`));
-  const fields = [params, author, id, ts, bytesToHex(blake3(enc.encode(body))), nonce].map(String);
-  return "radica/log/v2|" + fields.map((f) => `${enc.encode(f).length}:${f}`).join("");
+  return sharedLogEntryMessage2(log, app, author, id, ts, bytesToHex(blake3(enc.encode(body))), nonce);
 }
 
-const POW_BITS = 12; // log-contract POW_BITS: leading zero bits of BLAKE3(message), from everyone but a log's owner
+const POW_BITS = LOG_POW_BITS; // log-contract POW_BITS: leading zero bits of BLAKE3(message), from everyone but a log's owner
 function powBits(msg) {
-  let n = 0;
-  for (const b of blake3(enc.encode(msg))) {
-    n += Math.clz32(b) - 24;
-    if (b) break;
-  }
-  return n;
+  return leadingZeroBits(blake3(enc.encode(msg)));
 }
 
 export async function signEntry(sk, log, app, bodyObj, now = Date.now()) {
@@ -51,7 +48,7 @@ export async function signEntry(sk, log, app, bodyObj, now = Date.now()) {
 export async function issueReceipt(sk, donorPk, tier, now = Date.now()) {
   const ts = Math.floor(now / 864e5) * 864e5;
   const payload = { donor_pk: donorPk.toLowerCase(), tier, chain: "eth", tx_hash: "", ts };
-  const msg = `radica/receipt/v1:${payload.donor_pk}:${tier}:eth::${ts}`;
+  const msg = receiptMessageText(payload);
   const sig = bytesToHex(await ed.signAsync(enc.encode(msg), sk));
   const json = JSON.stringify({ v: 1, ...payload, sig });
   return `RADICA-RECEIPT-V1:${btoa(String.fromCharCode(...enc.encode(json)))}`;

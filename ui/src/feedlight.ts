@@ -36,7 +36,7 @@ export function isCanonicalPost(p: Post): boolean {
 /** The newest `n` posts, the profile and whom the owner follows, of a stored feed. Parsing a big feed is what blocks the page, so this runs in a worker. */
 export function lightFeed(raw: string, n = PEER_POSTS): LightFeed {
   const feed = JSON.parse(raw);
-  const all = Object.values<Post>(feed.posts ?? {}).filter(isCanonicalPost);
+  const all = (Object.values(feed.posts ?? {}) as Post[]).filter(isCanonicalPost);
   const posts = all.sort((a, b) => b.timestamp - a.timestamp).slice(0, n);
   const following = Array.isArray(feed.following) ? feed.following.filter((k: unknown) => typeof k === "string") : [];
   return { posts, profile: feed.profile ?? undefined, total: all.length, following };
@@ -51,41 +51,12 @@ let seq = 0;
 const waiting = new Map<number, { raw: string; delta?: string; resolve: (f: LightFeed) => void }>();
 
 // Self-contained worker script loaded from a blob: URL so it runs inside Freenet's opaque-origin (null) sandboxed iframe
-// where HTTP worker URLs throw SecurityError.
-const WORKER_SRC = `
+// where HTTP worker URLs throw SecurityError. Functions are serialized directly from their single definitions above.
+export const WORKER_SRC = `
 const PEER_POSTS = ${PEER_POSTS};
 const isCanonicalPost = ${isCanonicalPost.toString()};
-function overlayFeed(f, d) {
-  const newer = (tsA = 0, sigA = "", tsB = 0, sigB = "") => tsA > tsB || (tsA === tsB && sigA > sigB);
-  if (d.profile && (!f.profile || newer(d.profile.updated_at, d.profile.sig, f.profile.updated_at, f.profile.sig))) f.profile = d.profile;
-  if (newer(d.following_updated_at, d.following_sig, f.following_updated_at, f.following_sig)) {
-    f.following = d.following;
-    f.following_updated_at = d.following_updated_at;
-    f.following_sig = d.following_sig;
-    f.following_cert = d.following_cert;
-    f.following_v = d.following_v;
-  }
-  for (const [id, del] of Object.entries(d.deleted ?? {})) {
-    delete f.posts[id];
-    if (!f.deleted?.[id] || del.sig > f.deleted[id].sig) f.deleted = { ...f.deleted, [id]: del };
-  }
-  for (const [id, p] of Object.entries(d.posts ?? {})) {
-    if (f.deleted?.[id]) continue;
-    const cur = (f.posts[id] ??= { ...p, likes: {}, comments: {} });
-    cur.comments = { ...cur.comments };
-    for (const [k, c] of Object.entries(p.comments ?? {})) if (!cur.comments[k] || c.sig > cur.comments[k].sig) cur.comments[k] = c;
-    cur.likes = { ...cur.likes };
-    for (const [k, l] of Object.entries(p.likes ?? {})) if (!cur.likes[k] || newer(l.ts, l.sig, cur.likes[k].ts, cur.likes[k].sig)) cur.likes[k] = l;
-  }
-  return f;
-}
-function lightFeed(raw, n = PEER_POSTS) {
-  const feed = JSON.parse(raw);
-  const all = Object.values(feed.posts ?? {}).filter(isCanonicalPost);
-  const posts = all.sort((a, b) => b.timestamp - a.timestamp).slice(0, n);
-  const following = Array.isArray(feed.following) ? feed.following.filter((k) => typeof k === "string") : [];
-  return { posts, profile: feed.profile ?? undefined, total: all.length, following };
-}
+const overlayFeed = ${overlayFeed.toString()};
+const lightFeed = ${lightFeed.toString()};
 self.onmessage = (e) => {
   let feed = { posts: [] };
   try {
