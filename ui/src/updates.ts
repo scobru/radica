@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-25", text: "When your Freenet node cannot fetch a River room (a group or channel), opening it now says so, with a **Retry** button and what to check (node running, connected to peers, on Android out of battery optimisation), instead of an empty \"Private Room (river_…)\". Retry also looks for the room under River's earlier contracts again." },
   { date: "2026-11-25", text: "Remove a photo, audio or file while editing a chat message: each attachment shown under the **Editing** bar has a ✕, and the saved message keeps only the ones left. A message can also be saved with no text, only its attachments." },
   { date: "2026-11-25", text: "Editing a chat message with photos, audio or files now shows them under the **Editing** bar: only the text is in the box, and the attachments shown there stay with the message when you save." },
   { date: "2026-11-25", text: "The 🌐 translate menu next to the chat, comment and post boxes no longer gets cut off on Windows or with a larger text size: it now takes the room its icon needs." },

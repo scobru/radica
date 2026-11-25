@@ -129,7 +129,21 @@ export class RiverRooms {
     } catch (e) {
       console.warn("[River] Could not fetch room", owner, e);
     }
+    if (this.cached(owner)) this.missing.delete(owner);
+    else this.missing.add(owner);
     return this.cached(owner);
+  }
+
+  /** The person asked again: from the network, and under River's earlier contracts too (`recover` runs once otherwise). */
+  retry(owner: string): Promise<string | null> {
+    this.probed.delete(owner);
+    return this.load(owner, true);
+  }
+
+  private missing = new Set<string>();
+  /** The node was asked for this room and had nothing: not under the current contract nor an earlier one, or no answer. */
+  isMissing(owner: string): boolean {
+    return this.missing.has(owner);
   }
 
   private probed = new Set<string>();

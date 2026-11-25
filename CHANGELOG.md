@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **IMPROVED** Unreachable River rooms explain themselves (`ui/src/{riverRooms,freenet,messengerChat}.ts`, `ui/tests/riverRooms.test.ts`, `ui/e2e/app.spec.ts`): `RiverRooms.load` marks a room the node returned nothing for (current contract and the legacy probe) as missing, `retry()` asks again and re-runs the legacy probe, and `FreenetClient.riverRoomUnreachable`/`retryRiverRoom` drive a card with a Retry button in place of the empty placeholder room, seen on Android nodes that could not fetch room state.
+
   * **IMPROVED** Remove attachments while editing a chat message (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): each card in the `#rm-edit-media` strip has a ✕ that drops it from `editingMediaTokens`, so the edit is sent with only the attachments left; an edit with an empty caption but attachments kept can now be saved.
 
   * **IMPROVED** Chat edit shows the attachments it keeps (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): editing a message put only its caption in the box and the attachment tokens aside (`editingMediaTokens`), so photos, audio and files seemed gone though they were saved with the edit. A `#rm-edit-media` strip under the banner now draws them small with `chatMediaCardsHtml`/`fillChatMedia`, and clears on Cancel, send or switching conversation.
