@@ -6,7 +6,7 @@ import type { ChatMessage, UserIdentity } from "./types.ts";
 import { cancelMessageBurn, decryptSecretMessage, getActiveSecretChatTTL, getSecretChatSession, getSecretRoomId } from "./secretChat.ts";
 import { drDecrypt, drEncrypt, PREFIX_V2 } from "./secretRatchet.ts";
 import { burnAtOf } from "./conversationState.ts";
-import { formatChatMessageSignatureMessage, readEncPubs } from "./crypto.ts";
+import { formatChatMessageSignatureMessage } from "./crypto.ts";
 
 export interface SecretChatTransport {
   /** Page storage (messages, peers). */
@@ -221,13 +221,14 @@ const isSealedSecret = (m: Pick<ChatMessage, "text">): boolean =>
 export async function readSecretChat(t: SecretChatTransport, identity: UserIdentity, peer: string): Promise<ChatMessage[]> {
   const me = identity.pubkey;
   const roomId = getSecretRoomId(me, peer);
-  // a message sealed to several devices: this device reads the copy sealed to its key
-  const mine = [identity.encPub, ...(await readEncPubs())];
+  // a message sealed to several devices: this device reads the copy sealed to its key. Only its current key: the
+  // ratchet opens with identity.secretKey alone, and an older key of this device (radica_read_keys, from before Viso)
+  // may still be announced as a device, so a copy sealed to it would replace the one this device can open.
   const ownCopyIds = new Set<string>(); // my messages sent from another device of mine
   const messages = t.visibleChat(roomId).map((m) => {
-    const k = mine.find((x) => m.copies?.[x]);
-    if (k && m.sender === me) ownCopyIds.add(m.id);
-    return k ? { ...m, text: m.copies![k] } : m;
+    const copy = m.copies?.[identity.encPub];
+    if (copy && m.sender === me) ownCopyIds.add(m.id);
+    return copy ? { ...m, text: copy } : m;
   });
   const now = Date.now();
   const burned = readBurnedSecretIds(t.store, me);
