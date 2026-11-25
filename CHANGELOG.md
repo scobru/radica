@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **PERF** Chat mini player forced a style/layout pass on every media event (`ui/src/chatMedia.ts`): `paint` ran `syncMiniPlayerSlot()` (`getComputedStyle` + `offsetWidth`) on each `timeupdate` while the bar was visible, about 53 s of main-thread CPU in 90 s of playback in a user trace. It now docks the bar only when it appears; view changes already re-dock it from `main.ts` and `messengerChat.ts`.
+
   * **RELEASE** Desktop & Android apps v1.1.0 (`package.json`, `apps/Cargo.toml`, `apps/Cargo.lock`, `ui/index.html`, `ui/src/versionCheck.ts`): signed native Desktop/Android release builds + in-app update checks, startup & pre-v2 legacy recovery fixes, unified 3-layer moderation across all surfaces, terminal chat feed & TUI, Chat peer avatar & Secret Chat preview fixes, River room contract v14 support, and shared media/voice/log/feed/private-room/attester architecture. Tag `v1.1.0` after push.
   * **FIX** Missing peer avatars in Chat & Secret Chat preview ciphertext leak (`ui/src/{feedlight,freenet,feedStore,messengerChat,messengerLogic}.ts`, `ui/tests/{feedStore,messengerChat}.test.ts`):
     * Replaced `.toString()` function serialization inside `feedlight.ts` `WORKER_SRC` with explicit self-contained worker JS because Vite/esbuild production minification renames module-scope symbols (`PEER_POSTS`, `isCanonicalPost`), causing `ReferenceError` inside the Blob worker and returning empty profiles (`avatar_url: undefined`).
