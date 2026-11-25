@@ -1455,6 +1455,21 @@
           </label>
         </div>
 
+        <!-- Section: My circle only -->
+        <div class="identity-section messenger-hide">
+          <h4>
+            <span class="btn-icon-text">
+              <svg viewBox="0 0 24 24" class="svg-icon icon-sm"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>My Circle Only</span>
+            </span>
+          </h4>
+          <p>Radica fetches only the posts of the people you follow, not those of strangers or of friends of friends. Your node downloads and follows far fewer feeds, so it is lighter on data, battery and CPU. Explore then shows your circle too, and you will not come across new people until you turn it off. On this device only.</p>
+          <label style="display: flex; gap: 6px; align-items: center; font-size: 0.85rem;">
+            <input type="checkbox" id="circle-only-toggle" />
+            Only fetch posts from people I follow
+          </label>
+        </div>
+
         <!-- Section: Sound & Audio Notifications -->
         <div class="identity-section">
           <h4>
@@ -1550,6 +1565,9 @@
           <p>Contact search also accepts Base58 persona keys and FreeNames domains as fallbacks.</p>
         </details>
 
+        <details><summary>⭕ My Circle Only</summary>
+          <p>In <b>Settings → My Circle Only</b>, Radica fetches only the posts of the people you follow. Strangers and friends of friends are left out, so your node downloads and keeps up with far fewer feeds: less data, battery and CPU. The feed opens on <b>Following</b> and Explore shows your circle too. You will not come across new people while it is on; turn it off to explore again. It applies to this device only.</p>
+        </details>
         <details><summary>👀 Who sees what</summary>
           <p><b>Public:</b> your profile, posts, comments, likes, who you follow, and communities. Anyone on Freenet can read them.</p>
           <p><b>Private:</b> direct messages, private groups and <b>Broadcast Channels</b> (one-to-many channels where admins post and subscribers read, optionally linked to a discussion group) are end-to-end encrypted: only the people in them can read them. A <b>Secret Chat</b> uses the Double Ratchet (as in Signal): every message key is used once and then deleted, and every reply moves to a new key, so a key stolen later cannot open what was already read. From the first reply on it is also post-quantum (ML-KEM-768 mixed into every new key), against traffic stored today and decrypted later. Each device of a person opens its own sealed copy, up to 4 devices (for example Radica Messenger and the terminal chat): nothing is synced between devices: what you send from one device is also sealed for your other devices (up to 4 copies for them and 4 for the other person), each with its own keys. Two devices that share one identity key (the same seed imported twice) cannot each keep their own keys, so only one of them reads. A device you have not opened for 30 days stops receiving Secret Chat copies until you open it again, and <b>Identity &amp; keys &gt; Devices</b> lists your devices with a <b>Revoke</b> button to cut one off for good. Disappearing message timers are supported.</p>

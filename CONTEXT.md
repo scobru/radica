@@ -48,6 +48,7 @@ Terms the code and its reviews use. Keep them exact.
 
 ## Feed
 
+- **My Circle Only** (`ui/src/circleMode.ts`, `FreenetClient.circleOnly`, Settings) — a per-device choice under which Radica fetches only the feeds of people the reader follows: Explore (`explorePeerKeys`) drops the preferred trust/supporter/GhostKey keys and the stranger lane, and shows only the circle. Each fetched feed stays subscribed on the node, so this trades discovery for a lighter node. Moderation, trust logs, joined communities and chats are unaffected.
 - **Repost** — an ordinary post whose caption carries the permalink of another post (`#post=<id>&author=<key>`), after the reposter's own words if any. The caption is signed, so the feed contract has no repost field. The reader's app draws the shared post inside the reposter's card (`repost.ts`).
 - **Plain repost** — a repost with no words of its own. Reposting one shares the post it shares, not the repost.
 - **User Wall** (`#user=<pubkey>` / `#wall=<pubkey>`) — a shareable permalink to any persona's public profile Wall (`openUserProfile` / `openAuthorWallInFeed`), formatted inline in posts and chat by `caption.ts` as `↪ <Name>'s Wall`. User profile bios (`#sidebar-bio`, `#pp-bio`, `#uview-bio`) render full Markdown (`renderCaption`) with preserved newlines/spaces (`white-space: pre-wrap`) and clickable internal/external links.

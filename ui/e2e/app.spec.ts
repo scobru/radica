@@ -274,3 +274,16 @@ test("a post can be reposted with my own words, and my profile grows a plant", a
   await expect(page.locator("#uview-linfa .linfa-stage")).toHaveText("Seedling"); // a first post wakes the seed
   await expect(page.locator('#uview-tabs [data-tab="reposts"]')).toHaveText("Reposts (1)", { timeout: 30_000 });
 });
+
+test("My Circle Only moves the feed from Explore to Following, and Home keeps it there", async ({ page }) => {
+  await signIn(page);
+  await expect(page.locator("#scope-explore-btn")).toHaveClass(/\bactive\b/);
+  await page.locator("#circle-only-toggle").evaluate((el: HTMLInputElement) => {
+    el.checked = true;
+    el.dispatchEvent(new Event("change"));
+  });
+  await expect(page.locator("#scope-following-btn")).toHaveClass(/\bactive\b/);
+  await page.click("#rail-home-btn");
+  await expect(page.locator("#scope-following-btn")).toHaveClass(/\bactive\b/);
+  await expect(page.locator("#scope-explore-btn")).not.toHaveClass(/\bactive\b/);
+});
