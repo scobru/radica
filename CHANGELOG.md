@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** River rooms read-only after River's room contract moved to pointer record v14 (`river-wasm/Cargo.toml`, `ui/src/wasm/{river,river_room_contract}.wasm`, `ui/src/riverPointer.ts`, `ui/tests/riverPointer.test.ts`): bumped `river-core` to `e9dae02` and `BUNDLED_ROOM_CODE` to `a365799a…c861`, so `RiverRooms.writable()` no longer throws "River updated its room contract" on send/upload. Taken from the `river-watch/v14` branch the daily River watch built and tested but could not open as a PR (Actions may not create PRs in this repo).
+
   * **REFACTOR / FIX** Shared UI ↔ Attester protocol, Feed Store & Private Rooms (`shared/{protocol,roomFold}.js`, `ui/src/{feedStore,feedlight,privateRooms,roomBackup,freenet,logfold,crypto,supporter,whoiam,ante,types}.ts`, `attester/{Dockerfile,Dockerfile.caprover,src/{core,roomCrypto,freetunes,moderator,main}.js}`, `ui/tests/{sharedProtocol,feedStore,privateRooms}.test.ts`):
     * Extracted runtime-agnostic wire formats and folds (`shared/protocol.js`, `shared/roomFold.js`, typed via `.d.ts`) shared directly by `ui/` and `attester/`, eliminating drift (`moderator.js` `foldRoomState` now handles `room_avatar`/`room_pin` and consistent lowercase `encrypted_keys`) and copying `shared/` into attester Docker images.
     * Extracted `FeedStore` (`ui/src/feedStore.ts`) and eliminated the duplicated `overlayFeed`/`lightFeed` copy in `ui/src/feedlight.ts` worker source while protecting `feedCache` from caller `following` mutations.
