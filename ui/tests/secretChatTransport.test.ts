@@ -351,3 +351,27 @@ test("secretChatTransport: what Alice sends from one device reads on her other d
   ta2.store.setItem(key, JSON.stringify(list));
   assert.deepEqual((await readSecretChat(ta2, alice2, bob.pubkey)).map((m) => m.text), ["modificato"]);
 });
+
+test("secretChatTransport: an old key this device still reads with, announced as a device, does not hide the copy for this key", async () => {
+  // Bob signs in with Viso on a device that used a local key before: it stays among this device's read keys and in
+  // his devices log, so senders (and Bob himself) seal an extra copy to it. That copy is not for this device's session.
+  const { addReadKeys } = await import("../src/crypto.ts");
+  const alice = await person();
+  const bob = await person(true);
+  const oldSk = crypto.getRandomValues(new Uint8Array(32));
+  const oldEnc = ed.etc.bytesToHex(await ed.getPublicKeyAsync(oldSk));
+  addReadKeys([ed.etc.bytesToHex(oldSk)]);
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+  const bobKeys = async (k: string) => (k === bob.pubkey ? [bob.encPub, oldEnc] : [encPubs.get(k) ?? k]);
+  ta.encPubsOf = bobKeys;
+  tb.encPubsOf = bobKeys;
+
+  await sendSecretChatMessage(ta, alice, bob.pubkey, "ciao Bob", 0);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["ciao Bob"], "Bob reads Alice");
+  await sendSecretChatMessage(tb, bob, alice.pubkey, "ciao Alice", 0);
+  assert.deepEqual((await readSecretChat(tb, bob, alice.pubkey)).map((m) => m.text), ["ciao Bob", "ciao Alice"], "Bob reads his own reply");
+  assert.deepEqual((await readSecretChat(ta, alice, bob.pubkey)).map((m) => m.text), ["ciao Bob", "ciao Alice"]);
+});
