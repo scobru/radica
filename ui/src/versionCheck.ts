@@ -23,7 +23,7 @@ export const GITHUB_RAW_PACKAGE = `https://raw.githubusercontent.com/${GITHUB_RE
 
 /** Current semantic version of the application. */
 export function getAppVersion(): string {
-  return typeof __RADICA_VERSION__ !== "undefined" ? __RADICA_VERSION__ : "1.1.0";
+  return typeof __RADICA_VERSION__ !== "undefined" ? __RADICA_VERSION__ : "1.1.1";
 }
 
 /** Returns true if remote semantic version is strictly newer than current. */
