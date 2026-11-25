@@ -311,3 +311,38 @@ test("editing a chat message with a photo shows the photo it keeps, and Cancel h
   await page.click("#rm-edit-banner-cancel");
   await expect(page.locator("#rm-edit-media")).toBeHidden();
 });
+
+test("an edit can drop one of the message's photos with its ✕, and the message keeps the other", async ({ page }) => {
+  await signIn(page);
+  const peer = Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+  await page.evaluate(async (peer) => {
+    const { freenet } = await import("/src/freenet.ts");
+    const { encodeChatMediaToken } = await import("/src/chatMedia.ts");
+    const f = freenet as unknown as { me: string; getRoomId(a: string, b: string): string; handlePeerEvent(d: unknown): void };
+    const photo = (c: string) => encodeChatMediaToken({ kind: "img", mime: "image/webp", hash: c.repeat(64), keyHex: "b".repeat(64), width: 40, height: 40 });
+    const message = { id: `m_${Date.now()}`, room_id: f.getRoomId(f.me, peer), sender: f.me, recipient: peer, text: `two pics\n${photo("c")}\n${photo("d")}`, timestamp: Date.now(), sig: "" };
+    f.handlePeerEvent({ type: "chat", message });
+  }, peer);
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item").first().click();
+  const row = page.locator(".rm-msg-row", { hasText: "two pics" }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.hover();
+  await row.locator("[data-edit-msg]").click({ force: true });
+  await expect(page.locator("#rm-edit-media .cm-img-card")).toHaveCount(2);
+  await page.locator("#rm-edit-media [data-edit-remove]").first().click();
+  await expect(page.locator("#rm-edit-media .cm-img-card")).toHaveCount(1);
+  await expect(page.locator(`#rm-edit-media .cm-card[data-cm-hash="${"d".repeat(64)}"]`)).toHaveCount(1);
+  // what the edit sends (the made-up peer has no key to seal a DM to, so catch it before it goes out)
+  await page.evaluate(async () => {
+    const { freenet } = await import("/src/freenet.ts");
+    const w = window as unknown as { editedText?: string };
+    (freenet as unknown as { editChatMessage(r: string, id: string, t: string): Promise<void> }).editChatMessage = async (_r, _id, t) => void (w.editedText = t);
+  });
+  await page.locator("#rm-composer-input").press("Enter");
+  await expect(page.locator("#rm-edit-media")).toBeHidden();
+  const sent = await page.waitForFunction(() => (window as unknown as { editedText?: string }).editedText).then((h) => h.jsonValue());
+  expect(sent).toContain("two pics");
+  expect(sent).toContain("d".repeat(64));
+  expect(sent).not.toContain("c".repeat(64));
+});

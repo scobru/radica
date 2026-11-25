@@ -849,12 +849,25 @@ export function createMessengerChat(deps: MessengerDeps) {
   const editBannerTextEl = rootEl.querySelector("#rm-edit-banner-text") as HTMLElement;
   const editBannerCancelBtn = rootEl.querySelector("#rm-edit-banner-cancel") as HTMLButtonElement;
   const editMediaEl = rootEl.querySelector("#rm-edit-media") as HTMLElement;
-  /** The attachments an edit keeps, under the banner: only the caption is in the box, so show what stays with it. */
+  /** The attachments an edit keeps, under the banner: only the caption is in the box, so show what stays with it, each
+   *  with a ✕ that drops it from the edit. */
+  let editItems: ChatMediaItem[] = [];
   const showEditMedia = (items: ChatMediaItem[]) => {
-    editMediaEl.innerHTML = chatMediaCardsHtml(items);
+    editItems = items;
+    editingMediaTokens = items.map((it) => it.raw).join("\n");
+    editMediaEl.innerHTML = items
+      .map((it, i) => `<div class="rm-edit-media-item">${chatMediaCardsHtml([it])}<button type="button" class="rm-edit-media-remove" data-edit-remove="${i}" title="Remove from the message" aria-label="Remove this attachment from the message">${renderIcon("x", { size: 12, className: "icon-xs" })}</button></div>`)
+      .join("");
     editMediaEl.hidden = !items.length;
     if (items.length) fillChatMedia(editMediaEl, (h) => freenet.getMedia(h));
   };
+  editMediaEl.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-edit-remove]");
+    if (!btn) return;
+    e.stopPropagation();
+    showEditMedia(editItems.filter((_, i) => i !== Number(btn.dataset.editRemove)));
+    syncComposerButtons();
+  });
   const mediaStageEl = rootEl.querySelector("#rm-media-stage") as HTMLElement;
   const mediaStagePreviewEl = rootEl.querySelector("#rm-media-stage-preview") as HTMLElement;
   const mediaStageLabelEl = rootEl.querySelector("#rm-media-stage-label") as HTMLElement;
@@ -3433,7 +3446,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (msg && msg.sender === deps.getIdentity()?.pubkey) {
         editingMessageId = msg.id;
         const { caption, items } = parseChatMedia(msg.text);
-        editingMediaTokens = items.map((it) => it.raw).join("\n");
         showEditMedia(items);
         composerInputEl.value = caption || msg.text;
         fitInput();
@@ -3774,7 +3786,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   const sendCurrentPayload = async () => {
     if (composerInputEl.disabled || uploadingMedia) return;
     const raw = composerInputEl.value.trim();
-    if (!raw && !stagedMedia) return;
+    if (!raw && !stagedMedia && !(editingMessageId && editingMediaTokens)) return; // an edit may keep only its attachments
 
     if (!activeConvKey()) {
       deps.showToast("Select a conversation first.", "warning");

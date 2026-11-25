@@ -1,5 +1,6 @@
 // Newest first. Add an entry here with every user-visible release.
 export const UPDATES: { date: string; text: string }[] = [
+  { date: "2026-11-25", text: "Remove a photo, audio or file while editing a chat message: each attachment shown under the **Editing** bar has a ✕, and the saved message keeps only the ones left. A message can also be saved with no text, only its attachments." },
   { date: "2026-11-25", text: "Editing a chat message with photos, audio or files now shows them under the **Editing** bar: only the text is in the box, and the attachments shown there stay with the message when you save." },
   { date: "2026-11-25", text: "The 🌐 translate menu next to the chat, comment and post boxes no longer gets cut off on Windows or with a larger text size: it now takes the room its icon needs." },
   { date: "2026-11-25", text: "Fixed Secret Chats turning \"unable to decrypt\" for people who sign in with Viso on a device that used a local key before: their own messages became unreadable right after sending, and they could not read what others sent them. The device now opens only the copy sealed to the key it reads with. Messages already shown as unreadable cannot be recovered; start a new Secret Chat after updating." },
