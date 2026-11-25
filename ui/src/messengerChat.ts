@@ -54,6 +54,7 @@ import {
   sendChatAttachment,
   startVideoNoteRecording,
   syncMiniPlayerSlot,
+  type ChatMediaItem,
 } from "./chatMedia.ts";
 import { createChatVoiceController } from "./chatVoiceController.ts";
 import { analyzeImageFile } from "./moderation.ts";
@@ -552,6 +553,7 @@ export function createMessengerChat(deps: MessengerDeps) {
               <div class="rm-edit-banner-text" id="rm-edit-banner-text">Editing message</div>
               <button type="button" class="rm-icon-btn" id="rm-edit-banner-cancel" style="width: 24px; height: 24px;" title="Cancel edit">${renderIcon("x", { size: 12, className: "icon-xs" })}</button>
             </div>
+            <div class="rm-edit-media" id="rm-edit-media" hidden title="Attachments kept with the edit"></div>
 
             <div class="rm-media-stage" id="rm-media-stage">
               <div class="rm-media-stage-preview" id="rm-media-stage-preview"></div>
@@ -846,6 +848,13 @@ export function createMessengerChat(deps: MessengerDeps) {
   const editBannerEl = rootEl.querySelector("#rm-edit-banner") as HTMLElement;
   const editBannerTextEl = rootEl.querySelector("#rm-edit-banner-text") as HTMLElement;
   const editBannerCancelBtn = rootEl.querySelector("#rm-edit-banner-cancel") as HTMLButtonElement;
+  const editMediaEl = rootEl.querySelector("#rm-edit-media") as HTMLElement;
+  /** The attachments an edit keeps, under the banner: only the caption is in the box, so show what stays with it. */
+  const showEditMedia = (items: ChatMediaItem[]) => {
+    editMediaEl.innerHTML = chatMediaCardsHtml(items);
+    editMediaEl.hidden = !items.length;
+    if (items.length) fillChatMedia(editMediaEl, (h) => freenet.getMedia(h));
+  };
   const mediaStageEl = rootEl.querySelector("#rm-media-stage") as HTMLElement;
   const mediaStagePreviewEl = rootEl.querySelector("#rm-media-stage-preview") as HTMLElement;
   const mediaStageLabelEl = rootEl.querySelector("#rm-media-stage-label") as HTMLElement;
@@ -1860,7 +1869,9 @@ export function createMessengerChat(deps: MessengerDeps) {
       const nextOpenId = deps.openRoomId() || "";
       voiceCtrl.resetRoomWalkie(nextOpenId, st.shownMessages);
       editingMessageId = null;
+      editingMediaTokens = "";
       if (editBannerEl) editBannerEl.style.display = "none";
+      showEditMedia([]);
     }
     lastRenderedConvKey = curKey;
 
@@ -3423,6 +3434,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         editingMessageId = msg.id;
         const { caption, items } = parseChatMedia(msg.text);
         editingMediaTokens = items.map((it) => it.raw).join("\n");
+        showEditMedia(items);
         composerInputEl.value = caption || msg.text;
         fitInput();
         const excerpt = summarizeChatMediaText(msg.text, (txt) => plainMentions(txt, deps.getAuthorDisplayName)).slice(0, 80);
@@ -3734,6 +3746,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     editingMessageId = null;
     editingMediaTokens = "";
     if (editBannerEl) editBannerEl.style.display = "none";
+    showEditMedia([]);
     syncComposerButtons();
   };
 

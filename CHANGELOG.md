@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **IMPROVED** Chat edit shows the attachments it keeps (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): editing a message put only its caption in the box and the attachment tokens aside (`editingMediaTokens`), so photos, audio and files seemed gone though they were saved with the edit. A `#rm-edit-media` strip under the banner now draws them small with `chatMediaCardsHtml`/`fillChatMedia`, and clears on Cancel, send or switching conversation.
+
   * **FIX** Secret Chat unreadable on Viso devices with an older local key (`ui/src/secretChatTransport.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` picked the copy sealed to any key in `radica_read_keys` (keys this device used before Viso), but the Double Ratchet opens only with `identity.secretKey`. When that old key was still announced in `devices/<persona>`, senders and the persona itself sealed a copy to it, so the device swapped its readable ciphertext for that copy: the persona could not read incoming messages, and its own messages turned unreadable once they came back from the network. Copies are now picked by the current key only.
 
   * **NEW** My Circle Only mode (`ui/src/circleMode.ts`, `ui/src/{freenet,main}.ts`, `ui/index.html`, `ui/tests/circleMode.test.ts`): a Settings switch (`radica_circle_only`, mirrored on the node as `circle-only`) under which `getExploreTimeline` fetches only followed feeds (no 40 preferred trust/supporter/GhostKey keys, no 30-key stranger lane) and shows only my circle, the Following scope skips tier-2 posts from `peerCache`, and the feed and Home open on Following. Fewer feed contracts fetched and subscribed on the node.
