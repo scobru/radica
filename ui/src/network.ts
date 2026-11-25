@@ -27,7 +27,7 @@ import { mediaHashOf } from "./media.ts";
 import { appPath } from "./whoiam.ts";
 import { VISO_IDENTITY_CODE_HASH, visoIdentityInstance } from "./viso.ts";
 import { limiter } from "./limit.ts";
-import { CURRENT, LEGACY } from "./legacy.ts";
+import { CURRENT, LEGACY, canHaveLegacy } from "./legacy.ts";
 import { compactLog, type LogEntry } from "./logfold.ts";
 import { safeStorage } from "./storage.ts"; // the sandboxed web container has no localStorage
 import { nextDelay, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
@@ -62,22 +62,6 @@ const bgGate = limiter(8);
 
 const withTimeout = <T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> =>
   Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), ms))]);
-
-/** Logs introduced in or after log-contract v2 never existed under earlier WASM generations. */
-function canHaveLegacy(id: ContractId): boolean {
-  return !(
-    id.startsWith("log:dm/") ||
-    id.startsWith("log:devices/") ||
-    id === "log:handles" ||
-    id === "log:poh" ||
-    id === "log:delegations" ||
-    id.startsWith("log:orto/") ||
-    id.startsWith("log:asocial/") ||
-    id.startsWith("log:freetunes/") ||
-    id.startsWith("log:freetree/") ||
-    id.startsWith("log:fh/")
-  );
-}
 
 /** A contract on the network: the feed of a persona (`feed:<pubkey>`), a named log (`log:<name>`), or a River room
  *  (`river:<owner key>`, raw CBOR state, see riverRooms.ts). */
@@ -280,6 +264,9 @@ export class FreenetNetwork {
         const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, true)), timeoutFor(id))); // the timeout starts when the lookup is sent, not while it waits
         this.known.add(id);
         if (r.state.length) this.live.set(id, Date.now()); // nothing published yet: no subscription to rely on
+        // an inbox or DM room a contact started under this generation still gets my older entries: the merge is a
+        // union, so carrying them in later loses nothing (once per contract, see fromLegacy)
+        if (r.state.length && (id.startsWith("log:inbox/") || id.startsWith("log:dm/"))) void this.fromLegacy(id).catch(() => {});
         return r.state.length ? dec.decode(toU8(r.state)) : null;
       } catch (e) {
         // a contract nobody has PUT under this build yet often times out instead of "not found": look in earlier builds either way
@@ -405,8 +392,10 @@ export class FreenetNetwork {
       try {
         state = await this.legacy<T>(id);
       } catch {
-        return null;
+        return null; // a lookup failed or timed out: not marked done, so the next read probes again and nothing is left behind
       }
+      const cur: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
+      if (!cur.includes(id)) safeStorage.setItem(mark, JSON.stringify([...cur, id]));
       if (state === null) return null;
       // a log moves without what no longer counts (superseded state, an inbox's conversations): it stays small
       const log = state as { entries?: Record<string, LogEntry> };
@@ -419,8 +408,6 @@ export class FreenetNetwork {
         return null;
       }
     } finally {
-      const cur: string[] = JSON.parse(safeStorage.getItem(mark) || "[]");
-      if (!cur.includes(id)) safeStorage.setItem(mark, JSON.stringify([...cur, id]));
       this.probing.delete(id);
     }
   }

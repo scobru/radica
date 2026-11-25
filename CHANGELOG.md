@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Legacy log migration regressions from the startup speed-up (`ui/src/{network,legacy}.ts`, `ui/tests/legacy.test.ts`): `canHaveLegacy` skipped `dm/`, `devices/`, `poh`, `delegations`, `orto/`, `asocial/`, `freetunes/`, `freetree/` and `fh/`, which all existed before log contract v2 (2026-11-20), so their pre-v2 data was never carried forward; only `handles` is now skipped. A legacy lookup that throws or times out is no longer marked as probed (it is retried on the next read), and `log:inbox/` and `log:dm/` contracts that already exist under v2 again union in the older generation once.
+
   * **REFACTOR / FIX** Log Engine & Memoized Fold Store (`ui/src/{logStore,logfold,freenet}.ts`, `ui/tests/logStore.test.ts`):
     * Extracted `LogStore` (`ui/src/logStore.ts`) with explicit storage and network adapters to own log entry parsing/memoization, raw-keyed fold caching (`memo`), v2 PoW appending, offline/failed push retries, delta/state change ingestion, and ingress author-signature verification.
     * Extracted pure author-latest folds (`latestByAuthor`, `foldSupporterTokens`, `foldGhostkeyBundles`, `foldPohProofs`, `foldDelegationProofs`) into `ui/src/logfold.ts` with deterministic `ts` + `sig` tie-breaking.
