@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **IMPROVED** Remove attachments while editing a chat message (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): each card in the `#rm-edit-media` strip has a ✕ that drops it from `editingMediaTokens`, so the edit is sent with only the attachments left; an edit with an empty caption but attachments kept can now be saved.
+
   * **IMPROVED** Chat edit shows the attachments it keeps (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): editing a message put only its caption in the box and the attachment tokens aside (`editingMediaTokens`), so photos, audio and files seemed gone though they were saved with the edit. A `#rm-edit-media` strip under the banner now draws them small with `chatMediaCardsHtml`/`fillChatMedia`, and clears on Cancel, send or switching conversation.
 
   * **FIX** 🌐 draft-translate menu cut off (`ui/src/style.css`): the `<select>` had a fixed width (2.25rem in chat, 1.9rem in comments on phones) that a wider emoji font (Windows) or a larger text size overflowed. It is now sized to its content with `field-sizing: content` where supported, with wider fixed fallbacks elsewhere.
