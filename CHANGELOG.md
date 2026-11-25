@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** 🌐 draft-translate menu cut off (`ui/src/style.css`): the `<select>` had a fixed width (2.25rem in chat, 1.9rem in comments on phones) that a wider emoji font (Windows) or a larger text size overflowed. It is now sized to its content with `field-sizing: content` where supported, with wider fixed fallbacks elsewhere.
+
   * **FIX** Secret Chat unreadable on Viso devices with an older local key (`ui/src/secretChatTransport.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` picked the copy sealed to any key in `radica_read_keys` (keys this device used before Viso), but the Double Ratchet opens only with `identity.secretKey`. When that old key was still announced in `devices/<persona>`, senders and the persona itself sealed a copy to it, so the device swapped its readable ciphertext for that copy: the persona could not read incoming messages, and its own messages turned unreadable once they came back from the network. Copies are now picked by the current key only.
 
   * **NEW** My Circle Only mode (`ui/src/circleMode.ts`, `ui/src/{freenet,main}.ts`, `ui/index.html`, `ui/tests/circleMode.test.ts`): a Settings switch (`radica_circle_only`, mirrored on the node as `circle-only`) under which `getExploreTimeline` fetches only followed feeds (no 40 preferred trust/supporter/GhostKey keys, no 30-key stranger lane) and shows only my circle, the Following scope skips tier-2 posts from `peerCache`, and the feed and Home open on Following. Fewer feed contracts fetched and subscribed on the node.

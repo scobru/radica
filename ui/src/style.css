@@ -969,7 +969,7 @@ body {
     padding: 1px 3px;
   }
   .comment-actions .draft-translate {
-    width: 1.9rem;
+    width: 2.3rem;
     font-size: 0.74rem;
   }
   .comment-input-wrap:not(:focus-within) .draft-translate {
@@ -6600,11 +6600,21 @@ html[data-fullwidth="true"] #width-toggle-btn {
 }
 .rm-input-pill .draft-translate,
 .comment-actions .draft-translate {
-  width: 2.25rem;
+  width: 2.6rem;
   min-width: 0;
   padding: 2px;
   border-color: transparent;
   background: transparent;
+}
+/* a fixed width cut the 🌐 off where the emoji font is wider (Windows) or the text larger: size it to the 🌐 and its
+   arrow where the browser can; the open list still shows each language in full */
+@supports (field-sizing: content) {
+  .draft-translate,
+  .rm-input-pill .draft-translate,
+  .comment-actions .draft-translate {
+    width: auto;
+    field-sizing: content;
+  }
 }
 
 /* Secondary places: core features live in the desktop rail; illustrative/account utilities (Identity, Blocklists, Updates, Guide) tuck behind More on desktop too */
