@@ -359,7 +359,7 @@ test("a River room the node cannot reach says so, with a Retry, instead of an em
     f.notifyListeners();
   });
   await page.click("#open-chat-btn");
-  await page.locator(".rm-conv-item").first().click();
+  await page.locator(".rm-conv-item", { hasText: "Private Room" }).first().click(); // the injected room, once the list has it
   await expect(page.getByText("Your node cannot reach this room yet")).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("#rm-room-retry-btn")).toBeVisible();
 });
