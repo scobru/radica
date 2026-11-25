@@ -689,8 +689,9 @@ mod tests {
     #[test]
     fn legacy_lists_earlier_room_contracts_newest_first() {
         let hashes = ok(json!({"op":"legacy"}))["code_hashes"].as_array().unwrap().clone();
-        // the generation Radica wrote under before River's version 11 is the newest earlier one
-        assert_eq!(hashes[0], "fa9e59e87532bc9681e8fef903f6d35a1207c25a0f0d8cca2c92e2f31761a4f9");
+        // every generation Radica wrote under stays reachable, newest first: River's version 11, then the one before it
+        let at = |h: &str| hashes.iter().position(|x| x == h).unwrap_or_else(|| panic!("{h} missing from legacy"));
+        assert!(at("bc9b4066fccc37435556295871c567e455b48832eb0a72623d399b354471aef5") < at("fa9e59e87532bc9681e8fef903f6d35a1207c25a0f0d8cca2c92e2f31761a4f9"));
         assert!(hashes.len() >= 38);
     }
 

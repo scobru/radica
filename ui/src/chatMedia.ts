@@ -1937,12 +1937,15 @@ function sharedAudio(): HTMLAudioElement {
   });
 
   const paint = () => {
+    const wasHidden = bar.hidden;
     bar.hidden = !player.hash || (a.paused && a.currentTime === 0);
     toggle.textContent = a.paused ? "▶" : "⏸";
     toggle.setAttribute("aria-label", a.paused ? "Play" : "Pause");
     const dur = Number.isFinite(a.duration) ? a.duration : 0;
     time.textContent = `${formatMediaDuration(a.currentTime)} / ${formatMediaDuration(dur)}`;
-    if (!bar.hidden) syncMiniPlayerSlot();
+    // dock only when the bar appears: on every timeupdate the slot lookup forced a full style/layout pass (seconds of
+    // CPU per minute of playback on a busy page); view changes re-dock it themselves (main.ts, messengerChat.ts)
+    if (wasHidden && !bar.hidden) syncMiniPlayerSlot();
   };
   for (const ev of PLAYER_EVENTS) a.addEventListener(ev, paint);
   a.addEventListener("play", () => pauseAllOtherMedia(a));
