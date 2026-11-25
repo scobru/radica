@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **RELEASE** Desktop & Android apps v1.1.1 (`package.json`, `apps/Cargo.toml`, `apps/Cargo.lock`, `ui/index.html`, `ui/src/versionCheck.ts`): ships the fixes merged after v1.1.0: Secret Chat copy selection on Viso devices, unreachable River room card with Retry, chat edit attachments (shown and removable), 🌐 menu sizing, My Circle Only. Tag `v1.1.1` after merge.
+
   * **IMPROVED** Unreachable River rooms explain themselves (`ui/src/{riverRooms,freenet,messengerChat}.ts`, `ui/tests/riverRooms.test.ts`, `ui/e2e/app.spec.ts`): `RiverRooms.load` marks a room the node returned nothing for (current contract and the legacy probe) as missing, `retry()` asks again and re-runs the legacy probe, and `FreenetClient.riverRoomUnreachable`/`retryRiverRoom` drive a card with a Retry button in place of the empty placeholder room, seen on Android nodes that could not fetch room state.
 
   * **IMPROVED** Remove attachments while editing a chat message (`ui/src/messengerChat.ts`, `ui/src/messengerChat.css`, `ui/e2e/app.spec.ts`): each card in the `#rm-edit-media` strip has a ✕ that drops it from `editingMediaTokens`, so the edit is sent with only the attachments left; an edit with an empty caption but attachments kept can now be saved.
