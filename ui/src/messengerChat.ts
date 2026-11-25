@@ -1273,7 +1273,8 @@ export function createMessengerChat(deps: MessengerDeps) {
     // the open plain DM is listed even before its first message; an open Secret Chat does not bring the plain DM along
     const openDm = st.peer && !st.isSecret ? st.peer : null;
     const rawPeers = Array.from(new Set([...freenet.getChatPeers(me), ...(openDm ? [openDm] : [])]));
-    freenet.warmPeers(rawPeers);
+    const secretPeers = freenet.getSecretChatPeers(me).filter((pk) => pk && pk !== me);
+    freenet.warmPeers(Array.from(new Set([...rawPeers, ...secretPeers, ...(st.peer ? [st.peer] : [])])));
     const isBlockedPeer = (pk: string) => (deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk));
     const knownPeers = rawPeers.filter(
       (pk) => pk && pk !== me && !isBlockedPeer(pk) && (pk === openDm || !freenet.isChatPeerRemoved(me, pk))
@@ -1331,7 +1332,6 @@ export function createMessengerChat(deps: MessengerDeps) {
     }
 
     // 4. Secret Chats (Single-Device Ephemeral PFS Chats)
-    const secretPeers = freenet.getSecretChatPeers(me).filter((pk) => pk && pk !== me);
     for (const pk of secretPeers) {
       const roomId = freenet.getSecretRoomId(me, pk);
       const displayName = deps.getAuthorDisplayName(pk);
@@ -1343,7 +1343,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       let previewText = "Secret Chat · Tap to start";
       let previewMine = false;
       let previewOptimistic = false;
-      if (cached && cached.timestamp >= meta.lastTs) {
+      const cachedUsable = cached && cached.timestamp >= meta.lastTs && !/^(secret:v|e2e:|sym:)/.test(cached.text);
+      if (cachedUsable) {
         previewMine = cached.sender === me;
         previewOptimistic = !!cached.optimistic;
         previewText = formatPreviewLine(cached.text, cached.sender, me, "dm");
@@ -1442,7 +1443,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             const afterTs = last.timestamp || meta.lastTs;
             if (afterTs) hydratedStamp.set(c.roomId, afterTs);
 
-            if (deps.openRoomId() !== c.roomId) {
+            if (deps.openRoomId() !== c.roomId && !/^(secret:v|e2e:|sym:)/.test(last.text)) {
               const nextPreview: PreviewItem = {
                 text: last.text,
                 sender: last.sender,

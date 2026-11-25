@@ -60,6 +60,16 @@ test("shouldHydratePreview: skips community rooms, empty stamps, and already-hyd
   );
   assert.equal(
     shouldHydratePreview({
+      type: "secret",
+      roomId: "sc_room_1",
+      openRoomId: "river_abc123",
+      stamp: 200,
+      lastHydratedStamp: undefined,
+    }),
+    false
+  );
+  assert.equal(
+    shouldHydratePreview({
       type: "dm",
       roomId: "dm_1",
       openRoomId: "river_abc123",

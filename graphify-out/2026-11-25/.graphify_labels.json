@@ -262,5 +262,14 @@
   "260": "handles.test.ts",
   "261": "DelegationProofV1",
   "262": "run.mjs",
-  "263": "ref_node_url"
+  "263": "ref_node_url",
+  "264": "syncMobileViewport",
+  "265": "package.json",
+  "266": "challengeBytes",
+  "267": "protocol.d.ts",
+  "268": ".riverMessages",
+  "269": "formatMediaDuration",
+  "270": "visoSeal.ts",
+  "271": "ghostkey.ts",
+  "272": "compactLog"
 }

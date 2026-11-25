@@ -10,7 +10,7 @@ export interface PreviewItem {
 
 const enc = new TextEncoder();
 
-/** Closed-room preview hydration must skip community rooms, the currently open room, and unchanged stamps. */
+/** Closed-room preview hydration must skip community rooms, secret chats, the currently open room, and unchanged stamps. */
 export function shouldHydratePreview(opts: {
   type: "dm" | "priv" | "comm" | "secret";
   roomId: string;
@@ -18,7 +18,7 @@ export function shouldHydratePreview(opts: {
   stamp: number;
   lastHydratedStamp: number | undefined;
 }): boolean {
-  if (opts.type === "comm") return false;
+  if (opts.type === "comm" || opts.type === "secret") return false;
   if (opts.openRoomId && opts.roomId === opts.openRoomId) return false;
   if (!opts.stamp || opts.lastHydratedStamp === opts.stamp) return false;
   return true;

@@ -211,6 +211,7 @@ export class FeedStore {
             } catch {}
           }
         }
+        if (out.profile) this.deps.onPeerProfile(ownerPubkey, out.profile);
         void this.refresh(ownerPubkey);
         return out;
       } catch {}
@@ -230,10 +231,11 @@ export class FeedStore {
     if (!raw) return [];
     const hit = this.peerPostsCache.get(pubkey);
     if (hit?.raw === raw) return hit.posts;
-    const { posts, total, following } = await this.lightFeed(raw);
+    const { posts, profile, total, following } = await this.lightFeed(raw);
     this.peerPostsCache.set(pubkey, { raw, posts });
     this.peerFollowing.set(pubkey, following ?? []);
     this.postTotals.set(pubkey, total ?? posts.length);
+    if (profile) this.deps.onPeerProfile(pubkey, profile);
     return posts;
   }
 

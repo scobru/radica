@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { bytesToHex, postMsg3, profileMsg4 } from "../src/crypto.ts";
-import { WORKER_SRC } from "../src/feedlight.ts";
+import { WORKER_SRC, lightFeedOf } from "../src/feedlight.ts";
 import { FeedStore, type FeedNetworkAdapter, type FeedStorageLike } from "../src/feedStore.ts";
 import type { FeedState, Post, UserIdentity } from "../src/types.ts";
 
@@ -44,9 +44,43 @@ function makePost(author: string, id: string, caption: string, ts: number): Post
 }
 
 describe("feedlight WORKER_SRC", () => {
-  it("parses cleanly as standalone worker JS without syntax errors", () => {
+  it("parses and executes standalone worker JS for profiles, canonical posts, and deltas", () => {
     const fn = new Function("self", WORKER_SRC);
     assert.equal(typeof fn, "function");
+    const posted: { id: number; feed: any }[] = [];
+    const selfStub: { postMessage: (msg: { id: number; feed: any }) => void; onmessage?: (e: { data: any }) => void } = {
+      postMessage: (msg) => void posted.push(msg),
+    };
+    fn(selfStub);
+    assert.equal(typeof selfStub.onmessage, "function");
+
+    const raw = JSON.stringify({
+      owner: "peer1",
+      profile: { display_name: "Ivvor", avatar_url: "data:image/webp;base64,AAA", updated_at: 10, sig: "psig" },
+      following: ["k1", 42],
+      posts: {
+        p1: { id: "p1", author: "peer1", category: "thought", caption: "hello", media_uri: `radica-media:${"ab".repeat(32)}`, timestamp: 100, sig: "s1", likes: {}, comments: {} },
+        bad: { id: "bad", author: "peer1", category: "thought:hi", caption: "x", timestamp: 200, sig: "s2", likes: {}, comments: {} },
+      },
+    });
+    selfStub.onmessage!({ data: { id: 1, raw } });
+    assert.deepEqual(posted[0].feed, lightFeedOf(raw));
+    assert.equal(posted[0].feed.profile?.avatar_url, "data:image/webp;base64,AAA");
+    assert.equal(posted[0].feed.profile?.display_name, "Ivvor");
+
+    const delta = JSON.stringify({
+      owner: "peer1",
+      profile: { display_name: "Ivvor", avatar_url: "data:image/webp;base64,BBB", updated_at: 20, sig: "psig2" },
+      posts: { p2: { id: "p2", author: "peer1", category: "thought", caption: "newer", timestamp: 300, sig: "s3", likes: {}, comments: {} } },
+      following: [],
+    });
+    selfStub.onmessage!({ data: { id: 2, raw, delta } });
+    assert.equal(posted[1].feed.profile?.avatar_url, "data:image/webp;base64,BBB");
+    assert.deepEqual(posted[1].feed.posts.map((p: Post) => p.id), ["p2", "p1"]);
+    assert.ok(JSON.parse(posted[1].feed.text).posts.p1);
+
+    selfStub.onmessage!({ data: { id: 3, raw: "{oops" } });
+    assert.deepEqual(posted[2].feed, { posts: [] });
   });
 });
 
@@ -196,5 +230,47 @@ describe("FeedStore", () => {
     const afterTake = JSON.parse(storage.getItem(`freenet_feed_${me.pubkey}`)!);
     assert.equal(afterTake.posts.p1, undefined);
     assert.equal(afterTake.deleted.p1.sig, "delsig");
+  });
+
+  it("emits onPeerProfile when reading stored feeds via getFeed and peerPosts", async () => {
+    const storage = makeStorage();
+    const me = makeIdentity(1);
+    const peer = makeIdentity(2);
+    const peer2 = makeIdentity(3);
+    storage.setItem(
+      `freenet_feed_${peer.pubkey}`,
+      JSON.stringify({
+        owner: peer.pubkey,
+        profile: { display_name: "Ivvor", avatar_url: "data:image/webp;base64,IVV", updated_at: 50, sig: "sig" },
+        posts: { p1: makePost(peer.pubkey, "p1", "hi", 10) },
+        following: [],
+      })
+    );
+    storage.setItem(
+      `freenet_feed_${peer2.pubkey}`,
+      JSON.stringify({
+        owner: peer2.pubkey,
+        profile: { display_name: "HostFat", avatar_url: "https://example.com/a.png", updated_at: 60, sig: "sig2" },
+        posts: { p2: makePost(peer2.pubkey, "p2", "yo", 20) },
+        following: [],
+      })
+    );
+    const seen: Record<string, string | undefined> = {};
+    const store = new FeedStore({
+      storage,
+      net: { getText: async () => null, push: async () => {}, liveAge: () => null, liveIds: () => [] },
+      isConnected: () => false,
+      me: () => me.pubkey,
+      onPeerProfile: (owner, prof) => {
+        seen[owner] = prof.avatar_url;
+      },
+      onChanged: () => {},
+      yieldToMain: async () => {},
+    });
+
+    await store.getFeed(peer.pubkey);
+    assert.equal(seen[peer.pubkey], "data:image/webp;base64,IVV");
+    await store.peerPosts(peer2.pubkey);
+    assert.equal(seen[peer2.pubkey], "https://example.com/a.png");
   });
 });

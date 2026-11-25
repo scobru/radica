@@ -51,22 +51,63 @@ let seq = 0;
 const waiting = new Map<number, { raw: string; delta?: string; resolve: (f: LightFeed) => void }>();
 
 // Self-contained worker script loaded from a blob: URL so it runs inside Freenet's opaque-origin (null) sandboxed iframe
-// where HTTP worker URLs throw SecurityError. Functions are serialized directly from their single definitions above.
+// where HTTP worker URLs throw SecurityError. Functions must be written out here because Vite/esbuild minification renames
+// module-scope references (e.g. PEER_POSTS, isCanonicalPost), breaking .toString() serialization with ReferenceError.
 export const WORKER_SRC = `
 const PEER_POSTS = ${PEER_POSTS};
-const isCanonicalPost = ${isCanonicalPost.toString()};
-const overlayFeed = ${overlayFeed.toString()};
-const lightFeed = ${lightFeed.toString()};
+function isCanonicalPost(p) {
+  const media = (p.media_uri ?? "").split(" ").filter(Boolean);
+  return (
+    (p.category === "thought" || p.category === "moment" || p.category === "event") &&
+    media.every((u) => /^(radica-media:[0-9a-f]{64}|https?:\\/\\/\\S+|data:[a-z]+\\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)$/.test(u)) &&
+    (!p.community_id || /^[A-Za-z0-9_-]{1,100}$/.test(p.community_id)) &&
+    (!p.event_date || /^\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+Z?)?$/.test(p.event_date))
+  );
+}
+function overlayFeed(f, d) {
+  const newer = (tsA = 0, sigA = "", tsB = 0, sigB = "") => tsA > tsB || (tsA === tsB && sigA > sigB);
+  if (d.profile && (!f.profile || newer(d.profile.updated_at, d.profile.sig, f.profile.updated_at, f.profile.sig))) f.profile = d.profile;
+  if (newer(d.following_updated_at, d.following_sig, f.following_updated_at, f.following_sig)) {
+    f.following = d.following;
+    f.following_updated_at = d.following_updated_at;
+    f.following_sig = d.following_sig;
+    f.following_cert = d.following_cert;
+    f.following_v = d.following_v;
+  }
+  for (const [id, del] of Object.entries(d.deleted ?? {})) {
+    delete f.posts[id];
+    if (!f.deleted?.[id] || del.sig > f.deleted[id].sig) f.deleted = { ...f.deleted, [id]: del };
+  }
+  for (const [id, p] of Object.entries(d.posts ?? {})) {
+    if (f.deleted?.[id]) continue;
+    const cur = (f.posts[id] ??= { ...p, likes: {}, comments: {} });
+    cur.comments = { ...cur.comments };
+    for (const [k, c] of Object.entries(p.comments ?? {})) if (!cur.comments[k] || c.sig > cur.comments[k].sig) cur.comments[k] = c;
+    cur.likes = { ...cur.likes };
+    for (const [k, l] of Object.entries(p.likes ?? {})) if (!cur.likes[k] || newer(l.ts, l.sig, cur.likes[k].ts, cur.likes[k].sig)) cur.likes[k] = l;
+  }
+  return f;
+}
+function lightFeed(raw, n = PEER_POSTS) {
+  const feed = JSON.parse(raw);
+  if (!feed || typeof feed !== "object") return { posts: [] };
+  const all = Object.values(feed.posts ?? {}).filter(isCanonicalPost);
+  const posts = all.sort((a, b) => b.timestamp - a.timestamp).slice(0, n);
+  const following = Array.isArray(feed.following) ? feed.following.filter((k) => typeof k === "string") : [];
+  return { posts, profile: feed.profile ?? undefined, total: all.length, following };
+}
 self.onmessage = (e) => {
   let feed = { posts: [] };
+  const { raw, delta } = e.data;
   try {
-    const { raw, delta } = e.data;
     if (delta === undefined) feed = lightFeed(raw);
     else {
       const text = JSON.stringify(overlayFeed(JSON.parse(raw), JSON.parse(delta)));
       feed = { ...lightFeed(text), text };
     }
-  } catch {}
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err;
+  }
   self.postMessage({ id: e.data.id, feed });
 };
 `;

@@ -243,7 +243,14 @@ export class FreenetClient {
     isConnected: () => this.isConnected,
     me: () => this.me,
     onPeerProfile: (owner, profile) => {
-      this.knownPeers[owner] = { display_name: profile.display_name, avatar_url: profile.avatar_url };
+      const prev = this.knownPeers[owner];
+      const next = {
+        display_name: profile.display_name || prev?.display_name || "",
+        avatar_url: profile.avatar_url ?? prev?.avatar_url,
+      };
+      if (prev?.display_name === next.display_name && prev?.avatar_url === next.avatar_url) return;
+      this.knownPeers[owner] = next;
+      this.notifyListeners();
     },
     onChanged: () => this.notifyListeners(),
   });
@@ -3096,10 +3103,13 @@ export class FreenetClient {
     this.storedNameTried.add(pk);
     if (!raw) return;
     const profile = (await lightFeedAsync(raw)).profile;
-    if (!profile?.display_name) return;
+    if (!profile?.display_name && !profile?.avatar_url) return;
     const k = this.knownPeers[pk];
     if (k?.display_name && !k.display_name.startsWith("Persona @") && k.avatar_url) return; // learned meanwhile
-    this.knownPeers[pk] = { display_name: profile.display_name, avatar_url: profile.avatar_url || k?.avatar_url };
+    this.knownPeers[pk] = {
+      display_name: profile.display_name || k?.display_name || `Persona @${personaName(pk).substring(0, 6)}`,
+      avatar_url: profile.avatar_url || k?.avatar_url,
+    };
     this.notifyListeners();
   }
 

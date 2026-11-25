@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795470909.827276,
-    "ast_hash": "58b0cdaf7cfebd89b2f126206502d2cc",
+    "mtime": 1795600180.5032687,
+    "ast_hash": "d3f27527f0a48e8b72be79961750053e",
     "semantic_hash": ""
   },
   "ui/package.json": {
@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "ui/src/freenet.ts": {
-    "mtime": 1795598413.6580718,
-    "ast_hash": "007b2abff549c53ac10dbed8e778fe87",
+    "mtime": 1795600180.5367572,
+    "ast_hash": "9b80f78177829392c8bbb055884fb279",
     "semantic_hash": ""
   },
   "ui/src/icons.ts": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795598462.2051601,
-    "ast_hash": "71f438d5a56c7bef785f3affe4985902",
+    "mtime": 1795600197.744165,
+    "ast_hash": "e75d30665a839390a54fa8a81afb643b",
     "semantic_hash": ""
   },
   "README.md": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "ui/index.html": {
-    "mtime": 1795597726.148613,
-    "ast_hash": "3ddf504d5a7c7aa43de86201c29b46a3",
+    "mtime": 1795600180.5126097,
+    "ast_hash": "276a24bc0f969e4353bb8008be8fcf1d",
     "semantic_hash": ""
   },
   "contract/examples/gen_states.rs": {
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "ui/src/riverPointer.ts": {
-    "mtime": 1794222890.676978,
-    "ast_hash": "31d8d457d31e4e4e4d664f7dbbffd564",
+    "mtime": 1795600172.9471052,
+    "ast_hash": "53c0ce5a771c0acafc285f3d3dd1f730",
     "semantic_hash": ""
   },
   "ui/src/riverRooms.ts": {
@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "ui/src/updates.ts": {
-    "mtime": 1795598460.4794564,
-    "ast_hash": "3c818a979853f77f96a420e74d0138f9",
+    "mtime": 1795600214.2215781,
+    "ast_hash": "18a4b4dc565c2003806f5a99d22aa3ad",
     "semantic_hash": ""
   },
   ".github/workflows/river-watch.yml": {
@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "ui/src/feedlight.ts": {
-    "mtime": 1795598081.3614945,
-    "ast_hash": "e8bce8930fff7eb0da83a8860c574063",
+    "mtime": 1795600180.5329425,
+    "ast_hash": "7db512906cd7087d4e3efce6bc057473",
     "semantic_hash": ""
   },
   "ui/src/feedlight.worker.ts": {
@@ -285,13 +285,13 @@
     "semantic_hash": ""
   },
   "ui/src/messengerChat.ts": {
-    "mtime": 1795596039.253379,
-    "ast_hash": "dba6b068210137247fea52718bc20bb2",
+    "mtime": 1795600180.541705,
+    "ast_hash": "889caed32d405b4388556df75b97ec8e",
     "semantic_hash": ""
   },
   "ui/src/messengerLogic.ts": {
-    "mtime": 1795361989.586225,
-    "ast_hash": "69f2a89fb9daa8395257ed18f287fe7c",
+    "mtime": 1795600180.5446155,
+    "ast_hash": "16a916dfc7f7c4d67214b1601504b567",
     "semantic_hash": ""
   },
   "ui/src/ecosystem.ts": {
@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "ui/src/versionCheck.ts": {
-    "mtime": 1795561892.8356197,
-    "ast_hash": "f255cc58e61c99d2cdddd8299c25c65e",
+    "mtime": 1795600180.5503185,
+    "ast_hash": "095381fed4c6bbcf42d1f01d3c7cb445",
     "semantic_hash": ""
   },
   "CONTEXT.md": {
@@ -775,8 +775,8 @@
     "semantic_hash": ""
   },
   "ui/tests/messengerChat.test.ts": {
-    "mtime": 1795261656.9360356,
-    "ast_hash": "1f2c8399c0d8a29d34bab01622b0302f",
+    "mtime": 1795600180.5549786,
+    "ast_hash": "020ec96138df475a975df0d0a8d990ee",
     "semantic_hash": ""
   },
   "ui/tests/milestones.test.ts": {
@@ -810,8 +810,8 @@
     "semantic_hash": ""
   },
   "ui/tests/riverPointer.test.ts": {
-    "mtime": 1794222890.7323463,
-    "ast_hash": "37d6cafa4883078301a8732f269fb9b7",
+    "mtime": 1795600173.0101204,
+    "ast_hash": "034483041b04ec4e2cf5f7d58489a89b",
     "semantic_hash": ""
   },
   "ui/tests/riverRooms.test.ts": {
@@ -2131,8 +2131,8 @@
     "semantic_hash": ""
   },
   "ui/src/feedStore.ts": {
-    "mtime": 1795598084.8515635,
-    "ast_hash": "0516f8616a85f29863ff89b8b910ca3f",
+    "mtime": 1795600180.531558,
+    "ast_hash": "6433ddcaf6060d8abef676fbd86bf849",
     "semantic_hash": ""
   },
   "ui/src/privateRooms.ts": {
@@ -2141,8 +2141,8 @@
     "semantic_hash": ""
   },
   "ui/tests/feedStore.test.ts": {
-    "mtime": 1795598417.6311026,
-    "ast_hash": "fc6212d283ce7ce2bf8b7a71383027cb",
+    "mtime": 1795600180.5530477,
+    "ast_hash": "d62e525e39dd16d8a7f6f23f423b1a95",
     "semantic_hash": ""
   },
   "ui/tests/privateRooms.test.ts": {
