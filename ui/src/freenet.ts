@@ -55,6 +55,7 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
+import { explorePeerKeys } from "./circleMode.ts";
 import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, isPostDeletedInCommunity, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, foldSupporterTokens, foldGhostkeyBundles, foldPohProofs, foldDelegationProofs, type LogEntry } from "./logfold.ts";
 import { LogStore } from "./logStore.ts";
 import { FeedStore } from "./feedStore.ts";
@@ -2369,17 +2370,25 @@ export class FreenetClient {
    * draw weighted by the work in each announcement, never "the latest": a flood of new identities fills the lane at
    * most, and the rest of the feed is out of its reach.
    */
+  /** "My circle only" (Settings): Explore fetches and shows only the people I follow. */
+  public circleOnly = false;
+
   public async getExploreTimeline(identity: UserIdentity, opts: { prefer?: string[]; skip?: (pubkey: string) => boolean } = {}): Promise<Post[]> {
     const myFeed = await this.getFeed(identity.pubkey);
     const postMap: Record<string, Post> = { ...this.peerCache, ...myFeed.posts }; // feed copies win: a live copy misses later comments
 
     const core = new Set([...myFeed.following, ...(opts.prefer ?? []).slice(0, 40)]);
-    const pool = Object.keys(this.knownPeers).filter((k) => k !== identity.pubkey && !core.has(k) && /^[0-9a-f]{64}$/.test(k) && !opts.skip?.(k));
-    const lane = laneSample(pool, directoryWeights(this.logEntries("directory")), 30, this.laneSeed); // shortcut: no paging
-    const peers = await Promise.all([...new Set([...core, ...lane])].map((k) => this.peerPosts(k)));
+    const lane = () => {
+      const pool = Object.keys(this.knownPeers).filter((k) => k !== identity.pubkey && !core.has(k) && /^[0-9a-f]{64}$/.test(k) && !opts.skip?.(k));
+      return laneSample(pool, directoryWeights(this.logEntries("directory")), 30, this.laneSeed); // shortcut: no paging
+    };
+    const keys = explorePeerKeys(myFeed.following, opts.prefer ?? [], lane, this.circleOnly);
+    const peers = await Promise.all(keys.map((k) => this.peerPosts(k)));
     for (const posts of peers) for (const p of posts) postMap[p.id] = p;
+    const mine = new Set([identity.pubkey, ...myFeed.following]);
+    const shown = Object.values(postMap).filter((p) => !this.circleOnly || mine.has(p.author)); // a profile I opened leaves its posts in peerCache
 
-    return Object.values(postMap).sort((a, b) => b.timestamp - a.timestamp);
+    return shown.sort((a, b) => b.timestamp - a.timestamp);
   }
 
   public getDiscoveredPeers(myPubkey: string): { pubkey: string; name: string }[] {

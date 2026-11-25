@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **NEW** My Circle Only mode (`ui/src/circleMode.ts`, `ui/src/{freenet,main}.ts`, `ui/index.html`, `ui/tests/circleMode.test.ts`): a Settings switch (`radica_circle_only`, mirrored on the node as `circle-only`) under which `getExploreTimeline` fetches only followed feeds (no 40 preferred trust/supporter/GhostKey keys, no 30-key stranger lane) and shows only my circle, the Following scope skips tier-2 posts from `peerCache`, and the feed and Home open on Following. Fewer feed contracts fetched and subscribed on the node.
+
   * **PERF** Chat mini player forced a style/layout pass on every media event (`ui/src/chatMedia.ts`): `paint` ran `syncMiniPlayerSlot()` (`getComputedStyle` + `offsetWidth`) on each `timeupdate` while the bar was visible, about 53 s of main-thread CPU in 90 s of playback in a user trace. It now docks the bar only when it appears; view changes already re-dock it from `main.ts` and `messengerChat.ts`.
 
   * **RELEASE** Desktop & Android apps v1.1.0 (`package.json`, `apps/Cargo.toml`, `apps/Cargo.lock`, `ui/index.html`, `ui/src/versionCheck.ts`): signed native Desktop/Android release builds + in-app update checks, startup & pre-v2 legacy recovery fixes, unified 3-layer moderation across all surfaces, terminal chat feed & TUI, Chat peer avatar & Secret Chat preview fixes, River room contract v14 support, and shared media/voice/log/feed/private-room/attester architecture. Tag `v1.1.0` after push.

@@ -135,6 +135,7 @@ import {
   restart,
 } from "./whoiam";
 import { freenet } from "./freenet";
+import { CIRCLE_ONLY_KEY } from "./circleMode.ts";
 import { hasLanMesh } from "./lanMesh.ts";
 import { linfaOf, linfaGreenhouseWeight, stageOf } from "./linfa.ts";
 import { linfaPanel } from "./plant.ts";
@@ -2783,7 +2784,7 @@ async function reloadPosts(opts?: { background?: boolean }) {
     // Include Tier 2 posts from known peerCache in the Radicato feed
     const existingIds = new Set(timelinePosts.map((x) => x.id));
     for (const [id, p] of Object.entries(freenet.peerCache)) {
-      if (wot.tier2.has(p.author) && !existingIds.has(id)) {
+      if (!freenet.circleOnly && wot.tier2.has(p.author) && !existingIds.has(id)) {
         timelinePosts.push(p);
         existingIds.add(id);
       }
@@ -10630,8 +10631,8 @@ function setTagFilter(tag: string | null) {
 clearFilterBtn.addEventListener("click", () => {
   if (feedAuthor) {
     feedAuthor = null;
-    currentFeedScope = "explore";
-    updateScopeBtnActive(scopeExploreBtn);
+    currentFeedScope = freenet.circleOnly ? "following" : "explore";
+    updateScopeBtnActive(freenet.circleOnly ? scopeFollowingBtn : scopeExploreBtn);
     activeFilterBanner.style.display = "none";
     void reloadPosts();
     return;
@@ -12450,9 +12451,9 @@ async function showFeed() {
     const btn = b as HTMLElement;
     btn.classList.toggle("active", btn.dataset.cat === "all");
   });
-  // Switch scope to full global explore timeline
-  currentFeedScope = "explore";
-  updateScopeBtnActive(scopeExploreBtn);
+  // Switch scope to full global explore timeline (my circle in circle-only mode)
+  currentFeedScope = freenet.circleOnly ? "following" : "explore";
+  updateScopeBtnActive(freenet.circleOnly ? scopeFollowingBtn : scopeExploreBtn);
   window.scrollTo({ top: 0, behavior: "smooth" });
   await reloadPosts();
 }
@@ -12663,6 +12664,33 @@ if (maskToggle) {
     void import("./delegate.ts")
       .then((m) => m.nodeGet("mask-bad-words"))
       .then((v) => v === "0" && applyMaskBadWords(false), () => {});
+}
+
+// ---- My circle only (Settings): fetch only the feeds of the people I follow, for a lighter node ----
+
+const circleToggle = document.getElementById("circle-only-toggle") as HTMLInputElement | null;
+function applyCircleOnly(on: boolean, reload = true) {
+  safeStorage.setItem(CIRCLE_ONLY_KEY, on ? "1" : "0");
+  freenet.circleOnly = on;
+  if (circleToggle) circleToggle.checked = on;
+  scopeExploreBtn.title = on ? "My circle only is on (Settings): Explore shows the people you follow" : "";
+  if (on && (currentFeedScope === "explore" || currentFeedScope === "media")) {
+    currentFeedScope = "following";
+    updateScopeBtnActive(scopeFollowingBtn);
+  }
+  if (reload) void reloadPosts();
+}
+if (safeStorage.getItem(CIRCLE_ONLY_KEY) === "1") applyCircleOnly(true, false); // before init loads the first timeline
+if (circleToggle) {
+  circleToggle.addEventListener("change", () => {
+    applyCircleOnly(circleToggle.checked);
+    void import("./delegate.ts").then((m) => m.nodePut("circle-only", circleToggle.checked ? "1" : "0"), () => {});
+  });
+  // kept on the node too: the sandboxed page storage does not outlive a session
+  if (safeStorage.getItem(CIRCLE_ONLY_KEY) === null)
+    void import("./delegate.ts")
+      .then((m) => m.nodeGet("circle-only"))
+      .then((v) => v === "1" && applyCircleOnly(true), () => {});
 }
 
 // ---- Text size (Settings): the whole interface scaled, for readers who find it small ----
