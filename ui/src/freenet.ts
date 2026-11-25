@@ -203,8 +203,24 @@ export class FreenetClient {
       let anchor = knownAnchor();
       void resolveRoomContract((k) => this.net.getRaw(k), call).then((a) => (anchor = a));
       const code = () => import("./wasm/river_room_contract.wasm?url").then(({ default: url }) => fetch(url)).then(async (r) => new Uint8Array(await r.arrayBuffer()));
-      return new RiverRooms(call, this.net, async () => anchor, code);
+      return (this.riverRooms = new RiverRooms(call, this.net, async () => anchor, code));
     }));
+  }
+  private riverRooms?: RiverRooms;
+
+  /** A River room whose state my node could not fetch: its name, members and messages cannot be shown until it does. */
+  public riverRoomUnreachable(roomId: string): boolean {
+    const owner = this.storedPrivateRooms().find((r) => r.id === roomId)?.river?.owner;
+    return !!owner && !!this.riverRooms?.isMissing(owner);
+  }
+
+  /** Ask the node for a River room again (and under River's earlier contracts), then redraw. */
+  public async retryRiverRoom(roomId: string): Promise<boolean> {
+    const owner = this.storedPrivateRooms().find((r) => r.id === roomId)?.river?.owner;
+    if (!owner) return false;
+    const ok = !!(await (await this.rivers()).retry(owner));
+    this.notifyListeners();
+    return ok;
   }
   private identity: UserIdentity | null = null;
   private offlineMedia = new Map<string, Uint8Array>(); // in-session fallback when no local node is connected

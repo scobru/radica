@@ -1996,6 +1996,18 @@ export function createMessengerChat(deps: MessengerDeps) {
             </div>
           `;
         }
+      } else if (st.privateRoom?.river && freenet.riverRoomUnreachable(st.privateRoom.id)) {
+        // the node had nothing for this room: say so, instead of an empty room under a placeholder name
+        cardHtml = `
+          <div class="rm-first-contact-card">
+            <div class="rm-room-monogram priv" style="width:68px;height:68px;font-size:1.4rem;">!</div>
+            <h3>Your node cannot reach this room yet</h3>
+            <div class="rm-first-contact-mutual">
+              Its name and messages live on Freenet, and your node has not found them. Check that the Freenet node is running and connected to peers (on Android, keep it out of battery optimisation), then retry. If it keeps failing, join again with the room's invite.
+            </div>
+            <button type="button" class="rm-icebreaker-btn" id="rm-room-retry-btn" data-room-id="${escapeHtml(st.privateRoom.id)}">${renderIcon("repeat", { size: 14, className: "icon-xs" })} Retry</button>
+          </div>
+        `;
       } else if (st.privateRoom) {
         const name = roomNameCache.get(st.privateRoom.id) || "Private Room";
         const roomAvatarHtml = st.privateRoom.avatar_url
@@ -3378,6 +3390,14 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
 
+    const retryBtn = t.closest<HTMLButtonElement>("#rm-room-retry-btn");
+    if (retryBtn?.dataset.roomId) {
+      retryBtn.disabled = true;
+      retryBtn.textContent = "Retrying…";
+      const ok = await freenet.retryRiverRoom(retryBtn.dataset.roomId).catch(() => false);
+      if (!ok) deps.showToast("Your node still cannot reach this room.", "warning");
+      return;
+    }
     if (t.closest("#rm-empty-invite-btn")) {
       deps.onOpenInviteRoomModal();
       return;

@@ -346,3 +346,20 @@ test("an edit can drop one of the message's photos with its ✕, and the message
   expect(sent).toContain("d".repeat(64));
   expect(sent).not.toContain("c".repeat(64));
 });
+
+test("a River room the node cannot reach says so, with a Retry, instead of an empty room", async ({ page }) => {
+  await signIn(page);
+  await page.evaluate(async () => {
+    const { freenet } = await import("/src/freenet.ts");
+    const { safeStorage } = await import("/src/storage.ts");
+    const f = freenet as unknown as { me: string; riverRoomUnreachable(id: string): boolean; notifyListeners(): void };
+    const room = { id: "river_" + "ab".repeat(16), creator: f.me, name_encrypted: "", members: [f.me], encrypted_keys: {}, created_at: Date.now(), sig: "", river: { owner: "cd".repeat(32) } };
+    safeStorage.setItem("freenet_private_rooms", JSON.stringify([room]));
+    f.riverRoomUnreachable = () => true; // no node here: what the node not having it looks like
+    f.notifyListeners();
+  });
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item").first().click();
+  await expect(page.getByText("Your node cannot reach this room yet")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#rm-room-retry-btn")).toBeVisible();
+});

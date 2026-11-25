@@ -184,3 +184,17 @@ test("river rooms: load respects 30s cooldown when uncached and passes urgent=fa
   assert.equal(getCalls.length, afterFirst + 1);
   assert.equal(getCalls[afterFirst].urgent, true);
 });
+
+test("river rooms: a room the node has nothing for is marked missing, and a retry that finds it clears the mark", async () => {
+  const { peer, net } = await world();
+  const ann = peer();
+  const owner = await ann.create(sk(21), "r_missing", "Missing", "Ann");
+  const saved = new Map(net);
+  net.clear(); // the node lost it, or cannot reach it
+  const bob = peer();
+  assert.equal(await bob.load(owner), null);
+  assert.equal(bob.isMissing(owner), true);
+  for (const [k, v] of saved) net.set(k, v); // the node reaches it again
+  assert.ok(await bob.retry(owner));
+  assert.equal(bob.isMissing(owner), false);
+});
