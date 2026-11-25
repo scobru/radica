@@ -91,4 +91,11 @@ test("audioPlayer: filterFreetunesReleases respects hiddenAuthors, following, an
   const res3 = filterFreetunesReleases(items, { query: "ambient" });
   assert.equal(res3.length, 1);
   assert.equal(res3[0].id, "1");
+
+  const res4 = filterFreetunesReleases(items, {
+    myPubkey: "a".repeat(64),
+    hiddenAuthors: new Set(["a".repeat(64)]),
+    reportedTargets: new Set([`${"b".repeat(64)}:2`]),
+  });
+  assert.deepEqual(res4.map((r) => r.id), ["1"]);
 });

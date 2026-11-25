@@ -9,7 +9,11 @@ import { compressPostImageFile } from "./avatar.ts";
 import { escapeHtml as esc } from "./html.ts";
 import { renderIcon } from "./icons.ts";
 import type { ImageModerationResult } from "./moderation.ts";
+import { createFragmentedMp4Streamer, frameBlockReason, isFragmentedMp4 } from "./mediaStream.ts";
+import { getNativeVoiceBridge, type NativeVoiceBridge } from "./platformBridge.ts";
 import { encodeFEC, decodeFEC } from "freenet-blob";
+
+export { isFragmentedMp4 };
 
 /** Hard cap enforced by media-contract/src/lib.rs (`MAX_MEDIA = 768 * 1024`). */
 export const MAX_CHAT_MEDIA_SEALED = 768 * 1024;
@@ -118,15 +122,6 @@ export function scanTimes(duration: number): number[] {
   for (let t = 0; t < duration; t += VNOTE_SCAN_EVERY_SEC) out.push(t);
   if (duration > 0 && out[out.length - 1] < duration - 0.5) out.push(duration - 0.5);
   return out;
-}
-
-/** Whether an MP4's first bytes declare movie fragments ("mvex" in its moov): playable progressively. */
-export function isFragmentedMp4(head: Uint8Array): boolean {
-  const n = Math.min(head.byteLength, 1 << 16);
-  for (let i = 0; i + 4 <= n; i++) {
-    if (head[i] === 0x6d && head[i + 1] === 0x76 && head[i + 2] === 0x65 && head[i + 3] === 0x78) return true;
-  }
-  return false;
 }
 
 
@@ -393,27 +388,12 @@ export async function sealChatMedia(plainBytes: Uint8Array): Promise<{
       `Attachment is ${Math.round(plainBytes.byteLength / 1024)} KB, exceeding Freenet's ${Math.floor(MAX_CHAT_MEDIA_PLAIN / 1024)} KB chat media limit.`
     );
   }
-  const keyBytes = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBytes as BufferSource,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt"]
-  );
-  const cipherBuf = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    cryptoKey,
-    plainBytes as BufferSource
-  );
-  const sealed = new Uint8Array(12 + cipherBuf.byteLength);
-  sealed.set(iv, 0);
-  sealed.set(new Uint8Array(cipherBuf), 12);
+  const keyHex = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+  const sealed = await sealWithKey(plainBytes, keyHex);
   return {
     sealed,
     hash: mediaHashOf(sealed),
-    keyHex: bytesToHex(keyBytes),
+    keyHex,
   };
 }
 
@@ -616,6 +596,31 @@ export async function uploadChatMedia(
   await Promise.all(Array.from({ length: Math.min(parallel, blobs.length) }, worker));
 }
 
+/** Seal `bytes` in FEC chunks, optionally seal `posterBlob` under the same key, cache locally, and upload all blobs. */
+export async function publishSealedWithPoster(opts: {
+  bytes: Uint8Array;
+  kind: ChatMediaKind;
+  mime: string;
+  posterBlob?: Blob | null;
+  put: (blob: Uint8Array) => Promise<unknown>;
+  onProgress?: (done: number, total: number) => void;
+}): Promise<{ hash: string; keyHex: string; posterHash?: string }> {
+  const { blobs, hash, keyHex } = await sealChatMediaChunked(opts.bytes);
+  keepChatMediaUrl(hash, keyHex, opts.bytes, opts.kind, opts.mime);
+  let posterHash: string | undefined;
+  if (opts.posterBlob) {
+    const posterPlain = new Uint8Array(await opts.posterBlob.arrayBuffer());
+    if (posterPlain.byteLength > 0 && posterPlain.byteLength <= MAX_CHAT_MEDIA_PLAIN) {
+      const sealedPoster = await sealWithKey(posterPlain, keyHex);
+      posterHash = mediaHashOf(sealedPoster);
+      blobs.push(sealedPoster);
+      keepChatMediaUrl(posterHash, keyHex, posterPlain, "img", "image/jpeg");
+    }
+  }
+  await uploadChatMedia(blobs, opts.put, opts.onProgress);
+  return { hash, keyHex, ...(posterHash ? { posterHash } : {}) };
+}
+
 /**
  * Send a staged attachment: seal it, keep the plain copy for our own instant preview, publish every piece (with
  * progress), and return the chat token that names it. Both chat views send attachments through here.
@@ -625,19 +630,14 @@ export async function sendChatAttachment(
   put: (blob: Uint8Array) => Promise<unknown>,
   onProgress?: (done: number, total: number) => void
 ): Promise<string> {
-  const { blobs, hash, keyHex } = await sealChatMediaChunked(media.bytes);
-  keepChatMediaUrl(hash, keyHex, media.bytes, media.kind, media.mime);
-  let posterHash: string | undefined;
-  if (media.kind === "vnote" && media.posterBlob) {
-    const posterPlain = new Uint8Array(await media.posterBlob.arrayBuffer());
-    if (posterPlain.byteLength > 0 && posterPlain.byteLength <= MAX_CHAT_MEDIA_PLAIN) {
-      const sealedPoster = await sealWithKey(posterPlain, keyHex);
-      posterHash = mediaHashOf(sealedPoster);
-      blobs.push(sealedPoster);
-      keepChatMediaUrl(posterHash, keyHex, posterPlain, "img", "image/jpeg");
-    }
-  }
-  await uploadChatMedia(blobs, put, onProgress);
+  const { hash, keyHex, posterHash } = await publishSealedWithPoster({
+    bytes: media.bytes,
+    kind: media.kind,
+    mime: media.mime,
+    posterBlob: media.kind === "vnote" ? media.posterBlob : null,
+    put,
+    onProgress,
+  });
   return encodeChatMediaToken({
     kind: media.kind,
     mime: media.mime,
@@ -665,6 +665,19 @@ export async function sealWithKey(plainBytes: Uint8Array, keyHex: string): Promi
 
 /** Pieces of a chunked attachment fetched so far (`done` of `total`), and how many of them failed. */
 export type ChunkProgress = (done: number, total: number, missing: number) => void;
+
+/** Fetch and open one sealed chunk, retrying once when the node misses it on the first attempt. */
+async function fetchPieceWithRetry(
+  h: string,
+  keyHex: string,
+  getSealed: (hash: string) => Promise<Uint8Array | null>,
+): Promise<Uint8Array | null> {
+  const open = async () => {
+    const c = await getSealed(h).catch(() => null);
+    return c && openChatMedia(c, h, keyHex);
+  };
+  return (await open()) ?? (await open());
+}
 
 /** Fetch and open an attachment; a chunk manifest is followed and its chunks joined. Null if any piece is missing. */
 export async function fetchChatMedia(
@@ -700,11 +713,7 @@ export async function fetchChatMedia(
 
       await Promise.all(
         hashes.map(async (h: string, i: number) => {
-          const open = async () => {
-            const c = await getSealed(h).catch(() => null);
-            return c && openChatMedia(c, h, keyHex);
-          };
-          const part = (await open()) ?? (await open());
+          const part = await fetchPieceWithRetry(h, keyHex, getSealed);
           if (!part) {
             missing++;
           } else {
@@ -755,12 +764,7 @@ export async function fetchChatMedia(
   };
   const parts = await Promise.all(
     hashes.map(async (h, i) => {
-      // a piece not found at once is asked a second time: a node can miss it on the first try
-      const open = async () => {
-        const c = await getSealed(h).catch(() => null);
-        return c && openChatMedia(c, h, keyHex);
-      };
-      const part = (await open()) ?? (await open());
+      const part = await fetchPieceWithRetry(h, keyHex, getSealed);
       if (!part) missing++;
       else if (onPart) {
         ready[i] = part;
@@ -997,20 +1001,7 @@ function isSandboxOrPermissionCaptureError(err: unknown): boolean {
   );
 }
 
-export interface NativeVoiceBridge {
-  canRecordVoice?: () => boolean;
-  startVoiceRec?: (maxSec: number) => void;
-  stopVoiceRec?: () => void;
-  cancelVoiceRec?: () => void;
-}
-
-function getNativeVoiceBridge(): NativeVoiceBridge | null {
-  const nb = (globalThis as { __radicaNative?: NativeVoiceBridge }).__radicaNative;
-  if (!nb) return null;
-  if (typeof nb.startVoiceRec !== "function" || typeof nb.stopVoiceRec !== "function") return null;
-  if (typeof nb.canRecordVoice === "function" && !nb.canRecordVoice()) return null;
-  return nb;
-}
+export type { NativeVoiceBridge };
 
 /** True when Desktop/Android native wrapper exposes a real microphone recording bridge. */
 export function hasNativeVoiceBridge(): boolean {
@@ -1650,8 +1641,9 @@ export async function prepareChatVideoNote(
       if (!posterBlob) posterBlob = await canvasToJpegBlob(c, 0.78);
       if (opts?.scan) {
         const res = await opts.scan(c);
-        if (res.isNSFW || res.score >= stopAt) {
-          throw new Error(`Video message blocked by on-device moderation (${res.label}).`);
+        const blockReason = frameBlockReason(res, stopAt);
+        if (blockReason) {
+          throw new Error(`Video message blocked by on-device moderation (${blockReason}).`);
         }
       }
     }
@@ -1718,8 +1710,9 @@ export async function prepareChatVideoNote(
         if (opts?.scan) {
           opts.onProgress?.("scan", 1);
           const res = await opts.scan(probe.canvas);
-          if (res.isNSFW || res.score >= stopAt) {
-            throw new Error(`Video message blocked by on-device moderation (${res.label}).`);
+          const blockReason = frameBlockReason(res, stopAt);
+          if (blockReason) {
+            throw new Error(`Video message blocked by on-device moderation (${blockReason}).`);
           }
         }
       }
@@ -2145,72 +2138,26 @@ function hydrateVnoteCard(
       return true;
     }
 
-    let ms: MediaSource | null = null;
-    let sb: SourceBuffer | null = null;
-    let streaming = typeof MediaSource !== "undefined";
-    let queue = Promise.resolve();
-
-    const startStream = async (head: Uint8Array) => {
-      if (typeof MediaSource === "undefined" || !isFragmentedMp4(head)) throw new Error("not streamable");
-      const M = await import("mediabunny");
-      const detectedMime = await new M.Input({ source: new M.BufferSource(head), formats: [M.MP4] }).getMimeType();
-      if (!MediaSource.isTypeSupported(detectedMime)) throw new Error(`no MediaSource for ${detectedMime}`);
-      ms = new MediaSource();
-      msUrl = URL.createObjectURL(ms);
-      video.src = msUrl;
-      video.playbackRate = speeds[speedIdx];
-      await new Promise((r) => ms!.addEventListener("sourceopen", r, { once: true }));
-      sb = ms.addSourceBuffer(detectedMime);
-      loadStatus = "ready";
-      paintVnote();
-      pauseAllOtherMedia(video);
-      void video.play().catch(() => {});
-    };
-
-    const appendPart = (part: Uint8Array) =>
-      new Promise<void>((resolve, reject) => {
-        sb!.addEventListener("updateend", () => resolve(), { once: true });
-        sb!.addEventListener("error", () => reject(new Error("append failed")), { once: true });
-        sb!.appendBuffer(part as BufferSource);
-      });
-
-    const onPart = (part: Uint8Array, index: number) => {
-      queue = queue
-        .then(async () => {
-          if (!streaming) return;
-          if (index === 0) await startStream(part);
-          await appendPart(part);
-        })
-        .catch(() => {
-          streaming = false;
-        });
-    };
+    const streamer = createFragmentedMp4Streamer(video, {
+      onStreamReady: () => {
+        video.playbackRate = speeds[speedIdx];
+        loadStatus = "ready";
+        paintVnote();
+        pauseAllOtherMedia(video);
+        void video.play().catch(() => {});
+      },
+      onFallback: () => {
+        video.playbackRate = speeds[speedIdx];
+      },
+    });
 
     try {
-      const fullUrl = await resolveChatMediaUrl(item, getSealed, undefined, onPart);
-      await queue;
-      if (!fullUrl) {
-        if (msUrl) {
-          URL.revokeObjectURL(msUrl);
-          msUrl = "";
-        }
+      const fullUrl = await resolveChatMediaUrl(item, getSealed, undefined, streamer.onPart);
+      const ok = await streamer.finish(fullUrl);
+      if (!ok) {
         loadStatus = "error";
         if (badge) badge.textContent = "Tap to retry";
         return false;
-      }
-      const activeMs = ms as MediaSource | null;
-      const activeSb = sb as SourceBuffer | null;
-      if (streaming && activeSb && activeMs?.readyState === "open") {
-        try {
-          activeMs.endOfStream();
-        } catch {}
-      } else {
-        if (msUrl) {
-          URL.revokeObjectURL(msUrl);
-          msUrl = "";
-        }
-        video.src = fullUrl;
-        video.playbackRate = speeds[speedIdx];
       }
       loadStatus = "ready";
       paintVnote();

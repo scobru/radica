@@ -112,30 +112,17 @@ import {
   MAX_VNOTE_BYTES,
   normalizeVideoMime,
   parseChatMedia,
-  playChatVoiceByHash,
   prepareChatAudioFile,
   prepareChatDocFile,
   prepareChatImageFile,
   prepareChatVideoNote,
-  primeChatAudio,
   sendChatAttachment,
   setVoiceEndedHandler,
-  startVoiceRecording,
   summarizeChatMediaText,
   syncMiniPlayerSlot,
   type PreparedChatMedia,
-  type VoiceRecorderSession,
 } from "./chatMedia.ts";
-import {
-  createWalkieQueue,
-  MIN_PTT_SEC,
-  nextSequentialHash,
-  PTT_HOLD_THRESHOLD_MS,
-  readWalkieEnabled,
-  STANDARD_VOICE_MAX_SEC,
-  WALKIE_PTT_MAX_SEC,
-  writeWalkieEnabled,
-} from "./walkieTalkie.ts";
+import { createChatVoiceController } from "./chatVoiceController.ts";
 import {
   finishSignIn,
   startSignIn,
@@ -157,8 +144,23 @@ import { normalizeHandle } from "./handles.ts";
 import { CHAT_REACTIONS, canEditCommunity, isPostDeletedInCommunity } from "./logfold";
 import { renderAnteBadgeHtml, renderPohProviderBadgesHtml, renderPostSubMetaHtml, renderTrustBadgeHtml } from "./badges.ts";
 import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
+import {
+  HIDDEN_USERS_KEY,
+  TRUSTED_BLOCKLISTS_KEY,
+  buildModerationPolicy,
+  isGlobalModerator,
+  postMediaHash,
+  readHiddenUsers,
+  readTrustedCurators,
+  resolveModerationCurators,
+  setHiddenUser,
+  setTrustedCurator,
+  submitContentReport,
+  type ModerationPolicy,
+} from "./moderationPolicy.ts";
 import { commentsBy, type CommentEntry } from "./commentHistory.ts";
 import { renderIcon, type IconName } from "./icons";
+import { getNativeAppMode, hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
 import { safeStorage } from "./storage";
 import { FEED_BUDGET, FEED_SHOW, FEED_TARGET, feedBytes, formatBytes, oldestToFree } from "./feedsize";
 import { generateDefaultAvatar, compressAvatarFile, compressPostImageFile } from "./avatar";
@@ -167,24 +169,13 @@ const isMessengerApp = (() => {
   try {
     if (document.documentElement.getAttribute("data-app-mode") === "messenger") return true;
     if ((globalThis as unknown as { __radica_app_mode?: string }).__radica_app_mode === "messenger") return true;
-    const bridge = (globalThis as { __radicaNative?: { getAppMode?: () => string; isMessenger?: () => boolean } }).__radicaNative;
-    if (bridge) {
-      try {
-        if (typeof bridge.getAppMode === "function" && bridge.getAppMode() === "messenger") return true;
-      } catch {}
-      try {
-        if (typeof bridge.isMessenger === "function" && bridge.isMessenger() === true) return true;
-      } catch {}
-    }
+    const nativeMode = getNativeAppMode();
+    if (nativeMode === "messenger") return true;
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("app") === "messenger" || sp.get("mode") === "messenger") return true;
     const hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     if (hp.get("app") === "messenger" || hp.get("mode") === "messenger") return true;
-    if (bridge) {
-      try {
-        if (typeof bridge.getAppMode === "function" && bridge.getAppMode() === "full") return false;
-      } catch {}
-    }
+    if (nativeMode === "full") return false;
     return false;
   } catch {
     return false;
@@ -201,16 +192,7 @@ if (isMessengerApp) {
 }
 
 function openExternalViaNative(rawUrl: string): boolean {
-  const fn = (globalThis as { __radicaNative?: { openExternal?: (url: string) => void } }).__radicaNative?.openExternal;
-  if (typeof fn !== "function" || !rawUrl) return false;
-  try {
-    const resolved = new URL(rawUrl, window.location.href).href;
-    if (!/^https?:\/\/|^spore:radio:/i.test(resolved)) return false;
-    fn(resolved);
-    return true;
-  } catch {
-    return false;
-  }
+  return openExternalUrl(rawUrl);
 }
 
 document.addEventListener("click", (e) => {
@@ -259,7 +241,7 @@ import { cleanWallets, validateWalletForSave, WALLET_KINDS, walletUri, type Wall
 import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField } from "./profileExtras.ts";
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
-import { playPopSound, playWalkieChirp, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
+import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
 import { startVersionCheck, checkNativeAppUpdate, getAppVersion } from "./versionCheck.ts";
 
 let currentIdentity: UserIdentity | null = null;
@@ -597,26 +579,14 @@ const uviewOpenWallFeedBtn = document.getElementById("uview-open-wall-feed-btn")
 const uviewHideBtn = document.getElementById("uview-hide-btn") as HTMLButtonElement;
 
 // Authors I hid: only on this device, their posts vanish from every feed here.
-const HIDDEN_KEY = "radica_hidden_users";
-function hiddenUsers(): string[] {
-  try {
-    const list = JSON.parse(safeStorage.getItem(HIDDEN_KEY) || "[]");
-    return Array.isArray(list) ? list.filter((k) => typeof k === "string") : [];
-  } catch {
-    return [];
-  }
-}
+const HIDDEN_KEY = HIDDEN_USERS_KEY;
+const hiddenUsers = (): string[] => readHiddenUsers(safeStorage);
 function setUserHidden(pubkey: string, hide: boolean): void {
-  const rest = hiddenUsers().filter((k) => k !== pubkey);
-  saveList(HIDDEN_KEY, hide ? [...rest, pubkey] : rest);
-}
-// durable keys (durable.ts): the node keeps a copy, a browser refresh does not lose them
-function saveList(key: string, list: string[]): void {
-  safeStorage.setItem(key, JSON.stringify(list));
+  setHiddenUser(safeStorage, pubkey, hide);
 }
 // shortcut: reads the per-feature entries used before durable.ts (one release only); delete with the next release
 const listsFromNode = Promise.all(
-  [HIDDEN_KEY, "radica_trusted_blocklists"].map(async (key) => {
+  [HIDDEN_KEY, TRUSTED_BLOCKLISTS_KEY].map(async (key) => {
     if (safeStorage.getItem(key)) return;
     const saved = await import("./delegate.ts").then((m) => m.nodeGet(key), () => null);
     if (saved) safeStorage.setItem(key, saved);
@@ -773,7 +743,7 @@ async function refreshSupporters() {
 }
 
 // Curators whose public blocklist I follow: whoever they block, and the posts they report, are hidden for me too.
-const TRUSTED_KEY = "radica_trusted_blocklists";
+const TRUSTED_KEY = TRUSTED_BLOCKLISTS_KEY;
 /** Radica's maintainer: trusted until the user stops trusting them in Blocklists. */
 const DEFAULT_CURATOR = RADICA_MAINTAINER;
 /**
@@ -785,56 +755,33 @@ function amVouched(): boolean {
   return !!me && (!!getStoredReceipt(me) || !!safeStorage.getItem(ghostkeyKey(me)) || !!safeStorage.getItem(pohKey(me)) || getWebOfTrust().vouches(me, freenet.followersOf(me)));
 }
 
-let cachedTrustedRaw: string | null | undefined;
-let cachedTrustedList: string[] = [];
-function trustedCurators(): string[] {
-  const raw = safeStorage.getItem(TRUSTED_KEY);
-  if (raw === cachedTrustedRaw) return cachedTrustedList;
-  cachedTrustedRaw = raw;
-  try {
-    const list = JSON.parse(raw ?? JSON.stringify([DEFAULT_CURATOR]));
-    cachedTrustedList = Array.isArray(list) ? list.filter((k) => typeof k === "string") : [];
-  } catch {
-    cachedTrustedList = [];
-  }
-  return cachedTrustedList;
-}
+const trustedCurators = (): string[] => readTrustedCurators(safeStorage, DEFAULT_CURATOR);
 function setCuratorTrusted(pubkey: string, trust: boolean): void {
-  const rest = trustedCurators().filter((k) => k !== pubkey);
-  saveList(TRUSTED_KEY, trust ? [...rest, pubkey] : rest);
+  setTrustedCurator(safeStorage, pubkey, trust, DEFAULT_CURATOR);
 }
 /** Whose reports and blocks apply to me: the curators I trust, and, while I trust the maintainer, the global
  *  moderators the maintainer named (one level: a moderator's own picks do not count). */
-function moderationCurators(): string[] {
-  const trusted = trustedCurators();
-  return trusted.includes(DEFAULT_CURATOR) ? [...new Set([...trusted, ...freenet.modsOf(DEFAULT_CURATOR)])] : trusted;
-}
+const moderationCurators = (): string[] => resolveModerationCurators(safeStorage, freenet, DEFAULT_CURATOR);
 /** I may remove posts and comments for everyone who follows Radica's moderation. */
-function amGlobalMod(): boolean {
-  const me = currentIdentity?.pubkey;
-  return !!me && (me === DEFAULT_CURATOR || freenet.modsOf(DEFAULT_CURATOR).has(me));
+const amGlobalMod = (): boolean => isGlobalModerator(currentIdentity?.pubkey, freenet, DEFAULT_CURATOR);
+function getModerationPolicy(knownPosts: Iterable<Post> = timelinePosts): ModerationPolicy {
+  return buildModerationPolicy({
+    me: currentIdentity?.pubkey ?? "",
+    store: safeStorage,
+    logs: freenet,
+    knownPosts,
+    defaultCurator: DEFAULT_CURATOR,
+  });
 }
 /** Communities hidden for me: by my own list and by the lists I follow (Radica's moderators included): id -> reason. */
-function hiddenCommunityIds(): Map<string, string> {
-  const out = new Map<string, string>();
-  const me = currentIdentity?.pubkey;
-  for (const c of new Set([...moderationCurators(), ...(me ? [me] : [])])) for (const [id, why] of freenet.hiddenCommunitiesBy(c)) out.set(id, why);
-  return out;
-}
+const hiddenCommunityIds = (): Map<string, string> => getModerationPolicy([]).hiddenCommunities;
 /** The communities that are not hidden for me. */
 async function loadCommunities(): Promise<Community[]> {
   const hidden = hiddenCommunityIds();
   return (await freenet.getCommunities()).filter((c) => !hidden.has(c.id));
 }
 let hiddenCommsSig = "";
-function isHiddenAuthor(pubkey: string): boolean {
-  const me = currentIdentity?.pubkey;
-  return (
-    hiddenUsers().includes(pubkey) ||
-    (me ? freenet.blockedBy(me).has(pubkey) : false) ||
-    moderationCurators().some((c) => freenet.blockedBy(c).has(pubkey))
-  );
-}
+const isHiddenAuthor = (pubkey: string): boolean => getModerationPolicy([]).isAuthorHidden(pubkey);
 let blocklistFlushTimer = 0;
 function refreshTrustedBlocklists(seen = new Set<string>()): void {
   const me = currentIdentity?.pubkey;
@@ -951,19 +898,7 @@ const chatPttSendBtn = document.getElementById("chat-ptt-send") as HTMLButtonEle
 const chatVnoteBtn = document.getElementById("chat-btn-vnote") as HTMLButtonElement | null;
 const chatPttBtn = document.getElementById("chat-btn-ptt") as HTMLButtonElement | null;
 
-const classicWalkieQueue = createWalkieQueue(readWalkieEnabled(safeStorage));
-let classicWalkieNeedsGesture = false;
-let classicBlockedResumeHash: string | null = null;
-let classicWalkieDraining = false;
 let lastClassicRoomId = "";
-let classicVoiceRec: VoiceRecorderSession | null = null;
-let classicPttStarting = false;
-let classicPttPointerId: number | null = null;
-let classicPttStartedAt = 0;
-let classicPttElapsedSec = 0;
-let classicPttReleasedEarly = false;
-let classicPttHandsFree = false;
-let classicPttFinishing = false;
 
 function getActiveChatConvKey(): string | null {
   if (activeChatPrivateRoom) return `priv:${activeChatPrivateRoom.id}`;
@@ -3060,6 +2995,7 @@ function scheduleRenderTimeline() {
 }
 
 interface ModerationSets {
+  policy: ModerationPolicy;
   hidden: Set<string>;
   reported: Set<string>;
   reportedMedia: Set<string>;
@@ -3069,29 +3005,26 @@ interface ModerationSets {
 
 /** Build moderation & community lookup sets shared by the timeline, Single Post View, and filters. */
 function buildModerationSets(me: string): ModerationSets {
-  const hidden = new Set(hiddenUsers());
-  const curators = new Set([...moderationCurators(), me]);
-  const globalMod = amGlobalMod();
-  for (const c of curators) for (const pk of freenet.blockedBy(c)) hidden.add(pk);
+  const policy = buildModerationPolicy({
+    me,
+    store: safeStorage,
+    logs: freenet,
+    knownPosts: timelinePosts,
+    defaultCurator: DEFAULT_CURATOR,
+  });
   const commByRef = new Map<string, Community>();
   for (const c of allCommunities) {
     commByRef.set(c.id, c);
     commByRef.set(c.slug, c);
   }
-  const reported = new Set<string>();
-  const reportedMedia = new Set<string>();
-  for (const c of curators) {
-    for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-    for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
-  }
-  for (const t of freenet.aiHeldTargets()) reported.add(t);
-  for (const p of timelinePosts) {
-    if (reported.has(`${p.author}:${p.id}`)) {
-      const h = postMediaHash(p);
-      if (h) reportedMedia.add(h);
-    }
-  }
-  return { hidden, reported, reportedMedia, globalMod, commByRef };
+  return {
+    policy,
+    hidden: policy.hiddenAuthors,
+    reported: policy.reportedTargets,
+    reportedMedia: policy.reportedMedia,
+    globalMod: policy.globalMod,
+    commByRef,
+  };
 }
 
 function collectKnownPosts(): { allKnownPosts: Map<string, Post>; repostCounts: Map<string, number> } {
@@ -3132,7 +3065,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
   const isModOrOwner = !!modScopeComm && (modScopeComm.creator === me || modScopeComm.moderators.includes(me));
   // an empty comment is one its author took back (freenet.deleteComment); hide blocked/reported/AI-held comments for others
   const liveComments = Object.values(post.comments).filter(
-    (c) => c.text !== "" && (c.author === me || (!mod.hidden.has(c.author) && !mod.reported.has(`${c.author}:${c.id}`))),
+    (c) => c.text !== "" && !mod.policy.isCommentHidden(c),
   );
   const unproven = isWotModerationEnabled() && !revealedUnproven.has(post.id) ? liveComments.filter((c) => unprovenComment(c, topWot)) : [];
   const commentsArray = liveComments.filter((c) => !unproven.includes(c)).sort((a, b) => a.timestamp - b.timestamp);
@@ -3484,11 +3417,9 @@ function renderSinglePostContent(post: Post): void {
   const { allKnownPosts, repostCounts } = collectKnownPosts();
   const topWot = getWebOfTrust();
   const isMyPost = post.author === me;
-  const blockedAuthor = !isMyPost && mod.hidden.has(post.author);
-  const reportedPost =
-    !isMyPost &&
-    (mod.reported.has(`${post.author}:${post.id}`) ||
-      (mod.reportedMedia.size > 0 && mod.reportedMedia.has(postMediaHash(post) ?? "")));
+  const hiddenReason = mod.policy.isPostHidden(post);
+  const blockedAuthor = hiddenReason === "author";
+  const reportedPost = hiddenReason === "reported";
   const comm = post.community_id ? mod.commByRef.get(post.community_id) : undefined;
   const deletedInComm = isPostDeletedInCommunity(comm, post);
 
@@ -3608,7 +3539,7 @@ function renderTimeline() {
 
   const me = currentIdentity.pubkey;
   const mod = buildModerationSets(me);
-  const { hidden, reported, reportedMedia, commByRef } = mod;
+  const { policy, commByRef } = mod;
   const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
 
   const tagLower = activeTagFilter ? "#" + activeTagFilter.toLowerCase() : null;
@@ -3616,14 +3547,10 @@ function renderTimeline() {
 
   // Single-pass filter pipeline (avoids allocating multiple intermediate arrays)
   const nowMs = Date.now();
-  const hiddenComms = hiddenCommunityIds();
   const topWot = getWebOfTrust();
   const visible = timelinePosts.filter((p) => {
-    if (hidden.has(p.author)) return false;
+    if (policy.isPostHidden(p, { checkCommunity: true }) !== null) return false;
     if (p.author !== me && isFuture(p, nowMs)) return false;
-    if (p.community_id && p.author !== me && hiddenComms.has(p.community_id)) return false;
-    if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
-    if (p.author !== me && reportedMedia.size && reportedMedia.has(postMediaHash(p) ?? "")) return false;
 
     if (currentFeedScope === "following") {
       const isTrusted = p.author === me || topWot.isTrusted(p.author);
@@ -3885,33 +3812,14 @@ function renderMediaGrid() {
   reelsPlayer.hide();
 
   const me = currentIdentity?.pubkey ?? "";
-  const hidden = new Set(hiddenUsers());
-  const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
-  for (const c of curators) for (const pk of freenet.blockedBy(c)) hidden.add(pk);
-  const reported = new Set<string>();
-  const reportedMedia = new Set<string>();
-  for (const c of curators) {
-    for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-    for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
-  }
-  for (const t of freenet.aiHeldTargets()) reported.add(t);
-  for (const p of timelinePosts) {
-    if (reported.has(`${p.author}:${p.id}`)) {
-      const h = postMediaHash(p);
-      if (h) reportedMedia.add(h);
-    }
-  }
+  const policy = getModerationPolicy();
   const nowMs = Date.now();
-  const hiddenComms = hiddenCommunityIds();
   const wot = getWebOfTrust();
 
   const safeMediaPosts = timelinePosts.filter((p) => {
     if (!p.media_uri) return false;
-    if (hidden.has(p.author)) return false;
+    if (policy.isPostHidden(p, { checkCommunity: true }) !== null) return false;
     if (p.author !== me && isFuture(p, nowMs)) return false;
-    if (p.community_id && p.author !== me && hiddenComms.has(p.community_id)) return false;
-    if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
-    if (p.author !== me && reportedMedia.size && reportedMedia.has(postMediaHash(p) ?? "")) return false;
     return true;
   });
 
@@ -4267,10 +4175,10 @@ async function showLinfa(box: HTMLElement | null, pubkey: string) {
 /** What a repost card shows for the post it shares: the post, or why it is not shown. */
 async function sharedPost(ref: RepostRef): Promise<Parameters<typeof repostBody>[0]> {
   const me = currentIdentity?.pubkey;
+  const policy = getModerationPolicy();
   // what the reader hid stays hidden: a repost is no way around a blocklist or a report
-  if (ref.author !== me && isHiddenAuthor(ref.author)) return "A post by someone hidden on this device.";
-  if (ref.author !== me && [...moderationCurators(), me ?? ""].some((c) => freenet.reportedBy(c).has(`${ref.author}:${ref.id}`))) return "This post was reported and is hidden.";
-  if (ref.author !== me && freenet.aiHeldTargets().has(`${ref.author}:${ref.id}`)) return "This post was reported and is hidden.";
+  if (ref.author !== me && policy.isAuthorHidden(ref.author)) return "A post by someone hidden on this device.";
+  if (ref.author !== me && policy.isTargetReported(`${ref.author}:${ref.id}`)) return "This post was reported and is hidden.";
   let post = timelinePosts.find((p) => p.id === ref.id && p.author === ref.author);
   if (!post) {
     post = (await freenet.getFeed(ref.author).catch(() => null))?.posts?.[ref.id];
@@ -4283,6 +4191,9 @@ async function sharedPost(ref: RepostRef): Promise<Parameters<typeof repostBody>
     const stored = localStorage.getItem(`freenet_feed_${ref.author}`) !== null;
     return GONE_MESSAGE[whyGone(stored ? await freenet.getFeed(ref.author) : null, ref.id)];
   }
+  const hiddenReason = policy.isPostHidden(post);
+  if (hiddenReason === "author") return "A post by someone hidden on this device.";
+  if (hiddenReason === "reported") return "This post was reported and is hidden.";
   const caption = freenet.postEdit(ref.author, ref.id)?.caption ?? post.caption;
   const picture = post.media_uri && !videoRef(post.media_uri) ? mediaUris(post.media_uri)[0] : undefined;
   const inner = repostRef(caption);
@@ -5018,54 +4929,45 @@ async function toggleDislikeFromCard(btn: HTMLElement) {
 
 /** Report a post: it goes on my public blocklist (hidden for me and whoever trusts my list) and, in a community, its
  *  owner and moderators get a notification that opens it. */
-/** The hash naming a post's image or video (the same file posted again has the same one), or null. */
-const postMediaHash = (p: Post) => mediaRef(mediaUris(p.media_uri)[0]) ?? videoRef(p.media_uri)?.hash ?? null;
+function hideAuthorWithToast(pubkey: string): void {
+  if (!pubkey || pubkey === currentIdentity?.pubkey) return;
+  setUserHidden(pubkey, true);
+  scheduleRenderTimeline();
+  showToast(`Hidden ${getAuthorDisplayName(pubkey)} on this device.`, "info");
+}
 
-async function reportPostFromCard(el: HTMLElement) {
-  const author = el.dataset.author!;
-  const postId = el.dataset.postId!;
+async function reportContentTarget(author: string, postId: string, opts?: { label?: string }): Promise<void> {
   const post = timelinePosts.find((p) => p.id === postId && p.author === author);
   const comm = post?.community_id ? allCommunities.find((c) => c.id === post.community_id || c.slug === post.community_id) : undefined;
+  const targetDesc = opts?.label ? `"${opts.label}" by ${getAuthorDisplayName(author)}` : `this post by ${getAuthorDisplayName(author)}`;
   const reason = prompt(
-    `Report this post by ${getAuthorDisplayName(author)}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; ${comm ? `moderators of r/${comm.slug}` : "Radica's maintainer and moderators"} are notified.`
+    `Report ${targetDesc}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; ${comm ? `moderators of r/${comm.slug}` : "Radica's maintainer and moderators"} are notified.`
   );
   if (reason === null) return;
   try {
-    await freenet.reportPost(author, postId, reason.trim(), post ? postMediaHash(post) : null, !post?.community_id); // public posts also go to Radica's moderators
-    const postAuthorName = getAuthorDisplayName(author);
-    const targetLabel = author === currentIdentity?.pubkey ? "your" : `@${postAuthorName}'s`;
-    const text = comm
-      ? `reported ${targetLabel} post in r/${comm.slug}${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`
-      : `reported ${targetLabel} post${reason.trim() ? `: "${reason.trim().slice(0, 80)}"` : ""}`;
-
-    const recipients = new Set<string>();
-    // Radica maintainer and global moderators
-    recipients.add(DEFAULT_CURATOR);
-    for (const mod of freenet.modsOf(DEFAULT_CURATOR)) {
-      recipients.add(mod);
-    }
-    // If inside a community, also notify its creator and moderators
-    if (comm) {
-      recipients.add(comm.creator);
-      for (const mod of comm.moderators) recipients.add(mod);
-    }
-
-    for (const recipient of recipients) {
-      void freenet.addNotification(recipient, {
-        type: "report",
-        from: currentIdentity?.pubkey || "",
-        text,
-        linkPostId: postId,
-        linkPostOwner: author,
-      }).catch(() => {});
-    }
+    await submitContentReport({
+      author,
+      targetId: postId,
+      reason,
+      mediaHash: post ? postMediaHash(post) : null,
+      community: comm,
+      reporterPubkey: currentIdentity?.pubkey || "",
+      authorDisplayName: getAuthorDisplayName(author),
+      logs: freenet,
+      sink: freenet,
+      defaultCurator: DEFAULT_CURATOR,
+    });
     updateBlocklistsBadge();
-    showToast("Post reported.");
+    showToast(opts?.label ? "Content reported." : "Post reported.");
   } catch (err: any) {
-    alert(`Could not report the post: ${err?.message || err}`);
+    alert(`Could not report: ${err?.message || err}`);
   }
   renderTimeline();
   renderSinglePostIfOpen(postId);
+}
+
+async function reportPostFromCard(el: HTMLElement) {
+  await reportContentTarget(el.dataset.author!, el.dataset.postId!);
 }
 
 /** "Liked by A, B · Disliked by X": the names open the reactor's profile. */
@@ -6753,26 +6655,19 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   // their posts, newest first: rendered as a clean feed-style Wall (posts first, info in the sidebar); a click opens the post in the feed.
   // What they wrote and what they reposted are two tabs (a repost is a post that shares another: repost.ts).
   const captionOf = (p: Post) => freenet.postEdit(pubkey, p.id)?.caption ?? p.caption;
-  const authorPosts = Object.values(feed.posts).sort((a, b) => b.timestamp - a.timestamp);
+  const mePk = currentIdentity?.pubkey || "";
+  const rawAuthorPosts = Object.values(feed.posts).sort((a, b) => b.timestamp - a.timestamp);
+  const policy = getModerationPolicy([...timelinePosts, ...rawAuthorPosts]);
+  const authorPosts = rawAuthorPosts.filter((p) => policy.isPostHidden(p) === null);
   const videoPosts = authorPosts.filter(isVideoReelPost);
   const postBoards = authorPosts.map((p) => parseBoardPostCaption(captionOf(p))).filter((b): b is CuratedBoard => Boolean(b));
   const localAuthorBoards = loadLocalBoards(pubkey);
   const mergedBoardsMap = new Map<string, CuratedBoard>();
   for (const b of [...postBoards, ...localAuthorBoards]) mergedBoardsMap.set(b.id, b);
-  const hiddenSet = new Set(hiddenUsers());
-  const mePk = currentIdentity?.pubkey || "";
-  for (const c of [...moderationCurators(), ...(mePk ? [mePk] : [])]) {
-    for (const pk of freenet.blockedBy(c)) hiddenSet.add(pk);
-  }
-  const reportedSet = new Set<string>();
-  for (const c of [...moderationCurators(), ...(mePk ? [mePk] : [])]) {
-    for (const k of freenet.reportedBy(c).keys()) reportedSet.add(k);
-  }
-  for (const t of freenet.aiHeldTargets()) reportedSet.add(t);
   const authorBoards = filterVisibleBoards([...mergedBoardsMap.values()], {
     viewerPubkey: mePk,
-    hiddenAuthors: hiddenSet,
-    reportedTargets: reportedSet,
+    hiddenAuthors: policy.hiddenAuthors,
+    reportedTargets: policy.reportedTargets,
   }).sort((a, b) => b.updatedAt - a.updatedAt);
 
   const momentPosts = authorPosts.filter((p) => !repostRef(captionOf(p)) && Boolean(p.media_uri));
@@ -6793,12 +6688,13 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     (commentsLoading ??= (async () => {
       const me = currentIdentity;
       const seen = me ? await freenet.getExploreTimeline(me).catch(() => [] as Post[]) : [];
-      const own = (c: string) => c === mePk;
       const wot = getWebOfTrust();
-      byTab.comments = commentsBy([...seen, ...timelinePosts, ...Object.values(feed.posts)], pubkey, {
+      const allPostsForComments = [...seen, ...timelinePosts, ...rawAuthorPosts];
+      const commentPolicy = getModerationPolicy(allPostsForComments);
+      byTab.comments = commentsBy(allPostsForComments, pubkey, {
         // what the feed hides stays hidden here: a profile is no way around a blocklist, a report or an AI hold
-        hidePost: (p) => !own(p.author) && (hiddenSet.has(p.author) || reportedSet.has(`${p.author}:${p.id}`)),
-        hideComment: (c) => !own(c.author) && (hiddenSet.has(c.author) || reportedSet.has(`${c.author}:${c.id}`) || (isWotModerationEnabled() && unprovenComment(c, wot))),
+        hidePost: (p) => commentPolicy.isPostHidden(p) !== null,
+        hideComment: (c) => commentPolicy.isCommentHidden(c) || (c.author !== mePk && isWotModerationEnabled() && unprovenComment(c, wot)),
       });
       commentsLoaded = true;
       if (uviewKey.textContent === pubkey) drawUviewPosts(shownTab);
@@ -7388,7 +7284,7 @@ new MutationObserver(() => {
   syncMiniPlayerSlot();
   if (!open) {
     messengerChat.cancelActiveRecording();
-    cancelClassicVoiceRec();
+    classicVoice.cancelVoiceRec();
   }
   if (open === freenet.feedsPaused) return;
   freenet.feedsPaused = open;
@@ -8941,21 +8837,17 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
     const switchedClassic = roomId !== lastClassicRoomId;
     if (switchedClassic) {
       lastClassicRoomId = roomId;
-      cancelClassicVoiceRec();
-      classicWalkieNeedsGesture = false;
-      classicBlockedResumeHash = null;
-      classicWalkieQueue.seedRoom(roomId, messages);
-    } else if (classicWalkieQueue.enabled) {
-      classicWalkieQueue.ingestMessages(
+      classicVoice.resetRoomWalkie(roomId, messages);
+    } else {
+      classicVoice.ingestRoomMessages(
         roomId,
         messages,
         me,
         isHiddenAuthor,
         (sender, caption) => caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || getAuthorDisplayName(sender)
       );
-      void drainClassicWalkieQueue();
+      classicVoice.syncWalkieUi();
     }
-    syncClassicWalkieUi();
   }
 
   if (replyingTo && replyingTo.room_id !== roomId) setReply(null); // another conversation
@@ -9186,21 +9078,17 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
     const switchedClassic = roomId !== lastClassicRoomId;
     if (switchedClassic) {
       lastClassicRoomId = roomId;
-      cancelClassicVoiceRec();
-      classicWalkieNeedsGesture = false;
-      classicBlockedResumeHash = null;
-      classicWalkieQueue.seedRoom(roomId, messages);
-    } else if (classicWalkieQueue.enabled) {
-      classicWalkieQueue.ingestMessages(
+      classicVoice.resetRoomWalkie(roomId, messages);
+    } else {
+      classicVoice.ingestRoomMessages(
         roomId,
         messages,
         currentIdentity!.pubkey,
         isHiddenAuthor,
         (sender, caption) => caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || getAuthorDisplayName(sender)
       );
-      void drainClassicWalkieQueue();
+      classicVoice.syncWalkieUi();
     }
-    syncClassicWalkieUi();
   }
 
   if (replyingTo && replyingTo.room_id !== roomId) setReply(null); // another conversation
@@ -9415,108 +9303,6 @@ function isClassicChatVisible(): boolean {
   );
 }
 
-function syncClassicWalkieUi() {
-  const hasConv = !!(activeChatPeer || activeChatPrivateRoom);
-  const on = classicWalkieQueue.enabled;
-  if (chatWalkieBtn) {
-    chatWalkieBtn.classList.toggle("active", on);
-    chatWalkieBtn.setAttribute("aria-pressed", on ? "true" : "false");
-  }
-  if (chatWalkieBar) chatWalkieBar.hidden = !on || !hasConv;
-  if (chatWalkieResumeBtn) chatWalkieResumeBtn.hidden = !classicWalkieNeedsGesture || !classicBlockedResumeHash;
-  if (chatWalkieText) {
-    const pending = classicWalkieQueue.pendingCount();
-    chatWalkieText.textContent = classicWalkieNeedsGesture
-      ? "Browser blocked autoplay · Tap to play incoming voice"
-      : pending > 0
-      ? `Walkie-Talkie live · ${pending} voice message${pending > 1 ? "s" : ""} queued`
-      : "Walkie-Talkie live · Auto-playing incoming voice";
-  }
-}
-
-async function drainClassicWalkieQueue() {
-  if (!isClassicChatVisible() || !classicWalkieQueue.enabled || classicWalkieDraining || classicWalkieQueue.currentHash) return;
-  classicWalkieDraining = true;
-  try {
-    while (classicWalkieQueue.enabled && isClassicChatVisible() && !classicWalkieQueue.currentHash) {
-      const next = classicWalkieQueue.dequeueNext();
-      if (!next) break;
-      const res = await playChatVoiceByHash(next.hash, chatMessagesList);
-      if (res === "started") {
-        classicWalkieNeedsGesture = false;
-        classicBlockedResumeHash = null;
-        playWalkieChirp("start");
-        syncClassicWalkieUi();
-        return;
-      }
-      if (res === "blocked") {
-        classicWalkieNeedsGesture = true;
-        classicBlockedResumeHash = next.hash;
-        classicWalkieQueue.markFinished(next.hash);
-        syncClassicWalkieUi();
-        return;
-      }
-      classicWalkieQueue.markFinished(next.hash);
-    }
-    syncClassicWalkieUi();
-  } finally {
-    classicWalkieDraining = false;
-  }
-}
-
-function resetClassicPttUi() {
-  if (chatPttBar) chatPttBar.hidden = true;
-  chatPttBtn?.classList.remove("recording");
-  if (chatPttSendBtn) chatPttSendBtn.hidden = true;
-  if (chatPttTimer) chatPttTimer.textContent = "0:00";
-  if (chatPttHint) chatPttHint.textContent = "Release to send";
-  for (const bar of chatPttMeterBars) bar.style.height = "25%";
-  classicPttPointerId = null;
-  classicPttStartedAt = 0;
-  classicPttElapsedSec = 0;
-  classicPttReleasedEarly = false;
-  classicPttHandsFree = false;
-}
-
-function cancelClassicVoiceRec() {
-  const rec = classicVoiceRec;
-  classicVoiceRec = null;
-  classicPttStarting = false;
-  try {
-    rec?.cancel();
-  } catch {}
-  resetClassicPttUi();
-}
-
-function onClassicVoiceEnded(endedHash: string) {
-  classicWalkieQueue.markFinished(endedHash);
-  if (!isClassicChatVisible()) {
-    syncClassicWalkieUi();
-    return;
-  }
-  if (classicWalkieQueue.enabled && classicWalkieQueue.pendingCount() > 0) {
-    void drainClassicWalkieQueue();
-    return;
-  }
-  const hashes = Array.from(
-    chatMessagesList.querySelectorAll<HTMLElement>('.cm-audio-card[data-cm-kind="voice"][data-cm-hash]')
-  ).map((el) => el.dataset.cmHash || "");
-  const nextHash = nextSequentialHash(hashes, endedHash);
-  if (nextHash) {
-    void playChatVoiceByHash(nextHash, chatMessagesList).then((res) => {
-      if (res === "started" && classicWalkieQueue.enabled) playWalkieChirp("start");
-      syncClassicWalkieUi();
-    });
-  } else {
-    syncClassicWalkieUi();
-  }
-}
-
-setVoiceEndedHandler((endedHash) => {
-  if (currentChatLayout() === "messenger") messengerChat.onVoiceEnded(endedHash);
-  else onClassicVoiceEnded(endedHash);
-});
-
 async function sendClassicPreparedImmediate(prep: PreparedChatMedia) {
   if (chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) {
     if (prep.previewUrl) {
@@ -9540,89 +9326,46 @@ async function sendClassicPreparedImmediate(prep: PreparedChatMedia) {
   }
 }
 
-async function finishClassicPttSend() {
-  if (!classicVoiceRec || classicPttFinishing) return;
-  classicPttFinishing = true;
-  const rec = classicVoiceRec;
-  classicVoiceRec = null;
-  const elapsed = classicPttElapsedSec;
-  try {
-    const prep = await rec.stop();
-    resetClassicPttUi();
-    if (!prep || (prep.durationSec ?? elapsed) < MIN_PTT_SEC) {
-      showToast("Hold longer to record a voice note", "info");
-      return;
+const classicVoice = createChatVoiceController({
+  store: safeStorage,
+  elements: {
+    walkieBtn: chatWalkieBtn,
+    walkieBar: chatWalkieBar,
+    walkieText: chatWalkieText,
+    walkieResumeBtn: chatWalkieResumeBtn,
+    walkieOffBtn: chatWalkieOffBtn,
+    pttBtn: chatPttBtn,
+    pttBar: chatPttBar,
+    pttTimer: chatPttTimer,
+    pttHint: chatPttHint,
+    pttSendBtn: chatPttSendBtn,
+    pttCancelBtn: chatPttCancelBtn,
+    pttMeterBars: chatPttMeterBars,
+  },
+  isVisible: isClassicChatVisible,
+  hasConversation: () => Boolean(activeChatPeer || activeChatPrivateRoom),
+  isComposerDisabled: () => chatMessageInput.disabled,
+  openRoomId: () => openRoomId() || "",
+  getShownMessages: () => shownMessages,
+  getDraftText: () => chatMessageInput.value,
+  focusComposer: () => chatMessageInput.focus(),
+  getMessagesContainer: () => chatMessagesList,
+  onStagePrepared: (prep) => setClassicStagedMedia(prep),
+  onSendPrepared: (prep) => sendClassicPreparedImmediate(prep),
+  onFallbackAudioPicker: () => {
+    if (chatFileAudio) {
+      chatFileAudio.value = "";
+      chatFileAudio.click();
     }
-    playWalkieChirp("end");
-    if (chatMessageInput.value.trim()) {
-      setClassicStagedMedia(prep);
-      chatMessageInput.focus();
-    } else {
-      await sendClassicPreparedImmediate(prep);
-    }
-  } catch (err: any) {
-    resetClassicPttUi();
-    showToast(err.message || String(err), "error");
-  } finally {
-    classicPttFinishing = false;
-  }
-}
+  },
+  showToast: (msg, type) => showToast(msg, type),
+});
+classicVoice.bindEvents();
 
-async function startClassicPtt(handsFree: boolean, pointerId: number | null) {
-  if (classicVoiceRec || classicPttStarting || chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) return;
-  primeChatAudio();
-  classicPttStarting = true;
-  classicPttHandsFree = handsFree;
-  classicPttPointerId = pointerId;
-  classicPttStartedAt = Date.now();
-  classicPttElapsedSec = 0;
-  classicPttReleasedEarly = false;
-  if (chatPttBar) chatPttBar.hidden = false;
-  chatPttBtn?.classList.add("recording");
-  if (chatPttSendBtn) chatPttSendBtn.hidden = !handsFree;
-  if (chatPttHint) chatPttHint.textContent = handsFree ? "Recording · tap Send" : "Release to send";
-  try {
-    const session = await startVoiceRecording({
-      maxSec: handsFree ? STANDARD_VOICE_MAX_SEC : WALKIE_PTT_MAX_SEC,
-      onTick: (sec, level, _bytes, maxSec) => {
-        classicPttElapsedSec = sec;
-        if (chatPttTimer) chatPttTimer.textContent = `${formatMediaDuration(sec)} / ${formatMediaDuration(maxSec)}`;
-        const base = Math.max(0.15, Math.min(1, level / 15));
-        chatPttMeterBars.forEach((b, idx) => {
-          const w = 0.55 + 0.45 * Math.sin(sec * 12 + idx * 1.1);
-          b.style.height = `${Math.round(Math.max(18, Math.min(100, base * w * 100)))}%`;
-        });
-      },
-      onMaxReached: () => {
-        void finishClassicPttSend();
-      },
-    });
-    classicPttStarting = false;
-    classicVoiceRec = session;
-    playWalkieChirp("start");
-    if (classicPttReleasedEarly) {
-      if (Date.now() - classicPttStartedAt < PTT_HOLD_THRESHOLD_MS) {
-        classicPttHandsFree = true;
-        if (chatPttSendBtn) chatPttSendBtn.hidden = false;
-        if (chatPttHint) chatPttHint.textContent = "Recording · tap Send";
-      } else {
-        void finishClassicPttSend();
-      }
-    }
-  } catch (err: any) {
-    classicPttStarting = false;
-    resetClassicPttUi();
-    if (err?.code === "FALLBACK_CAPTURE") {
-      showToast("Microphone blocked in sandbox — pick an audio file instead", "warning");
-      if (chatFileAudio) {
-        chatFileAudio.value = "";
-        chatFileAudio.click();
-      }
-    } else {
-      showToast(err?.message || "Could not start microphone", "error");
-    }
-  }
-}
+setVoiceEndedHandler((endedHash) => {
+  if (currentChatLayout() === "messenger") messengerChat.onVoiceEnded(endedHash);
+  else classicVoice.onVoiceEnded(endedHash);
+});
 
 async function processClassicVideoNote(file: File | Blob) {
   if (chatMessageInput.disabled || (!activeChatPeer && !activeChatPrivateRoom)) return;
@@ -9638,87 +9381,6 @@ async function processClassicVideoNote(file: File | Blob) {
     showToast(err.message || String(err), "error");
   }
 }
-
-chatWalkieBtn?.addEventListener("click", () => {
-  const next = !classicWalkieQueue.enabled;
-  if (next) {
-    primeChatAudio();
-    playWalkieChirp("start");
-  } else {
-    playWalkieChirp("end");
-  }
-  classicWalkieQueue.setEnabled(next);
-  writeWalkieEnabled(safeStorage, next);
-  classicWalkieNeedsGesture = false;
-  classicBlockedResumeHash = null;
-  if (next) {
-    classicWalkieQueue.seedRoom(openRoomId() || "", shownMessages);
-  }
-  syncClassicWalkieUi();
-  showToast(next ? "Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
-});
-
-chatWalkieOffBtn?.addEventListener("click", () => {
-  classicWalkieQueue.setEnabled(false);
-  writeWalkieEnabled(safeStorage, false);
-  classicWalkieNeedsGesture = false;
-  classicBlockedResumeHash = null;
-  playWalkieChirp("end");
-  syncClassicWalkieUi();
-});
-
-chatWalkieResumeBtn?.addEventListener("click", async () => {
-  primeChatAudio();
-  const target = classicBlockedResumeHash;
-  classicWalkieNeedsGesture = false;
-  classicBlockedResumeHash = null;
-  if (target) {
-    const res = await playChatVoiceByHash(target, chatMessagesList);
-    if (res === "started") {
-      playWalkieChirp("start");
-      syncClassicWalkieUi();
-      return;
-    }
-  }
-  void drainClassicWalkieQueue();
-});
-
-chatPttBtn?.addEventListener("pointerdown", (e) => {
-  if (!canRecordVoice()) return;
-  if (e.pointerType === "mouse" && e.button !== 0) return;
-  e.preventDefault();
-  if (classicVoiceRec && classicPttHandsFree) {
-    void finishClassicPttSend();
-    return;
-  }
-  void startClassicPtt(false, e.pointerId);
-});
-
-window.addEventListener("pointerup", (e) => {
-  if (classicPttPointerId === null || e.pointerId !== classicPttPointerId) return;
-  classicPttPointerId = null;
-  if (classicPttStarting) {
-    classicPttReleasedEarly = true;
-    return;
-  }
-  if (!classicVoiceRec || classicPttHandsFree) return;
-  if (Date.now() - classicPttStartedAt < PTT_HOLD_THRESHOLD_MS) {
-    classicPttHandsFree = true;
-    if (chatPttSendBtn) chatPttSendBtn.hidden = false;
-    if (chatPttHint) chatPttHint.textContent = "Recording · tap Send";
-  } else {
-    void finishClassicPttSend();
-  }
-});
-
-window.addEventListener("pointercancel", (e) => {
-  if (classicPttPointerId === null || e.pointerId !== classicPttPointerId) return;
-  classicPttPointerId = null;
-  if (!classicPttHandsFree) cancelClassicVoiceRec();
-});
-
-chatPttCancelBtn?.addEventListener("click", () => cancelClassicVoiceRec());
-chatPttSendBtn?.addEventListener("click", () => void finishClassicPttSend());
 
 chatVnoteBtn?.addEventListener("click", () => {
   if (chatFileVideo) {
@@ -9805,7 +9467,7 @@ chatAttachMenu?.addEventListener("click", async (e) => {
       chatFileAudio.click();
     }
   } else if (kind === "voice") {
-    if (canRecordVoice()) void startClassicPtt(true, null);
+    if (canRecordVoice()) void classicVoice.startPtt(true, null);
   } else if (kind === "vnote") {
     if (!canCaptureVideoNote()) return;
     if (chatFileVideo) {
@@ -11641,14 +11303,7 @@ function renderCommunitiesPage() {
   communitiesCountPill.textContent = `${visibleComms.length} ${visibleComms.length === 1 ? "community" : "communities"}`;
 
   // Moderation & blocklists filters aligned with main feed
-  const curators = moderationCurators();
-  const hiddenAuthors = new Set(hiddenUsers());
-  if (me) for (const pk of freenet.blockedBy(me)) hiddenAuthors.add(pk);
-  for (const c of curators) for (const pk of freenet.blockedBy(c)) hiddenAuthors.add(pk);
-
-  const reported = new Set<string>();
-  if (me) for (const k of freenet.reportedBy(me).keys()) reported.add(k);
-  for (const c of curators) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
+  const policy = getModerationPolicy();
 
   const validPost = (p: Post): boolean => {
     if (!SAFE_ID.test(p.id) || !HEX64.test(p.author)) return false;
@@ -11656,10 +11311,7 @@ function renderCommunitiesPage() {
     const comm = commById.get(p.community_id);
     if (!comm) return false;
     if (isPostDeletedInCommunity(comm, p)) return false;
-    if (p.author !== me && hiddenAuthors.has(p.author)) return false;
-    if (p.author !== me && reported.has(`${p.author}:${p.id}`)) return false;
-    if (p.author !== me && freenet.aiHeldTargets().has(`${p.author}:${p.id}`)) return false;
-    if (p.is_nsfw) return false;
+    if (policy.isPostHidden(p) !== null) return false;
     return true;
   };
 
@@ -11849,7 +11501,7 @@ function renderCommunitiesPage() {
         const isExpanded = expandedRedditComments.has(post.id);
 
         const visibleComments = Object.values(post.comments ?? {})
-          .filter((c) => c && c.text !== "" && (c.author === me || (!hiddenAuthors.has(c.author) && !reported.has(`${c.author}:${c.id}`))))
+          .filter((c) => c && c.text !== "" && !policy.isCommentHidden(c))
           .sort((a, b) => a.timestamp - b.timestamp);
 
         const embedRender = body ? renderPost(body, getAuthorDisplayName) : { html: "", card: renderPost(ownText, getAuthorDisplayName).card };
@@ -11868,11 +11520,23 @@ function renderCommunitiesPage() {
           repostCard(rawCaption);
 
         const mediaHtml = post.media_uri
-          ? `<div class="reddit-post-media gram-media">
+          ? `<div class="reddit-post-media gram-media ${post.is_nsfw ? "nsfw-shielded" : ""}" id="reddit-media-${escapeHtml(post.id)}">
               ${
                 videoRef(post.media_uri)
                   ? `${videoRef(post.media_uri)!.posterHash ? `<img class="video-poster" loading="lazy" decoding="async" data-vposter="${escapeHtml(post.media_uri)}" alt="Video preview" />` : ""}<button type="button" class="video-load btn-icon-text" data-video="${escapeHtml(post.media_uri)}">▶ <span>Play video</span></button>`
                   : postImagesHtml(post.media_uri)
+              }
+              ${
+                post.is_nsfw
+                  ? `<div class="nsfw-overlay" data-media-id="reddit-media-${escapeHtml(post.id)}">
+                      <div class="nsfw-overlay-card">
+                        <div style="font-size: 1.2rem; margin-bottom: 6px; color: #ef4444; display: flex; align-items: center; justify-content: center;">${renderIcon("ban", { className: "icon-lg" })}</div>
+                        <div style="font-weight: 700; font-size: 0.9rem;">Sensitive / Adult Media</div>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 10px;">Scanned on-device by Desert Ant</div>
+                        <button type="button" class="btn-reveal-nsfw btn-icon-text" data-media-id="reddit-media-${escapeHtml(post.id)}">${renderIcon("eye", { className: "icon-xs" })} <span>Click to View</span></button>
+                      </div>
+                    </div>`
+                  : ""
               }
             </div>`
           : "";
@@ -12086,28 +11750,11 @@ function loadArticlesPage() {
       createArticlesPage({
         getIdentity: () => currentIdentity,
         getAllPosts: () => {
-          const me = currentIdentity?.pubkey || "";
-          const reported = new Set<string>();
-          const reportedMedia = new Set<string>();
-          for (const c of trustedCurators()) {
-            for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-            for (const h of freenet.reportedMediaBy(c)) reportedMedia.add(h);
-          }
-          for (const t of freenet.aiHeldTargets()) reported.add(t);
-
           const byKey = new Map<string, Post>();
-          const add = (p: Post) => {
-            if (!p || isHiddenAuthor(p.author)) return;
-            if (p.author !== me) {
-              if (reported.has(`${p.author}:${p.id}`)) return;
-              const mh = postMediaHash(p);
-              if (mh && reportedMedia.has(mh)) return;
-            }
-            byKey.set(`${p.author}:${p.id}`, p);
-          };
-          for (const p of timelinePosts) add(p);
-          for (const p of Object.values(freenet.peerCache || {})) add(p);
-          return [...byKey.values()];
+          for (const p of timelinePosts) if (p) byKey.set(`${p.author}:${p.id}`, p);
+          for (const p of Object.values(freenet.peerCache || {})) if (p) byKey.set(`${p.author}:${p.id}`, p);
+          const policy = getModerationPolicy(byKey.values());
+          return [...byKey.values()].filter((p) => policy.isPostHidden(p) === null);
         },
         getPostById: async (author, postId) => {
           // someone else's feed is often not cached yet: getFeed answers empty at once, so wait for the network copy
@@ -12190,14 +11837,9 @@ function loadArticlesPage() {
           }
         },
         reportArticle: async (author, postId) => {
-          await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
+          await reportContentTarget(author, postId);
         },
-        hideAuthor: (author) => {
-          if (!author || author === currentIdentity?.pubkey) return;
-          setUserHidden(author, true);
-          scheduleRenderTimeline();
-          showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
-        },
+        hideAuthor: (author) => hideAuthorWithToast(author),
         shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
         getAppBaseUrl: () => `${window.location.origin}${window.location.pathname}`,
         showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
@@ -12225,7 +11867,8 @@ function loadMusicPage() {
         loadDirectory: () => freenet.freetunesDirectory(),
         getRawContract: (id) => freenet.appContract(id),
         getMyPubkey: () => currentIdentity?.pubkey || "",
-        getHiddenAuthors: () => new Set(hiddenUsers()),
+        getHiddenAuthors: () => getModerationPolicy().hiddenAuthors,
+        getReportedTargets: () => getModerationPolicy().reportedTargets,
         getFollowing: () => new Set(followingKeys),
         shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
         openUserWall: (pk) => void openUserProfile(pk),
@@ -12248,12 +11891,8 @@ function loadMusicPage() {
           postCaption.dispatchEvent(new Event("input"));
           setTimeout(() => postCaption.focus(), 50);
         },
-        hideAuthor: (pk) => {
-          if (!pk || pk === currentIdentity?.pubkey) return;
-          setUserHidden(pk, true);
-          scheduleRenderTimeline();
-          showToast(`Hidden ${getAuthorDisplayName(pk)} on this device.`, "info");
-        },
+        reportRelease: (owner, id, title) => reportContentTarget(owner, id, { label: title }),
+        hideAuthor: (pk) => hideAuthorWithToast(pk),
         showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
         closeModal: () => {
           musicModal.style.display = "none";
@@ -12277,28 +11916,9 @@ const reelsPlayer = createReelsPlayer({
     return [...byKey.values()];
   },
   getMyPubkey: () => currentIdentity?.pubkey || "",
-  getHiddenAuthors: () => {
-    const hidden = new Set(hiddenUsers());
-    const me = currentIdentity?.pubkey ?? "";
-    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
-    for (const c of curators) for (const pk of freenet.blockedBy(c)) hidden.add(pk);
-    return hidden;
-  },
-  getReportedTargets: () => {
-    const reported = new Set<string>();
-    const me = currentIdentity?.pubkey ?? "";
-    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
-    for (const c of curators) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-    for (const t of freenet.aiHeldTargets()) reported.add(t);
-    return reported;
-  },
-  getReportedMedia: () => {
-    const rm = new Set<string>();
-    const me = currentIdentity?.pubkey ?? "";
-    const curators = new Set([...moderationCurators(), ...(me ? [me] : [])]);
-    for (const c of curators) for (const h of freenet.reportedMediaBy(c)) rm.add(h);
-    return rm;
-  },
+  getHiddenAuthors: () => getModerationPolicy().hiddenAuthors,
+  getReportedTargets: () => getModerationPolicy().reportedTargets,
+  getReportedMedia: () => getModerationPolicy().reportedMedia,
   getFollowing: () => new Set(followingKeys),
   getAuthorName: (pk) => getAuthorDisplayName(pk),
   getAuthorAvatar: (pk) => getAuthorAvatarUrl(pk),
@@ -12378,14 +11998,9 @@ const reelsPlayer = createReelsPlayer({
   },
   openUserWall: (pk) => void openUserProfile(pk),
   reportPost: async (author, postId) => {
-    await reportPostFromCard({ dataset: { author, postId } } as unknown as HTMLElement);
+    await reportContentTarget(author, postId);
   },
-  hideAuthor: (author) => {
-    if (!author || author === currentIdentity?.pubkey) return;
-    setUserHidden(author, true);
-    renderTimeline();
-    showToast(`Hidden ${getAuthorDisplayName(author)} on this device.`, "info");
-  },
+  hideAuthor: (author) => hideAuthorWithToast(author),
   showToast: (msg, isError) => showToast(msg, isError ? "error" : "info"),
   onExit: () => {
     document.querySelector<HTMLButtonElement>('.moments-filter-btn[data-mfilter="all"]')?.click();
@@ -12643,6 +12258,13 @@ redditThreadsContainer.addEventListener("click", async (e) => {
   const authorEl = target.closest<HTMLElement>(".author-clickable");
   if (authorEl?.dataset.author) {
     openUserProfile(authorEl.dataset.author);
+    return;
+  }
+
+  const nsfwBtn = target.closest<HTMLElement>(".btn-reveal-nsfw, .nsfw-overlay");
+  if (nsfwBtn) {
+    e.stopPropagation();
+    nsfwBtn.closest(".gram-media")?.classList.toggle("revealed");
     return;
   }
 
@@ -14639,12 +14261,8 @@ initGreenhouse({
   displayName: getAuthorDisplayName,
   showToast: (msg, type) => showToast(msg, type),
   isHidden: isHiddenAuthor,
-  isReported: (target) => [...moderationCurators(), currentIdentity?.pubkey ?? ""].some((c) => freenet.reportedBy(c).has(target)) || freenet.aiHeldTargets().has(target),
-  hideAuthor: (pk) => {
-    setUserHidden(pk, true);
-    showToast("Author hidden on this device.", "info");
-    scheduleRenderTimeline();
-  },
+  isReported: (target) => getModerationPolicy().isTargetReported(target),
+  hideAuthor: (pk) => hideAuthorWithToast(pk),
   report: (author, id, reason) => freenet.reportPost(author, id, reason, null, true),
   linfaForAuthors: async (authors) => {
     if (!currentIdentity) return { weights: new Map() };
@@ -14803,7 +14421,7 @@ async function init() {
         return false;
       }
     })();
-    if (window.location.hash && /(?:^#|&)auth_state=/i.test(window.location.hash) && (canRealStorage || (globalThis as { __radicaNative?: unknown }).__radicaNative)) {
+    if (window.location.hash && /(?:^#|&)auth_state=/i.test(window.location.hash) && (canRealStorage || hasNativeBridge())) {
       const kept = window.location.hash.replace(/^#/, "").split("&").filter((p) => p && !p.startsWith("auth_state="));
       const cleanHash = kept.length > 0 ? "#" + kept.join("&") : "";
       window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + cleanHash);
@@ -14940,6 +14558,26 @@ async function init() {
   // Announce persona to peer network and subscribe to real-time events
   freenet.announceIdentity(currentIdentity, currentProfile);
   let syncBusy = false, syncAgain = false; // passes never overlap: a slow one (decrypt + redraw) queues one rerun instead of piling up
+  let roomSyncBusy = false, roomSyncAgain = false;
+  function scheduleBackgroundRoomSync() {
+    if (roomSyncBusy) { roomSyncAgain = true; return; }
+    roomSyncBusy = true;
+    void (async () => {
+      try {
+        await freenet.syncCommentedPosts(currentIdentity!);
+        const activeRoom = chatModal.style.display !== "none" ? openRoomId() : null;
+        await freenet.syncRiverRooms(currentIdentity!, activeRoom);
+        await freenet.syncRiverDms(currentIdentity!);
+        await updateNotificationsBadge();
+        updateChatBadge();
+      } catch (e) {
+        console.warn("[Sync] Background room sync error:", e);
+      } finally {
+        roomSyncBusy = false;
+        if (roomSyncAgain) { roomSyncAgain = false; scheduleBackgroundRoomSync(); }
+      }
+    })();
+  }
   freenet.onSyncUpdate(async function syncPass() {
     if (syncBusy) { syncAgain = true; return; }
     syncBusy = true;
@@ -14948,7 +14586,7 @@ async function init() {
   async function syncBody() {
     // my feed can arrive from the network after startup (fresh sandbox, empty local cache): take profile and follows from it
     const mine = await freenet.getFeed(currentIdentity!.pubkey);
-    if (mine.profile && (mine.profile.updated_at ?? 0) > (currentProfile?.updated_at ?? 0)) {
+    if (mine.profile && (!currentProfile || (mine.profile.updated_at ?? 0) > (currentProfile.updated_at ?? 0))) {
       currentProfile = mine.profile;
       sidebarName.textContent = mine.profile.display_name;
       setProfileBio(sidebarBio, mine.profile.bio, "No bio yet.");
@@ -14956,17 +14594,26 @@ async function init() {
         document.getElementById("pp-name")!.textContent = mine.profile.display_name;
         setProfileBio(ppBio, mine.profile.bio, "No bio yet.");
       }
-      if (mine.profile.avatar_url) sidebarAvatar.src = mine.profile.avatar_url;
+      if (mine.profile.avatar_url) sidebarAvatar.src = composerAvatar.src = mine.profile.avatar_url;
       freenet.knownPeers[currentIdentity!.pubkey] = { display_name: mine.profile.display_name, avatar_url: mine.profile.avatar_url };
       void freenet.announceIdentity(currentIdentity!, mine.profile);
+      void updateMyPostsAndScopeCounts();
       if (welcomeModal.style.display !== "none" && !hasDefaultName()) finishWelcome(); // a returning user: their name came late
+    }
+    if (sidebarHandle) {
+      const myH = freenet.handleOf(currentIdentity!.pubkey);
+      if (myH && sidebarHandle.textContent !== `@${myH}`) {
+        sidebarHandle.textContent = `@${myH}`;
+        sidebarHandle.title = `Handle: @${myH}\nPersona: ${personaBase58}\nClick to open my profile`;
+      }
     }
     if (!isMessengerMode()) {
       refreshOpenProfileExtrasUI();
-      void refreshSupporters(); // the supporters wall may have changed
+      void refreshSupporters().then(() => renderMyPohBadges()); // the supporters wall or PoH/ante badges may have changed
     }
     if (mine.following?.length && mine.following.length !== followingKeys.length) {
       followingKeys = [...new Set([...followingKeys, ...mine.following])];
+      void updateMyPostsAndScopeCounts();
     }
     const chatOpen = chatModal.style.display !== "none"; // feed, lists and posts sit behind the chat: redrawn when it closes
     if (!chatOpen) renderFollowingList(); // names and avatars of the people I follow arrive with their feeds
@@ -14987,11 +14634,6 @@ async function init() {
       renderDiscoveredPeers();
     }
     await yieldToMain();
-    await freenet.syncCommentedPosts(currentIdentity!);
-    const activeRoom = chatModal.style.display !== "none" ? openRoomId() : null;
-    const roomsFresh = await freenet.syncRiverRooms(currentIdentity!, activeRoom);
-    const dmsFresh = await freenet.syncRiverDms(currentIdentity!);
-    const riverFresh = roomsFresh || dmsFresh;
     if (amGlobalMod()) {
       void freenet.refreshLog("reports").then(() => updateBlocklistsBadge());
     }
@@ -15009,6 +14651,7 @@ async function init() {
     }
 
     if (!chatOpen) await reloadPosts({ background: true });
+    scheduleBackgroundRoomSync(); // slow/missing room or River lookups must never stall syncBusy or timeline updates
   }
 
   // Load Communities & Private Rooms in parallel
@@ -15029,17 +14672,19 @@ async function init() {
   bootStep("Connecting to your Freenet node…");
   const connected = await freenet.connect();
   if (connected) {
+    // Own profile & feed first, then communities/directory/moderation, then room access & deferred profile extras.
+    void freenet.syncOwnFeed(currentIdentity!);
     void freenet.refreshLog("communities", true, true);
+    void freenet.refreshLog("directory", false, true);
     refreshTrustedBlocklists();
     void freenet.getPrivateRooms(currentIdentity!).then((r) => {
       allPrivateRooms = r;
       updateChatBadge();
     });
     void updateNotificationsBadge();
-    void freenet.syncOwnFeed(currentIdentity!); // in background: publish my feed, pick up what my other devices wrote
-    if (!safeStorage.getItem(`radica_profile_extras_${currentIdentity!.pubkey}`)) {
+    setTimeout(() => {
       void freenet.refreshProfileExtras(currentIdentity!.pubkey, { force: false, urgent: false }).then(() => refreshOpenProfileExtrasUI());
-    }
+    }, 1500);
     freenetDot.classList.add("online");
     freenetStatusLabel.textContent = "Your node is online";
     setChatStatus(true);

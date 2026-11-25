@@ -60,11 +60,11 @@ export function filterVideoReels(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    if (opts.hiddenAuthors?.has(p.author)) continue;
     if (p.author !== me) {
+      if (opts.hiddenAuthors?.has(p.author)) continue;
       if (opts.reported?.has(key)) continue;
-      const vref = videoRef(p.media_uri);
-      if (vref && opts.reportedMedia?.has(vref.hash)) continue;
+      const mh = videoRef(p.media_uri)?.hash ?? parseBlobVideoRef(p.caption)?.hash;
+      if (mh && opts.reportedMedia?.has(mh)) continue;
     }
     if (opts.onlyFollowing && opts.following && !opts.following.has(p.author) && p.author !== me) continue;
     out.push(p);

@@ -360,7 +360,8 @@ test("standalone messenger mode exposes identity, profile & settings menu items 
   assert.match(messengerTs, /onOpenSettings/);
 
   assert.match(mainTs, /data-app-mode",\s*"messenger"/);
-  assert.match(mainTs, /getAppMode/);
+  assert.match(mainTs, /getNativeAppMode/);
+  assert.match(read("../src/platformBridge.ts"), /getAppMode/);
   assert.match(mainTs, /function\s+openExternalViaNative/);
   assert.match(mainTs, /a\[target="_blank"\]\[href\]/);
   assert.match(chatCss, /html\[data-app-mode="messenger"\]\s+\.rail/);

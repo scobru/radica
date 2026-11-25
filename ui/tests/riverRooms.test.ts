@@ -150,3 +150,37 @@ test("river rooms: a room left under River's previous contract is found and carr
   assert.equal(B.read(found!, owner, roomOwnerSk(ann, "privroom_old")).name, "Before v11");
   assert.deepEqual(net.get(current), state, "carried forward under the current key");
 });
+
+test("river rooms: load respects 30s cooldown when uncached and passes urgent=false for background syncs", async () => {
+  const call = await loadRiver(readFileSync(new URL("../src/wasm/river.wasm", import.meta.url)));
+  const getCalls: { urgent?: boolean }[] = [];
+  const fake = {
+    getRaw: async (_k: ContractKey, _w?: `river:${string}`, urgent?: boolean) => {
+      getCalls.push({ urgent });
+      return null;
+    },
+    putRaw: async () => {},
+    updateRaw: async () => {},
+  };
+  const store = new Map<string, string>();
+  const rooms = new RiverRooms(call, fake, async () => anchorOf(null), async () => new Uint8Array(), {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => void store.set(k, v),
+  });
+
+  const owner = vkOf(sk(7));
+  // First background load (force=false) misses and runs legacy recover with urgent=false
+  await rooms.load(owner, false);
+  const afterFirst = getCalls.length;
+  assert.ok(afterFirst >= 1);
+  assert.ok(getCalls.every((c) => c.urgent === false), "background load and recover must use urgent=false");
+
+  // Second background load within 30s (even uncached) must NOT re-query the network
+  await rooms.load(owner, false);
+  assert.equal(getCalls.length, afterFirst, "30s cooldown must hold even when room is uncached");
+
+  // Explicit forced load (force=true) passes urgent=true
+  await rooms.load(owner, true);
+  assert.equal(getCalls.length, afterFirst + 1);
+  assert.equal(getCalls[afterFirst].urgent, true);
+});

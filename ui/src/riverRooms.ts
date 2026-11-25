@@ -31,7 +31,7 @@ export type RiverView = {
 };
 
 export type RiverNet = {
-  getRaw(key: ContractKey, watch?: `river:${string}`): Promise<Uint8Array | null>;
+  getRaw(key: ContractKey, watch?: `river:${string}`, urgent?: boolean): Promise<Uint8Array | null>;
   putRaw(key: ContractKey, code: Uint8Array, params: Uint8Array, state: Uint8Array): Promise<void>;
   updateRaw(key: ContractKey, delta: Uint8Array): Promise<void>;
   liveAge?(id: `river:${string}`): number | null;
@@ -120,10 +120,10 @@ export class RiverRooms {
    *  the subscription brings changes in between (`changed`). */
   async load(owner: string, force = false): Promise<string | null> {
     const live = this.net.liveAge?.(`river:${owner}`) != null; // subscribed: a change clears `fetched` (`changed`), so a write need not ask the network first
-    if ((!force || live) && Date.now() - (this.fetched.get(owner) ?? 0) < 30_000 && this.cached(owner)) return this.cached(owner);
+    if ((!force || live) && Date.now() - (this.fetched.get(owner) ?? 0) < 30_000) return this.cached(owner);
     this.fetched.set(owner, Date.now());
     try {
-      const raw = await this.net.getRaw(await this.key(owner), `river:${owner}`);
+      const raw = await this.net.getRaw(await this.key(owner), `river:${owner}`, force);
       if (raw) this.keep(owner, bytesToHex(raw));
       else if (!this.cached(owner)) await this.recover(owner);
     } catch (e) {
@@ -144,7 +144,7 @@ export class RiverRooms {
     const hashes: string[] = this.call({ op: "legacy" }).code_hashes;
     // shortcut: probes the 8 newest generations only; widen it if rooms older than that turn up
     for (const hash of hashes.slice(0, 8)) {
-      const raw = await this.net.getRaw(keyOf(hash, params)).catch(() => null);
+      const raw = await this.net.getRaw(keyOf(hash, params), undefined, false).catch(() => null);
       if (!raw) continue;
       this.keep(owner, bytesToHex(raw));
       if ((await this.anchor()).canWrite)

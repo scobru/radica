@@ -105,13 +105,19 @@ export function filterFreetunesReleases(
     following?: Set<string>;
     onlyFollowing?: boolean;
     hiddenAuthors?: Set<string>;
+    reportedTargets?: Set<string>;
+    myPubkey?: string;
   } = {}
 ): FtReleaseItem[] {
   const q = (opts.query || "").trim().toLowerCase();
   const hidden = opts.hiddenAuthors;
+  const reported = opts.reportedTargets;
+  const me = opts.myPubkey || "";
   const following = opts.following;
   return items.filter((item) => {
-    if (hidden?.has(item.owner)) return false;
+    const isMine = Boolean(me && item.owner === me);
+    if (!isMine && hidden?.has(item.owner)) return false;
+    if (!isMine && reported?.has(`${item.owner}:${item.id}`)) return false;
     if (opts.onlyFollowing && following && !following.has(item.owner)) return false;
     if (q) {
       const hay = `${item.title} ${item.artist}`.toLowerCase();

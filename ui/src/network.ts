@@ -32,10 +32,15 @@ import { compactLog, type LogEntry } from "./logfold.ts";
 import { safeStorage } from "./storage.ts"; // the sandboxed web container has no localStorage
 import { nextDelay, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
 import { changeOf, isInteractiveContract, type Change } from "./refresh.ts";
+import { isProfileExtraLog } from "./profileExtras.ts";
 
 const PROBED = "radica_legacy_probed"; // contracts already looked up under earlier generations
 const TIMEOUT_MS = 45000; // a get/put for a contract the node has not got goes looking on the network
 const LEGACY_TIMEOUT_MS = 8000; // legacy contract fallback must never stall bgGate for 45s
+const OPTIONAL_LOG_TIMEOUT_MS = 10_000; // optional personal extra logs (wallets, delta, etc.) must not starve bgGate for 45s
+
+const timeoutFor = (id: ContractId): number =>
+  id.startsWith("log:") && isProfileExtraLog(id.slice(4)) ? OPTIONAL_LOG_TIMEOUT_MS : TIMEOUT_MS;
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -51,9 +56,9 @@ function wsUrl(): URL {
 }
 
 // Separate foreground (media, active chat, user actions) vs background (Explore feeds, comment logs) queues
-// so 6 slow/missing peer feeds never starve user clicks or media downloads for 45s.
-const fgGate = limiter(4);
-const bgGate = limiter(4);
+// so slow/missing peer feeds never starve user clicks or media downloads for 45s.
+const fgGate = limiter(6);
+const bgGate = limiter(8);
 
 const withTimeout = <T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> =>
   Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), ms))]);
@@ -138,6 +143,7 @@ export class FreenetNetwork {
   private ids = new Map<string, ContractId>(); // encoded contract key -> id
   private known = new Set<ContractId>(); // contracts that exist on the network
   private probing = new Set<ContractId>(); // legacy lookups under way
+  private inflightGet = new Map<ContractId, Promise<string | null>>(); // deduplicate concurrent getText calls for the same contract
 
   /** When each contract was last fetched (and so subscribed to) on this connection; cleared when the socket drops. */
   private live = new Map<ContractId, number>();
@@ -263,25 +269,33 @@ export class FreenetNetwork {
 
   /** Same as `get`, as the JSON text: a caller that only stores it or parses it in a worker keeps the page responsive. */
   async getText(id: ContractId, urgent = false): Promise<string | null> {
-    const api = await this.connect();
-    const key = await contractKey(id);
-    this.ids.set(key.encode(), id);
-    const gate = urgent || isInteractiveContract(id) ? fgGate : bgGate;
-    try {
-      const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, true)))); // the timeout starts when the lookup is sent, not while it waits
-      this.known.add(id);
-      if (r.state.length) this.live.set(id, Date.now()); // nothing published yet: no subscription to rely on
-      return r.state.length ? dec.decode(toU8(r.state)) : null;
-    } catch (e) {
-      // a contract nobody has PUT under this build yet often times out instead of "not found": look in earlier builds either way
-      const missing = /not found/i.test(String(e));
-      if (missing || /timeout/i.test(String(e))) {
-        const v = await this.fromLegacy(id);
-        if (v !== null) return JSON.stringify(v);
-        if (missing) return null;
+    const existing = this.inflightGet.get(id);
+    if (existing) return existing;
+    const p = (async () => {
+      const api = await this.connect();
+      const key = await contractKey(id);
+      this.ids.set(key.encode(), id);
+      const gate = urgent || isInteractiveContract(id) ? fgGate : bgGate;
+      try {
+        const r = await gate(() => withTimeout(api.get(new GetRequest(key, false, true)), timeoutFor(id))); // the timeout starts when the lookup is sent, not while it waits
+        this.known.add(id);
+        if (r.state.length) this.live.set(id, Date.now()); // nothing published yet: no subscription to rely on
+        return r.state.length ? dec.decode(toU8(r.state)) : null;
+      } catch (e) {
+        // a contract nobody has PUT under this build yet often times out instead of "not found": look in earlier builds either way
+        const missing = /not found/i.test(String(e));
+        if (missing || /timeout/i.test(String(e))) {
+          const v = await this.fromLegacy(id);
+          if (v !== null) return JSON.stringify(v);
+          if (missing) return null;
+        }
+        throw e;
       }
-      throw e;
-    }
+    })().finally(() => {
+      this.inflightGet.delete(id);
+    });
+    this.inflightGet.set(id, p);
+    return p;
   }
 
   /** Raw state of any contract key (another app's, like River's), or null when it is not on the network. With `watch`,

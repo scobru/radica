@@ -27,11 +27,13 @@ export interface MusicPageDeps {
   getRawContract: (id: string) => Promise<Uint8Array | null>;
   getMyPubkey: () => string;
   getHiddenAuthors: () => Set<string>;
+  getReportedTargets?: () => Set<string>;
   getFollowing: () => Set<string>;
   shouldMaskBadWords: () => boolean;
   openUserWall: (pubkey: string) => void;
   toggleFollow: (pubkey: string) => Promise<boolean>;
   shareReleaseToFeed: (release: FtReleaseItem) => void;
+  reportRelease?: (owner: string, releaseId: string, title: string) => Promise<void> | void;
   hideAuthor: (pubkey: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
   closeModal: () => void;
@@ -194,6 +196,8 @@ export function createMusicPage(deps: MusicPageDeps) {
       following: deps.getFollowing(),
       onlyFollowing,
       hiddenAuthors: deps.getHiddenAuthors(),
+      reportedTargets: deps.getReportedTargets?.(),
+      myPubkey: deps.getMyPubkey(),
     });
 
     if (countPill) {
@@ -232,7 +236,12 @@ export function createMusicPage(deps: MusicPageDeps) {
                   ? `<button type="button" class="btn-secondary btn-sm music-follow-btn ${isFollowing ? "is-following" : ""}" data-owner="${esc(item.owner)}">${isFollowing ? "✓ Following" : "+ Follow"}</button>`
                   : "") +
                 `<button type="button" class="btn-secondary btn-sm music-share-btn" data-release-id="${esc(item.id)}">Share</button>` +
-                `<button type="button" class="btn-secondary btn-sm music-hide-btn" data-owner="${esc(item.owner)}" title="Hide artist">🚫</button>` +
+                (item.owner && item.owner !== myPubkey && deps.reportRelease
+                  ? `<button type="button" class="btn-secondary btn-sm music-report-btn" data-owner="${esc(item.owner)}" data-release-id="${esc(item.id)}" data-title="${esc(item.title)}" title="Report release">🚩</button>`
+                  : "") +
+                (item.owner && item.owner !== myPubkey
+                  ? `<button type="button" class="btn-secondary btn-sm music-hide-btn" data-owner="${esc(item.owner)}" title="Hide artist">🚫</button>`
+                  : "") +
                 `<a class="btn-secondary btn-sm" href="${esc(href)}" target="_blank" rel="noopener noreferrer">↗</a>` +
               `</div>` +
             `</div>` +
@@ -280,6 +289,17 @@ export function createMusicPage(deps: MusicPageDeps) {
         const id = btn.dataset.releaseId;
         const item = directoryItems.find((r) => r.id === id);
         if (item) deps.shareReleaseToFeed(item);
+      };
+    });
+
+    listEl.querySelectorAll<HTMLButtonElement>(".music-report-btn").forEach((btn) => {
+      btn.onclick = async () => {
+        const owner = btn.dataset.owner;
+        const releaseId = btn.dataset.releaseId;
+        const title = btn.dataset.title || "";
+        if (!owner || !releaseId || !deps.reportRelease) return;
+        await deps.reportRelease(owner, releaseId, title);
+        renderReleases();
       };
     });
 

@@ -4,6 +4,7 @@
 
 import { UPDATES } from "./updates.ts";
 import { escapeHtml } from "./html.ts";
+import { hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
 import { restart } from "./whoiam.ts";
 
 declare const __RADICA_BUILD__: string;
@@ -150,12 +151,7 @@ export function showNativeUpdateModal(version: string, downloadUrl: string, rele
   el.addEventListener("keydown", (e) => e.key === "Escape" && later());
   const btn = el.querySelector<HTMLButtonElement>("#native-update-download")!;
   btn.addEventListener("click", () => {
-    const openExt = (globalThis as { __radicaNative?: { openExternal?: (url: string) => void } }).__radicaNative?.openExternal;
-    if (openExt) {
-      openExt(downloadUrl);
-    } else {
-      window.open(downloadUrl, "_blank", "noopener,noreferrer");
-    }
+    openExternalUrl(downloadUrl, { fallbackWindowOpen: true });
     el.remove();
   });
   btn.focus();
@@ -194,6 +190,10 @@ export async function checkNativeAppUpdate(options?: {
   force?: boolean;
   onResult?: (res: { hasUpdate: boolean; version?: string }) => void;
 }): Promise<void> {
+  if (!options?.force && !hasNativeBridge()) {
+    options?.onResult?.({ hasUpdate: false });
+    return;
+  }
   const now = Date.now();
   if (!options?.force && now - lastNativeCheckTs < NATIVE_CHECK_EVERY_MS) {
     options?.onResult?.({ hasUpdate: false });

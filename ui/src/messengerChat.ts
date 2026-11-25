@@ -44,32 +44,18 @@ import {
   normalizeAudioMime,
   normalizeVideoMime,
   parseChatMedia,
-  playChatVoiceByHash,
   prepareChatAudioFile,
   prepareChatDocFile,
   prepareChatImageFile,
   prepareChatVideoNote,
-  primeChatAudio,
   summarizeChatMediaText,
   type PreparedChatMedia,
   type VideoNoteRecorderSession,
-  type VoiceRecorderSession,
   sendChatAttachment,
   startVideoNoteRecording,
-  startVoiceRecording,
   syncMiniPlayerSlot,
 } from "./chatMedia.ts";
-import {
-  createWalkieQueue,
-  MIN_PTT_SEC,
-  nextSequentialHash,
-  PTT_HOLD_THRESHOLD_MS,
-  readWalkieEnabled,
-  STANDARD_VOICE_MAX_SEC,
-  WALKIE_PTT_MAX_SEC,
-  writeWalkieEnabled,
-} from "./walkieTalkie.ts";
-import { playWalkieChirp } from "./sound.ts";
+import { createChatVoiceController } from "./chatVoiceController.ts";
 import { analyzeImageFile } from "./moderation.ts";
 import { freenet } from "./freenet.ts";
 import { hasLanMesh } from "./lanMesh.ts";
@@ -905,24 +891,70 @@ export function createMessengerChat(deps: MessengerDeps) {
   // Media tokens of the message being edited, kept so an edit never drops existing attachments.
   let editingMediaTokens = "";
 
-  const walkieQueue = createWalkieQueue(readWalkieEnabled(safeStorage));
-  let walkieNeedsGesture = false;
-  let blockedResumeHash: string | null = null;
-  let walkieDraining = false;
-
-  let activeVoiceRec: VoiceRecorderSession | null = null;
-  let pttStarting = false;
-  let pttPointerId: number | null = null;
-  let pttStartedAt = 0;
-  let pttElapsedSec = 0;
-  let pttReleasedEarly = false;
-  let pttHandsFree = false;
-  let pttFinishing = false;
-
   let activeVnoteRec: VideoNoteRecorderSession | null = null;
   let vnoteStarting = false;
   let vnoteFacingMode: "user" | "environment" = "user";
   let vnoteFinishing = false;
+
+  const sendPreparedImmediate = async (prep: PreparedChatMedia) => {
+    if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) {
+      if (prep.previewUrl) {
+        try {
+          URL.revokeObjectURL(prep.previewUrl);
+        } catch {}
+      }
+      return;
+    }
+    uploadingMedia = true;
+    try {
+      const token = await sendChatAttachment(prep, (b) => freenet.putMedia(b));
+      await deps.onSendMessage(token, composerInputEl);
+    } catch (err: any) {
+      deps.showToast(`Could not send media: ${err.message || err}`, "error");
+    } finally {
+      uploadingMedia = false;
+      if (prep.previewUrl) {
+        try {
+          URL.revokeObjectURL(prep.previewUrl);
+        } catch {}
+      }
+    }
+  };
+
+  const voiceCtrl = createChatVoiceController({
+    store: safeStorage,
+    elements: {
+      walkieBtn: walkieBtnEl,
+      walkieBar: walkieBarEl,
+      walkieText: walkieTextEl,
+      walkieResumeBtn,
+      walkieOffBtn,
+      pttBtn: pttBtnEl,
+      pttBar: pttBarEl,
+      pttTimer: pttTimerEl,
+      pttHint: pttHintEl,
+      pttSendBtn,
+      pttCancelBtn,
+      pttMeterBars,
+    },
+    isVisible,
+    hasConversation: () => Boolean(activeConvKey()),
+    isComposerDisabled: () => composerInputEl.disabled,
+    canStartPtt: () => !activeVnoteRec && !vnoteStarting,
+    openRoomId: () => deps.openRoomId() || "",
+    getShownMessages: () => deps.getActiveState().shownMessages,
+    getDraftText: () => composerInputEl.value,
+    focusComposer: () => composerInputEl.focus(),
+    getMessagesContainer: () => messagesTrackEl,
+    onStagePrepared: (prep) => setStagedMedia(prep),
+    onSendPrepared: (prep) => sendPreparedImmediate(prep),
+    onFallbackAudioPicker: () => {
+      deps.markPickingFile?.(45000);
+      fileAudioEl.value = "";
+      fileAudioEl.click();
+    },
+    showToast: (msg, type) => deps.showToast(msg, type),
+  });
 
   function syncComposerButtons() {
     const canVoice = canRecordVoice();
@@ -932,75 +964,6 @@ export function createMessengerChat(deps: MessengerDeps) {
     sendBtnEl.hidden = showQuickMedia;
     pttBtnEl.hidden = !showQuickMedia || !canVoice;
     vnoteBtnEl.hidden = !showQuickMedia || !canVnote;
-  }
-
-  function syncWalkieUi() {
-    const hasConv = !!activeConvKey();
-    const on = walkieQueue.enabled;
-    walkieBtnEl.classList.toggle("active", on);
-    walkieBtnEl.setAttribute("aria-pressed", on ? "true" : "false");
-    walkieBarEl.hidden = !on || !hasConv;
-    walkieResumeBtn.hidden = !walkieNeedsGesture || !blockedResumeHash;
-    const pending = walkieQueue.pendingCount();
-    walkieTextEl.textContent = walkieNeedsGesture
-      ? "Browser blocked autoplay · Tap to play incoming voice"
-      : pending > 0
-      ? `Walkie-Talkie live · ${pending} voice message${pending > 1 ? "s" : ""} queued`
-      : "Walkie-Talkie live · Auto-playing incoming voice";
-  }
-
-  async function drainWalkieQueue() {
-    if (!isVisible() || !walkieQueue.enabled || walkieDraining || walkieQueue.currentHash) return;
-    walkieDraining = true;
-    try {
-      while (walkieQueue.enabled && isVisible() && !walkieQueue.currentHash) {
-        const next = walkieQueue.dequeueNext();
-        if (!next) break;
-        const res = await playChatVoiceByHash(next.hash, messagesTrackEl);
-        if (res === "started") {
-          walkieNeedsGesture = false;
-          blockedResumeHash = null;
-          playWalkieChirp("start");
-          syncWalkieUi();
-          return;
-        }
-        if (res === "blocked") {
-          walkieNeedsGesture = true;
-          blockedResumeHash = next.hash;
-          walkieQueue.markFinished(next.hash);
-          syncWalkieUi();
-          return;
-        }
-        walkieQueue.markFinished(next.hash);
-      }
-      syncWalkieUi();
-    } finally {
-      walkieDraining = false;
-    }
-  }
-
-  function resetPttUi() {
-    pttBarEl.hidden = true;
-    pttBtnEl.classList.remove("recording");
-    pttSendBtn.hidden = true;
-    pttTimerEl.textContent = "0:00";
-    pttHintEl.textContent = "Release to send";
-    for (const bar of pttMeterBars) bar.style.height = "25%";
-    pttPointerId = null;
-    pttStartedAt = 0;
-    pttElapsedSec = 0;
-    pttReleasedEarly = false;
-    pttHandsFree = false;
-  }
-
-  function cancelVoiceRec() {
-    const rec = activeVoiceRec;
-    activeVoiceRec = null;
-    pttStarting = false;
-    try {
-      rec?.cancel();
-    } catch {}
-    resetPttUi();
   }
 
   function resetVnoteUi() {
@@ -1024,7 +987,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   }
 
   function cancelActiveRecording() {
-    cancelVoiceRec();
+    voiceCtrl.cancelVoiceRec();
     cancelVnoteRec();
   }
 
@@ -1852,7 +1815,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       ? "Record circular video message (up to 60s)"
       : "Record camera video message (up to 60s)";
     syncComposerButtons();
-    syncWalkieUi();
+    voiceCtrl.syncWalkieUi();
   }
 
   function renderReplyBanner() {
@@ -1893,11 +1856,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       visibleMsgLimit = CHAT_PAGE_SIZE;
       setStagedMedia(null);
       cancelActiveRecording();
-      walkieNeedsGesture = false;
-      blockedResumeHash = null;
       const nextOpenId = deps.openRoomId() || "";
-      walkieQueue.seedRoom(nextOpenId, st.shownMessages);
-      syncWalkieUi();
+      voiceCtrl.resetRoomWalkie(nextOpenId, st.shownMessages);
       editingMessageId = null;
       if (editBannerEl) editBannerEl.style.display = "none";
     }
@@ -2284,8 +2244,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       fillWormhole(messagesTrackEl);
     }
 
-    if (walkieQueue.enabled && openId && !switchedConv) {
-      walkieQueue.ingestMessages(
+    if (openId && !switchedConv) {
+      voiceCtrl.ingestRoomMessages(
         openId,
         allMsgs,
         me,
@@ -2293,8 +2253,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         (sender, caption) =>
           caption.split("\n").find((l) => l.trim())?.trim().slice(0, 80) || deps.getAuthorDisplayName(sender)
       );
-      syncWalkieUi();
-      void drainWalkieQueue();
     }
 
     const scrollAction = resolveThreadScrollAction({
@@ -3873,195 +3831,8 @@ export function createMessengerChat(deps: MessengerDeps) {
     setStagedMedia(null);
   });
 
-  // Walkie-Talkie live voice auto-play controls
-  walkieBtnEl.addEventListener("click", () => {
-    const next = !walkieQueue.enabled;
-    if (next) {
-      primeChatAudio();
-      playWalkieChirp("start");
-    } else {
-      playWalkieChirp("end");
-    }
-    walkieQueue.setEnabled(next);
-    writeWalkieEnabled(safeStorage, next);
-    walkieNeedsGesture = false;
-    blockedResumeHash = null;
-    if (next) {
-      walkieQueue.seedRoom(deps.openRoomId() || "", deps.getActiveState().shownMessages);
-    }
-    syncWalkieUi();
-    deps.showToast(next ? "Walkie-Talkie ON: incoming voice notes will auto-play" : "Walkie-Talkie OFF", "info");
-  });
-
-  walkieOffBtn.addEventListener("click", () => {
-    walkieQueue.setEnabled(false);
-    writeWalkieEnabled(safeStorage, false);
-    walkieNeedsGesture = false;
-    blockedResumeHash = null;
-    playWalkieChirp("end");
-    syncWalkieUi();
-  });
-
-  walkieResumeBtn.addEventListener("click", async () => {
-    primeChatAudio();
-    const target = blockedResumeHash;
-    walkieNeedsGesture = false;
-    blockedResumeHash = null;
-    if (target) {
-      const res = await playChatVoiceByHash(target, messagesTrackEl);
-      if (res === "started") {
-        playWalkieChirp("start");
-        syncWalkieUi();
-        return;
-      }
-    }
-    void drainWalkieQueue();
-  });
-
-  const sendPreparedImmediate = async (prep: PreparedChatMedia) => {
-    if (composerInputEl.disabled || uploadingMedia || !activeConvKey()) {
-      if (prep.previewUrl) {
-        try {
-          URL.revokeObjectURL(prep.previewUrl);
-        } catch {}
-      }
-      return;
-    }
-    uploadingMedia = true;
-    try {
-      const token = await sendChatAttachment(prep, (b) => freenet.putMedia(b));
-      await deps.onSendMessage(token, composerInputEl);
-    } catch (err: any) {
-      deps.showToast(`Could not send media: ${err.message || err}`, "error");
-    } finally {
-      uploadingMedia = false;
-      if (prep.previewUrl) {
-        try {
-          URL.revokeObjectURL(prep.previewUrl);
-        } catch {}
-      }
-    }
-  };
-
-  const finishPttSend = async () => {
-    if (!activeVoiceRec || pttFinishing) return;
-    pttFinishing = true;
-    const rec = activeVoiceRec;
-    activeVoiceRec = null;
-    const elapsed = pttElapsedSec;
-    try {
-      const prep = await rec.stop();
-      resetPttUi();
-      if (!prep || (prep.durationSec ?? elapsed) < MIN_PTT_SEC) {
-        deps.showToast("Hold longer to record a voice note", "info");
-        return;
-      }
-      playWalkieChirp("end");
-      if (composerInputEl.value.trim()) {
-        setStagedMedia(prep);
-        composerInputEl.focus();
-      } else {
-        await sendPreparedImmediate(prep);
-      }
-    } catch (err: any) {
-      resetPttUi();
-      deps.showToast(err.message || String(err), "error");
-    } finally {
-      pttFinishing = false;
-    }
-  };
-
-  const startPtt = async (handsFree: boolean, pointerId: number | null) => {
-    if (activeVoiceRec || pttStarting || activeVnoteRec || vnoteStarting || composerInputEl.disabled || !activeConvKey()) return;
-    primeChatAudio();
-    pttStarting = true;
-    pttHandsFree = handsFree;
-    pttPointerId = pointerId;
-    pttStartedAt = Date.now();
-    pttElapsedSec = 0;
-    pttReleasedEarly = false;
-    pttBarEl.hidden = false;
-    pttBtnEl.classList.add("recording");
-    pttSendBtn.hidden = !handsFree;
-    pttHintEl.textContent = handsFree ? "Recording · tap Send" : "Release to send";
-    try {
-      const session = await startVoiceRecording({
-        maxSec: handsFree ? STANDARD_VOICE_MAX_SEC : WALKIE_PTT_MAX_SEC,
-        onTick: (sec, level, _bytes, maxSec) => {
-          pttElapsedSec = sec;
-          pttTimerEl.textContent = `${formatMediaDuration(sec)} / ${formatMediaDuration(maxSec)}`;
-          const base = Math.max(0.15, Math.min(1, level / 15));
-          pttMeterBars.forEach((b, idx) => {
-            const w = 0.55 + 0.45 * Math.sin(sec * 12 + idx * 1.1);
-            b.style.height = `${Math.round(Math.max(18, Math.min(100, base * w * 100)))}%`;
-          });
-        },
-        onMaxReached: () => {
-          void finishPttSend();
-        },
-      });
-      pttStarting = false;
-      activeVoiceRec = session;
-      playWalkieChirp("start");
-      if (pttReleasedEarly) {
-        if (Date.now() - pttStartedAt < PTT_HOLD_THRESHOLD_MS) {
-          pttHandsFree = true;
-          pttSendBtn.hidden = false;
-          pttHintEl.textContent = "Recording · tap Send";
-        } else {
-          void finishPttSend();
-        }
-      }
-    } catch (err: any) {
-      pttStarting = false;
-      resetPttUi();
-      if (err?.code === "FALLBACK_CAPTURE") {
-        deps.showToast("Microphone blocked in sandbox — pick an audio file instead", "warning");
-        deps.markPickingFile?.(45000);
-        fileAudioEl.value = "";
-        fileAudioEl.click();
-      } else {
-        deps.showToast(err?.message || "Could not start microphone", "error");
-      }
-    }
-  };
-
-  pttBtnEl.addEventListener("pointerdown", (e) => {
-    if (!canRecordVoice()) return;
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    e.preventDefault();
-    if (activeVoiceRec && pttHandsFree) {
-      void finishPttSend();
-      return;
-    }
-    void startPtt(false, e.pointerId);
-  });
-
-  window.addEventListener("pointerup", (e) => {
-    if (pttPointerId === null || e.pointerId !== pttPointerId) return;
-    pttPointerId = null;
-    if (pttStarting) {
-      pttReleasedEarly = true;
-      return;
-    }
-    if (!activeVoiceRec || pttHandsFree) return;
-    if (Date.now() - pttStartedAt < PTT_HOLD_THRESHOLD_MS) {
-      pttHandsFree = true;
-      pttSendBtn.hidden = false;
-      pttHintEl.textContent = "Recording · tap Send";
-    } else {
-      void finishPttSend();
-    }
-  });
-
-  window.addEventListener("pointercancel", (e) => {
-    if (pttPointerId === null || e.pointerId !== pttPointerId) return;
-    pttPointerId = null;
-    if (!pttHandsFree) cancelVoiceRec();
-  });
-
-  pttCancelBtn.addEventListener("click", () => cancelVoiceRec());
-  pttSendBtn.addEventListener("click", () => void finishPttSend());
+  // Walkie-Talkie & Push-to-Talk controls
+  voiceCtrl.bindEvents();
 
   // Circular Video Note recorder + file picker
   const processAndSendVideoNote = async (file: File | Blob, knownDurationSec?: number) => {
@@ -4112,7 +3883,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   };
 
   const openVnoteRecorder = async (facing: "user" | "environment" = vnoteFacingMode) => {
-    if (activeVnoteRec || vnoteStarting || activeVoiceRec || pttStarting || composerInputEl.disabled || !activeConvKey()) return;
+    if (activeVnoteRec || vnoteStarting || voiceCtrl.isRecordingVoice() || composerInputEl.disabled || !activeConvKey()) return;
     vnoteFacingMode = facing;
     vnoteStarting = true;
     vnoteRecorderEl.hidden = false;
@@ -4389,7 +4160,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       fileAudioEl.value = "";
       fileAudioEl.click();
     } else if (kind === "voice") {
-      if (canRecordVoice()) void startPtt(true, null);
+      if (canRecordVoice()) void voiceCtrl.startPtt(true, null);
     } else if (kind === "vnote") {
       if (!canCaptureVideoNote()) return;
       if (!canUseLiveMediaCapture()) {
@@ -4812,28 +4583,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       setTimeout(() => pollQuestionEl.focus(), 30);
     },
     cancelActiveRecording,
-    onVoiceEnded: (endedHash: string) => {
-      walkieQueue.markFinished(endedHash);
-      if (!isVisible()) {
-        syncWalkieUi();
-        return;
-      }
-      if (walkieQueue.enabled && walkieQueue.pendingCount() > 0) {
-        void drainWalkieQueue();
-        return;
-      }
-      const hashes = Array.from(
-        messagesTrackEl.querySelectorAll<HTMLElement>('.cm-audio-card[data-cm-kind="voice"][data-cm-hash]')
-      ).map((el) => el.dataset.cmHash || "");
-      const nextHash = nextSequentialHash(hashes, endedHash);
-      if (nextHash) {
-        void playChatVoiceByHash(nextHash, messagesTrackEl).then((res) => {
-          if (res === "started" && walkieQueue.enabled) playWalkieChirp("start");
-          syncWalkieUi();
-        });
-      } else {
-        syncWalkieUi();
-      }
-    },
+    onVoiceEnded: (endedHash: string) => voiceCtrl.onVoiceEnded(endedHash),
   };
 }

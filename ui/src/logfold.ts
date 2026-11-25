@@ -2,6 +2,7 @@
 // what an author may do (moderate, edit a community) is decided here, by replaying entries in a fixed order.
 import { AI_REPORTERS, RADICA_MAINTAINER, type ChatMessage, type Community, type PrivateRoom } from "./types.ts";
 import type { Cert } from "./whoiam.ts";
+import { isDelegationProofShape, type DelegationProofV1, type PohLogEntry } from "./viso.ts";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { ANNOUNCE_POW_BITS, powBits } from "./pow.ts";
 
@@ -917,4 +918,59 @@ export function deviceKeyTimes(entries: LogEntry[], persona: string): Map<string
     seen.set(b.enc_pub, Math.max(seen.get(b.enc_pub) ?? 0, e.ts));
   }
   return new Map([...seen].sort((a, z) => a[1] - z[1]));
+}
+
+/** Pick each author's newest log entry, breaking equal-timestamp ties deterministically by higher signature. */
+export function latestByAuthor(entries: LogEntry[]): Map<string, LogEntry> {
+  const latest = new Map<string, LogEntry>();
+  for (const e of entries) {
+    const cur = latest.get(e.author);
+    if (!cur || e.ts > cur.ts || (e.ts === cur.ts && e.sig > cur.sig)) {
+      latest.set(e.author, e);
+    }
+  }
+  return latest;
+}
+
+function parseEntryObj(e: LogEntry): Record<string, unknown> | null {
+  const b = parseBody(e);
+  return b !== INVALID_JSON && b !== null && typeof b === "object" ? (b as Record<string, unknown>) : null;
+}
+
+/** Each author's latest choice on the public supporters wall: their receipt token, or null when withdrawn. */
+export function foldSupporterTokens(entries: LogEntry[]): { author: string; token: string | null }[] {
+  return [...latestByAuthor(entries).values()].map((e) => {
+    const t = parseEntryObj(e)?.receipt;
+    return { author: e.author, token: typeof t === "string" ? t : null };
+  });
+}
+
+/** Each author's latest GhostKey proof (bundle hex) in the `ghostkeys` log, or null when withdrawn; unchecked. */
+export function foldGhostkeyBundles(entries: LogEntry[]): { author: string; bundle: string | null }[] {
+  return [...latestByAuthor(entries).values()].map((e) => {
+    const b = parseEntryObj(e)?.bundle;
+    return { author: e.author, bundle: typeof b === "string" && /^[0-9a-f]+$/.test(b) ? b : null };
+  });
+}
+
+/** Each author's latest Viso PoH proof (hex CBOR PohAttestationV1, optional delegation) in the `poh` log, or null when withdrawn. */
+export function foldPohProofs(entries: LogEntry[]): PohLogEntry[] {
+  return [...latestByAuthor(entries).values()].map((e) => {
+    const obj = parseEntryObj(e);
+    const p = obj?.proof;
+    const del = isDelegationProofShape(obj?.delegation) ? obj.delegation : null;
+    return {
+      author: e.author,
+      proof: typeof p === "string" && /^[0-9a-f]+$/.test(p) ? p : null,
+      ...(del ? { delegation: del } : {}),
+    };
+  });
+}
+
+/** Each author's latest Viso persona delegation (`DelegationProofV1`) in the `delegations` log, or null when withdrawn. */
+export function foldDelegationProofs(entries: LogEntry[]): { author: string; proof: DelegationProofV1 | null }[] {
+  return [...latestByAuthor(entries).values()].map((e) => {
+    const p = parseEntryObj(e)?.proof;
+    return { author: e.author, proof: isDelegationProofShape(p) ? p : null };
+  });
 }

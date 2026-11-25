@@ -64,6 +64,13 @@ test("reels: filterVideoReels applies moderation (hidden, reported, own-post exc
     hiddenAuthors: new Set([AUTH2]),
   });
   assert.deepEqual(res2.map((p) => p.id), ["v1"]);
+
+  // Reported media hash filters radica-video-blob: posts from others while preserving own posts
+  const res3 = filterVideoReels(posts, {
+    myPubkey: AUTH1,
+    reportedMedia: new Set([HASH1]),
+  });
+  assert.deepEqual(res3.map((p) => p.id), ["v2", "v1"]);
 });
 
 test("reels: stepReelIndex clamps safely", () => {

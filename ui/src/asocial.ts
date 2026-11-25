@@ -7,6 +7,7 @@ import { defaultNodeOrigin } from "./orto.ts";
 import { ContractKey } from "@freenetorg/freenet-stdlib";
 import { blake3 } from "@noble/hashes/blake3.js";
 import { fromBase58, toBase58, hexToBytes } from "./crypto.ts";
+import { openExternalUrl } from "./platformBridge.ts";
 
 /** Asocial's portal web app contract on Freenet. */
 export const ASOCIAL_SITE = "BhhLhAiMAcZaSEJ31Zwri59D3F3E112DY6w3J51iLJT9";
@@ -195,9 +196,7 @@ export function fillAsocial(root: ParentNode, origin = defaultNodeOrigin()): voi
       // Never embed untrusted third-party web contracts in an inline same-origin iframe:
       // open in a separate browser tab/window and render a safe launch panel.
       try {
-        const nativeOpen = (globalThis as { __radicaNative?: { openExternal?: (url: string) => void } }).__radicaNative?.openExternal;
-        if (typeof nativeOpen === "function") nativeOpen(gameUrl);
-        else window.open(gameUrl, "_blank", "noopener,noreferrer");
+        openExternalUrl(gameUrl, { fallbackWindowOpen: true });
       } catch {}
 
       const initialHtml = card.innerHTML;

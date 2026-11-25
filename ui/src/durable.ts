@@ -3,58 +3,15 @@
 // one package per persona; at sign-in the package fills in what the page lost. The page wins when it already holds a key.
 
 import { safeStorage } from "./storage.ts";
+import { DURABLE_PREFIXES, isDurableStorageKey } from "./storageKeys.ts";
 
-/** Prefixes of the durable keys. Add a feature's prefix here and its data survives a refresh: nothing else to write. */
-export const DURABLE_PREFIXES = [
-  "radica_secret_sessions", // Secret Chat keys: without them my own sent messages turn unreadable
-  "radica_secret_active_ttl_", // Secret Chat timers
-  "radica_secret_peers_",
-  "radica_secret_removed_", // when I removed a Secret Chat from the list: old inbox entries must not bring it back
-  "radica_secret_plain_", // Secret Chat v2 plain texts: a Double Ratchet key opens a message once
-  "radica_secret_burned_", // Secret Chat locally expired message IDs: auto-burned messages must not resurrect
-  "radica_profile_extras_", // Own signed wallets and ecosystem profile links so Edit Profile & Own Profile stay instant & persistent
-  "radica_pinned_chats_",
-  "radica_verified_chats_",
-  "radica_contact_cards_", // contact cards taken in person: the only way to reach someone with no network
-  "river_key_",
-  "river_join_",
-  "radica_hidden_users",
-  "radica_trusted_blocklists",
-  "radica_supporter_receipt_",
-  "radica_saved_posts_",
-  "radica_boards_", // Curated Boards: without this, a board created in one session vanishes on the next browser refresh
-  "radica_ghostkey_", // my GhostKey proof: its perks hold here even before the ghostkeys log arrives
-  "radica_poh_", // my Viso Proof-of-Personhood proof: its perks hold here even before the poh log arrives
-  "radica_delegation_", // my Viso persona handoff certificate (DelegationProofV1): recovers PoH/profile from an active persona
-  "radica_welcomed_", // the welcome tour, seen or skipped: it must not come back on every visit
-  "freenet_notifs_dismissed_", // Activity items I opened: the inbox log would bring them back
-  "radica_fmail_store_", // Radica Mail store: messages, drafts, read/unread states
-  "radica_fmail_deleted_", // Radica Mail: ids deleted locally, so a sync does not bring them back from the inbox contract
-  "radica_fmail_contacts_", // Radica Mail address book contacts (CONTACTS_STORAGE_PREFIX)
-  "radica_fmail_aft_assignments_", // Radica Mail AFT token assignments
-  "radica_mail_blocked_", // Radica Mail: inbox ids of blocked senders, so a sync does not bring their mail back
-  "radica_mail_alias_", // Radica Mail custom handle
-  "radica_mail_contacts_", // Legacy alias kept for compatibility
-  "radica_mail_welcomed_", // Flag to prevent duplicate welcome mail on fresh loads
-  "radica_article_drafts_", // Long-form article drafts
-  "radica_theme", // UI theme (light / dark)
-  "radica_accent", // UI accent colour
-  "radica_fullwidth", // UI layout width (standard / full)
-  "radica_text_size", // UI zoom (90 / 100 / 115 / 130 %)
-  "radica_lang", // Reader translation language
-  "radica_walkie_talkie", // Walkie-Talkie mode (auto-play incoming voice notes & 10s PTT)
-  "radica_apps_pinned_", // Pinned Freenet apps in launcher
-  "radica_apps_custom_", // Custom Freenet sites added to launcher
-  "radica_dashboard_slots_", // Which 3 rail buttons always show vs. live behind More
-  "radica_legacy_probed", // completed legacy contract probes so missing contracts are not re-probed every refresh
-  "radica_dm_history_", // one-time pre-v2 DM history migration
-];
+export { DURABLE_PREFIXES };
 
 /** The delegate refuses values over 256 KB. */
 const MAX_PACKAGE = 256 * 1024;
 const SAVE_DELAY_MS = 1500;
 
-export const isDurable = (key: string) => DURABLE_PREFIXES.some((p) => key.startsWith(p));
+export const isDurable = isDurableStorageKey;
 const packageKey = (persona: string) => `durable:${persona}`;
 
 export interface DurableStore {

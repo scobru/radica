@@ -9,6 +9,7 @@ import type { Cert } from "./whoiam.ts";
 import { formatChatMessageSignatureMessage, verifyAuthorSignature } from "./crypto.ts";
 import { dmPeerOf } from "./conversationState.ts";
 import type { ContactCard } from "./contactCard.ts";
+import { getNativeBridge } from "./platformBridge.ts";
 
 /** One UDP datagram, with room to spare under its 65 507-byte limit. */
 export const MESH_MAX_BYTES = 60_000;
@@ -16,10 +17,7 @@ export const MESH_MAX_BYTES = 60_000;
 const RESEND_EVERY_MS = 20_000;
 const RESEND_FOR_MS = 10 * 60_000;
 
-interface MeshBridge {
-  meshSend?: (json: string) => void;
-}
-const bridge = (): MeshBridge | undefined => (globalThis as { __radicaNative?: MeshBridge }).__radicaNative;
+const bridge = () => getNativeBridge();
 
 /** True in the Android and desktop apps, which can broadcast on the LAN. */
 export const hasLanMesh = (): boolean => typeof bridge()?.meshSend === "function";

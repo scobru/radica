@@ -10,9 +10,10 @@ import { safeStorage } from "../src/storage.ts";
 import { contactCardText, parseContactCard } from "../src/contactCard.ts";
 import { fromBase58 } from "../src/base58.ts";
 import { maskProfanity, personalDataIn } from "../src/moderation.ts";
+import { buildModerationPolicy, resolveModerationCurators, setHiddenUser } from "../src/moderationPolicy.ts";
 import { solvePoW, POST_POW_BITS } from "../src/pow.ts";
 import { UNREADABLE } from "../src/secretChatTransport.ts";
-import { RADICA_MAINTAINER, type ChatMessage, type Post, type UserIdentity } from "../src/types.ts";
+import { type ChatMessage, type Post, type UserIdentity } from "../src/types.ts";
 import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
 import { postDetail, postItem, postLine, visiblePosts, type FeedFilter } from "./feed.ts";
 
@@ -41,6 +42,10 @@ Anything else is sent to the open conversation.`;
 // full screen in a real terminal; line by line when piped (scripts, tests) or with RADICA_PLAIN=1
 const fullScreen = !!process.stdin.isTTY && !!process.stdout.isTTY && !process.env.RADICA_PLAIN;
 const rl = fullScreen ? null : createInterface({ input: process.stdin, output: process.stdout, prompt: "> " });
+const pendingLines: string[] = [];
+let inputReady = false;
+let inputClosed = false;
+let cmdChain = Promise.resolve();
 let me: UserIdentity | null = null;
 let open: { peer: string; secret: boolean } | null = null;
 const shown = new Set<string>();
@@ -155,27 +160,16 @@ function refreshConvs(): void {
 
 // ---- the feed (text only). Moderation as the app does: bad words masked, hidden/blocked authors, reported and AI-held
 // posts dropped (my own stay), and Report / Hide on every post. ----
-const HIDDEN_KEY = "radica_hidden_users"; // the app's key: authors I hid on this device
-const TRUSTED_KEY = "radica_trusted_blocklists"; // curators I trust; Radica's maintainer by default
-const readList = (key: string): string[] | null => {
-  try {
-    const list = JSON.parse(safeStorage.getItem(key) ?? "null");
-    return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string") : null;
-  } catch {
-    return null;
-  }
-};
-const hiddenUsers = () => readList(HIDDEN_KEY) ?? [];
-function curators(): string[] {
-  const trusted = readList(TRUSTED_KEY) ?? [RADICA_MAINTAINER];
-  return trusted.includes(RADICA_MAINTAINER) ? [...new Set([...trusted, ...freenet.modsOf(RADICA_MAINTAINER)])] : trusted;
-}
 async function feedFilter(): Promise<FeedFilter> {
-  await Promise.allSettled([...new Set([...curators(), me!.pubkey])].map((c) => freenet.refreshLog(`blocklist/${c}`)).concat(freenet.refreshLog("reports")));
-  const lists = [...new Set([...curators(), me!.pubkey])]; // after the refresh: it may name new moderators
-  const reported = new Set<string>(freenet.aiHeldTargets());
-  for (const c of lists) for (const k of freenet.reportedBy(c).keys()) reported.add(k);
-  return { me: me!.pubkey, hidden: new Set(hiddenUsers()), blocked: (pk) => lists.some((c) => freenet.blockedBy(c).has(pk)), reported };
+  const initialCurators = [...new Set([...resolveModerationCurators(safeStorage, freenet), me!.pubkey])];
+  await Promise.allSettled(initialCurators.map((c) => freenet.refreshLog(`blocklist/${c}`)).concat(freenet.refreshLog("reports")));
+  const policy = buildModerationPolicy({ me: me!.pubkey, store: safeStorage, logs: freenet }); // after the refresh: it may name new moderators
+  return {
+    me: me!.pubkey,
+    hidden: policy.hiddenAuthors,
+    blocked: (pk) => policy.isAuthorHidden(pk),
+    reported: policy.reportedTargets,
+  };
 }
 const settle = (p: Promise<unknown>, ms: number) => Promise.race([p.catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
 
@@ -401,8 +395,7 @@ async function command(line: string): Promise<void> {
       const pk = cmd === "/hide" ? postFor(rest[0])?.author : resolvePeer(arg);
       if (!pk) return say(cmd === "/hide" ? "Which post? Run /feed, then /hide <number>." : "Whose posts? An @handle, a key or a contact card.");
       if (pk === me!.pubkey) return say("That is you.");
-      const rest2 = hiddenUsers().filter((k) => k !== pk);
-      safeStorage.setItem(HIDDEN_KEY, JSON.stringify(cmd === "/hide" ? [...rest2, pk] : rest2));
+      setHiddenUser(safeStorage, pk, cmd === "/hide");
       if (cmd === "/hide") {
         allPosts = allPosts.filter((p) => p.author !== pk);
         if (lastFilter) lastFilter.hidden.add(pk);
@@ -460,6 +453,29 @@ async function quit(): Promise<never> {
   process.exit(0);
 }
 
+function enqueueLine(t: string): void {
+  cmdChain = cmdChain.then(() => run(t)).finally(() => rl?.prompt());
+}
+
+if (rl) {
+  rl.on("line", (line) => {
+    const t = line.trim();
+    if (!inputReady) {
+      if (t) pendingLines.push(t);
+      return;
+    }
+    if (!t) return rl.prompt();
+    enqueueLine(t);
+  });
+  rl.on("close", () => {
+    if (!inputReady) {
+      inputClosed = true;
+      return;
+    }
+    void cmdChain.finally(() => void quit());
+  });
+}
+
 say(`Radica chat for the terminal. Data: ${HOME}`);
 await signIn();
 const refresh = () => {
@@ -471,11 +487,8 @@ freenet.onSyncUpdate(refresh);
 setInterval(refresh, 5000);
 refreshConvs();
 if (rl) {
+  inputReady = true;
   rl.prompt();
-  rl.on("line", (line) => {
-    const t = line.trim();
-    if (!t) return rl.prompt();
-    void run(t).finally(() => rl.prompt());
-  });
-  rl.on("close", () => void quit());
+  for (const t of pendingLines.splice(0)) enqueueLine(t);
+  if (inputClosed) void cmdChain.finally(() => void quit());
 }

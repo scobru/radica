@@ -6,6 +6,7 @@ import { Session } from "node:inspector/promises";
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { RadicaNativeBridge } from "../src/platformBridge.ts";
 
 export const HOME = process.env.RADICA_HOME || join(homedir(), ".radica");
 const STORE = join(HOME, "storage.json");
@@ -50,7 +51,7 @@ udp.bind(MESH_PORT, () => {
   meshUp = true;
 });
 
-g.__radicaNative = {
+const bridge: RadicaNativeBridge = {
   getAppMode: () => "messenger",
   getAll: () => {
     try {
@@ -68,6 +69,7 @@ g.__radicaNative = {
     if (meshUp && Buffer.byteLength(json) <= MESH_MAX_BYTES) udp.send(json, MESH_PORT, "255.255.255.255");
   },
 };
+g.__radicaNative = bridge;
 
 export const lanMeshUp = (): boolean => meshUp;
 

@@ -17,64 +17,16 @@
 //    which forwards its own hash to the iframe. (history.replaceState inside the iframe alone is NOT enough.)
 // 5. Maintains an in-memory Map fallback that never throws under any condition.
 
+import { getNativeBridge as nativeBridge } from "./platformBridge.ts";
+import {
+  FORBIDDEN_PROTO_KEYS,
+  HASH_SAFE_OPTIONAL_PREFIXES,
+  HASH_SAFE_SOFT_PREFIXES,
+  isHashSafeStorageKey as isHashSafeKey,
+  isSensitiveStorageKey,
+} from "./storageKeys.ts";
+
 const utf8Enc = new TextEncoder();
-
-const FORBIDDEN_PROTO_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-/** Secrets and security-critical state MUST never travel in `#auth_state=` or `window.name` (nor be accepted from them). */
-const SENSITIVE_STORAGE_PREFIXES = [
-  "radica_session",
-  "spruce_session",
-  "radica_ed25519_seed",
-  "spruce_ed25519_seed",
-  "radica_app_key",
-  "spruce_app_key",
-  "radica_read_keys",
-  "radica_signin_pending",
-  "spruce_signin_pending",
-  "radica_viso_epriv",
-  "radica_viso_url",
-  "radica_viso_nokey",
-  "river_key_",
-  "river_join_",
-  "freenet_room_key_",
-  "radica_fmail_store_",
-  "radica_secret_",
-  "radica_profile_extras_",
-  "radica_hidden_users",
-  "radica_trusted_blocklists",
-  "radica_poh_",
-  "radica_ghostkey_",
-  "radica_delegation_",
-  "radica_supporter_",
-  "radica_apps_custom_",
-];
-
-/** Non-secret UI / cache prefixes allowed to ride in `#auth_state=` inside opaque-origin sandboxes. */
-const HASH_SAFE_SOFT_PREFIXES = [
-  "radica_profile_",
-  "freenet_chat_peers_",
-  "freenet_private_rooms",
-  "radica_pinned_chats_",
-  "radica_verified_chats_",
-  "radica_mail_alias_",
-  "radica_mail_contacts_",
-  "radica_mail_welcomed_",
-];
-const HASH_SAFE_OPTIONAL_PREFIXES = ["freenet_feed_", "freenet_chat_"];
-
-const isSensitiveStorageKey = (k: string): boolean =>
-  FORBIDDEN_PROTO_KEYS.has(k) || SENSITIVE_STORAGE_PREFIXES.some((p) => k.startsWith(p));
-
-const isHashSafeKey = (k: string): boolean =>
-  !isSensitiveStorageKey(k) &&
-  (HASH_SAFE_SOFT_PREFIXES.some((p) => k.startsWith(p)) || HASH_SAFE_OPTIONAL_PREFIXES.some((p) => k.startsWith(p)));
-
-/** The native storage bridge apps/android and apps/desktop inject (see their `NativeStorage`/`native_storage_script`),
- *  reachable from this sandboxed iframe too. `getAll`/`setAll` carry the whole store as one JSON blob. */
-function nativeBridge(): { getAll?: () => string | null; setAll?: (json: string) => void } | undefined {
-  return (globalThis as unknown as { __radicaNative?: { getAll?: () => string | null; setAll?: (json: string) => void } }).__radicaNative;
-}
 
 // Helper to encode a state object to a compact, URL-safe base64 string
 function encodeBase64State(obj: Record<string, string>): string {

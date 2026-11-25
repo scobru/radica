@@ -2,7 +2,6 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { AI_REPORTERS, RADICA_DEFAULT_MODS, RADICA_MAINTAINER, type SecretChatSession } from "./types.ts";
 import {
-  isDelegationProofShape,
   verifiedDelegations,
   verifiedPohs,
   verifyVisoDelegation,
@@ -34,7 +33,6 @@ import type {
 import {
   formatCommentSignatureMessage,
   formatProfileSignatureMessage,
-  formatLogEntryMessage,
   postMsg3,
   commentMsg3,
   likeMsg3,
@@ -44,7 +42,6 @@ import {
   grindNonce,
   verifySignature,
   verifyAuthorSignature,
-  logMsg2,
   formatChatMessageSignatureMessage,
   formatCommunitySignatureMessage,
   formatModActionSignatureMessage,
@@ -66,7 +63,8 @@ import { safeStorage } from "./storage.ts";
 import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, stateSlotFor, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, foldSupporterTokens, foldGhostkeyBundles, foldPohProofs, foldDelegationProofs, type LogEntry } from "./logfold.ts";
+import { LogStore } from "./logStore.ts";
 
 function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey: string): string {
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(`radica/room-join/v1|${roomId}|${pubkey.toLowerCase()}`)));
@@ -223,15 +221,35 @@ export class FreenetClient {
   }
   private identity: UserIdentity | null = null;
   private lastRefresh = new Map<string, number>();
-  private unsentLogs = new Set<string>(); // logs where a send failed: the next refresh sends the entries again
   private offlineMedia = new Map<string, Uint8Array>(); // in-session fallback when no local node is connected
   private me = "";
   private pending = new Map<string, FeedState[]>(); // per feed: changes the network has not accepted yet
   private bc: BroadcastChannel | null = null;
   private listeners: (() => void)[] = [];
   private typingListeners: ((roomId: string, sender: string) => void)[] = [];
-  private loadedLogs = new Set<string>();
   private warmedWallets = new Set<string>();
+  private logs = new LogStore({
+    storage: {
+      getItem: (k) => localStorage.getItem(k),
+      setItem: (k, v) => localStorage.setItem(k, v),
+    },
+    net: this.net,
+    isConnected: () => this.isConnected,
+    identity: () => this.identity,
+    onApplied: (name) => this.applyLog(name),
+    onChanged: (name) => {
+      this.applyLog(name);
+      this.notifyListeners();
+    },
+    onLoaded: (name) => {
+      if (this.me && isProfileExtraLog(name) && name.endsWith(`/${this.me}`)) {
+        backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
+      }
+    },
+    onPostTake: (name) => {
+      if (name === "communities") void this.checkJoined();
+    },
+  });
   private static readonly MAX_PEER_CACHE = 400;
   public peerCache: Record<string, Post> = {};
   public cachePeerPost(id: string, post: Post): void {
@@ -557,7 +575,12 @@ export class FreenetClient {
     try {
       await this.net.connect();
       this.isConnected = true;
-      void this.refreshLog("handles", true);
+      if (this.me && !opts?.chatOnly) void this.refresh(this.me, true, true); // own profile & following list take top fgGate priority
+      void this.refreshLog("handles", true, true); // own @handle resolves immediately without waiting behind bgGate
+      if (!opts?.chatOnly) {
+        void this.refreshLog("communities", true, true);
+        void this.refreshLog("directory", false, true);
+      }
       if (this.me) void this.refreshLog(`inbox/${this.me}`, true);
       if (!opts?.chatOnly) void this.connectSocial();
     } catch (err) {
@@ -747,16 +770,28 @@ export class FreenetClient {
 
   public async syncOwnFeed(identity: UserIdentity): Promise<void> {
     this.setIdentity(identity);
+    const feedKey = `freenet_feed_${identity.pubkey}`;
+    // On a fresh browser (no local feed yet), fetch our own feed from the network FIRST before migrating or pushing
+    // anything — otherwise we would push an empty { posts: {}, following: [] } delta and waste fgGate slots.
+    if (!localStorage.getItem(feedKey)) {
+      await this.refresh(identity.pubkey, true, true);
+    }
     void this.announceDevice(identity).catch((e) => console.warn("[Freenet] Could not publish this device's key:", e));
+    if (!localStorage.getItem(feedKey)) return;
     await this.migrateOwnFeed(identity);
     const feed = await this.getFeed(identity.pubkey);
+    let encPubChanged = false;
     // a new app key (Viso's shared one): the profile must name it, since that is the key people encrypt to
     if (feed.profile && feed.profile.enc_pub !== identity.encPub) {
       const pr = { ...feed.profile, enc_pub: identity.encPub, cert: identity.cert, updated_at: Date.now(), v: 3 };
       pr.sig = await identity.sign(profileMsg4(identity.pubkey, pr));
       feed.profile = pr;
+      encPubChanged = true;
     }
-    await this.saveFeed(feed);
+    const hasContent = Boolean(feed.profile) || Object.keys(feed.posts ?? {}).length > 0 || (feed.following?.length ?? 0) > 0;
+    if (encPubChanged || hasContent) {
+      await this.saveFeed(feed);
+    }
   }
 
   /** One time: re-sign my feed in the v3 format (length-prefixed fields); drop what cannot be re-signed. Posts already on
@@ -980,32 +1015,17 @@ export class FreenetClient {
     return val as T;
   }
 
-  private logEntriesCache = new Map<string, { obj: Record<string, LogEntry>; list: LogEntry[] }>();
   private logEntries(name: string): LogEntry[] {
-    try {
-      const obj = this.readJson<Record<string, LogEntry>>(`freenet_log_${name}`, "{}");
-      const hit = this.logEntriesCache.get(name);
-      if (hit?.obj === obj) return hit.list;
-      const list = Object.values(obj);
-      this.logEntriesCache.set(name, { obj, list });
-      return list;
-    } catch {
-      return [];
-    }
+    return this.logs.entries(name);
   }
 
   private storedPrivateRooms(): PrivateRoom[] {
     return this.readJson<PrivateRoom[]>("freenet_private_rooms", "[]");
   }
 
-  private communitiesFold?: { raw: string | null; list: Community[] };
-  private editsFold?: { raw: string | null; map: Map<string, { caption: string; ts: number }> };
-
   /** The newest edit of a post by its author, if any (the feed keeps a post as first published; edits live in a log). */
   public postEdit(author: string, postId: string): { caption: string; ts: number } | undefined {
-    const raw = localStorage.getItem("freenet_log_post-edits");
-    if (this.editsFold?.raw !== raw) this.editsFold = { raw, map: foldPostEdits(this.logEntries("post-edits")) };
-    return this.editsFold.map.get(`${author}:${postId}`);
+    return this.logs.memo("post-edits", "post-edits", foldPostEdits).get(`${author}:${postId}`);
   }
 
   /** Change what my post says: a signed edit everyone's app applies over the original. */
@@ -1015,20 +1035,11 @@ export class FreenetClient {
 
   /** Communities folded from the log, recomputed only when the stored log changes (folding replays every entry, and this is read on each sync pass). */
   private foldedCommunities(): Community[] {
-    const raw = localStorage.getItem("freenet_log_communities");
-    if (this.communitiesFold?.raw !== raw) this.communitiesFold = { raw, list: foldCommunities(this.logEntries("communities"), GENESIS) };
-    return this.communitiesFold.list;
+    return this.logs.memo("communities", "communities", (e) => foldCommunities(e, GENESIS));
   }
 
-  private handlesFold?: { raw: string | null; byHandle: Map<string, string>; byPubkey: Map<string, string> };
-
   public getHandlesFold(): { byHandle: Map<string, string>; byPubkey: Map<string, string> } {
-    const raw = localStorage.getItem("freenet_log_handles");
-    if (this.handlesFold?.raw !== raw) {
-      const folded = foldHandles(this.logEntries("handles"));
-      this.handlesFold = { raw, ...folded };
-    }
-    return this.handlesFold;
+    return this.logs.memo("handles", "handles", foldHandles);
   }
 
   /** Resolves a human-readable Radica handle ("@alice" or "alice") to its 64-hex public key, or null if unclaimed. */
@@ -1073,7 +1084,6 @@ export class FreenetClient {
     }
 
     await this.logAppend("handles", { type: "handle_claim", handle: norm }, { flush: true });
-    this.handlesFold = undefined;
     this.notifyListeners();
     return { success: true };
   }
@@ -1081,49 +1091,31 @@ export class FreenetClient {
   /** Releases the current identity's claimed Radica handle. */
   public async releaseHandle(identity: UserIdentity): Promise<void> {
     await this.logAppend("handles", { type: "handle_release" }, { flush: true });
-    this.handlesFold = undefined;
     this.notifyListeners();
   }
 
   private saveLog(name: string, entries: LogEntry[]): void {
-    localStorage.setItem(`freenet_log_${name}`, JSON.stringify(Object.fromEntries(entries.map((e) => [`${e.author}:${e.id}`, e]))));
+    this.logs.save(name, entries);
   }
 
   /** Sign `body` as a new entry of log `name`, apply it here and send it to the network. */
-  private async logAppend(name: string, body: object, opts?: { flush?: boolean }): Promise<void> {
-    const me = this.identity;
-    if (!me) throw new Error("No identity to sign with");
-    // state (a read mark, a hidden room…) goes under one id per subject: the log keeps only the newest
-    const id = stateSlotFor(body as Record<string, unknown>) ?? Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const e: LogEntry = { author: me.pubkey, id, ts: Date.now(), body: JSON.stringify(body), sig: "", v: 2, nonce: 0 };
-    // the log contract wants a proof of work from everyone but a log's owner (`<name>/<my key>`)
-    if (name.split("/").pop() !== me.pubkey || !name.includes("/")) e.nonce = grindNonce((n) => logMsg2(name, e.author, e.id, e.ts, e.body, n));
-    e.sig = await me.sign(logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce!));
-    if (me.cert) e.cert = me.cert;
-    this.saveLog(name, [...this.logEntries(name), e]);
-    this.applyLog(name);
-    if (this.isConnected) {
-      if (opts?.flush) await this.pushLog(name, [e]);
-      else void this.pushLog(name, [e]);
-    } else {
-      this.unsentLogs.add(name); // offline: sent once the node is back
-      this.retryUnsent(name);
-    }
+  private logAppend(name: string, body: object, opts?: { flush?: boolean }): Promise<void> {
+    return this.logs.append(name, body, opts);
   }
 
   public hasUnsentLog(name: string): boolean {
-    return this.unsentLogs.has(name);
+    return this.logs.hasUnsent(name);
   }
 
   public hasLoadedLog(name: string): boolean {
-    return this.loadedLogs.has(name);
+    return this.logs.hasLoaded(name);
   }
 
   private async writeOwnProfileExtra(kind: ProfileExtraKind, body: object): Promise<void> {
     if (!this.me) throw new Error("No identity to sign with");
     const logName = `${kind}/${this.me}`;
     await this.logAppend(logName, body, { flush: true });
-    this.loadedLogs.add(logName);
+    this.logs.markLoaded(logName);
     backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
     void durable.flush();
     this.notifyListeners();
@@ -1157,30 +1149,12 @@ export class FreenetClient {
 
   /** Each author's latest choice on the public supporters wall: their receipt token, or null when withdrawn. */
   public supporterTokens(): { author: string; token: string | null }[] {
-    const latest = new Map<string, LogEntry>();
-    for (const e of this.logEntries("supporters")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
-    return [...latest.values()].map((e) => {
-      try {
-        const t = JSON.parse(e.body).receipt;
-        return { author: e.author, token: typeof t === "string" ? t : null };
-      } catch {
-        return { author: e.author, token: null };
-      }
-    });
+    return this.logs.memo("supporters", "supporters", foldSupporterTokens);
   }
 
   /** Each author's latest GhostKey proof (bundle hex) in the "ghostkeys" log, null when they took it back; unchecked. */
   public ghostkeyBundles(): { author: string; bundle: string | null }[] {
-    const latest = new Map<string, LogEntry>();
-    for (const e of this.logEntries("ghostkeys")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
-    return [...latest.values()].map((e) => {
-      try {
-        const b = JSON.parse(e.body).bundle;
-        return { author: e.author, bundle: typeof b === "string" && /^[0-9a-f]+$/.test(b) ? b : null };
-      } catch {
-        return { author: e.author, bundle: null };
-      }
-    });
+    return this.logs.memo("ghostkeys", "ghostkeys", foldGhostkeyBundles);
   }
 
   /** Publish my GhostKey proof (so others see the badge), or null to take it back. */
@@ -1190,22 +1164,7 @@ export class FreenetClient {
 
   /** Each author's latest Viso PoH proof (hex CBOR PohAttestationV1, optional delegation) in the "poh" log, or null when withdrawn. */
   public pohProofs(): PohLogEntry[] {
-    const latest = new Map<string, LogEntry>();
-    for (const e of this.logEntries("poh")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
-    return [...latest.values()].map((e) => {
-      try {
-        const b = JSON.parse(e.body);
-        const p = b.proof;
-        const del = isDelegationProofShape(b.delegation) ? b.delegation : null;
-        return {
-          author: e.author,
-          proof: typeof p === "string" && /^[0-9a-f]+$/.test(p) ? p : null,
-          ...(del ? { delegation: del } : {}),
-        };
-      } catch {
-        return { author: e.author, proof: null };
-      }
-    });
+    return this.logs.memo("poh", "poh", foldPohProofs);
   }
 
   /** Publish my Viso PoH proof (so others see the Verified Human / GitHub badge), or null to take it back. */
@@ -1215,16 +1174,7 @@ export class FreenetClient {
 
   /** Each author's latest Viso persona delegation (`DelegationProofV1`) in the "delegations" log, or null when withdrawn. */
   public delegationProofs(): { author: string; proof: DelegationProofV1 | null }[] {
-    const latest = new Map<string, LogEntry>();
-    for (const e of this.logEntries("delegations")) if (e.ts >= (latest.get(e.author)?.ts ?? -1)) latest.set(e.author, e);
-    return [...latest.values()].map((e) => {
-      try {
-        const p = JSON.parse(e.body).proof;
-        return { author: e.author, proof: isDelegationProofShape(p) ? p : null };
-      } catch {
-        return { author: e.author, proof: null };
-      }
-    });
+    return this.logs.memo("delegations", "delegations", foldDelegationProofs);
   }
 
   /** Publish my dual-signed Viso persona handoff certificate, or null to unlink it. */
@@ -1350,14 +1300,8 @@ export class FreenetClient {
 
   /** The communities `curator` hid (id -> reason), as last fetched. */
   public hiddenCommunitiesBy(curator: string): Map<string, string> {
-    const raw = localStorage.getItem(`freenet_log_blocklist/${curator}`);
-    const hit = this.hiddenCommFolds.get(curator);
-    if (hit?.raw === raw) return hit.map;
-    const map = foldHiddenCommunities(this.logEntries(`blocklist/${curator}`), curator);
-    this.hiddenCommFolds.set(curator, { raw, map });
-    return map;
+    return this.logs.memo(`blocklist/${curator}`, `hiddenComm:${curator}`, (e) => foldHiddenCommunities(e, curator));
   }
-  private hiddenCommFolds = new Map<string, { raw: string | null; map: Map<string, string> }>();
 
   /** Name (or drop) a global moderator: their reports and blocks count for everyone who follows my list (the maintainer's). */
   public setGlobalMod(target: string, on: boolean): Promise<void> {
@@ -1366,12 +1310,9 @@ export class FreenetClient {
 
   /** The moderators `curator` named on their blocklist, as last fetched. */
   public modsOf(curator: string): Set<string> {
-    const raw = localStorage.getItem(`freenet_log_blocklist/${curator}`);
-    const hit = this.blocklistFolds.get(`mod:${curator}`);
-    if (hit?.raw === raw) return hit.set;
-    const set = foldBlocklist(this.logEntries(`blocklist/${curator}`), curator, "mod", curator === RADICA_MAINTAINER ? RADICA_DEFAULT_MODS : []);
-    this.blocklistFolds.set(`mod:${curator}`, { raw, set });
-    return set;
+    return this.logs.memo(`blocklist/${curator}`, `mod:${curator}`, (e) =>
+      foldBlocklist(e, curator, "mod", curator === RADICA_MAINTAINER ? RADICA_DEFAULT_MODS : []),
+    );
   }
 
   /** Withdraw a post report from my own blocklist so I and my curators see it again. */
@@ -1808,70 +1749,30 @@ export class FreenetClient {
     return resolveName(input, (k) => this.net.getRaw(k));
   }
 
-  private blocklistFolds = new Map<string, { raw: string | null; set: Set<string> }>();
-  private reportFolds = new Map<string, { raw: string | null; map: Map<string, string> }>();
-
   /** Posts (`<author>:<post id>`) that `curator` reported, with the reason, as last fetched. */
   public reportedBy(curator: string): Map<string, string> {
-    const raw = localStorage.getItem(`freenet_log_blocklist/${curator}`);
-    const hit = this.reportFolds.get(curator);
-    if (hit?.raw === raw) return hit.map;
-    const map = foldReports(this.logEntries(`blocklist/${curator}`), curator);
-    this.reportFolds.set(curator, { raw, map });
-    return map;
+    return this.logs.memo(`blocklist/${curator}`, `report:${curator}`, (e) => foldReports(e, curator));
   }
-
-  private mediaFolds = new Map<string, { raw: string | null; set: Set<string> }>();
 
   /** Media hashes of the posts `curator` reported, as last fetched. */
   public reportedMediaBy(curator: string): Set<string> {
-    const raw = localStorage.getItem(`freenet_log_blocklist/${curator}`);
-    const hit = this.mediaFolds.get(curator);
-    if (hit?.raw === raw) return hit.set;
-    const set = foldReportedMedia(this.logEntries(`blocklist/${curator}`), curator);
-    this.mediaFolds.set(curator, { raw, set });
-    return set;
+    return this.logs.memo(`blocklist/${curator}`, `media:${curator}`, (e) => foldReportedMedia(e, curator));
   }
 
   /** Authors that `curator` blocks, as last fetched. Call refreshLog(`blocklist/<curator>`) to update. */
   public blockedBy(curator: string): Set<string> {
-    const raw = localStorage.getItem(`freenet_log_blocklist/${curator}`);
-    const hit = this.blocklistFolds.get(curator);
-    if (hit?.raw === raw) return hit.set;
-    const set = foldBlocklist(this.logEntries(`blocklist/${curator}`), curator);
-    this.blocklistFolds.set(curator, { raw, set });
-    return set;
+    return this.logs.memo(`blocklist/${curator}`, `block:${curator}`, (e) => foldBlocklist(e, curator));
   }
-
-  private reactionFolds = new Map<string, { raw: string | null; map: Map<string, string[]> }>();
 
   /** Liker pubkeys for a comment, from the author's `reactions/<postAuthor>` log. */
   public commentLikers(postAuthor: string, postId: string, commentKey: string): string[] {
-    const raw = localStorage.getItem(`freenet_log_reactions/${postAuthor}`);
-    const hit = this.reactionFolds.get(postAuthor);
-    let map: Map<string, string[]>;
-    if (hit && hit.raw === raw) {
-      map = hit.map;
-    } else {
-      map = foldCommentLikes(this.logEntries(`reactions/${postAuthor}`));
-      this.reactionFolds.set(postAuthor, { raw, map });
-    }
+    const map = this.logs.memo(`reactions/${postAuthor}`, `react:${postAuthor}`, foldCommentLikes);
     return map.get(`${postId}:${commentKey}`) ?? map.get(commentKey) ?? [];
   }
 
-  private postDislikeFolds = new Map<string, { raw: string | null; map: Map<string, string[]> }>();
-
   /** Disliker pubkeys for a post, from the author's `reactions/<postAuthor>` log. */
   public postDislikers(postAuthor: string, postId: string): string[] {
-    const raw = localStorage.getItem(`freenet_log_reactions/${postAuthor}`);
-    const hit = this.postDislikeFolds.get(postAuthor);
-    let map: Map<string, string[]>;
-    if (hit && hit.raw === raw) {
-      map = hit.map;
-    } else {
-      map = foldPostDislikes(this.logEntries(`reactions/${postAuthor}`));
-      this.postDislikeFolds.set(postAuthor, { raw, map });
-    }
+    const map = this.logs.memo(`reactions/${postAuthor}`, `dislike:${postAuthor}`, foldPostDislikes);
     return map.get(postId) ?? [];
   }
 
@@ -1923,122 +1824,14 @@ export class FreenetClient {
     return liked;
   }
 
-  private async pushLog(name: string, entries: LogEntry[]): Promise<void> {
-    try {
-      await this.net.push(`log:${name}`, { entries: Object.fromEntries(entries.map((e) => [`${e.author}:${e.id}`, e])) });
-      this.unsentLogs.delete(name);
-    } catch (e) {
-      this.unsentLogs.add(name);
-      console.warn("[Freenet] Could not send to log", name, e); // kept locally, sent again on the next refresh
-      this.retryUnsent(name);
-    }
-  }
-
-  /** Send a log's unsent entries again until the network takes them: nothing else refreshes someone else's inbox,
-   *  so a message whose first send failed would otherwise never reach them. */
-  private retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private retryUnsent(name: string): void {
-    if (this.retryTimers.has(name)) return;
-    this.retryTimers.set(name, setTimeout(async () => {
-      await this.refreshLog(name, true); // fetch, then send what the network does not have
-      this.retryTimers.delete(name);
-      if (this.unsentLogs.has(name)) this.retryUnsent(name);
-    }, REFRESH_EVERY_MS));
-  }
-
   /** Fetch a log (and subscribe to it), send it what only we have, then rebuild the state it feeds. */
-  public async refreshLog(name: string, force = false, urgent = false): Promise<void> {
-    if (!this.isConnected) return;
-    const last = this.lastRefresh.get(`log:${name}`) ?? 0;
-    if (!shouldFetch({ force, sinceLast: Date.now() - last, liveAge: this.net.liveAge(`log:${name}`), unsent: this.unsentLogs.has(name) })) return;
-    this.lastRefresh.set(`log:${name}`, Date.now());
-    try {
-      const remote = (await this.net.get<{ entries: Record<string, LogEntry> }>(`log:${name}`, urgent))?.entries ?? {};
-      await this.takeLog(name, remote);
-      this.loadedLogs.add(name);
-      if (this.me && isProfileExtraLog(name) && name.endsWith(`/${this.me}`)) {
-        backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
-      }
-    } catch (e) {
-      // Allow quick retry after a transient fetch timeout instead of hiding wallets/links for a full minute.
-      this.lastRefresh.set(`log:${name}`, Date.now() - REFRESH_EVERY_MS + 5_000);
-      console.warn("[Freenet] Could not fetch log", name, e);
-    }
+  public refreshLog(name: string, force = false, urgent = false): Promise<void> {
+    return this.logs.refresh(name, force, urgent);
   }
 
   /** A followed log changed on the network: take the state or the new entries the node sent instead of fetching it again. */
-  private async logChanged(name: string, c: Change): Promise<void> {
-    try {
-      const remote = c.state
-        ? JSON.parse(c.state).entries
-        : c.delta
-          ? { ...this.readJson<Record<string, LogEntry>>(`freenet_log_${name}`, "{}"), ...JSON.parse(c.delta).entries }
-          : undefined;
-      if (remote) {
-        this.lastRefresh.set(`log:${name}`, Date.now());
-        this.loadedLogs.add(name);
-        await this.takeLog(name, remote);
-        if (this.me && isProfileExtraLog(name) && name.endsWith(`/${this.me}`)) {
-          backupOwnProfileExtras(localStorage, this.me, (n) => this.logEntries(n));
-        }
-        return;
-      }
-    } catch (e) {
-      console.warn("[Freenet] Could not apply the change of log", name, e);
-    }
-    return this.refreshLog(name, true);
-  }
-
-  /** Merge the network's entries of a log with ours, rebuild what it feeds, and send what only we have. */
-  private verifiedLogEntries = new WeakMap<LogEntry, string>();
-
-  private async takeLog(name: string, remote: Record<string, LogEntry>): Promise<void> {
-    const entryMsg = (e: LogEntry) =>
-      e.v === 2 ? logMsg2(name, e.author, e.id, e.ts, e.body, e.nonce ?? 0) : formatLogEntryMessage(name, e.author, e.id, e.ts, e.body);
-    const local = this.logEntries(name);
-    const verifiedLocal: LogEntry[] = [];
-    const localByKey = new Map<string, LogEntry>();
-    for (const e of local) {
-      if (!e || typeof e.author !== "string" || typeof e.id !== "string" || typeof e.ts !== "number" || typeof e.body !== "string") continue;
-      // ponytail: verify local entries too (cached per object+log) so unverified storage never overrides verified remote state
-      const ok = this.verifiedLogEntries.get(e) === name || (await verifyAuthorSignature(entryMsg(e), e.sig, e.author, e.cert));
-      if (ok) {
-        this.verifiedLogEntries.set(e, name);
-        verifiedLocal.push(e);
-        localByKey.set(`${e.author}:${e.id}`, e);
-      }
-    }
-    const checkedRemote: Record<string, LogEntry> = {};
-    for (const [k, e] of Object.entries(remote)) {
-      if (!e || k !== `${e.author}:${e.id}` || typeof e.ts !== "number" || typeof e.body !== "string") continue;
-      const cur = localByKey.get(k);
-      if (cur && cur.sig === e.sig && cur.ts === e.ts && cur.body === e.body && cur.v === e.v && cur.nonce === e.nonce) {
-        checkedRemote[k] = e;
-        continue;
-      }
-      if (await verifyAuthorSignature(entryMsg(e), e.sig, e.author, e.cert)) {
-        checkedRemote[k] = e;
-      }
-    }
-    // what only we have, or a newer state entry under a key the network holds an older one of (as the contract decides)
-    const missing = verifiedLocal.filter((e) => {
-      const r = checkedRemote[`${e.author}:${e.id}`];
-      return !r || e.ts > r.ts || (e.ts === r.ts && e.sig > r.sig);
-    });
-    const remoteCount = Object.keys(checkedRemote).length;
-    if (missing.length === 0 && verifiedLocal.length === remoteCount && verifiedLocal.length === local.length) {
-      this.unsentLogs.delete(name);
-      return;
-    }
-    const before = localStorage.getItem(`freenet_log_${name}`);
-    this.saveLog(name, [...Object.values(checkedRemote), ...missing]); // later wins: ours where it is newer
-    if (localStorage.getItem(`freenet_log_${name}`) !== before) { // unchanged log: no rebuild, no redraw
-      this.applyLog(name);
-      this.notifyListeners();
-    }
-    if (missing.length) await this.pushLog(name, missing);
-    else this.unsentLogs.delete(name); // the network has everything we hold
-    if (name === "communities") void this.checkJoined();
+  private logChanged(name: string, c: Change): Promise<void> {
+    return this.logs.applyChange(name, c);
   }
 
   /** Rebuild the local chat lists, notifications and rooms a log feeds. Communities are folded on read. */
@@ -2056,6 +1849,8 @@ export class FreenetClient {
         if (on) localStorage.setItem(`freenet_room_left_${this.me}_${room}`, "1");
         else localStorage.removeItem(`freenet_room_left_${this.me}_${room}`);
       const rooms = new Set<string>();
+      const dmToRefresh = new Set<string>();
+      const roomsToRefresh = new Set<string>();
       const read = { ...localReadMarks(localStorage), ...foldChatRead(entries, this.me) };
       for (const e of entries) {
         let b: any;
@@ -2103,7 +1898,7 @@ export class FreenetClient {
           this.mergeRemotePrivateRooms([b.room]);
           // my signed membership and sealed room secret for a River room: sent with my first message there
           if (b.room.river && typeof b.river_join?.member === "string") localStorage.setItem(`river_join_${b.room.id}`, JSON.stringify(b.river_join));
-          void this.refreshLog(`room/${b.room.id}`);
+          roomsToRefresh.add(b.room.id);
         } else if (b.type === "dm_ref" && typeof b.room === "string") {
           // a conversation of mine changed in its own log (the other side or my other device wrote there)
           const peer = dmPeerOf(b.room, this.me);
@@ -2111,12 +1906,14 @@ export class FreenetClient {
             rooms.add(b.room);
             if (isSecretRoomId(b.room)) this.addSecretChatPeer(this.me, peer, e.ts);
             else this.addChatPeer(this.me, peer, e.ts);
-            void this.refreshLog(`dm/${b.room}`);
+            dmToRefresh.add(b.room);
           }
         } else if (b.type === "room_ref" && e.author === this.me && typeof b.roomId === "string" && /^privroom_[\w]+$/.test(b.roomId)) {
-          void this.refreshLog(`room/${b.roomId}`); // a room I made or joined: its log has the descriptor and my key
+          roomsToRefresh.add(b.roomId); // a room I made or joined: its log has the descriptor and my key
         }
       }
+      for (const roomId of roomsToRefresh) void this.refreshLog(`room/${roomId}`);
+      for (const dmId of dmToRefresh) void this.refreshLog(`dm/${dmId}`);
       // "mark all read" is a signed entry of mine, so it survives a re-login or a new device
       if (this.readUpTo) this.markNotificationsReadUpTo(this.me, this.readUpTo);
       for (const roomId of rooms) this.applyDm(roomId);
@@ -2169,12 +1966,6 @@ export class FreenetClient {
       }
       const isRoomMod = (pk: string) => !!room && (pk === room.creator || (room.moderators ?? []).includes(pk));
       this.writeChat(id, foldChat(entries, id, (a, m) => a === m.sender || isRoomMod(a), (sender) => this.isBlocked(sender)), entries);
-    } else if (name.startsWith("reactions/")) {
-      const author = name.slice("reactions/".length);
-      this.reactionFolds.delete(author);
-      this.postDislikeFolds.delete(author);
-    } else if (name === "handles") {
-      this.handlesFold = undefined;
     }
   }
 
@@ -2324,7 +2115,7 @@ export class FreenetClient {
         localStorage.setItem(k, JSON.stringify(compactLog(name, entries)));
       } catch {}
     }
-    this.logEntriesCache.clear();
+    this.logs.clearCache();
     localStorage.setItem(mark, CURRENT.log);
   }
 
@@ -2919,87 +2710,91 @@ export class FreenetClient {
    *  newly discovered rooms, and stores chat notifications for incoming messages.
    *  True when new messages arrived. */
   public async syncRiverRooms(identity: UserIdentity, activeRoomId?: string | null): Promise<boolean> {
-    const list = this.storedPrivateRooms();
-    const hasRiver = list.some((r) => !!r.river?.owner && r.members?.includes(identity.pubkey));
+    const eligible = this.storedPrivateRooms().filter((r) => !!r.members?.includes(identity.pubkey));
+    if (!eligible.length) return false;
+    const hasRiver = eligible.some((r) => !!r.river?.owner);
     const rooms = hasRiver ? await this.rivers() : null;
     let fresh = false;
-    for (const room of list) {
-      if (!room.members?.includes(identity.pubkey)) continue;
-      try {
-        let msgs: ChatMessage[];
-        let notifPrefix: string;
-        if (room.river?.owner) {
-          const state = await rooms!.load(room.river.owner); // at most one read of the network per room every 30 s
-          if (!state) continue;
-          msgs = await this.riverMessages(identity, room);
-          notifPrefix = "rvmsg";
-        } else {
-          if (this.isConnected) await this.refreshLog(`room/${room.id}`);
-          msgs = await this.getPrivateRoomChatMessages(identity, room);
-          notifPrefix = "prmsg";
-        }
-        const lastSeen = localReadMarks(localStorage)[room.id];
-        if (lastSeen === undefined) {
-          // a room seen for the first time: its history is not news
-          seedReadMark(localStorage, room.id, msgs.reduce((max, m) => Math.max(max, m.timestamp), 0) || Date.now());
-        } else if (room.id !== activeRoomId) {
-          const newMsgs = msgs.filter((m) => m.sender && m.sender !== identity.pubkey && m.timestamp > lastSeen);
-          if (newMsgs.length > 0) {
-            fresh = true;
-            for (const m of newMsgs) {
-              this.storeNotification(identity.pubkey, {
-                id: `${notifPrefix}_${m.id}`,
-                type: "chat",
-                from: m.sender,
-                text: "sent a message in an encrypted Private Room",
-                linkRoomId: room.id,
-                timestamp: m.timestamp,
-                read: false,
-              });
+    await Promise.allSettled(
+      eligible.map(async (room) => {
+        try {
+          let msgs: ChatMessage[];
+          let notifPrefix: string;
+          if (room.river?.owner) {
+            const state = await rooms!.load(room.river.owner); // at most one read of the network per room every 30 s
+            if (!state) return;
+            msgs = await this.riverMessages(identity, room);
+            notifPrefix = "rvmsg";
+          } else {
+            if (this.isConnected) await this.refreshLog(`room/${room.id}`);
+            msgs = await this.getPrivateRoomChatMessages(identity, room);
+            notifPrefix = "prmsg";
+          }
+          const lastSeen = localReadMarks(localStorage)[room.id];
+          if (lastSeen === undefined) {
+            // a room seen for the first time: its history is not news
+            seedReadMark(localStorage, room.id, msgs.reduce((max, m) => Math.max(max, m.timestamp), 0) || Date.now());
+          } else if (room.id !== activeRoomId) {
+            const newMsgs = msgs.filter((m) => m.sender && m.sender !== identity.pubkey && m.timestamp > lastSeen);
+            if (newMsgs.length > 0) {
+              fresh = true;
+              for (const m of newMsgs) {
+                this.storeNotification(identity.pubkey, {
+                  id: `${notifPrefix}_${m.id}`,
+                  type: "chat",
+                  from: m.sender,
+                  text: "sent a message in an encrypted Private Room",
+                  linkRoomId: room.id,
+                  timestamp: m.timestamp,
+                  read: false,
+                });
+              }
             }
           }
+        } catch (e) {
+          console.warn("[PrivateRoom] Could not sync room messages", room.id, e);
         }
-      } catch (e) {
-        console.warn("[PrivateRoom] Could not sync room messages", room.id, e);
-      }
-    }
+      }),
+    );
     return fresh;
   }
 
   /** DMs River users sent me: each sender joins my DM list (so the conversation shows up unopened), a stub with no text
    *  lands in the chat's list for the unread count, and the bell gets a note. True when something new arrived. */
   public async syncRiverDms(identity: UserIdentity): Promise<boolean> {
+    const riverRooms = this.storedPrivateRooms().filter((r) => !!r.river?.owner && r.members?.includes(identity.pubkey));
+    if (!riverRooms.length) return false;
     const rooms = await this.rivers();
-    const list = this.storedPrivateRooms();
     let fresh = false;
-    for (const room of list) {
-      const owner = room.river?.owner;
-      if (!owner || !room.members?.includes(identity.pubkey)) continue;
-      const state = await rooms.load(owner); // at most one read of the network per room every 30 s
-      if (!state) continue;
-      let dms;
-      try {
-        dms = rooms.read(state, owner, this.riverKey(identity, room), this.riverJoin(room.id)).dms;
-      } catch {
-        continue;
-      }
-      // a sender not known as River-only yet: reading the room sorts the River members from the Radica ones
-      if (dms.some((d) => d.sender && !this.riverOnly.has(d.sender))) await this.riverMessages(identity, room).catch(() => []);
-      for (const d of dms) {
-        if (!d.sender || !this.riverOnly.has(d.sender)) continue;
-        const roomId = this.getRoomId(identity.pubkey, d.sender);
-        const id = `rvdm_${d.sig.slice(0, 16)}`;
-        const key = `freenet_chat_${roomId}`;
-        const stubs: ChatMessage[] = JSON.parse(localStorage.getItem(key) || "[]");
-        if (stubs.some((m) => m.id === id)) continue;
-        seedReadMark(localStorage, roomId, d.time_ms - 1); // the first one counts as unread
-        stubs.push({ id, room_id: roomId, sender: d.sender, recipient: identity.pubkey, text: "", timestamp: d.time_ms, sig: d.sig });
-        localStorage.setItem(key, JSON.stringify(stubs));
-        this.addChatPeer(identity.pubkey, d.sender, d.time_ms);
-        this.storeNotification(identity.pubkey, { id, type: "chat", from: d.sender, text: "sent you a direct message", timestamp: d.time_ms, read: false });
-        fresh = true;
-      }
-    }
+    await Promise.allSettled(
+      riverRooms.map(async (room) => {
+        const owner = room.river!.owner;
+        const state = await rooms.load(owner); // at most one read of the network per room every 30 s
+        if (!state) return;
+        let dms;
+        try {
+          dms = rooms.read(state, owner, this.riverKey(identity, room), this.riverJoin(room.id)).dms;
+        } catch {
+          return;
+        }
+        // a sender not known as River-only yet: reading the room sorts the River members from the Radica ones
+        if (dms.some((d) => d.sender && !this.riverOnly.has(d.sender))) await this.riverMessages(identity, room).catch(() => []);
+        for (const d of dms) {
+          if (!d.sender || !this.riverOnly.has(d.sender)) continue;
+          const roomId = this.getRoomId(identity.pubkey, d.sender);
+          const id = `rvdm_${d.sig.slice(0, 16)}`;
+          const key = `freenet_chat_${roomId}`;
+          const stubs: ChatMessage[] = JSON.parse(localStorage.getItem(key) || "[]");
+          if (stubs.some((m) => m.id === id)) continue;
+          seedReadMark(localStorage, roomId, d.time_ms - 1); // the first one counts as unread
+          stubs.push({ id, room_id: roomId, sender: d.sender, recipient: identity.pubkey, text: "", timestamp: d.time_ms, sig: d.sig });
+          localStorage.setItem(key, JSON.stringify(stubs));
+          this.addChatPeer(identity.pubkey, d.sender, d.time_ms);
+          this.storeNotification(identity.pubkey, { id, type: "chat", from: d.sender, text: "sent you a direct message", timestamp: d.time_ms, read: false });
+          fresh = true;
+        }
+      }),
+    );
     return fresh;
   }
 

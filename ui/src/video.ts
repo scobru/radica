@@ -3,8 +3,8 @@
 // chatMedia.ts), so nodes hold ciphertext. A post names one as "radica-video:<manifest hash>:<key hex>[:<poster hash>]",
 // the poster being the first scanned frame (a JPEG), sealed with the same key.
 import type { ImageModerationResult } from "./moderation";
-import { mediaHashOf } from "./media.ts";
-import { type ChunkProgress, keepChatMediaUrl, sealWithKey, MAX_CHAT_FILE_BYTES, resolveChatMediaUrl, sealChatMediaChunked, uploadChatMedia, scanTimes, isFragmentedMp4, type ChatMediaItem } from "./chatMedia.ts";
+import { createFragmentedMp4Streamer, isFragmentedMp4, isFrameBlocked } from "./mediaStream.ts";
+import { type ChunkProgress, MAX_CHAT_FILE_BYTES, resolveChatMediaUrl, publishSealedWithPoster, scanTimes, type ChatMediaItem } from "./chatMedia.ts";
 
 export { scanTimes, isFragmentedMp4 };
 
@@ -62,7 +62,7 @@ export async function prepareVideo(
     if (!poster) poster = c instanceof HTMLCanvasElement ? await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", 0.8)) : await c.convertToBlob({ type: "image/jpeg", quality: 0.8 });
     const r = await scan(c);
     if (r.unverified || r.score > worst.score) worst = r;
-    if (r.unverified || r.score >= stopAt) return { worst, poster };
+    if (isFrameBlocked(r, stopAt)) return { worst, poster };
   }
 
   // AAC plays everywhere, but not every browser can encode it (WebCodecs): Opus in MP4 then (Chrome, Firefox, Safari 17+)
@@ -86,18 +86,15 @@ export async function prepareVideo(
 
 /** Seal and publish the MP4; returns the post's media_uri. Kept locally so our own post plays at once. */
 export async function publishVideo(bytes: Uint8Array, put: (b: Uint8Array) => Promise<unknown>, onProgress?: (done: number, total: number) => void, poster?: Blob | null): Promise<string> {
-  const { blobs, hash, keyHex } = await sealChatMediaChunked(bytes);
-  keepChatMediaUrl(hash, keyHex, bytes, "file", "video/mp4");
-  let posterPart = "";
-  if (poster) {
-    const plain = new Uint8Array(await poster.arrayBuffer());
-    const sealed = await sealWithKey(plain, keyHex);
-    blobs.push(sealed);
-    posterPart = `:${mediaHashOf(sealed)}`;
-    keepChatMediaUrl(mediaHashOf(sealed), keyHex, plain, "img", "image/jpeg");
-  }
-  await uploadChatMedia(blobs, put, onProgress);
-  return `${VIDEO_PREFIX}${hash}:${keyHex}${posterPart}`;
+  const { hash, keyHex, posterHash } = await publishSealedWithPoster({
+    bytes,
+    kind: "file",
+    mime: "video/mp4",
+    posterBlob: poster,
+    put,
+    onProgress,
+  });
+  return `${VIDEO_PREFIX}${hash}:${keyHex}${posterHash ? `:${posterHash}` : ""}`;
 }
 
 /** A blob: URL for the poster a media_uri names; null for a video posted without one, or when it is missing. */
@@ -122,56 +119,11 @@ export function playVideo(
   Object.assign(video, { controls: true, autoplay: true, playsInline: true });
   let shown = false;
   const show = () => !shown && ((shown = true), onReady?.(video));
-  let ms: MediaSource | null = null;
-  let msUrl = "";
-  let sb: SourceBuffer | null = null;
-  let streaming = true;
-  let queue = Promise.resolve();
-
-  const start = async (head: Uint8Array) => {
-    if (typeof MediaSource === "undefined" || !isFragmentedMp4(head)) throw new Error("not streamable");
-    const M = await import("mediabunny");
-    const mime = await new M.Input({ source: new M.BufferSource(head), formats: [M.MP4] }).getMimeType();
-    if (!MediaSource.isTypeSupported(mime)) throw new Error(`no MediaSource for ${mime}`);
-    ms = new MediaSource();
-    msUrl = URL.createObjectURL(ms);
-    video.src = msUrl;
-    await new Promise((r) => ms!.addEventListener("sourceopen", r, { once: true }));
-    sb = ms.addSourceBuffer(mime);
-    show();
-  };
-  const append = (part: Uint8Array) =>
-    new Promise<void>((resolve, reject) => {
-      sb!.addEventListener("updateend", () => resolve(), { once: true });
-      sb!.addEventListener("error", () => reject(new Error("append failed")), { once: true });
-      sb!.appendBuffer(part as BufferSource);
-    });
-  const onPart = (part: Uint8Array, index: number) => {
-    queue = queue
-      .then(async () => {
-        if (!streaming) return;
-        if (index === 0) await start(part);
-        await append(part);
-      })
-      .catch(() => {
-        streaming = false; // played once whole instead
-      });
-  };
-
-  const done = videoUrl(uri, get, onProgress, onPart).then(async (url) => {
-    await queue;
-    if (!url) {
-      if (msUrl) URL.revokeObjectURL(msUrl);
-      return false;
-    }
-    if (streaming && sb && ms?.readyState === "open") ms.endOfStream();
-    else {
-      if (msUrl) URL.revokeObjectURL(msUrl);
-      video.src = url;
-      show();
-    }
-    return true;
+  const streamer = createFragmentedMp4Streamer(video, {
+    onStreamReady: show,
+    onFallback: show,
   });
+  const done = videoUrl(uri, get, onProgress, streamer.onPart).then((url) => streamer.finish(url));
   return { video, done };
 }
 
