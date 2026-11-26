@@ -403,3 +403,17 @@ test("a sent message shows at once, and its mark says whether it reached the net
   await expect(row.locator(".rm-checks.queued")).toBeVisible({ timeout: 15_000 });
   await expect(row.locator(".rm-checks")).toHaveText("✓");
 });
+
+test("Notes: a conversation with myself, listed from the start, that wipes in one go", async ({ page }) => {
+  await signIn(page);
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item", { hasText: "Notes" }).first().click();
+  await expect(page.getByText("Keep links, photos, files and reminders here")).toBeVisible({ timeout: 15_000 });
+  await page.locator("#rm-composer-input").fill("remember the milk");
+  await page.locator("#rm-composer-input").press("Enter");
+  await expect(page.locator(".rm-msg-row", { hasText: "remember the milk" }).first()).toBeVisible({ timeout: 10_000 });
+
+  await page.click("#rm-header-peer-trigger");
+  await page.locator("[data-wipe-notes]").click(); // signIn accepts the confirm
+  await expect(page.locator(".rm-msg-row", { hasText: "remember the milk" })).toHaveCount(0, { timeout: 15_000 });
+});

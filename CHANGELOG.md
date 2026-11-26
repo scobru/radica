@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **NEW** Notes, a chat with myself (`ui/src/messengerChat.ts`, `ui/index.html`, `README.md`, `CONTEXT.md`, `ui/e2e/app.spec.ts`): from the Greenhouse proposal "Notes". Messenger always lists the conversation `<me>:<me>` as **Notes** (own header, empty card and info drawer); sending uses the existing DM path, which already seals to my key and my other devices. **Wipe all notes** deletes each note (`chat_delete`) and clears the room (`chat_clear`, synced to my devices), with a progress label.
+
   * **NEW** Swipe a post left to mention its author (`ui/src/{main,messengerLogic,mentionPicker,messengerChat}.ts`, `ui/index.html`, `ui/tests/{messengerChat,caption}.test.ts`, `ui/e2e/mobile.spec.ts`): `resolveMessageSwipeStep` takes `dir` (-1 for leftward); a leftward swipe on a `.gram-card` (not on its media or inputs, not from the right edge) inserts "@Name " into its comment box. New `insertMention` records the pick, so swiped mentions (posts and chat messages) are sent as `@<key>` like picked ones; before, a chat swipe inserted plain text only.
 
   * **IMPROVED** Secret Chat messages sealed for another of my devices say so (`ui/src/{secretChatTransport,messengerChat}.ts`, `ui/cli/chat.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` returns `OTHER_DEVICE` instead of `UNREADABLE` when there is no copy for this device's key (theirs sealed to another `to_enc_pub` of mine, or mine sent from another device without a copy here); Messenger's Secret Chat banner counts them, and the terminal chat groups them under their own line.
