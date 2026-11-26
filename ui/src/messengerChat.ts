@@ -1,3 +1,4 @@
+import { OTHER_DEVICE } from "./secretChatTransport.ts";
 import { withBusy } from "./busy.ts";
 import {
   computeSafetyBlocks,
@@ -1916,6 +1917,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const curTtl = openId ? freenet.getSecretChatTTL(openId) : 0;
     const ttlLabel = formatTtlLabel(curTtl);
     const isPeerBlocked = !!(st.peer && (deps.isPeerBlocked ? deps.isPeerBlocked(st.peer) : freenet.blockedBy(me).has(st.peer)));
+    const elsewhereCount = st.isSecret ? st.shownMessages.filter((m) => m.text === OTHER_DEVICE).length : 0;
     const bannerHtml = isPeerBlocked
       ? `<div class="rm-e2ee-banner" style="background:var(--rm-danger-soft);border-color:var(--rm-danger);color:var(--rm-danger);">
           <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("ban", { size: 13, className: "icon-xs" })} <span><b>${escapeHtml(deps.getAuthorDisplayName(st.peer!))}</b> is blocked. Feed posts, comments and direct messages are disabled.</span></span>
@@ -1932,6 +1934,7 @@ export function createMessengerChat(deps: MessengerDeps) {
             <div style="font-size: 0.74rem; color: #10b981; font-weight: 600; margin-top: 2px;">
               <span style="display:inline-flex;align-items:center;gap:4px;">${renderIcon("clock", { size: 12 })} Disappearing timer:</span> <span id="rm-secret-banner-ttl">${ttlLabel}</span>
             </div>
+            ${elsewhereCount ? `<div class="rm-secret-banner-desc" style="margin-top: 4px; font-weight: 600;">${renderIcon("key", { size: 12, className: "icon-xs" })} ${elsewhereCount === 1 ? "1 message here was" : `${elsewhereCount} messages here were`} sealed for another of your devices (this chat was used there): ${elsewhereCount === 1 ? "it opens" : "they open"} only on that device. New messages reach this device too.</div>` : ""}
           </div>
         </div>`
       : st.privateRoom?.river
