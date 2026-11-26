@@ -903,6 +903,33 @@ mod tests {
         c.sig = sign(author, &comment_msg3(&hx(owner), &c));
         (format!("{}:{}", c.author, id), c)
     }
+    #[test]
+    fn an_author_edits_a_comment_keeping_its_id_and_timestamp() {
+        // the UI's "edit comment": same author, id and timestamp (the id carries the anti-bot proof readers check),
+        // new text; only the nonce moves, still paying the proof of work, until the signature sorts higher
+        let (o, a) = (sk(1), sk(2));
+        let mut p = post3(&o, "p1", "hello", 10);
+        let (k, c) = comment3(&a, &o, "c1", "p1", 11);
+        p.comments.insert(k.clone(), c.clone());
+        let before = with_posts(vec![p]);
+        let mut e = Comment { text: "hi, edited".into(), nonce: c.nonce + 1, sig: String::new(), ..c.clone() };
+        let edited = loop {
+            while pow_bits(&comment_msg3(&hx(&o), &e)) < POW_BITS {
+                e.nonce += 1;
+            }
+            e.sig = sign(&a, &comment_msg3(&hx(&o), &e));
+            if e.sig > c.sig { break e.clone(); }
+            e.nonce += 1;
+        };
+        let mut p2 = post3(&o, "p1", "hello", 10);
+        p2.comments.insert(k.clone(), edited.clone());
+        let after = with_posts(vec![p2]);
+        for order in [[before.clone(), after.clone()], [after.clone(), before.clone()]] {
+            let kept = &merged(&o, &order).posts["p1"].comments[&k];
+            assert_eq!((kept.text.as_str(), kept.timestamp, kept.id.as_str()), ("hi, edited", 11, "c1"), "every node keeps the edit, in place");
+        }
+    }
+
     fn others(n: usize) -> Vec<SigningKey> {
         (0..n).map(|i| SigningKey::from_bytes(&{ let mut b = [9u8; 32]; b[..8].copy_from_slice(&(i as u64).to_le_bytes()); b })).collect()
     }

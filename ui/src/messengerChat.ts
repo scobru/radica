@@ -1,3 +1,4 @@
+import { insertMention } from "./mentionPicker.ts";
 import { OTHER_DEVICE } from "./secretChatTransport.ts";
 import { withBusy } from "./busy.ts";
 import {
@@ -85,6 +86,9 @@ export interface MessengerActiveState {
   replyingTo: ChatMessage | null;
   online: boolean;
 }
+
+/** The conversation with myself: notes sealed to my own devices. */
+const NOTES_NAME = "Notes";
 
 export interface MessengerDeps {
   rootEl: HTMLElement;
@@ -1300,9 +1304,10 @@ export function createMessengerChat(deps: MessengerDeps) {
     const secretPeers = freenet.getSecretChatPeers(me).filter((pk) => pk && pk !== me);
     freenet.warmPeers(Array.from(new Set([...rawPeers, ...secretPeers, ...(st.peer ? [st.peer] : [])])));
     const isBlockedPeer = (pk: string) => (deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk));
-    const knownPeers = rawPeers.filter(
+    // my Notes (a conversation with myself, sealed to my own devices) is always listed
+    const knownPeers = [me, ...rawPeers.filter(
       (pk) => pk && pk !== me && !isBlockedPeer(pk) && (pk === openDm || !freenet.isChatPeerRemoved(me, pk))
-    );
+    )];
 
     const nameCount = new Map<string, number>();
     for (const pk of knownPeers) {
@@ -1312,13 +1317,13 @@ export function createMessengerChat(deps: MessengerDeps) {
 
     for (const pk of knownPeers) {
       const roomId = freenet.getRoomId(me, pk);
-      const displayName = deps.getAuthorDisplayName(pk);
+      const displayName = pk === me ? NOTES_NAME : deps.getAuthorDisplayName(pk);
       const unread = openId === roomId ? 0 : deps.conversation.unread(roomId, read);
       const meta = storedRoomMeta(roomId);
       const cached = getCachedPreview(roomId);
       const lastTs = Math.max(cached?.timestamp ?? 0, meta.lastTs);
 
-      let previewText = "No messages · Tap to start";
+      let previewText = pk === me ? "Only you can read these · Tap to write" : "No messages · Tap to start";
       let previewMine = false;
       let previewOptimistic = false;
       if (cached && cached.timestamp >= meta.lastTs) {
@@ -1745,6 +1750,18 @@ export function createMessengerChat(deps: MessengerDeps) {
       }
       inviteTopBtn.style.display = "none";
       safetyTopBtn.style.display = "inline-flex";
+      if (pk === me && !st.isSecret) {
+        // my Notes: no one else, nothing to verify
+        headerAvatarSlotEl.innerHTML = `<div class="rm-header-monogram rm-room-monogram priv">${renderIcon("bookmark", { size: 20 })}</div>`;
+        headerTitleEl.textContent = NOTES_NAME;
+        headerTrustBadgeEl.style.display = "inline-flex";
+        headerTrustBadgeEl.className = "rm-trust-pill";
+        headerTrustBadgeEl.innerHTML = `${renderIcon("lock", { size: 11 })} <span>Only you</span>`;
+        headerSubtitleEl.textContent = "Encrypted to your own devices · synced between them";
+        headerSubtitleEl.title = "Sealed with your own key (and your other devices' keys): no one else can read them.";
+        composerInputEl.placeholder = "Write a note…";
+        safetyTopBtn.style.display = "none";
+      }
     } else if (st.privateRoom) {
       if (ttlBtn) ttlBtn.style.display = "none";
       const r = st.privateRoom;
@@ -1962,6 +1979,16 @@ export function createMessengerChat(deps: MessengerDeps) {
           <div class="rm-first-contact-card">
             <h3>No results</h3>
             <div class="rm-first-contact-mutual">No messages contain "${escapeHtml(threadQuery)}".</div>
+          </div>
+        `;
+      } else if (st.peer === me && !st.isSecret) {
+        cardHtml = `
+          <div class="rm-first-contact-card">
+            <div class="rm-room-monogram priv" style="width:68px;height:68px;">${renderIcon("bookmark", { size: 28 })}</div>
+            <h3>${NOTES_NAME}</h3>
+            <div class="rm-first-contact-mutual">
+              Keep links, photos, files and reminders here. They are encrypted to your own devices, appear on each of them, and no one else can read them. <b>Wipe all notes</b> (in this chat's info) removes them everywhere at once.
+            </div>
           </div>
         `;
       } else if (st.peer) {
@@ -2488,6 +2515,24 @@ export function createMessengerChat(deps: MessengerDeps) {
       const shared = sharedSpacesWithPeer(pk);
       const isVer = verified.has(`dm:${pk}`);
 
+      if (pk === me && !st.isSecret) {
+        drawerHeaderLabelEl.textContent = NOTES_NAME;
+        drawerContentEl.innerHTML = `
+          <div class="rm-drawer-hero">
+            <div class="rm-room-monogram priv" style="width:72px;height:72px;margin:0 auto 8px;">${renderIcon("bookmark", { size: 30 })}</div>
+            <div class="rm-drawer-name">${NOTES_NAME}</div>
+            <div class="rm-drawer-handle">Only you · encrypted to your own devices</div>
+          </div>
+          ${renderSharedMediaDrawerSection(st.shownMessages)}
+          <div class="rm-drawer-section" style="border-bottom:none;">
+            <button type="button" class="rm-link-btn" data-wipe-notes="1" style="width:100%;justify-content:center;color:var(--rm-danger);border-color:var(--rm-danger-soft);background:var(--rm-danger-soft);">
+              ${renderIcon("trash2", { size: 14, className: "icon-xs" })} Wipe all notes
+            </button>
+          </div>
+        `;
+        fillChatMedia(drawerContentEl, (h) => freenet.getMedia(h));
+        return;
+      }
       drawerHeaderLabelEl.textContent = "Contact Info";
       drawerContentEl.innerHTML = `
         <div class="rm-drawer-hero">
@@ -3303,8 +3348,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       ? deps.getActiveState().shownMessages.find((x) => x.id === finished.row.dataset.msgId)
       : undefined;
     if (!m || composerInputEl.disabled) return;
-    const v = composerInputEl.value;
-    composerInputEl.value = `${v}${v && !v.endsWith(" ") ? " " : ""}@${deps.getAuthorDisplayName(m.sender)} `;
+    insertMention(composerInputEl, { pubkey: m.sender, name: deps.getAuthorDisplayName(m.sender) });
     fitInput();
     composerInputEl.focus();
   }, { passive: true });
@@ -3629,6 +3673,27 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (link) {
         await navigator.clipboard.writeText(link);
         deps.showToast("Zero-knowledge invite link copied to clipboard!", "info");
+      }
+      return;
+    }
+
+    const wipeBtn = t.closest<HTMLElement>("[data-wipe-notes]");
+    if (wipeBtn && st.peer === identity.pubkey) {
+      if (!confirm("Wipe all your notes?\n\nThey are deleted on every one of your devices. This cannot be undone.")) return;
+      const roomId = freenet.getRoomId(identity.pubkey, identity.pubkey);
+      try {
+        await withBusy(wipeBtn, "Wiping…", async (say) => {
+          const mine = (await freenet.getChatMessages(identity, identity.pubkey)).filter((m) => m.sender === identity.pubkey);
+          for (const [i, m] of mine.entries()) {
+            say(`Wiping ${i + 1}/${mine.length}…`);
+            await freenet.deleteChatMessage(roomId, m.id); // marks each deleted and lets go of its attachments
+          }
+          await freenet.clearChatRoom(roomId); // and hides anything left, on my other devices too
+        });
+        deps.showToast("All notes wiped.", "info");
+        refreshDrawer();
+      } catch (err: any) {
+        deps.showToast(`Could not wipe notes: ${err.message || err}`, "error");
       }
       return;
     }

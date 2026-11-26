@@ -345,6 +345,12 @@ test("resolveMessageSwipeStep: cancels vertical/diagonal scrolling before mutati
   assert.equal(resolveMessageSwipeStep({ phase: "horizontal", dx: 40, dy: 35 }), null);
 });
 
+test("resolveMessageSwipeStep: dir -1 is the same gesture to the left (feed posts), a rightward drag cancels it", () => {
+  assert.deepEqual(resolveMessageSwipeStep({ phase: "pending", dx: -18, dy: 4, dir: -1 }), { phase: "horizontal", offset: 18 });
+  assert.deepEqual(resolveMessageSwipeStep({ phase: "horizontal", dx: -95, dy: 6, dir: -1 }), { phase: "horizontal", offset: 80 });
+  assert.equal(resolveMessageSwipeStep({ phase: "pending", dx: 8, dy: 0, dir: -1 }), null);
+});
+
 test("resolveThreadScrollAction: preserves native scroll momentum during active user scrolling and no-op renders", () => {
   // Switching conversation or explicit scrollToBottom always scrolls to bottom
   assert.equal(

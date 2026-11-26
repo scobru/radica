@@ -2272,6 +2272,28 @@ export class FreenetClient {
     return false;
   }
 
+  /** Change the text of one of my comments. As for a delete, the contract keeps the version of the same author and id
+   *  whose signature sorts higher; here the id and timestamp stay (they carry the anti-bot proof readers check), so
+   *  only the nonce changes until the signature sorts above the current one. */
+  public async editComment(identity: UserIdentity, postAuthor: string, postId: string, key: string, text: string): Promise<boolean> {
+    const feed = await this.getFeed(postAuthor);
+    const post = feed.posts[postId];
+    const old = post?.comments[key];
+    if (!old || old.author !== identity.pubkey || old.text === "" || !text.trim() || text === old.text) return false;
+    const owner = identity.pubkey === postAuthor;
+    for (let nonce = (old.nonce ?? 0) + 1, tries = 0; tries < 64; nonce++, tries++) {
+      const c: Comment = { ...old, text, cert: identity.cert, sig: "", v: 3, nonce };
+      // on someone else's feed every nonce tried must also pay the proof of work
+      if (!owner) c.nonce = nonce = grindNonce((n) => commentMsg3(postAuthor, { ...c, nonce: n }), nonce);
+      c.sig = await identity.sign(commentMsg3(postAuthor, c));
+      if (c.sig <= old.sig) continue;
+      post.comments[key] = c;
+      await this.saveFeed(feed, { owner: feed.owner, posts: { [postId]: { ...post, likes: {}, comments: { [key]: c } } }, following: [] });
+      return true;
+    }
+    return false;
+  }
+
   /** Sign a v3 comment on `owner`'s feed: on someone else's feed the contract wants a proof of work first. */
   private async signComment(identity: UserIdentity, owner: string, c: Comment): Promise<void> {
     c.nonce = identity.pubkey === owner ? 0 : grindNonce((nonce) => commentMsg3(owner, { ...c, nonce }));

@@ -2,7 +2,7 @@ import { clearResolvedFreenames, setResolvedFreename } from "../src/freenames.ts
 import test from "node:test";
 import assert from "node:assert/strict";
 import { linkCard, linkify, md, renderCaption, renderChatText, renderPost, renderComment, mentionsIn, plainMentions, setMaskBadWords, trendingTags } from "../src/caption.ts";
-import { namesToKeys } from "../src/mentionPicker.ts";
+import { insertMention, namesToKeys, withMentionKeys } from "../src/mentionPicker.ts";
 
 test("caption: links become anchors, hashtags filters, everything else is escaped", () => {
   assert.equal(
@@ -312,4 +312,11 @@ test("renderComment: #tags are clickable filters, as in posts", () => {
     renderComment("nice #freenet <b>"),
     `nice <span class="hashtag clickable-hashtag" data-tag="freenet" title="Filter by #freenet">#freenet</span> &#60;b&#62;`
   );
+});
+
+test("insertMention: a swiped mention goes out as the person's key, like one picked from the list", () => {
+  const box = { value: "hi" } as HTMLTextAreaElement;
+  insertMention(box, { pubkey: "a".repeat(64), name: "Ann Lee" });
+  assert.equal(box.value, "hi @Ann Lee ");
+  assert.equal(withMentionKeys(box, box.value.trim()), `hi @${"a".repeat(64)}`);
 });

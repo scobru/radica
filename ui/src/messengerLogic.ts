@@ -169,8 +169,11 @@ export function resolveMessageSwipeStep(opts: {
   dx: number;
   dy: number;
   maxOffset?: number;
+  /** 1: a swipe to the right (chat messages), -1: to the left (feed posts); the offset is a distance either way. */
+  dir?: 1 | -1;
 }): { phase: MessageSwipePhase; offset: number } | null {
-  const { phase, dx, dy, maxOffset = 80 } = opts;
+  const { phase, dy, maxOffset = 80, dir = 1 } = opts;
+  const dx = opts.dx * dir;
   const absDy = Math.abs(dy);
   if (absDy > 30 || dx < -6) return null;
 

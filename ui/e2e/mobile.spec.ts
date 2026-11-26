@@ -47,3 +47,23 @@ test("swiping someone's chat message to the right mentions them", async ({ page 
   }, { x, y });
   await expect(page.locator("#rm-composer-input")).toHaveValue(/^@\S.* $/);
 });
+
+test("swiping a post to the left mentions its author in its comment box", async ({ page }) => {
+  await signIn(page);
+  const tag = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+  await page.fill("#post-caption", `swipe me ${tag}`);
+  await page.getByRole("button", { name: "Plant post" }).click();
+  const card = page.locator(".gram-card", { hasText: tag }).first();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  const box = (await card.locator(".gram-card-header").boundingBox())!;
+  const y = box.y + box.height / 2;
+  const x = box.x + box.width - 60;
+  await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y)!;
+    const touch = (cx: number) => [new Touch({ identifier: 1, target: el, clientX: cx, clientY: y })];
+    el.dispatchEvent(new TouchEvent("touchstart", { touches: touch(x), bubbles: true }));
+    el.dispatchEvent(new TouchEvent("touchmove", { touches: touch(x - 90), bubbles: true }));
+    el.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+  }, { x, y });
+  await expect(card.locator("textarea.comment-input")).toHaveValue(/^@\S.* $/);
+});
