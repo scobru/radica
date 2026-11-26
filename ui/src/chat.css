@@ -971,3 +971,6 @@
 #chat-modal #chat-classic-typing-bar .rv-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 #chat-modal #chat-classic-typing-bar .rv-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
+
+/* a message still being sealed: a small clock instead of ✓ */
+#chat-modal .rv-checks.sending { display: inline-flex; vertical-align: -1px; opacity: 0.7; }

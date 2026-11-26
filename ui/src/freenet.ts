@@ -220,6 +220,11 @@ export class FreenetClient {
     onPostTake: (name) => {
       if (name === "communities") void this.checkJoined();
     },
+    onSynced: (name) => {
+      let any = false;
+      for (const [id, log] of this.unpushed) if (log === name) any = this.unpushed.delete(id);
+      if (any) this.notifyListeners();
+    },
   });
   private feeds = new FeedStore({
     storage: {
@@ -902,7 +907,16 @@ export class FreenetClient {
 
   /** Sign `body` as a new entry of log `name`, apply it here and send it to the network. */
   private logAppend(name: string, body: object, opts?: { flush?: boolean }): Promise<void> {
+    const id = (body as { type?: string; message?: { id?: unknown } }).type === "chat" ? (body as { message?: { id?: unknown } }).message?.id : undefined;
+    if (typeof id === "string") this.unpushed.set(id, name);
     return this.logs.append(name, body, opts);
+  }
+
+  /** My chat messages signed and stored here but not yet on the network, and the log each waits in (memory only). */
+  private unpushed = new Map<string, string>();
+  /** Whether my chat message `id` has reached the network (drives ✓ / ✓✓). */
+  public isOnNetwork(id: string): boolean {
+    return !this.unpushed.has(id);
   }
 
   public hasUnsentLog(name: string): boolean {
@@ -1791,8 +1805,19 @@ export class FreenetClient {
   }
 
   /** Every key a direct message to `pubkey` must be readable with: their profile's and their devices'. */
+  /** The keys to seal to `pubkey`: someone this device already has a profile of seals at once, with their profile and
+   *  device keys refreshed behind; only a first contact waits for the network. shortcut: a key changed in the last
+   *  moments misses this one message (the next one has it); wait on the refresh if that ever matters. */
+  private async keysFresh(pubkey: string): Promise<void> {
+    const fetched = Promise.all([this.refresh(pubkey, false, true), this.refreshLog(`devices/${pubkey}`)]).then(
+      () => {},
+      () => {},
+    );
+    if (pubkey !== this.me && !(await this.getFeed(pubkey)).profile) await fetched;
+  }
+
   private async encPubsOf(pubkey: string): Promise<string[]> {
-    await this.refreshLog(`devices/${pubkey}`); // at most once a minute
+    await this.keysFresh(pubkey);
     return [...new Set([await this.encPubOf(pubkey), ...this.deviceKeys(pubkey)])];
   }
 
@@ -2505,7 +2530,7 @@ export class FreenetClient {
 
     // 1-on-1 direct messages are end-to-end encrypted with X25519 ECDH + AES-256-GCM, to the key the recipient
     // published in their profile (a Viso user's app key) or else to their persona key
-    await this.refresh(recipientPubkey, false, true); // not forced, urgent queue: fast check before sealing
+    await Promise.all([this.keysFresh(recipientPubkey), this.keysFresh(identity.pubkey)]);
     const [toEncPub, peerEncs, myEncs] = await Promise.all([
       this.encPubOf(recipientPubkey),
       this.encPubsOf(recipientPubkey),
@@ -2671,7 +2696,7 @@ export class FreenetClient {
       if (room) await this.chatAppend(room, entry); // the conversation's own log, as direct messages
     },
     encPubOf: async (k) => {
-      await this.refresh(k); // not forced, as for direct messages
+      await this.keysFresh(k);
       const fromProfile = await this.encPubOf(k);
       if (fromProfile !== k) return fromProfile;
       // their signed profile names their own key (a local identity): stale device entries must not override it

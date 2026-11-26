@@ -381,3 +381,22 @@ test("an old River room opens as a read-only archive its owner can migrate", asy
   await page.evaluate(() => (window as unknown as { finishMigrate: () => void }).finishMigrate());
   await expect(page.locator("[data-migrate-river]")).toHaveText("Migrate");
 });
+
+test("a sent message shows at once, and its mark says whether it reached the network", async ({ page }) => {
+  await signIn(page);
+  const peer = Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+  await page.evaluate(async (peer) => {
+    const { freenet } = await import("/src/freenet.ts");
+    const f = freenet as unknown as { me: string; getRoomId(a: string, b: string): string; handlePeerEvent(d: unknown): void };
+    f.handlePeerEvent({ type: "chat", message: { id: `m_${Date.now()}`, room_id: f.getRoomId(f.me, peer), sender: peer, recipient: f.me, text: "hi", timestamp: Date.now(), sig: "" } });
+  }, peer);
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item").first().click();
+  await page.locator("#rm-composer-input").fill("on its way");
+  await page.locator("#rm-composer-input").press("Enter");
+  const row = page.locator(".rm-msg-row", { hasText: "on its way" }).first();
+  await expect(row).toBeVisible({ timeout: 2_000 }); // no wait on the network before it shows
+  // no node in this test: signed and kept here, waiting to be published (one ✓, not ✓✓)
+  await expect(row.locator(".rm-checks.queued")).toBeVisible({ timeout: 15_000 });
+  await expect(row.locator(".rm-checks")).toHaveText("✓");
+});

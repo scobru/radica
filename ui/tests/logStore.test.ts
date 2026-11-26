@@ -156,6 +156,7 @@ describe("LogStore stateful engine", () => {
     let connected = true;
     let clock = 1000;
     const grinds: number[] = [];
+    const synced: string[] = [];
 
     const net: LogNetworkAdapter = {
       get: async () => ({ entries: {} }),
@@ -173,6 +174,7 @@ describe("LogStore stateful engine", () => {
       identity: () => ({ pubkey: me, sign: async (m) => `sig:${m.length}` }),
       onApplied: (n) => applied.push(n),
       onChanged: () => {},
+      onSynced: (n) => synced.push(n),
       grind: () => {
         grinds.push(1);
         return 42;
@@ -189,6 +191,7 @@ describe("LogStore stateful engine", () => {
     assert.match(ownEntries[0].id, /^chat_read:/);
     assert.equal(store.hasUnsent(`inbox/${me}`), false);
     assert.deepEqual(applied, [`inbox/${me}`]);
+    assert.deepEqual(synced, [`inbox/${me}`]); // on the network: ✓✓ for what waited there
 
     // Shared log grinds PoW and marks unsent when push fails.
     pushShouldFail = true;
@@ -196,6 +199,7 @@ describe("LogStore stateful engine", () => {
     assert.equal(grinds.length, 1);
     assert.equal(store.entries("communities")[0].nonce, 42);
     assert.equal(store.hasUnsent("communities"), true);
+    assert.equal(synced.includes("communities"), false); // a failed push is not synced
 
     // Offline append to another person's inbox grinds PoW and queues retry.
     connected = false;

@@ -8889,7 +8889,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
 
   // Read receipt checkmarks (Classic view)
   const peerPk = dmPeerOf(roomId, me);
-  const readReceiptHtml = isMine ? checksHtml(deliveryOf(msg, peerPk ? freenet.getPeerReadUpto(roomId, peerPk) : 0), "rv") : "";
+  const readReceiptHtml = isMine ? checksHtml(deliveryOf(msg, peerPk ? freenet.getPeerReadUpto(roomId, peerPk) : 0, freenet.isOnNetwork(msg.id)), "rv") : "";
 
   // TTL Disappearing timer badge (Classic view)
   let ttlTagHtml = "";
@@ -9205,7 +9205,7 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
     list.push(optMsg);
     safeStorage.setItem(roomKey, JSON.stringify(list));
     appendChatMessageToView({
-      msg: optMsg,
+      msg: activeChatSecret ? { ...optMsg, pending: true } : optMsg, // a Secret Chat placeholder has its real id: say it is still sealing
       prev: shownMessages[shownMessages.length - 1],
       all: shownMessages,
       roomId,

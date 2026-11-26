@@ -2211,7 +2211,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         : "";
 
       const peerReadUpto = st.peer ? freenet.getPeerReadUpto(openId, st.peer) : 0;
-      const msgChecksHtml = isMine ? checksHtml(deliveryOf(m, peerReadUpto), "rm") : "";
+      const msgChecksHtml = isMine ? checksHtml(deliveryOf(m, peerReadUpto, freenet.isOnNetwork(m.id)), "rm") : "";
 
       const editedTagHtml = m.edited_at
         ? `<span class="rm-edited-tag" title="Edited ${formatClock(m.edited_at)}"> · edited</span>`
