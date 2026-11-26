@@ -210,6 +210,7 @@ fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
   var initial = {};
   window.__radicaNative = {{
     getAppMode: function() {{ return {}; }},
+    getAppVersion: function() {{ return {}; }},
     openExternal: function(url) {{
       try {{ sendIpc("open:" + new URL(url, location.href).href); }} catch (e) {{}}
     }},
@@ -234,7 +235,8 @@ fn native_storage_script(initial_blob: &str, mode: AppMode) -> String {
   }};
 }})();"#,
         serde_json::to_string(initial_blob).unwrap_or_else(|_| "\"\"".to_string()),
-        serde_json::to_string(mode.js_mode()).unwrap_or_else(|_| "\"full\"".to_string())
+        serde_json::to_string(mode.js_mode()).unwrap_or_else(|_| "\"full\"".to_string()),
+        serde_json::to_string(env!("CARGO_PKG_VERSION")).unwrap_or_else(|_| "\"\"".to_string())
     )
 }
 
@@ -650,5 +652,6 @@ mod tests {
         assert!(script.contains("function sendIpc("));
         let full_script = native_storage_script("{}", AppMode::Full);
         assert!(full_script.contains("getAppMode: function() { return \"full\"; }"));
+        assert!(full_script.contains(&format!("getAppVersion: function() {{ return \"{}\"; }}", env!("CARGO_PKG_VERSION"))));
     }
 }

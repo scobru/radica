@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   getNativeAppMode,
+  getNativeAppVersion,
   getNativeBridge,
   getNativeVoiceBridge,
   hasNativeBridge,
@@ -60,6 +61,14 @@ test("platformBridge: getNativeBridge, hasNativeBridge, and getNativeAppMode", (
       assert.equal(getNativeAppMode(), "messenger");
     },
   );
+});
+
+test("platformBridge: getNativeAppVersion reads the installed app's version, null when absent or bad", () => {
+  withMockBridge(undefined, () => assert.equal(getNativeAppVersion(), null));
+  withMockBridge({ getAppMode: () => "full" }, () => assert.equal(getNativeAppVersion(), null)); // an app too old to say
+  withMockBridge({ getAppVersion: () => "1.1.1" }, () => assert.equal(getNativeAppVersion(), "1.1.1"));
+  withMockBridge({ getAppVersion: () => "<b>" }, () => assert.equal(getNativeAppVersion(), null));
+  withMockBridge({ getAppVersion: () => { throw new Error("gone"); } }, () => assert.equal(getNativeAppVersion(), null));
 });
 
 test("platformBridge: getNativeVoiceBridge validates required methods and canRecordVoice", () => {

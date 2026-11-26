@@ -2,6 +2,7 @@
 
 export interface RadicaNativeBridge {
   getAppMode?: () => string;
+  getAppVersion?: () => string;
   isMessenger?: () => boolean;
   getAll?: () => string | null;
   setAll?: (json: string) => void;
@@ -41,6 +42,16 @@ export function getNativeAppMode(): "messenger" | "full" | null {
     if (typeof bridge.isMessenger === "function" && bridge.isMessenger() === true) return "messenger";
   } catch {}
   return null;
+}
+
+/** The installed native app's version (Desktop, Android), or null in a browser or an app too old to say. */
+export function getNativeAppVersion(): string | null {
+  try {
+    const v = getNativeBridge()?.getAppVersion?.();
+    return typeof v === "string" && /^\d+\.\d+\.\d+/.test(v) ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Return the native microphone recording bridge when Desktop/Android exposes it and allows capture. */
