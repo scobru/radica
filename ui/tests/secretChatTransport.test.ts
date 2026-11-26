@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
+import { getSecretRoomId } from "../src/secretChat.ts";
 import {
   addSecretChatPeer,
   removeSecretChatPeer,
@@ -236,6 +237,49 @@ test("secretChatTransport: a timed message's plain text is forgotten once its ti
     Date.now = realNow;
   }
   assert.doesNotMatch(tb.store.getItem(`radica_secret_plain_${bob.pubkey}`) ?? "", /brucia/);
+});
+
+test("secretChatTransport: an expired message stays gone when the room comes back from the network", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  await sendSecretChatMessage(ta, alice, bob.pubkey, "brucia", 1);
+  const roomKey = `freenet_chat_${getSecretRoomId(alice.pubkey, bob.pubkey)}`;
+  const sealed = tb.store.getItem(roomKey)!; // what the conversation's log will hand back on every resync
+  assert.equal((await readSecretChat(tb, bob, alice.pubkey)).length, 1);
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 2000;
+    assert.equal((await readSecretChat(tb, bob, alice.pubkey)).length, 0); // its time is up
+    tb.store.setItem(roomKey, sealed); // the room comes back from the network with the sealed message in it
+    Date.now = () => realNow() + 4000;
+    assert.deepEqual(await readSecretChat(tb, bob, alice.pubkey), []); // not shown again, not even as unreadable
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("secretChatTransport: a message burned before the fix (no plain text, no mark) is dropped instead of flashing", async () => {
+  const [alice, bob] = [await person(), await person()];
+  const network = new Map<string, SecretChatTransport>();
+  const [ta, tb] = [device(network), device(network)];
+  network.set(alice.pubkey, ta);
+  network.set(bob.pubkey, tb);
+
+  const sent = await sendSecretChatMessage(ta, alice, bob.pubkey, "vecchio", 1);
+  await readSecretChat(tb, bob, alice.pubkey); // opened once: its key is spent
+  tb.store.setItem(`radica_secret_plain_${bob.pubkey}`, "{}"); // what an older build left: the text forgotten, no burned mark
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 5000;
+    assert.deepEqual(await readSecretChat(tb, bob, alice.pubkey), []);
+    assert.match(tb.store.getItem(`radica_secret_burned_${bob.pubkey}`) ?? "", new RegExp(sent.id));
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test("secretChatTransport: recipient gets full disappearing countdown on open even after transit delay and burns locally", async () => {
