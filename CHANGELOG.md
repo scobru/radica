@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Expired Secret Chat messages flashed back on every visit (`ui/src/secretChatTransport.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` hid an expired message and dropped its plain text but never added it to `radica_secret_burned_<me>`, and `sweepBurns` skips incoming sealed messages without `burn_started`. When the room came back from the network the sealed message reappeared, unopenable (key spent) with a past `burn_at`, and only the view's burn animation removed it. Expired messages are now marked burned when hidden or when their plain text is dropped, and a sealed message that cannot be opened and is past its timer is dropped and marked (cleans up devices already in the loop).
+
   * **PERF** Chat sending no longer waits on the network for known contacts (`ui/src/freenet.ts`): `sendChatMessage` and the Secret Chat transport awaited the peer's feed and both `devices/` logs before sealing. `keysFresh` now waits only when this device has no profile of the peer (first contact) and refreshes in the background otherwise; `encPubsOf` uses it.
 
   * **IMPROVED** Message marks say whether a message reached the network (`ui/src/{conversationState,freenet,logStore,messengerChat,main,types}.ts`, `ui/src/{messengerChat,chat}.css`, `ui/index.html`, `ui/tests/{conversationState,logStore}.test.ts`, `ui/e2e/app.spec.ts`): `Delivery` gains `queued`; 🕓 sending (also for Secret Chat placeholders via `pending`), ✓ signed but not yet pushed (`FreenetClient.isOnNetwork`, fed by a new `LogStore.onSynced` hook), ✓✓ on the network, blue ✓✓ read. Previously ✓✓ meant only "signed here".

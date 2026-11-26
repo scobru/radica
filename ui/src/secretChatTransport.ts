@@ -233,18 +233,22 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
   const now = Date.now();
   const burned = readBurnedSecretIds(t.store, me);
   const existingPlain = readPlain(t, me);
-  const live = messages.filter((m) => {
-    if (burned.has(m.id)) return false;
+  const expired = (m: ChatMessage): boolean => {
     // Incoming sealed messages start their burn countdown on the recipient's device once decrypted,
     // never on the sender's clock while waiting in the log across transit latency or clock skew.
     if (m.sender !== me && isSealedSecret(m)) {
       const p = existingPlain[m.id];
-      if (p?.burnAt !== undefined) return p.burnAt > now;
-      if (p && p.ttl > 0 && p.sentAt + p.ttl * 1000 <= now) return false;
-      if (m.burn_started && m.burn_at && m.burn_at <= now) return false;
-      return true;
+      if (p?.burnAt !== undefined) return p.burnAt <= now;
+      if (p && p.ttl > 0 && p.sentAt + p.ttl * 1000 <= now) return true;
+      return !!(m.burn_started && m.burn_at && m.burn_at <= now);
     }
-    return !m.burn_at || m.burn_at > now;
+    return !!m.burn_at && m.burn_at <= now;
+  };
+  const live = messages.filter((m) => {
+    if (burned.has(m.id)) return false;
+    if (!expired(m)) return true;
+    markBurnedSecretId(t, me, m.id); // a resync of the room must not bring it back
+    return false;
   });
 
   // v2: one at a time and oldest first, since each message moves the ratchet
@@ -259,6 +263,8 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
       if (p.r === roomId && p.ttl > 0 && (p.burnAt ?? p.sentAt + p.ttl * 1000) <= now) {
         delete plain[id];
         plainChanged = true;
+        // its key is spent and its text gone: without this mark the next resync brings it back, unreadable, to burn again
+        markBurnedSecretId(t, me, id);
       }
     for (const msg of [...live].sort((a, z) => a.timestamp - z.timestamp)) {
       if (!msg.text?.startsWith(PREFIX_V2) || plain[msg.id]?.c === tagOf(msg.text)) continue;
@@ -287,11 +293,19 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
     return plain;
   });
 
+  // sealed, not openable here and past its timer: its key is spent after it burned (a device that lost the mark before
+  // the fix). Shown, it would only flash as unreadable and burn again on every visit: gone for good instead.
+  const kept = live.filter((m) => {
+    if (!m.text?.startsWith(PREFIX_V2) || plain[m.id]?.c === tagOf(m.text) || !m.burn_at || m.burn_at > now) return true;
+    markBurnedSecretId(t, me, m.id);
+    return false;
+  });
+
   const sessionEphem = getSecretChatSession(me, peer)?.ephemeralPub ?? "";
   const v1Anchors: { id: string; c: string; text: string; ttl: number; sentAt: number; burnAt: number }[] = [];
 
   const result = await Promise.all(
-    live.map(async (msg) => {
+    kept.map(async (msg) => {
       if (msg.text?.startsWith(PREFIX_V2)) {
         const p = plain[msg.id];
         if (!p || p.c !== tagOf(msg.text)) return { ...msg, text: UNREADABLE };
@@ -351,7 +365,7 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
 
   let burnMetaChanged = false;
   const byId = new Map(result.map((m) => [m.id, m]));
-  const updatedStored = live.map((m) => {
+  const updatedStored = kept.map((m) => {
     const dec = byId.get(m.id);
     if (dec && dec.sender !== me && dec.burn_started && dec.burn_at) {
       if (!m.burn_started || m.burn_at !== dec.burn_at || m.ttl_seconds !== dec.ttl_seconds) {
@@ -361,7 +375,7 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
     }
     return m;
   });
-  if (live.length !== messages.length || burnMetaChanged) {
+  if (kept.length !== messages.length || burnMetaChanged) {
     t.store.setItem(roomKey(roomId), JSON.stringify(updatedStored));
   }
 
