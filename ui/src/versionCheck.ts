@@ -4,7 +4,7 @@
 
 import { UPDATES } from "./updates.ts";
 import { escapeHtml } from "./html.ts";
-import { hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
+import { getNativeAppVersion, hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
 import { restart } from "./whoiam.ts";
 
 declare const __RADICA_BUILD__: string;
@@ -19,9 +19,10 @@ let lastNativeCheckTs = 0;
 
 export const GITHUB_REPO = "scobru/radica";
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+export const GITHUB_RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases/latest`;
 export const GITHUB_RAW_PACKAGE = `https://raw.githubusercontent.com/${GITHUB_REPO}/master/package.json`;
 
-/** Current semantic version of the application. */
+/** Version of this web page: in the native apps, the build the node serves from Radica's contract, not the app. */
 export function getAppVersion(): string {
   return typeof __RADICA_VERSION__ !== "undefined" ? __RADICA_VERSION__ : "1.1.1";
 }
@@ -188,7 +189,7 @@ export async function fetchLatestReleaseVersion(): Promise<{ version: string; no
 /** Checks for native Desktop & Android application updates. */
 export async function checkNativeAppUpdate(options?: {
   force?: boolean;
-  onResult?: (res: { hasUpdate: boolean; version?: string }) => void;
+  onResult?: (res: { hasUpdate: boolean; version?: string; current?: string; unreachable?: boolean }) => void;
 }): Promise<void> {
   if (!options?.force && !hasNativeBridge()) {
     options?.onResult?.({ hasUpdate: false });
@@ -203,13 +204,14 @@ export async function checkNativeAppUpdate(options?: {
 
   const latest = await fetchLatestReleaseVersion();
   if (!latest) {
-    options?.onResult?.({ hasUpdate: false });
+    options?.onResult?.({ hasUpdate: false, unreachable: true });
     return;
   }
 
-  const current = getAppVersion();
+  // the installed app's own version: the page's says only which build of the site the node serves
+  const current = getNativeAppVersion() ?? getAppVersion();
   const hasUpdate = isNewerVersion(latest.version, current);
-  options?.onResult?.({ hasUpdate, version: latest.version });
+  options?.onResult?.({ hasUpdate, version: latest.version, current });
 
   if (hasUpdate && latest.version !== dismissedNativeVersion) {
     const isMessenger = typeof document !== "undefined" && document.documentElement.getAttribute("data-app-mode") === "messenger";

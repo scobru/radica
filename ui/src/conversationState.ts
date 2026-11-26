@@ -3,6 +3,7 @@
 // read it from here instead of keeping their own copies.
 
 import type { ChatMessage } from "./types.ts";
+import { renderIcon } from "./icons.ts";
 import { TTL_PRESETS, isSecretRoomId, peerFromSecretRoomId, scheduleMessageBurn } from "./secretChat.ts";
 
 /** Send at most one "typing" signal per this many ms. */
@@ -30,18 +31,27 @@ export function dmPeerOf(roomId: string, me: string): string | null {
   return m[1] === me ? m[2] : m[2] === me ? m[1] : null;
 }
 
-export type Delivery = "sending" | "sent" | "read";
+export type Delivery = "sending" | "queued" | "sent" | "read";
 
-/** Where one of my messages stands: still going to the node, stored, or read by the peer (peer read mark). */
-export function deliveryOf(m: Pick<ChatMessage, "id" | "timestamp" | "is_read">, peerReadUpto: number): Delivery {
-  if (m.id.startsWith("msg_opt_")) return "sending";
-  return m.is_read || (peerReadUpto > 0 && m.timestamp <= peerReadUpto) ? "read" : "sent";
+/** Where one of my messages stands: being sealed, signed here but not yet on the network, on the network, or read by
+ *  the peer (peer read mark). */
+export function deliveryOf(m: Pick<ChatMessage, "id" | "timestamp" | "is_read" | "pending">, peerReadUpto: number, onNetwork = true): Delivery {
+  if (m.pending || m.id.startsWith("msg_opt_")) return "sending";
+  if (m.is_read || (peerReadUpto > 0 && m.timestamp <= peerReadUpto)) return "read";
+  return onNetwork ? "sent" : "queued";
 }
 
-/** The ✓ / ✓✓ marks of one of my messages; `prefix` is the view's class prefix ("rm" Messenger, "rv" Classic). */
+const DELIVERY_TITLE: Record<Delivery, string> = {
+  sending: "Sending…",
+  queued: "Sent: waiting for your Freenet node to publish it",
+  sent: "Delivered to the network",
+  read: "Read",
+};
+
+/** The 🕓 / ✓ / ✓✓ marks of one of my messages; `prefix` is the view's class prefix ("rm" Messenger, "rv" Classic). */
 export function checksHtml(delivery: Delivery, prefix: "rm" | "rv"): string {
-  const title = delivery === "read" ? "Read by recipient" : delivery === "sending" ? "Sending to node…" : "Signed & stored on node";
-  return `<span class="${prefix}-checks ${delivery === "read" ? "read" : ""}" title="${title}">${delivery === "sending" ? "✓" : "✓✓"}</span>`;
+  const mark = delivery === "sending" ? renderIcon("clock", { size: 11, className: "icon-xs" }) : delivery === "queued" ? "✓" : "✓✓";
+  return `<span class="${prefix}-checks ${delivery}" title="${DELIVERY_TITLE[delivery]}" aria-label="${DELIVERY_TITLE[delivery]}">${mark}</span>`;
 }
 
 /** Animate and remove an expired message row with a smooth fade-away effect. */

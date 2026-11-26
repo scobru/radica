@@ -162,7 +162,7 @@ import {
 } from "./moderationPolicy.ts";
 import { commentsBy, type CommentEntry } from "./commentHistory.ts";
 import { renderIcon, type IconName } from "./icons";
-import { getNativeAppMode, hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
+import { getNativeAppMode, getNativeAppVersion, hasNativeBridge, openExternalUrl } from "./platformBridge.ts";
 import { safeStorage } from "./storage";
 import { FEED_BUDGET, FEED_SHOW, FEED_TARGET, feedBytes, formatBytes, oldestToFree } from "./feedsize";
 import { generateDefaultAvatar, compressAvatarFile, compressPostImageFile } from "./avatar";
@@ -244,7 +244,7 @@ import { mergeLoadedWalletInputs, PROFILE_EXTRA_LOGS, shouldPersistProfileField 
 import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
 import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
-import { startVersionCheck, checkNativeAppUpdate, getAppVersion } from "./versionCheck.ts";
+import { startVersionCheck, checkNativeAppUpdate, getAppVersion, GITHUB_RELEASES_PAGE } from "./versionCheck.ts";
 
 let currentIdentity: UserIdentity | null = null;
 let currentProfile: ProfileInfo | null = null;
@@ -8889,7 +8889,7 @@ function renderChatMessage(opts: { msg: ChatMessage; prev?: ChatMessage; all?: C
 
   // Read receipt checkmarks (Classic view)
   const peerPk = dmPeerOf(roomId, me);
-  const readReceiptHtml = isMine ? checksHtml(deliveryOf(msg, peerPk ? freenet.getPeerReadUpto(roomId, peerPk) : 0), "rv") : "";
+  const readReceiptHtml = isMine ? checksHtml(deliveryOf(msg, peerPk ? freenet.getPeerReadUpto(roomId, peerPk) : 0, freenet.isOnNetwork(msg.id)), "rv") : "";
 
   // TTL Disappearing timer badge (Classic view)
   let ttlTagHtml = "";
@@ -9205,7 +9205,7 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
     list.push(optMsg);
     safeStorage.setItem(roomKey, JSON.stringify(list));
     appendChatMessageToView({
-      msg: optMsg,
+      msg: activeChatSecret ? { ...optMsg, pending: true } : optMsg, // a Secret Chat placeholder has its real id: say it is still sealing
       prev: shownMessages[shownMessages.length - 1],
       all: shownMessages,
       roomId,
@@ -12951,7 +12951,9 @@ if (settingsShortcutsBtn) {
 
 const settingsAppVersionLabel = document.getElementById("settings-app-version-label");
 if (settingsAppVersionLabel) {
-  settingsAppVersionLabel.textContent = `v${getAppVersion()}`;
+  // in the native apps the page is the site the node serves: say both, they update apart
+  const app = getNativeAppVersion();
+  settingsAppVersionLabel.textContent = app ? `v${app} (web v${getAppVersion()})` : `v${getAppVersion()}`;
 }
 
 const settingsCheckUpdateBtn = document.getElementById("settings-check-update-btn");
@@ -12965,8 +12967,10 @@ if (settingsCheckUpdateBtn) {
       await checkNativeAppUpdate({
         force: true,
         onResult: (res) => {
-          if (!res.hasUpdate) {
-            showToast(`You are on the latest version of Radica (v${getAppVersion()}).`);
+          if (res.unreachable) {
+            if (confirm("Radica could not reach GitHub to check for a new release.\n\nOpen the releases page instead?")) openExternalUrl(GITHUB_RELEASES_PAGE, { fallbackWindowOpen: true });
+          } else if (!res.hasUpdate) {
+            showToast(`You are on the latest version of Radica (v${res.current ?? getAppVersion()}).`);
           }
         },
       });

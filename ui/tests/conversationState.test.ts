@@ -36,7 +36,14 @@ test("conversationState: delivery and its checks", () => {
   assert.equal(deliveryOf({ id: "m1", timestamp: 6 }, 5), "sent");
   assert.equal(deliveryOf({ id: "m1", timestamp: 6, is_read: true }, 0), "read");
   assert.match(checksHtml("read", "rm"), /class="rm-checks read"/);
-  assert.match(checksHtml("sending", "rv"), /^<span class="rv-checks ".*>✓<\/span>$/);
+  assert.match(checksHtml("sending", "rv"), /^<span class="rv-checks sending".*<svg/);
+  // a Secret Chat placeholder keeps its real id: the flag says it is still sealing
+  assert.equal(deliveryOf({ id: "scmsg_1", timestamp: 5, pending: true }, 0), "sending");
+  // signed here, not yet on the network: one ✓; on the network: ✓✓; read wins over both
+  assert.equal(deliveryOf({ id: "m1", timestamp: 6 }, 0, false), "queued");
+  assert.match(checksHtml("queued", "rm"), />✓<\/span>$/);
+  assert.match(checksHtml("sent", "rm"), />✓✓<\/span>$/);
+  assert.equal(deliveryOf({ id: "m1", timestamp: 6 }, 6, false), "read");
 });
 
 function memKV() {

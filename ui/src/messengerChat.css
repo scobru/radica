@@ -4222,3 +4222,6 @@ progress.cm-vnote-ring {
   font-size: 0.75rem;
   color: var(--rm-text-muted);
 }
+
+/* a message still being sealed: a small clock instead of ✓ */
+#chat-modal .rm-checks.sending { display: inline-flex; vertical-align: -1px; opacity: 0.7; }

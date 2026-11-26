@@ -722,6 +722,12 @@ public class MainActivity extends Activity {
             return isMessenger ? "messenger" : "full";
         }
 
+        /** The installed app's version (not the web page's): what the update check compares with GitHub's latest. */
+        @JavascriptInterface
+        public String getAppVersion() {
+            return BuildConfig.VERSION_NAME;
+        }
+
         @JavascriptInterface
         public boolean isMessenger() {
             return isMessenger;

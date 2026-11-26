@@ -27,6 +27,8 @@ export interface LogStoreDeps {
   onChanged: (name: string) => void;
   onLoaded?: (name: string) => void;
   onPostTake?: (name: string) => void;
+  /** Every local entry of `name` is on the network (a push went through, or a fetch found nothing missing). */
+  onSynced?: (name: string) => void;
   grind?: (msgOf: (nonce: number) => string) => number;
   verify?: (msg: string, sig: string, author: string, cert?: Cert) => Promise<boolean>;
   now?: () => number;
@@ -162,6 +164,7 @@ export class LogStore {
         entries: Object.fromEntries(entries.map((e) => [`${e.author}:${e.id}`, e])),
       });
       this.unsentLogs.delete(name);
+      this.deps.onSynced?.(name);
     } catch (e) {
       this.unsentLogs.add(name);
       console.warn("[Freenet] Could not send to log", name, e);
@@ -260,6 +263,7 @@ export class LogStore {
     const remoteCount = Object.keys(checkedRemote).length;
     if (missing.length === 0 && verifiedLocal.length === remoteCount && verifiedLocal.length === local.length) {
       this.unsentLogs.delete(name);
+      this.deps.onSynced?.(name);
       return;
     }
     const before = this.raw(name);
@@ -268,7 +272,10 @@ export class LogStore {
       this.deps.onChanged(name);
     }
     if (missing.length) await this.push(name, missing);
-    else this.unsentLogs.delete(name);
+    else {
+      this.unsentLogs.delete(name);
+      this.deps.onSynced?.(name);
+    }
     this.deps.onPostTake?.(name);
   }
 }
