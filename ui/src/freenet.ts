@@ -3598,8 +3598,8 @@ export class FreenetClient {
     return this.privateRooms.importRiverIdentity(identity, token);
   }
 
-  public migrateRiverRoom(identity: UserIdentity, roomId: string): Promise<PrivateRoom> {
-    return this.privateRooms.migrateRiverRoom(identity, roomId);
+  public migrateRiverRoom(identity: UserIdentity, roomId: string, fallbackName?: string): Promise<PrivateRoom> {
+    return this.privateRooms.migrateRiverRoom(identity, roomId, fallbackName);
   }
 
   public riverMigratedTo(room: PrivateRoom): string | null {

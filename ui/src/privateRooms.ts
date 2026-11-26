@@ -971,17 +971,24 @@ export class PrivateRoomManager {
 
   /** Owner only: move a River room to a native room with the same name and kind, invite its Radica members, keep its
    *  moderators, and leave the native invite link as the last River message for everyone else. */
-  public async migrateRiverRoom(identity: UserIdentity, roomId: string): Promise<PrivateRoom> {
+  public async migrateRiverRoom(identity: UserIdentity, roomId: string, fallbackName?: string): Promise<PrivateRoom> {
     const room = this.readRooms().find((r) => r.id === roomId);
     if (!room?.river) throw new Error("Not a River room");
     if (!this.isRiverOwner(identity, room)) throw new Error("Only the room owner can migrate it");
     const moved = this.riverMigratedTo(room);
     const done = moved && this.readRooms().find((r) => r.id === moved);
     if (done) return done;
-    await this.riverMessages(identity, room);
-    const roster = this.rosters.get(room.id);
-    if (!roster) throw new Error("Your node cannot read this River room right now: retry when it reaches it");
-    const name = await this.getPrivateRoomDecryptedName(identity, room);
+    await this.riverMessages(identity, room).catch((e) => console.warn("[River] migrate read:", e));
+    // a River room the node cannot read (e.g. after a contract change) still moves, from what this device knows:
+    // its Radica members and moderators, and a channel's subscribers from its room log; the name comes from the owner
+    const read = this.rosters.get(room.id);
+    if (!read && !fallbackName) throw new Error("Your node cannot read this River room right now: give the new room a name to migrate it anyway");
+    const moderators = read?.moderators ?? room.moderators ?? [];
+    const roster = read ?? {
+      members: [...room.members, ...(room.is_channel ? roomJoiners(this.deps.logEntries(`room/${room.id}`), room.id, new Set([room.creator, ...moderators])) : [])],
+      moderators,
+    };
+    const name = read ? await this.getPrivateRoomDecryptedName(identity, room) : fallbackName!;
     // River-only members (no Radica identity) cannot get a native invite: they get the link below
     const invitees = roster.members.filter((m) => m !== identity.pubkey && !this.riverOnly.has(m));
     const native = await this.createPrivateRoom(identity, name, invitees, undefined, {

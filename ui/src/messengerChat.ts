@@ -3363,11 +3363,18 @@ export function createMessengerChat(deps: MessengerDeps) {
     const identity = deps.getIdentity();
     const migrateBtn = t.closest<HTMLButtonElement>("[data-migrate-river]");
     if (identity && migrateBtn?.dataset.migrateRiver) {
-      if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
+      const roomId = migrateBtn.dataset.migrateRiver;
+      let fallbackName: string | undefined;
+      if (freenet.riverRoomUnreachable(roomId)) {
+        // River cannot be read: the name and history cannot come along, the members and moderators Radica knows can
+        const typed = prompt("Your node cannot read this River room, so its name and history cannot be carried over. Its Radica members and moderators still move to the new room.\n\nName for the new room:", "");
+        if (!typed?.trim()) return;
+        fallbackName = typed.trim();
+      } else if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
       migrateBtn.disabled = true;
       migrateBtn.textContent = "Migrating…";
       try {
-        const native = await freenet.migrateRiverRoom(identity, migrateBtn.dataset.migrateRiver);
+        const native = await freenet.migrateRiverRoom(identity, roomId, fallbackName);
         deps.showToast("Room migrated: members got the new invite.", "info");
         await deps.onSelectPrivateRoom(native);
       } catch (err: any) {
