@@ -1798,6 +1798,10 @@
           <p>Radica Desktop and Android check for a new release every 30 minutes, and you can check yourself in <b>Settings → App Version &amp; Updates → Check for updates</b>, which also shows the version you have. When one is out, a prompt downloads it for your platform (the APK on Android, the zip or tarball on a computer) in one click.</p>
           <p>Android apps are now signed release builds, so later updates install over the old one. If you still have an older <code>-debug</code> APK, Android refuses the update until you uninstall it once: <b>back up your key first</b> (Identity &amp; keys), because uninstalling deletes it from the phone, then install the new APK and sign in with it.</p>
         </details>
+        <details><summary>🌊 Moving River rooms to native groups</summary>
+          <p>River rooms are being retired: River's room contract changes often, and each change broke groups and channels. If you own a River room, open it and press <b>Migrate</b> in the banner at the top. Radica creates a native room with the same name and kind, invites its Radica members, keeps its moderators, and posts the new invite link as the last message in the River room for everyone else.</p>
+          <p>Only the owner can migrate a room. Members: open your River rooms at least once, so this device keeps their history as a read-only archive; after the move, <b>Open new room</b> in the banner takes you there. Rooms your node can no longer read cannot be migrated. New River rooms can no longer be created.</p>
+        </details>
         <details><summary>📻 Chat without internet (local network)</summary>
           <p>In the Radica Desktop and Android apps, the direct messages and Secret Chat messages you send also travel over your Wi-Fi or phone hotspot to other Radica devices nearby. If the internet or Freenet is down, people on the same network still get them, in the usual conversation. A small 📻 on a bubble means it came over the local network.</p>
           <p>Messages stay end-to-end encrypted and signed: a device keeps only messages meant for it, from the other person in that chat, and never from someone you blocked. When Freenet is back, what you sent reaches their inbox too. Text only; photos, voice and video still need Freenet. A plain browser tab cannot use the local network.</p>
@@ -2512,15 +2516,7 @@
             </p>
           </div>
         </div>
-        <div class="privroom-channel-options-box" style="margin-top: 8px;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; margin-bottom: 4px; color: var(--text-main);">
-            <input type="checkbox" id="privroom-river-check" style="accent-color: var(--primary);" />
-            <span>🌊 Interoperable River Room (uses external River contract &amp; invite codes)</span>
-          </label>
-          <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0;">
-            Off by default (recommended): rooms use Radica's native E2EE contracts with zero-knowledge links and never break on external River updates.
-          </p>
-        </div>
+        <!-- River rooms retired (2026-11-26): new rooms are native only -->
 
         <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
           <div style="position: relative; width: 52px; height: 52px; flex-shrink: 0;">

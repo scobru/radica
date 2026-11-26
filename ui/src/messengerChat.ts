@@ -1910,6 +1910,24 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
 
+    // River rooms are retired: the owner migrates, everyone else follows the new room (or keeps the read-only archive)
+    const riverRetireBannerHtml = (room: PrivateRoom): string => {
+      const to = freenet.riverMigratedTo(room);
+      const target = to ? deps.getAllPrivateRooms().find((r) => r.id === to) : undefined;
+      const btn = "margin-left:auto;padding:3px 8px;border-radius:6px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;font-weight:600;";
+      const text = to
+        ? "This River room moved to a native Radica room. What is here stays as a read-only archive on this device."
+        : freenet.isRiverOwner(identity, room)
+          ? "River rooms are being retired. Migrate this room to a native Radica room: members get the new invite."
+          : "River rooms are being retired. The owner can migrate this room; until then keep it open so this device saves its history.";
+      const action = target
+        ? `<button type="button" style="${btn}" data-open-migrated="${escapeHtml(target.id)}">Open new room</button>`
+        : !to && freenet.isRiverOwner(identity, room)
+          ? `<button type="button" style="${btn}" data-migrate-river="${escapeHtml(room.id)}">Migrate</button>`
+          : "";
+      return `<div class="rm-e2ee-banner"><span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("repeat", { size: 13, className: "icon-xs" })} <span>${text}</span></span>${action}</div>`;
+    };
+
     // Security / Public Context Banner at top of stream
     const curTtl = openId ? freenet.getSecretChatTTL(openId) : 0;
     const ttlLabel = formatTtlLabel(curTtl);
@@ -1932,6 +1950,8 @@ export function createMessengerChat(deps: MessengerDeps) {
             </div>
           </div>
         </div>`
+      : st.privateRoom?.river
+      ? riverRetireBannerHtml(st.privateRoom)
       : `<div class="rm-e2ee-banner">
             <span style="display:inline-flex;align-items:center;gap:5px;">${renderIcon("lock", { size: 13, className: "icon-xs" })} <span>${
               isRoomGardenerActive(st.privateRoom)
@@ -3572,7 +3592,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       try {
         deps.showToast("Creating linked discussion room…", "info");
         const name = roomNameCache.get(st.privateRoom.id) || "Channel";
-        const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, st.privateRoom.members, undefined, { river: !!st.privateRoom.river });
+        const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, st.privateRoom.members, undefined, {});
         await freenet.setRoomLinkedDiscussion(identity, st.privateRoom.id, disc.id);
         await freenet.setRoomLinkedDiscussion(identity, disc.id, st.privateRoom.id);
         deps.showToast("Discussion room linked successfully!", "info");
@@ -3635,6 +3655,29 @@ export function createMessengerChat(deps: MessengerDeps) {
         await navigator.clipboard.writeText(link);
         deps.showToast("Zero-knowledge invite link copied to clipboard!", "info");
       }
+      return;
+    }
+
+    const migrateBtn = t.closest<HTMLButtonElement>("[data-migrate-river]");
+    if (migrateBtn?.dataset.migrateRiver) {
+      if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
+      migrateBtn.disabled = true;
+      migrateBtn.textContent = "Migrating…";
+      try {
+        const native = await freenet.migrateRiverRoom(identity, migrateBtn.dataset.migrateRiver);
+        deps.showToast("Room migrated: members got the new invite.", "info");
+        await deps.onSelectPrivateRoom(native);
+      } catch (err: any) {
+        deps.showToast(`Could not migrate: ${err.message || err}`, "error");
+        migrateBtn.disabled = false;
+        migrateBtn.textContent = "Migrate";
+      }
+      return;
+    }
+    const openMigrated = t.closest<HTMLElement>("[data-open-migrated]")?.dataset.openMigrated;
+    if (openMigrated) {
+      const target = deps.getAllPrivateRooms().find((r) => r.id === openMigrated);
+      if (target) await deps.onSelectPrivateRoom(target);
       return;
     }
 
