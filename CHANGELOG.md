@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Feed card cache compared the wrong fields (`ui/src/{main,cardSig}.ts`, `ui/tests/cardSig.test.ts`): the stored signature and the check were two hand-written lists that had drifted (e.g. `sig[14]` held the trust label but was checked against the post's edit time), so a changed badge or GitHub/PoH mark could leave an old card and unchanged cards were redrawn. One list now builds both (`cardSig`/`cardSigMatches`), with comment text and mentions still computed only when the cheap parts match.
+
   * **NEW** Edit my comments (`ui/src/{freenet,main,crypto}.ts`, `ui/src/style.css`, `contract/src/lib.rs`, `ui/e2e/app.spec.ts`): from the Greenhouse "Feature list" proposal. `FreenetClient.editComment` re-signs the comment with the same id and timestamp (the id carries the anti-bot proof `postHasPow` checks) and new text, moving only the nonce (`grindNonce(…, from)`; PoW on someone else's feed) until the signature sorts above the current one, which the feed contract already keeps. In-place editor in feed, single post and Communities comments (draft kept across redraws, mentions edited as names and turned back into keys); contract test `an_author_edits_a_comment_keeping_its_id_and_timestamp`.
 
   * **NEW** Notes, a chat with myself (`ui/src/messengerChat.ts`, `ui/index.html`, `README.md`, `CONTEXT.md`, `ui/e2e/app.spec.ts`): from the Greenhouse proposal "Notes". Messenger always lists the conversation `<me>:<me>` as **Notes** (own header, empty card and info drawer); sending uses the existing DM path, which already seals to my key and my other devices. **Wipe all notes** deletes each note (`chat_delete`) and clears the room (`chat_clear`, synced to my devices), with a progress label.

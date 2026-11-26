@@ -56,6 +56,7 @@ import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard, freetreeProfileCard, parseFreetreeInput, setFreetreeNames } from "./freetree.ts";
 import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
+import { cardSig, cardSigMatches } from "./cardSig.ts";
 import { attachMentionPicker, insertMention, namesToKeys, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
 import {
@@ -3092,40 +3093,15 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
 
   let sig: unknown[] | undefined;
   if (!singleView) {
+    const cheap = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author), editingCommentsOf(post.id)];
+    const costly = [getCommSig, getMentionSig];
     const hit = cardCache.get(post.id);
-    if (
-      hit &&
-      hit.sig[0] === postSig &&
-      hit.sig[1] === likesSig &&
-      hit.sig[2] === isLiked &&
-      hit.sig[3] === isDisliked &&
-      hit.sig[4] === dislikeCount &&
-      hit.sig[5] === isWotShielded &&
-      hit.sig[6] === isModOrOwner &&
-      hit.sig[7] === authorIsMod &&
-      hit.sig[8] === authorDisplayName &&
-      hit.sig[9] === authorAvatar &&
-      hit.sig[10] === timeAgo &&
-      hit.sig[13] === authorTrust.tier &&
-      hit.sig[14] === (edit?.ts ?? 0) &&
-      hit.sig[15] === postTranslations.get(`${post.author}:${post.id}`) &&
-      hit.sig[16] === saved &&
-      hit.sig[17] === shownComments.length &&
-      hit.sig[18] === mod.globalMod &&
-      hit.sig[19] === unproven.length &&
-      hit.sig[20] === repostCount &&
-      hit.sig[21] === isReposted &&
-      hit.sig[24] === (anteBitsByKey.get(post.author) ?? 0) &&
-      hit.sig[25] === googlePohKeys.has(post.author) &&
-      hit.sig[26] === editingCommentsOf(post.id) &&
-      hit.sig[11] === getCommSig() &&
-      hit.sig[12] === getMentionSig()
-    ) {
+    if (hit && cardSigMatches(hit.sig, cheap, costly)) {
       cardCache.delete(post.id);
       cardCache.set(post.id, hit);
       return hit.html;
     }
-    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author), editingCommentsOf(post.id)];
+    sig = cardSig(cheap, costly);
   }
 
   const identityBadgesHtml = [
