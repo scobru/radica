@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** River room **Migrate** button did nothing (`ui/src/messengerChat.ts`): its click handler sat in the drawer's listener while the banner is in the message track; `[data-migrate-river]` and `[data-open-migrated]` now live in the `messagesTrackEl` listener.
+
   * **NEW** River room migration to native rooms, phase 1 of retiring River (`ui/src/{privateRooms,freenet,messengerChat,storageKeys}.ts`, `ui/index.html`, `ui/tests/privateRooms.test.ts`): `PrivateRoomManager.migrateRiverRoom` (owner only, idempotent) reads the River room once, creates a native room with the same name, kind (`is_channel`) and avatar, invites the roster's Radica members (River-only keys skipped), re-appoints River deputies as moderators, posts the native `#join_room=` link as a River message and appends `room_migrated { to }` to `room/<river id>`. `riverMigratedTo` reads that entry (or the local `river_migrated_<id>` mark); writes to a migrated River room are refused. `riverMessages` keeps the last readable view in `radica_river_archive_<id>` (sensitive, never in `window.name`), shown when River cannot be read. Messenger shows a banner on River rooms (Migrate / Open new room) and the River option is gone from the create-room dialog; channel discussion rooms are always native. Phase 2 removes River code.
 
   * **RELEASE** Desktop & Android apps v1.1.1 (`package.json`, `apps/Cargo.toml`, `apps/Cargo.lock`, `ui/index.html`, `ui/src/versionCheck.ts`): ships the fixes merged after v1.1.0: Secret Chat copy selection on Viso devices, unreachable River room card with Retry, chat edit attachments (shown and removable), 🌐 menu sizing, My Circle Only. Tag `v1.1.1` after merge.
