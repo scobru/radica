@@ -227,8 +227,8 @@ export function powBits(msg: string): number {
   return leadingZeroBits(blake3(enc.encode(msg)));
 }
 /** The first nonce whose message meets FEED_POW_BITS (about 4k BLAKE3 hashes; hashing only, the signature comes once after). */
-export function grindNonce(msgOf: (nonce: number) => string): number {
-  let n = 0;
+export function grindNonce(msgOf: (nonce: number) => string, from = 0): number {
+  let n = from;
   while (powBits(msgOf(n)) < FEED_POW_BITS) n++;
   return n;
 }

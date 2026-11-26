@@ -56,7 +56,7 @@ import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard, freetreeProfileCard, parseFreetreeInput, setFreetreeNames } from "./freetree.ts";
 import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
-import { attachMentionPicker, insertMention, withMentionKeys } from "./mentionPicker.ts";
+import { attachMentionPicker, insertMention, namesToKeys, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
 import {
   deriveMailIdentity,
@@ -1011,7 +1011,7 @@ installModalDismiss(); // Escape or a click outside closes the top popup
 initShortcuts(); // Keyboard shortcuts across feed, posts, audio, and navigation
 
 // "@" in the post box, comment box, or chat composer lists people I know of: those I follow first
-attachMentionPicker("#post-caption, .comment-input, #chat-message-input, #rm-composer-input", (q) => {
+attachMentionPicker("#post-caption, .comment-input, .comment-edit-input, #chat-message-input, #rm-composer-input", (q) => {
   const me = currentIdentity?.pubkey;
   const query = q.toLowerCase();
   return Object.entries(freenet.knownPeers)
@@ -3117,6 +3117,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
       hit.sig[21] === isReposted &&
       hit.sig[24] === (anteBitsByKey.get(post.author) ?? 0) &&
       hit.sig[25] === googlePohKeys.has(post.author) &&
+      hit.sig[26] === editingCommentsOf(post.id) &&
       hit.sig[11] === getCommSig() &&
       hit.sig[12] === getMentionSig()
     ) {
@@ -3124,7 +3125,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
       cardCache.set(post.id, hit);
       return hit.html;
     }
-    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author)];
+    sig = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, getCommSig(), getMentionSig(), authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author), editingCommentsOf(post.id)];
   }
 
   const identityBadgesHtml = [
@@ -3352,14 +3353,14 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
                 return `
               <div class="comment-item" id="${domPrefix}comment-${escapeHtml(c.id)}">
                 <span class="comment-author author-clickable" data-author="${escapeHtml(c.author)}" style="cursor: pointer;" title="Persona: ${c.author}">${escapeHtml(getAuthorDisplayName(c.author))}:</span>
-                <span class="comment-text">${renderComment(c.text, getAuthorDisplayName)}</span>
+                ${commentEditorHtml(post, commKey) ?? `<span class="comment-text">${renderComment(c.text, getAuthorDisplayName)}</span>`}
                 <span class="comment-time" title="${escapeHtml(new Date(c.timestamp).toLocaleString())}">${formatTimeAgo(c.timestamp)}</span>
                 <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="${escapeHtml(cTooltip)}" aria-label="Like comment">
                   <span class="comment-heart">${renderIcon(isCLiked ? "heartFilled" : "heart", { className: "icon-xs", ariaLabel: isCLiked ? "Liked" : "Like" })}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
                 </button>
                 ${cTranslate}
                 ${mod.globalMod && c.author !== me ? `<button type="button" class="comment-remove-btn" data-comment-author="${escapeHtml(c.author)}" data-comment-id="${escapeHtml(c.id)}" title="Radica moderator: remove this comment for everyone who follows Radica's moderation" aria-label="Remove comment as moderator">${renderIcon("shield", { className: "icon-xs" })}</button>` : ""}
-                ${c.author === me ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>` : ""}
+                ${c.author === me ? `${commentEditBtnHtml(post, commKey)}<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>` : ""}
                 ${cTranslated ? `<div class="comment-translation">${escapeHtml(cTranslated)}</div>` : ""}
               </div>
             `;
@@ -4739,6 +4740,79 @@ async function toggleCommentLikeFromButton(btn: HTMLElement) {
   }
 }
 
+// ---- Editing one of my comments, in place: the draft lives here (not in the DOM), so a redraw of the feed keeps it ----
+const editingComments = new Map<string, { draft: string; picks: Map<string, string> }>(); // `${postId}|${commKey}`
+const editKeyOf = (postId: string, commKey: string) => `${postId}|${commKey}`;
+const editingCommentsOf = (postId: string) => [...editingComments.keys()].filter((k) => k.startsWith(`${postId}|`)).join(",");
+
+function commentEditBtnHtml(post: Pick<Post, "id" | "author">, commKey: string): string {
+  return `<button type="button" class="comment-edit-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Edit my comment" aria-label="Edit my comment">${renderIcon("edit", { className: "icon-xs" })}</button>`;
+}
+
+/** The editor in place of a comment's text, while I edit it; undefined otherwise. */
+function commentEditorHtml(post: Post, commKey: string): string | undefined {
+  const e = editingComments.get(editKeyOf(post.id, commKey));
+  if (!e) return undefined;
+  const attrs = `data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}"`;
+  return `<span class="comment-editing"><textarea class="comment-edit-input" rows="2" ${attrs} aria-label="Edit your comment">${escapeHtml(e.draft)}</textarea><span class="comment-edit-actions"><button type="button" class="btn-primary btn-sm comment-edit-save" ${attrs}>Save</button><button type="button" class="btn-secondary btn-sm comment-edit-cancel" ${attrs}>Cancel</button></span></span>`;
+}
+
+function redrawAfterCommentEdit(postId: string): void {
+  redrawCard(postId);
+  renderSinglePostIfOpen(postId);
+  if (isOpen(communitiesModal)) renderCommunitiesPage();
+}
+
+document.addEventListener("input", (e) => {
+  const box = (e.target as Element).closest<HTMLTextAreaElement>("textarea.comment-edit-input");
+  const ed = box && editingComments.get(editKeyOf(box.dataset.postId!, box.dataset.key!));
+  if (ed) ed.draft = box!.value;
+});
+
+document.addEventListener("click", async (e) => {
+  const btn = (e.target as Element).closest<HTMLElement>(".comment-edit-btn, .comment-edit-save, .comment-edit-cancel");
+  if (!btn || !currentIdentity) return;
+  const { postId, author, key } = btn.dataset as { postId: string; author: string; key: string };
+  const ek = editKeyOf(postId, key);
+  if (btn.classList.contains("comment-edit-btn")) {
+    const c = timelinePosts.find((p) => p.id === postId && p.author === author)?.comments[key] ?? (await freenet.getFeed(author)).posts[postId]?.comments[key];
+    if (!c) return;
+    // mentions are stored as keys: edit them as names, and turn them back into the same keys on save
+    const picks = new Map<string, string>();
+    const draft = c.text.replace(/@([0-9a-f]{64})\b/g, (_, pk: string) => {
+      const name = getAuthorDisplayName(pk);
+      picks.set(name, pk);
+      return `@${name}`;
+    });
+    editingComments.set(ek, { draft, picks });
+    redrawAfterCommentEdit(postId);
+    document.querySelector<HTMLTextAreaElement>(`textarea.comment-edit-input[data-post-id="${CSS.escape(postId)}"][data-key="${CSS.escape(key)}"]`)?.focus();
+    return;
+  }
+  if (btn.classList.contains("comment-edit-cancel")) {
+    editingComments.delete(ek);
+    redrawAfterCommentEdit(postId);
+    return;
+  }
+  const ed = editingComments.get(ek);
+  const box = btn.closest(".comment-editing")?.querySelector<HTMLTextAreaElement>("textarea.comment-edit-input");
+  if (!ed || !box) return;
+  const text = box.value.trim();
+  if (!text) return void showToast("A comment cannot be empty: use ✕ to delete it.", "warning");
+  if (!okToPublish(text)) return;
+  const finalText = namesToKeys(withMentionKeys(box, text), ed.picks);
+  try {
+    const ok = await withBusy(btn, "Saving…", () => freenet.editComment(currentIdentity!, author, postId, key, finalText));
+    if (!ok) return void showToast("Could not edit the comment.", "error");
+    editingComments.delete(ek);
+    const post = timelinePosts.find((p) => p.id === postId && p.author === author);
+    if (post?.comments[key]) post.comments = { ...post.comments, [key]: { ...post.comments[key], text: finalText } };
+    redrawAfterCommentEdit(postId);
+  } catch (err: any) {
+    showToast(`Could not edit the comment: ${err.message || err}`, "error");
+  }
+});
+
 async function deleteCommentFromCard(btn: HTMLElement) {
   if (!currentIdentity || !confirm("Delete this comment?")) return;
   const { postId, author, key } = btn.dataset as { postId: string; author: string; key: string };
@@ -5126,7 +5200,7 @@ async function submitCommentFromCard(target: HTMLFormElement) {
         el.removeAttribute("data-temp-comment");
         el.insertAdjacentHTML(
           "beforeend",
-          `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(postId)}" data-author="${escapeHtml(author)}" data-key="${escapeHtml(realKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>`
+          `${commentEditBtnHtml({ id: postId, author }, realKey)}<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(postId)}" data-author="${escapeHtml(author)}" data-key="${escapeHtml(realKey)}" title="Delete my comment" aria-label="Delete my comment">✕</button>`
         );
       });
       if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
@@ -11594,9 +11668,9 @@ function renderCommunitiesPage() {
                                 <button type="button" class="comment-like-btn${isCLiked ? " liked" : ""}" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-comment-key="${escapeHtml(commKey)}" data-comment-author="${escapeHtml(c.author)}" title="Like comment">
                                   <span class="comment-heart">${renderIcon(isCLiked ? "heartFilled" : "heart", { className: "icon-xs", ariaLabel: isCLiked ? "Liked" : "Like" })}</span>${cLikers.length > 0 ? `<span class="comment-like-count">${cLikers.length}</span>` : ""}
                                 </button>
-                                ${c.author === me ? `<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete comment">✕</button>` : ""}
+                                ${c.author === me ? `${commentEditBtnHtml(post, commKey)}<button type="button" class="comment-del-btn" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" data-key="${escapeHtml(commKey)}" title="Delete comment">✕</button>` : ""}
                               </div>
-                              <div class="reddit-comment-body">${renderComment(c.text, getAuthorDisplayName)}</div>
+                              ${commentEditorHtml(post, commKey) ?? `<div class="reddit-comment-body">${renderComment(c.text, getAuthorDisplayName)}</div>`}
                             </div>
                             `;
                           })

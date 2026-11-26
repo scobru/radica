@@ -417,3 +417,28 @@ test("Notes: a conversation with myself, listed from the start, that wipes in on
   await page.locator("[data-wipe-notes]").click(); // signIn accepts the confirm
   await expect(page.locator(".rm-msg-row", { hasText: "remember the milk" })).toHaveCount(0, { timeout: 15_000 });
 });
+
+test("my comment can be edited in place, and keeps its place", async ({ page }) => {
+  await signIn(page);
+  const tag = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+  await page.fill("#post-caption", `edit test ${tag}`);
+  await page.getByRole("button", { name: "Plant post" }).click();
+  const card = page.locator(".gram-card", { hasText: tag }).first();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await card.locator("textarea.comment-input").fill("frist comment");
+  await card.locator("textarea.comment-input").press("Enter");
+  const comment = card.locator(".comment-item", { hasText: "frist comment" }).first();
+  await expect(comment.locator(".comment-edit-btn")).toBeVisible({ timeout: 20_000 }); // once the real comment is back
+  await comment.locator(".comment-edit-btn").click();
+  const box = card.locator("textarea.comment-edit-input");
+  await expect(box).toHaveValue("frist comment");
+  await box.fill("first comment");
+  await card.locator(".comment-edit-save").click();
+  await expect(card.locator(".comment-item", { hasText: "first comment" })).toBeVisible({ timeout: 20_000 });
+  await expect(card.locator("textarea.comment-edit-input")).toHaveCount(0);
+  // stored, not just drawn: a fresh page shows the edited text
+  await page.reload();
+  const again = page.locator(".gram-card", { hasText: tag }).first();
+  await expect(again.locator(".comment-item", { hasText: "first comment" })).toBeVisible({ timeout: 30_000 });
+  await expect(again.locator(".comment-item", { hasText: "frist comment" })).toHaveCount(0);
+});
