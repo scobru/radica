@@ -1,3 +1,4 @@
+import { insertMention } from "./mentionPicker.ts";
 import { OTHER_DEVICE } from "./secretChatTransport.ts";
 import { withBusy } from "./busy.ts";
 import {
@@ -3303,8 +3304,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       ? deps.getActiveState().shownMessages.find((x) => x.id === finished.row.dataset.msgId)
       : undefined;
     if (!m || composerInputEl.disabled) return;
-    const v = composerInputEl.value;
-    composerInputEl.value = `${v}${v && !v.endsWith(" ") ? " " : ""}@${deps.getAuthorDisplayName(m.sender)} `;
+    insertMention(composerInputEl, { pubkey: m.sender, name: deps.getAuthorDisplayName(m.sender) });
     fitInput();
     composerInputEl.focus();
   }, { passive: true });

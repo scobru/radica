@@ -11,6 +11,14 @@ export function namesToKeys(text: string, picks: Map<string, string>): string {
 
 const picked = new WeakMap<HTMLElement, Map<string, string>>();
 
+/** Write "@Name " at the end of `box` and remember whose key it is, as picking them from the list does (a swipe). */
+export function insertMention(box: HTMLInputElement | HTMLTextAreaElement, p: Person): void {
+  const v = box.value;
+  box.value = `${v}${v && !v.endsWith(" ") ? " " : ""}@${p.name} `;
+  if (!picked.has(box)) picked.set(box, new Map());
+  picked.get(box)!.set(p.name, p.pubkey);
+}
+
 /** What to send for this box: its picked mentions as keys. Forgets the picks (the box is being emptied). */
 export function withMentionKeys(box: HTMLElement, text: string): string {
   const picks = picked.get(box);

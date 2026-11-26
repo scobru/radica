@@ -56,7 +56,7 @@ import { wormholeCard, fillWormhole } from "./wormhole.ts";
 import { freetreeCard, freetreeProfileCard, parseFreetreeInput, setFreetreeNames } from "./freetree.ts";
 import { sporeRadioCard } from "./sporeRadio.ts";
 import { nameHref, freenamesCard, fillFreenames } from "./freenames.ts";
-import { attachMentionPicker, withMentionKeys } from "./mentionPicker.ts";
+import { attachMentionPicker, insertMention, withMentionKeys } from "./mentionPicker.ts";
 import { rootsSvg } from "./roots.ts";
 import {
   deriveMailIdentity,
@@ -97,7 +97,7 @@ import {
   type MailFolder,
 } from "./mailClient.ts";
 import { createMessengerChat, type ChatLayoutMode } from "./messengerChat.ts";
-import { shouldDeferBackgroundRender } from "./messengerLogic.ts";
+import { resolveMessageSwipeStep, shouldDeferBackgroundRender, type MessageSwipePhase } from "./messengerLogic.ts";
 import { formatTtlLabel } from "./secretChat.ts";
 import { escapeHtml, safeUrl, shortenKey } from "./html.ts";
 import { burnAtOf, checksHtml, createConversationState, deliveryOf, dmPeerOf, nextTtl, tickBurnCountdowns, triggerRowBurnAnimation } from "./conversationState.ts";
@@ -5492,6 +5492,56 @@ if (brandLogo) {
   brandLogo.addEventListener("click", () => {
     setCategory("all");
   });
+}
+
+// Phones: swipe a post to the left to mention its author in its comment box (as a chat message swipes right). Not on
+// its photos (a carousel swipes there) nor from the screen's right edge (the system's Back gesture on some phones).
+{
+  let postSwipe: { card: HTMLElement; x: number; y: number; dx: number; phase: MessageSwipePhase } | null = null;
+  const reset = (s: typeof postSwipe) => {
+    if (s?.phase === "horizontal") {
+      s.card.style.transform = "";
+      s.card.style.willChange = "";
+    }
+  };
+  document.addEventListener("touchstart", (e) => {
+    const target = e.target as HTMLElement;
+    const card = target.closest<HTMLElement>(".gram-card[data-author]");
+    const t = e.touches[0];
+    const blocked = target.closest(".carousel-track, .gram-media, video, audio, input, textarea, select, [contenteditable]");
+    postSwipe = card && !blocked && e.touches.length === 1 && t.clientX < window.innerWidth - 24 ? { card, x: t.clientX, y: t.clientY, dx: 0, phase: "pending" } : null;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!postSwipe) return;
+    const step = resolveMessageSwipeStep({ phase: postSwipe.phase, dx: e.touches[0].clientX - postSwipe.x, dy: e.touches[0].clientY - postSwipe.y, dir: -1 });
+    if (!step) {
+      reset(postSwipe);
+      postSwipe = null;
+      return;
+    }
+    postSwipe.phase = step.phase;
+    postSwipe.dx = step.offset;
+    if (step.phase === "horizontal") {
+      postSwipe.card.style.willChange = "transform";
+      postSwipe.card.style.transform = `translateX(${-postSwipe.dx}px)`;
+    }
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    const done = postSwipe;
+    postSwipe = null;
+    reset(done);
+    if (!done || done.phase !== "horizontal" || done.dx < 60) return;
+    const box = done.card.querySelector<HTMLTextAreaElement>("textarea.comment-input");
+    if (!box || box.disabled) return;
+    const author = done.card.dataset.author!;
+    insertMention(box, { pubkey: author, name: getAuthorDisplayName(author) });
+    box.dispatchEvent(new Event("input", { bubbles: true })); // grows the box and keeps the draft
+    box.focus();
+  }, { passive: true });
+  document.addEventListener("touchcancel", () => {
+    reset(postSwipe);
+    postSwipe = null;
+  }, { passive: true });
 }
 
 // Publish Post (optimistic)
