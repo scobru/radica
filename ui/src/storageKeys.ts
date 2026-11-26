@@ -53,6 +53,9 @@ export const STORAGE_KEY_RULES: readonly StorageKeyRule[] = [
   { prefix: "radica_fmail_aft_assignments_", sensitive: true, durable: true },
   { prefix: "radica_mail_blocked_", sensitive: true, durable: true },
 
+  // River room history kept on this device after the room moved to a native room (plain text: never in window.name)
+  { prefix: "radica_river_archive_", sensitive: true },
+
   // Non-secret durable keys
   { prefix: "radica_pinned_chats_", durable: true, hashSafe: "soft" },
   { prefix: "radica_verified_chats_", durable: true, hashSafe: "soft" },

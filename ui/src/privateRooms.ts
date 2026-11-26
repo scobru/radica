@@ -892,8 +892,8 @@ export class PrivateRoomManager {
     const creator = isOwner ? identity.pubkey : name(owner) || owner;
     const moderators = [...new Set(view.members.filter((m) => m.deputy).map((m) => name(m.vk)))];
     let members = view.members.map((m) => name(m.vk));
+    void this.deps.refreshLog(`room/${room.id}`);
     if (room.is_channel) {
-      void this.deps.refreshLog(`room/${room.id}`);
       members = [...members, ...roomJoiners(this.deps.logEntries(`room/${room.id}`), room.id, new Set([creator, ...moderators]))];
     }
     this.rosters.set(room.id, {
@@ -941,7 +941,68 @@ export class PrivateRoomManager {
       `freenet_chat_${room.id}`,
       JSON.stringify(activeMessages.map((m) => ({ ...m, text: "" }))),
     );
+    // the live view replaces the archive (deletions included); the archive is what stays once River is gone
+    if (activeMessages.length) this.deps.storage.setItem(`radica_river_archive_${room.id}`, JSON.stringify(activeMessages));
     return allMessages;
+  }
+
+  /** This device's last readable copy of a River room's messages. */
+  public riverArchive(roomId: string): ChatMessage[] {
+    const cleared = Number(this.deps.storage.getItem(`freenet_chat_cleared_${roomId}`) || 0);
+    try {
+      return (JSON.parse(this.deps.storage.getItem(`radica_river_archive_${roomId}`) || "[]") as ChatMessage[]).filter((m) => m.timestamp > cleared);
+    } catch {
+      return [];
+    }
+  }
+
+  /** The native room a River room moved to: this device's mark, or its owner's `room_migrated` entry. */
+  public riverMigratedTo(room: PrivateRoom): string | null {
+    const local = this.deps.storage.getItem(`river_migrated_${room.id}`);
+    if (local) return local;
+    for (const e of this.deps.logEntries(`room/${room.id}`)) {
+      try {
+        const b = JSON.parse(e.body);
+        if (e.author === room.creator && b.type === "room_migrated" && typeof b.to === "string") return b.to;
+      } catch {}
+    }
+    return null;
+  }
+
+  /** Owner only: move a River room to a native room with the same name and kind, invite its Radica members, keep its
+   *  moderators, and leave the native invite link as the last River message for everyone else. */
+  public async migrateRiverRoom(identity: UserIdentity, roomId: string): Promise<PrivateRoom> {
+    const room = this.readRooms().find((r) => r.id === roomId);
+    if (!room?.river) throw new Error("Not a River room");
+    if (!this.isRiverOwner(identity, room)) throw new Error("Only the room owner can migrate it");
+    const moved = this.riverMigratedTo(room);
+    const done = moved && this.readRooms().find((r) => r.id === moved);
+    if (done) return done;
+    await this.riverMessages(identity, room);
+    const roster = this.rosters.get(room.id);
+    if (!roster) throw new Error("Your node cannot read this River room right now: retry when it reaches it");
+    const name = await this.getPrivateRoomDecryptedName(identity, room);
+    // River-only members (no Radica identity) cannot get a native invite: they get the link below
+    const invitees = roster.members.filter((m) => m !== identity.pubkey && !this.riverOnly.has(m));
+    const native = await this.createPrivateRoom(identity, name, invitees, undefined, {
+      ...(room.is_channel ? { is_channel: true } : {}),
+      ...(room.avatar_url ? { avatar_url: room.avatar_url } : {}),
+    });
+    for (const m of roster.moderators) {
+      if (!native.members.includes(m)) continue;
+      await this.setPrivateRoomModerator(identity, native.id, m, true).catch((e) => console.warn("[River] migrate moderator:", e));
+    }
+    const key = await this.getPrivateRoomKey(identity, native);
+    if (key) {
+      const text = `This room moved to a native Radica room. Join here: ${buildPrivateRoomInviteLink(native, key, name)}`;
+      await (await this.deps.rivers())
+        .say(this.riverKey(identity, room), room.river.owner, text, this.riverJoin(room.id), this.nickname())
+        .catch((e) => console.warn("[River] migrate notice:", e));
+    }
+    this.deps.storage.setItem(`river_migrated_${room.id}`, native.id);
+    await this.deps.logAppend(`room/${room.id}`, { type: "room_migrated", to: native.id });
+    this.deps.notifyListeners();
+    return native;
   }
 
   private computeRiverJoins(roomId: string, members: string[], messages: ChatMessage[], creator?: string): ChatMessage[] {
@@ -1264,6 +1325,7 @@ export class PrivateRoomManager {
     const notifMsg = room.is_channel ? "posted an update in a Broadcast Channel" : "sent a message in an encrypted Private Room";
 
     if (room.river) {
+      if (this.riverMigratedTo(room)) throw new Error("This River room moved to a native Radica room: write there.");
       await (await this.deps.rivers()).say(
         this.riverKey(identity, room),
         room.river.owner,
@@ -1318,7 +1380,13 @@ export class PrivateRoomManager {
   }
 
   public async getPrivateRoomChatMessages(identity: UserIdentity, room: PrivateRoom): Promise<ChatMessage[]> {
-    if (room.river) return this.riverMessages(identity, room);
+    if (room.river) {
+      const live = await this.riverMessages(identity, room).catch((e) => {
+        console.warn("[River] read failed, showing the local archive:", e);
+        return [] as ChatMessage[];
+      });
+      return live.length ? live : this.riverArchive(room.id);
+    }
     void this.deps.refreshLog(`room/${room.id}`);
     const entries = this.deps.logEntries(`room/${room.id}`);
     const joins = this.deps.computeLogJoins(room.id, entries);
