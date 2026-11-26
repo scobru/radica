@@ -3,7 +3,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
-import { keyOf } from "./riverPointer.ts";
+import { keyOf } from "./contractKey.ts";
 import { hexToBytes } from "./crypto.ts";
 import { escapeHtml as escape } from "./html.ts";
 

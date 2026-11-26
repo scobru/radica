@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm --prefix ui run dev",
     "build:ui": "npm --prefix ui run build",
-    "build:contract": "cargo build --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path log-contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path media-contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path river-wasm/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path ghostkey-wasm/Cargo.toml --target wasm32-unknown-unknown --release",
+    "build:contract": "cargo build --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path log-contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path media-contract/Cargo.toml --target wasm32-unknown-unknown --release && cargo build --manifest-path ghostkey-wasm/Cargo.toml --target wasm32-unknown-unknown --release",
     "build": "npm run build:contract && npm run build:ui",
     "freenet:build": "npm run build:ui",
     "freenet:publish": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs app && fdev website publish ui/dist-app --key radica",
@@ -15,7 +15,7 @@
     "freenet:assets:update": "npm run freenet:build && node ui/scripts/split-freenet-dist.mjs assets && fdev website update ui/dist-assets --key radica-assets",
     "test": "npm run test:ui && npm run test:contract && npm run test:app",
     "test:ui": "npm --prefix ui test",
-    "test:contract": "cargo test --manifest-path contract/Cargo.toml && cargo test --manifest-path log-contract/Cargo.toml && cargo test --manifest-path delegate/Cargo.toml && cargo test --manifest-path river-wasm/Cargo.toml && cargo test --manifest-path ghostkey-wasm/Cargo.toml",
+    "test:contract": "cargo test --manifest-path contract/Cargo.toml && cargo test --manifest-path log-contract/Cargo.toml && cargo test --manifest-path delegate/Cargo.toml && cargo test --manifest-path ghostkey-wasm/Cargo.toml",
     "test:app": "cargo test --manifest-path apps/Cargo.toml",
     "app": "npm run build:ui && cargo run --manifest-path apps/Cargo.toml -p radica-desktop",
     "app:messenger": "npm run build:ui && cargo run --manifest-path apps/Cargo.toml -p radica-desktop --bin radica-messenger",

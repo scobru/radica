@@ -1,3 +1,4 @@
+import { withBusy } from "./busy.ts";
 import {
   computeSafetyBlocks,
   shouldHydratePreview,
@@ -1097,7 +1098,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const st = deps.getActiveState();
     const me = deps.getIdentity()?.pubkey;
     const pks = st.privateRoom
-      ? [...new Set((st.privateRoom.river ? freenet.riverRoster(st.privateRoom.id)?.members : undefined) ?? st.privateRoom.members)]
+      ? [...new Set(st.privateRoom.members)]
       : st.peer
         ? [st.peer]
         : [];
@@ -1241,7 +1242,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
     const items: UnifiedConversation[] = [];
 
-    // 1. Private Rooms (AES-256-GCM & River WASM)
+    // 1. Private Rooms (AES-256-GCM; River rooms are read-only archives)
     const rooms = deps.getAllPrivateRooms();
     await Promise.all(
       rooms.map(async (r) => {
@@ -1311,7 +1312,6 @@ export function createMessengerChat(deps: MessengerDeps) {
     for (const pk of knownPeers) {
       const roomId = freenet.getRoomId(me, pk);
       const displayName = deps.getAuthorDisplayName(pk);
-      const fromRiver = freenet.riverOnly.has(pk);
       const unread = openId === roomId ? 0 : deps.conversation.unread(roomId, read);
       const meta = storedRoomMeta(roomId);
       const cached = getCachedPreview(roomId);
@@ -1329,9 +1329,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         previewOptimistic = meta.optimistic;
         const isPlain = meta.rawText && !meta.rawText.startsWith("e2e:") && !meta.rawText.startsWith("sym:");
         previewText = isPlain ? formatPreviewLine(meta.rawText, meta.lastSender, me, "dm") : "Encrypted message…";
-      } else if (fromRiver) {
-        const roomsIn = Object.values(freenet.riverOnly.get(pk) ?? {});
-        if (roomsIn.length) previewText = `In ${roomsIn.join(", ")}`;
       }
 
       items.push({
@@ -1340,7 +1337,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         type: "dm",
         name: displayName,
         dupSuffix: (nameCount.get(displayName) ?? 0) > 1 ? pk.slice(0, 4) : undefined,
-        origin: fromRiver ? "River" : undefined,
         avatarUrl: deps.getAuthorAvatarUrl(pk),
         avatarFallbackSeed: pk,
         pinned: pins.has(`dm:${pk}`),
@@ -1672,15 +1668,8 @@ export function createMessengerChat(deps: MessengerDeps) {
   function sharedSpacesWithPeer(peerPk: string): string[] {
     const shared: string[] = [];
     for (const r of deps.getAllPrivateRooms()) {
-      const members = (r.river ? freenet.riverRoster(r.id)?.members : undefined) ?? r.members;
-      if (members.includes(peerPk)) {
+      if (r.members.includes(peerPk)) {
         shared.push(roomNameCache.get(r.id) || `Room (${r.id.slice(9, 15)})`);
-      }
-    }
-    const riverMap = freenet.riverOnly.get(peerPk);
-    if (riverMap) {
-      for (const rn of Object.values(riverMap)) {
-        if (rn && !shared.includes(rn)) shared.push(rn);
       }
     }
     for (const c of deps.getAllCommunities()) {
@@ -1707,7 +1696,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       const avatar = deps.getAuthorAvatarUrl(pk);
       const fallback = generateDefaultAvatar(pk);
       const isVerified = verified.has(`dm:${pk}`);
-      const isRiver = freenet.riverOnly.has(pk);
 
       headerAvatarSlotEl.innerHTML = `<img class="rm-header-avatar" ${st.isSecret ? 'style="border: 2px solid #10b981;"' : ""} src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.src='${fallback}'" />`;
       const isBlocked = deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk);
@@ -1746,10 +1734,8 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.style.display = "inline-flex";
           headerTrustBadgeEl.className = "rm-trust-pill";
           headerTrustBadgeEl.innerHTML = isVerified ? `${renderIcon("shield", { size: 11 })} <span>E2EE · Verified</span>` : `${renderIcon("lock", { size: 11 })} <span>E2EE Private</span>`;
-          headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · ${peerHandleOrPersona(pk)} · ${isRiver ? "River E2EE Bridge" : "X25519 + AES-256-GCM"}`;
-          headerSubtitleEl.title = isRiver
-            ? "End-to-end encrypted through a River room"
-            : "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
+          headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · ${peerHandleOrPersona(pk)} · X25519 + AES-256-GCM`;
+          headerSubtitleEl.title = "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
           composerInputEl.placeholder = `Encrypted message to ${name}…`;
           if (ttlBtn) ttlBtn.style.display = "none";
         }
@@ -1762,11 +1748,10 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (ttlBtn) ttlBtn.style.display = "none";
       const r = st.privateRoom;
       const name = roomNameCache.get(r.id) || `Room (${r.id.slice(9, 15)})`;
-      const memberCount = (r.river ? freenet.riverRoster(r.id)?.members.length : undefined) ?? r.members.length;
+      const memberCount = r.members.length;
       const isVerified = verified.has(`priv:${r.id}`);
       const isChannel = !!r.is_channel;
-      const roster = r.river ? freenet.riverRoster(r.id) : null;
-      const isOwnerOrMod = (roster?.creator ?? r.creator) === me || (roster?.moderators ?? r.moderators ?? []).includes(me);
+      const isOwnerOrMod = r.creator === me || (r.moderators ?? []).includes(me);
 
       if (r.avatar_url) {
         headerAvatarSlotEl.innerHTML = `<img class="rm-header-avatar" src="${safeUrl(r.avatar_url)}" alt="${escapeHtml(name)}" onerror="this.onerror=null;this.replaceWith((function(){const d=document.createElement('div');d.className='rm-header-monogram rm-room-monogram ${isChannel ? "chan" : "priv"}';if(isChannel){d.innerHTML = renderIcon('megaphone', { size: 22 });}else{d.textContent=makeMonogram(name);}return d;})());" />`;
@@ -1794,11 +1779,11 @@ export function createMessengerChat(deps: MessengerDeps) {
 
       headerSubtitleEl.innerHTML = isChannel
         ? `${memberCount} subscribers · Broadcast Channel${linkedBtnHtml}`
-        : `${memberCount} members · ${r.river ? "River WASM Contract · E2EE" : "AES-256-GCM + X25519"}${gardenerTagHtml}${linkedBtnHtml}`;
+        : `${memberCount} members · ${r.river ? "River archive · read-only" : "AES-256-GCM + X25519"}${gardenerTagHtml}${linkedBtnHtml}`;
 
-      if (isChannel && !isOwnerOrMod) {
+      if (r.river || (isChannel && !isOwnerOrMod)) {
         composerOuterEl.style.display = "none";
-        composerInputEl.placeholder = "This broadcast channel is read-only for subscribers…";
+        composerInputEl.placeholder = r.river ? "This River room is a read-only archive…" : "This broadcast channel is read-only for subscribers…";
         composerInputEl.disabled = true;
         sendBtnEl.disabled = true;
         attachBtnEl.disabled = true;
@@ -1811,7 +1796,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         sendBtnEl.disabled = false;
         attachBtnEl.disabled = false;
       }
-      inviteTopBtn.style.display = "inline-flex";
+      inviteTopBtn.style.display = r.river ? "none" : "inline-flex";
       safetyTopBtn.style.display = "inline-flex";
     } else {
       composerOuterEl.style.display = "";
@@ -1848,8 +1833,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const st = deps.getActiveState();
     const me = identity?.pubkey || "";
     const isChannel = !!st.privateRoom?.is_channel;
-    const roster = st.privateRoom?.river ? freenet.riverRoster(st.privateRoom.id) : null;
-    const isOwnerOrMod = (roster?.creator ?? st.privateRoom?.creator) === me || (roster?.moderators ?? st.privateRoom?.moderators ?? []).includes(me);
+    const isOwnerOrMod = st.privateRoom?.creator === me || (st.privateRoom?.moderators ?? []).includes(me);
 
     if (!reply || !openId || reply.room_id !== openId || (isChannel && !isOwnerOrMod)) {
       replyBannerEl.classList.remove("open");
@@ -1918,8 +1902,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       const text = to
         ? "This River room moved to a native Radica room. What is here stays as a read-only archive on this device."
         : freenet.isRiverOwner(identity, room)
-          ? "River rooms are being retired. Migrate this room to a native Radica room: members get the new invite."
-          : "River rooms are being retired. The owner can migrate this room; until then keep it open so this device saves its history.";
+          ? "River rooms are retired: this is a read-only archive. Migrate it to a native Radica room: its members get the new invite."
+          : "River rooms are retired: this is a read-only archive. Its owner can migrate it to a native Radica room.";
       const action = target
         ? `<button type="button" style="${btn}" data-open-migrated="${escapeHtml(target.id)}">Open new room</button>`
         : !to && freenet.isRiverOwner(identity, room)
@@ -1983,7 +1967,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         const avatar = deps.getAuthorAvatarUrl(pk);
         const fallback = generateDefaultAvatar(pk);
         const shared = sharedSpacesWithPeer(pk);
-        const isRiverOnly = freenet.riverOnly.has(pk);
         if (isPeerBlocked) {
           cardHtml = `
             <div class="rm-first-contact-card">
@@ -2010,24 +1993,12 @@ export function createMessengerChat(deps: MessengerDeps) {
                   : `Direct E2EE session ready · Zero central servers`}
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
-                ${!isRiverOnly ? `<button type="button" class="rm-link-btn" data-open-profile="${escapeHtml(pk)}">View Profile</button>` : ""}
+                <button type="button" class="rm-link-btn" data-open-profile="${escapeHtml(pk)}">View Profile</button>
                 <button type="button" class="rm-icebreaker-btn" style="margin-top:0;" data-prefill-hello="${escapeHtml(name)}">${renderIcon("messageCircle", { size: 14, className: "icon-xs" })} Say hello to ${escapeHtml(name)}</button>
               </div>
             </div>
           `;
         }
-      } else if (st.privateRoom?.river && freenet.riverRoomUnreachable(st.privateRoom.id)) {
-        // the node had nothing for this room: say so, instead of an empty room under a placeholder name
-        cardHtml = `
-          <div class="rm-first-contact-card">
-            <div class="rm-room-monogram priv" style="width:68px;height:68px;font-size:1.4rem;">!</div>
-            <h3>Your node cannot reach this room yet</h3>
-            <div class="rm-first-contact-mutual">
-              Its name and messages live on Freenet, and your node has not found them. Check that the Freenet node is running and connected to peers (on Android, keep it out of battery optimisation), then retry. If it keeps failing, join again with the room's invite.
-            </div>
-            <button type="button" class="rm-icebreaker-btn" id="rm-room-retry-btn" data-room-id="${escapeHtml(st.privateRoom.id)}">${renderIcon("repeat", { size: 14, className: "icon-xs" })} Retry</button>
-          </div>
-        `;
       } else if (st.privateRoom) {
         const name = roomNameCache.get(st.privateRoom.id) || "Private Room";
         const roomAvatarHtml = st.privateRoom.avatar_url
@@ -2051,12 +2022,8 @@ export function createMessengerChat(deps: MessengerDeps) {
     // Group & render real messages in Signal style
     const isGroup = !st.peer;
     const isChannel = !!st.privateRoom?.is_channel;
-    const roomCreator = st.privateRoom
-      ? freenet.riverRoster(st.privateRoom.id)?.creator ?? st.privateRoom.creator
-      : "";
-    const roomMods = st.privateRoom
-      ? freenet.riverRoster(st.privateRoom.id)?.moderators ?? st.privateRoom.moderators ?? []
-      : [];
+    const roomCreator = st.privateRoom?.creator ?? "";
+    const roomMods = st.privateRoom?.moderators ?? [];
     const isRoomCreator = roomCreator === me;
     const iAmRoomMod = roomMods.includes(me);
     const isOwnerOrMod = isRoomCreator || iAmRoomMod;
@@ -2151,7 +2118,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         if (m.sender === roomCreator) roleBadge = `<span class="rm-role-tag">${renderIcon("crown", { size: 10, className: "icon-xs" })} Founder</span>`;
         else if (roomMods.includes(m.sender)) roleBadge = `<span class="rm-role-tag">${renderIcon("shield", { size: 10, className: "icon-xs" })} Mod</span>`;
       }
-      const canOpenSender = !isMine && m.sender !== "system" && !freenet.riverOnly.has(m.sender);
+      const canOpenSender = !isMine && m.sender !== "system";
       const senderHtml =
         isGroup && !isMine && !groupedPrev
           ? `<div class="rm-sender-label" ${canOpenSender ? `data-open-profile="${escapeHtml(m.sender)}"` : ""} style="color: ${senderColor(m.sender)};">
@@ -2209,20 +2176,19 @@ export function createMessengerChat(deps: MessengerDeps) {
       const canDelete = st.isSecret
         ? true
         : st.privateRoom
-          ? (!st.privateRoom.river ? (isMine || isOwnerOrMod) : isMine)
+          ? !st.privateRoom.river && (isMine || isOwnerOrMod)
           : true;
 
       const isPinned = pinnedMsgId === m.id;
-      // A River DM carries text only (River's DirectMessageBody: Text | Invite): no reaction, reply quote or edit reaches the other side
-      const riverDm = !!st.peer && !st.privateRoom && freenet.riverOnly.has(st.peer);
+      const archived = !!st.privateRoom?.river; // a River archive: read-only
       const tFrom = !isMine && textWithoutMedia ? translatableFrom(textWithoutMedia) : null;
       const translated = chatTranslations.get(m.id);
       const hoverBarHtml = `
         <div class="rm-hover-bar">
           ${tFrom ? `<button type="button" class="rm-hover-btn" data-translate-msg="${escapeHtml(m.id)}" data-from="${tFrom}" title="${translated ? "Hide translation" : `Translate from ${LANGS[tFrom]} on this device`}">${renderIcon("globe", { size: 13, className: "icon-xs" })}</button>` : ""}
-          ${riverDm ? "" : `<button type="button" class="rm-hover-btn rm-open-react-btn" data-open-react="${escapeHtml(m.id)}" data-room-id="${escapeHtml(openId)}" title="Add reaction">☺</button>`}
-          ${!isChannelReadOnly && !riverDm ? `<button type="button" class="rm-hover-btn" data-reply-msg="${escapeHtml(m.id)}" title="Reply">${renderIcon("reply", { size: 13, className: "icon-xs" })}</button>` : ""}
-          ${isMine && !riverDm ? `<button type="button" class="rm-hover-btn" data-edit-msg="${escapeHtml(m.id)}" title="Edit message">${renderIcon("edit", { size: 13, className: "icon-xs" })}</button>` : ""}
+          ${archived ? "" : `<button type="button" class="rm-hover-btn rm-open-react-btn" data-open-react="${escapeHtml(m.id)}" data-room-id="${escapeHtml(openId)}" title="Add reaction">☺</button>`}
+          ${!isChannelReadOnly && !archived ? `<button type="button" class="rm-hover-btn" data-reply-msg="${escapeHtml(m.id)}" title="Reply">${renderIcon("reply", { size: 13, className: "icon-xs" })}</button>` : ""}
+          ${isMine && !archived ? `<button type="button" class="rm-hover-btn" data-edit-msg="${escapeHtml(m.id)}" title="Edit message">${renderIcon("edit", { size: 13, className: "icon-xs" })}</button>` : ""}
           ${canPin ? `<button type="button" class="rm-hover-btn" data-pin-msg="${escapeHtml(m.id)}" data-pinned="${isPinned ? "1" : "0"}" title="${isPinned ? "Unpin message" : "Pin message"}">${renderIcon("pin", { size: 13, className: "icon-xs" })}</button>` : ""}
           ${
             canDelete
@@ -2516,7 +2482,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       const name = deps.getAuthorDisplayName(pk);
       const avatar = deps.getAuthorAvatarUrl(pk);
       const fallback = generateDefaultAvatar(pk);
-      const isRiverOnly = freenet.riverOnly.has(pk);
       const shared = sharedSpacesWithPeer(pk);
       const isVer = verified.has(`dm:${pk}`);
 
@@ -2527,11 +2492,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <div class="rm-drawer-name">${escapeHtml(name)}</div>
           <div class="rm-drawer-handle">${escapeHtml(peerHandleOrPersona(pk))}</div>
           <div class="rm-quick-tiles">
-            ${
-              !isRiverOnly
-                ? `<button type="button" class="rm-tile-btn" data-open-profile="${escapeHtml(pk)}">${renderIcon("user", { size: 18 })}<span>Profile</span></button>`
-                : `<button type="button" class="rm-tile-btn" data-copy-pk="${escapeHtml(pk)}">${renderIcon("copy", { size: 18 })}<span>Copy Key</span></button>`
-            }
+            <button type="button" class="rm-tile-btn" data-open-profile="${escapeHtml(pk)}">${renderIcon("user", { size: 18 })}<span>Profile</span></button>
             <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">
               ${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span>
             </button>
@@ -2545,7 +2506,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <h4>E2EE Session Security</h4>
           <div class="rm-safety-card">
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <strong>${isRiverOnly ? "River Direct Bridge" : "X25519 + AES-256-GCM"}</strong>
+              <strong>X25519 + AES-256-GCM</strong>
               <span style="color:var(--rm-online);font-weight:700;font-size:0.72rem;display:inline-flex;align-items:center;gap:3px;">${isVer ? renderIcon("check", { size: 11, className: "icon-xs" }) + " Verified" : "Active"}</span>
             </div>
             <div class="rm-safety-code">${escapeHtml(safetyPreview)}</div>
@@ -2590,10 +2551,9 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (st.privateRoom) {
       const room = st.privateRoom;
       const name = roomNameCache.get(room.id) || "Private Room";
-      const roster = room.river ? freenet.riverRoster(room.id) : undefined;
-      const members = [...new Set(roster?.members ?? room.members)];
-      const creator = roster?.creator ?? room.creator;
-      const roomMods = roster?.moderators ?? room.moderators ?? [];
+      const members = [...new Set(room.members)];
+      const creator = room.creator;
+      const roomMods = room.moderators ?? [];
       const isRoomCreator = me === creator;
       const iAmRoomMod = roomMods.includes(me);
       const isOwnerOrMod = isRoomCreator || iAmRoomMod;
@@ -2617,7 +2577,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
           return `
             <div class="rm-member-row">
-              <img src="${safeUrl(mAvatar) || mFallback}" alt="${escapeHtml(mName)}" ${!isYou && !freenet.riverOnly.has(mPk) ? `data-open-profile="${escapeHtml(mPk)}"` : ""} onerror="this.onerror=null;this.src='${mFallback}'" />
+              <img src="${safeUrl(mAvatar) || mFallback}" alt="${escapeHtml(mName)}" ${!isYou ? `data-open-profile="${escapeHtml(mPk)}"` : ""} onerror="this.onerror=null;this.src='${mFallback}'" />
               <div class="rm-member-meta">
                 <div class="rm-member-name">
                   <span>${escapeHtml(mName)}</span>
@@ -2695,7 +2655,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           </div>
           <input type="file" id="rm-drawer-avatar-file-input" accept="image/*" style="display:none;" />
           <div class="rm-drawer-name">${escapeHtml(name)}</div>
-          <div class="rm-drawer-handle">${members.length} ${isChannel ? "subscribers" : "members"} · ${isChannel ? "Broadcast Channel (Read-Only)" : (room.river ? "River WASM Contract" : "AES-256-GCM")}</div>
+          <div class="rm-drawer-handle">${members.length} ${isChannel ? "subscribers" : "members"} · ${isChannel ? "Broadcast Channel (Read-Only)" : (room.river ? "River archive" : "AES-256-GCM")}</div>
           <div class="rm-quick-tiles">
             <button type="button" class="rm-tile-btn" data-invite-room="1">${renderIcon("userPlus", { size: 18 })}<span>Invite</span></button>
             <button type="button" class="rm-tile-btn" data-toggle-pin="${escapeHtml(curKey)}">${renderIcon("pin", { size: 18 })}<span>${isPinned ? "Pinned" : "Pin"}</span></button>
@@ -2719,7 +2679,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <h4>Room Security</h4>
           <div class="rm-safety-card">
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <strong>${room.river ? "River E2EE Room Key" : "AES-256 Symmetric Key"}</strong>
+              <strong>${room.river ? "River archive (read-only)" : "AES-256 Symmetric Key"}</strong>
               <span style="color:var(--rm-online);font-weight:700;font-size:0.72rem;display:inline-flex;align-items:center;gap:3px;">${isVer ? renderIcon("check", { size: 11, className: "icon-xs" }) + " Verified" : "Encrypted"}</span>
             </div>
             ${
@@ -2740,11 +2700,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         ${renderSharedMediaDrawerSection(st.shownMessages)}
 
         <div class="rm-drawer-section" style="border-bottom:none;">
-          ${
-            room.river
-              ? `<button type="button" class="rm-link-btn" data-export-river-id="1" style="width:100%;justify-content:center;">${renderIcon("key", { size: 14, className: "icon-xs" })} Export River Identity (Export ID)</button>`
-              : ""
-          }
           <button type="button" class="rm-link-btn" data-clear-chat="1" style="width:100%;justify-content:center;">${renderIcon("trash2", { size: 14, className: "icon-xs" })} Clear local history</button>
           <button type="button" class="rm-link-btn" data-leave-room="1" style="width:100%;justify-content:center;color:var(--rm-danger);border-color:var(--rm-danger-soft);background:var(--rm-danger-soft);">
             ${isRoomCreator ? "Remove room from list" : "Leave room"}
@@ -2841,7 +2796,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         const avatar = deps.getAuthorAvatarUrl(pk);
         const fallback = generateDefaultAvatar(pk);
         const isFollowed = deps.getFollowingKeys().includes(pk);
-        const isRiver = freenet.riverOnly.has(pk);
         const blocked = isPeerBlocked(pk);
         const h = freenet.handleOf(pk);
         const subDisplay = h ? `@${escapeHtml(h)} · ${escapeHtml(shortenKey(personaName(pk)))}` : `@${escapeHtml(shortenKey(personaName(pk)))}`;
@@ -2853,7 +2807,6 @@ export function createMessengerChat(deps: MessengerDeps) {
                 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</span>
                 ${blocked ? `<span class="rm-origin-pill" style="background:var(--rm-danger, #e53e3e);color:#fff;">Blocked</span>` : ""}
                 ${isFollowed ? `<span class="rm-origin-pill">Following</span>` : ""}
-                ${isRiver ? `<span class="rm-origin-pill">River</span>` : ""}
               </div>
               <div style="font-family:var(--rm-font-mono);font-size:0.71rem;color:var(--rm-text-muted);">${subDisplay}</div>
             </div>
@@ -3363,17 +3316,16 @@ export function createMessengerChat(deps: MessengerDeps) {
     const identity = deps.getIdentity();
     const migrateBtn = t.closest<HTMLButtonElement>("[data-migrate-river]");
     if (identity && migrateBtn?.dataset.migrateRiver) {
-      if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
-      migrateBtn.disabled = true;
-      migrateBtn.textContent = "Migrating…";
+      const roomId = migrateBtn.dataset.migrateRiver;
+      // River held the name and history: the owner names the new room, the history stays in this archive
+      const name = prompt("Migrate this River room to a native Radica room.\n\nIts Radica members and moderators are invited to the new room; this River room stays a read-only archive.\n\nName for the new room:", "")?.trim();
+      if (!name) return;
       try {
-        const native = await freenet.migrateRiverRoom(identity, migrateBtn.dataset.migrateRiver);
+        const native = await withBusy(migrateBtn, "Migrating…", () => freenet.migrateRiverRoom(identity, roomId, name));
         deps.showToast("Room migrated: members got the new invite.", "info");
         await deps.onSelectPrivateRoom(native);
       } catch (err: any) {
         deps.showToast(`Could not migrate: ${err.message || err}`, "error");
-        migrateBtn.disabled = false;
-        migrateBtn.textContent = "Migrate";
       }
       return;
     }
@@ -3434,14 +3386,6 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
 
-    const retryBtn = t.closest<HTMLButtonElement>("#rm-room-retry-btn");
-    if (retryBtn?.dataset.roomId) {
-      retryBtn.disabled = true;
-      retryBtn.textContent = "Retrying…";
-      const ok = await freenet.retryRiverRoom(retryBtn.dataset.roomId).catch(() => false);
-      if (!ok) deps.showToast("Your node still cannot reach this room.", "warning");
-      return;
-    }
     if (t.closest("#rm-empty-invite-btn")) {
       deps.onOpenInviteRoomModal();
       return;
@@ -3612,13 +3556,17 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
 
-    if (t.closest("[data-create-disc-room]") && st.privateRoom?.is_channel) {
+    const discBtn = t.closest<HTMLElement>("[data-create-disc-room]");
+    if (discBtn && st.privateRoom?.is_channel) {
+      const channel = st.privateRoom;
       try {
-        deps.showToast("Creating linked discussion room…", "info");
-        const name = roomNameCache.get(st.privateRoom.id) || "Channel";
-        const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, st.privateRoom.members, undefined, {});
-        await freenet.setRoomLinkedDiscussion(identity, st.privateRoom.id, disc.id);
-        await freenet.setRoomLinkedDiscussion(identity, disc.id, st.privateRoom.id);
+        const name = roomNameCache.get(channel.id) || "Channel";
+        await withBusy(discBtn, "Creating the comments room…", async (say) => {
+          const disc = await freenet.createPrivateRoom(identity, `${name} · Comments`, channel.members, undefined, {});
+          say("Linking it to the channel…");
+          await freenet.setRoomLinkedDiscussion(identity, channel.id, disc.id);
+          await freenet.setRoomLinkedDiscussion(identity, disc.id, channel.id);
+        });
         deps.showToast("Discussion room linked successfully!", "info");
         refreshDrawer();
       } catch (err: any) {
@@ -3682,21 +3630,10 @@ export function createMessengerChat(deps: MessengerDeps) {
       return;
     }
 
-    if (t.closest("[data-export-river-id]") && st.privateRoom) {
-      try {
-        const token = await freenet.exportRiverIdentity(identity, st.privateRoom);
-        await navigator.clipboard.writeText(token);
-        alert(
-          "Your River identity for this room is copied to the clipboard.\n\nImport it in River (Import ID) or riverctl to be the same member there.\n\nIt holds your private key in this room: treat it like a password, do not share it."
-        );
-      } catch (err: any) {
-        deps.showToast(`Could not export: ${err.message || err}`, "error");
-      }
-      return;
-    }
-
-    if (t.closest("[data-leave-room]") && st.privateRoom) {
-      await deps.onLeavePrivateRoom(st.privateRoom);
+    const leaveBtn = t.closest<HTMLElement>("[data-leave-room]");
+    if (leaveBtn && st.privateRoom) {
+      const room = st.privateRoom;
+      await withBusy(leaveBtn, "Leaving…", () => deps.onLeavePrivateRoom(room));
       if (!deps.getActiveState().privateRoom) setDrawer(false);
       return;
     }
@@ -3731,13 +3668,9 @@ export function createMessengerChat(deps: MessengerDeps) {
 
     const modBtn = t.closest<HTMLElement>("[data-room-mod]");
     if (modBtn?.dataset.roomMod && st.privateRoom) {
+      const [roomId, target, on] = [st.privateRoom.id, modBtn.dataset.roomMod, modBtn.dataset.modOn === "1"];
       try {
-        const updated = await freenet.setPrivateRoomModerator(
-          identity,
-          st.privateRoom.id,
-          modBtn.dataset.roomMod,
-          modBtn.dataset.modOn === "1"
-        );
+        const updated = await withBusy(modBtn, "Saving…", () => freenet.setPrivateRoomModerator(identity, roomId, target, on));
         await deps.onSelectPrivateRoom(updated);
       } catch (err: any) {
         alert(`Could not update moderator: ${err.message || err}`);
@@ -3751,7 +3684,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       const name = deps.getAuthorDisplayName(pk);
       if (!confirm(`Kick ${name} from this private room?\n\nA new encryption key will be rotated for remaining members.`)) return;
       try {
-        const updated = await freenet.kickMemberFromPrivateRoom(identity, st.privateRoom.id, pk);
+        const roomId = st.privateRoom.id;
+        const updated = await withBusy(kickBtn, "Removing…", () => freenet.kickMemberFromPrivateRoom(identity, roomId, pk));
         await deps.onSelectPrivateRoom(updated);
         deps.showToast(`${name} removed from room.`, "info");
       } catch (err: any) {
@@ -3774,9 +3708,10 @@ export function createMessengerChat(deps: MessengerDeps) {
       const add = gardenerRoomBtn.dataset.roomGardener === "1";
       if (!add && !confirm("Remove 🌱 The Gardener from this group and rotate the encryption key?")) return;
       try {
-        const updated: PrivateRoom = add
-          ? await freenet.addGardenerToPrivateRoom(identity, st.privateRoom.id)
-          : await freenet.kickMemberFromPrivateRoom(identity, st.privateRoom.id, GARDENER_PK);
+        const roomId = st.privateRoom.id;
+        const updated: PrivateRoom = await withBusy(gardenerRoomBtn, add ? "Adding…" : "Removing…", () =>
+          add ? freenet.addGardenerToPrivateRoom(identity, roomId) : freenet.kickMemberFromPrivateRoom(identity, roomId, GARDENER_PK),
+        );
         deps.showToast(
           add
             ? "🌱 The Gardener added as AI moderator for this group."

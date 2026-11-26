@@ -10568,3 +10568,18 @@ body.page-loading::before {
     background: rgba(16, 14, 11, 0.78);
   }
 }
+
+/* A button busy with slow work (busy.ts) */
+.is-busy { pointer-events: none; opacity: 0.85; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.busy-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: busy-spin 0.7s linear infinite;
+}
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .busy-spinner { animation-duration: 2.4s; } }

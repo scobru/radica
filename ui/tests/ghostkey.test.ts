@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadJsonWasm } from "../src/river.ts";
+import { loadJsonWasm } from "../src/ghostkey.ts";
 import { checkGhostkey } from "../src/ghostkey.ts";
 import { asBytes, cborDecode, mapGet } from "../src/cbor.ts";
 import { bytesToHex, hexToBytes } from "../src/crypto.ts";

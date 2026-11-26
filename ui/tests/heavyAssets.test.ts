@@ -28,7 +28,7 @@ test("only what the app can live without leaves it: River's and GhostKey's wasm 
   assert.equal(containerOf("moderation/litert/litert_wasm_internal.wasm"), "litert");
   assert.equal(containerOf("gifs/shrug.gif"), "assets");
   assert.equal(containerOf("translate/bergamot-translator-worker.wasm"), "assets");
-  for (const f of ["assets/river-BIoq41ea.wasm", "assets/river_room_contract-Dov_x.wasm", "assets/ghostkey-D-1.wasm", "assets/ghostkey-8d3x.js", "assets/contract-C.wasm", "assets/log--X.wasm", "assets/identity-T.wasm", "index.html"]) assert.equal(isHeavy(f), false, f);
+  for (const f of ["assets/ghostkey-D-1.wasm", "assets/ghostkey-8d3x.js", "assets/contract-C.wasm", "assets/log--X.wasm", "assets/identity-T.wasm", "index.html"]) assert.equal(isHeavy(f), false, f);
 });
 
 test("the filter's wasm is unpacked into the Response the package expects, whoever decoded it", async () => {

@@ -3,7 +3,7 @@
 // or an exported FH JSON list, and renders profile bookmark cards and shared-list embeds in posts and chat.
 
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
-import { keyOf } from "./riverPointer.ts";
+import { keyOf } from "./contractKey.ts";
 import { hexToBytes, bytesToHex } from "./crypto.ts";
 import { fromBase58, personaName } from "./whoiam.ts";
 import { escapeHtml as esc } from "./html.ts";

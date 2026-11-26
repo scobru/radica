@@ -347,19 +347,37 @@ test("an edit can drop one of the message's photos with its ✕, and the message
   expect(sent).not.toContain("c".repeat(64));
 });
 
-test("a River room the node cannot reach says so, with a Retry, instead of an empty room", async ({ page }) => {
+test("an old River room opens as a read-only archive its owner can migrate", async ({ page }) => {
   await signIn(page);
   await page.evaluate(async () => {
     const { freenet } = await import("/src/freenet.ts");
     const { safeStorage } = await import("/src/storage.ts");
-    const f = freenet as unknown as { me: string; riverRoomUnreachable(id: string): boolean; notifyListeners(): void };
-    const room = { id: "river_" + "ab".repeat(16), creator: f.me, name_encrypted: "", members: [f.me], encrypted_keys: {}, created_at: Date.now(), sig: "", river: { owner: "cd".repeat(32) } };
-    safeStorage.setItem("freenet_private_rooms", JSON.stringify([room]));
-    f.riverRoomUnreachable = () => true; // no node here: what the node not having it looks like
+    const f = freenet as unknown as { me: string; notifyListeners(): void };
+    const id = "privroom_river_" + "ab".repeat(8);
+    safeStorage.setItem("freenet_private_rooms", JSON.stringify([{ id, creator: f.me, name_encrypted: "", members: [f.me], encrypted_keys: {}, created_at: Date.now(), sig: "", river: { owner: "cd".repeat(32) } }]));
+    safeStorage.setItem(`radica_river_archive_${id}`, JSON.stringify([{ id: "m1", room_id: id, private_room_id: id, sender: f.me, text: "saved before River left", timestamp: Date.now() - 1000, sig: "" }]));
     f.notifyListeners();
   });
   await page.click("#open-chat-btn");
-  await page.locator(".rm-conv-item", { hasText: "Private Room" }).first().click(); // the injected room, once the list has it
-  await expect(page.getByText("Your node cannot reach this room yet")).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator("#rm-room-retry-btn")).toBeVisible();
+  await page.locator(".rm-conv-item", { hasText: "River archive" }).first().click();
+  await expect(page.locator(".rm-bubble-text", { hasText: "saved before River left" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("this is a read-only archive")).toBeVisible();
+  await expect(page.locator("[data-migrate-river]")).toBeVisible();
+  await expect(page.locator("#rm-composer-input")).toBeHidden();
+
+  // Migrate asks for a name, then shows a spinner while the node works
+  await page.evaluate(async () => {
+    const { freenet } = await import("/src/freenet.ts");
+    const w = window as unknown as { finishMigrate?: () => void; migrateName?: string };
+    (freenet as unknown as { migrateRiverRoom(i: unknown, r: string, n: string): Promise<never> }).migrateRiverRoom = (_i, _r, n) =>
+      new Promise((_, reject) => ((w.migrateName = n), (w.finishMigrate = () => reject(new Error("stopped by the test")))));
+  });
+  page.removeAllListeners("dialog"); // signIn accepts every dialog empty
+  page.once("dialog", (d) => d.accept("New Home"));
+  await page.locator("[data-migrate-river]").click();
+  await expect(page.locator("[data-migrate-river] .busy-spinner")).toBeVisible();
+  await expect(page.locator("[data-migrate-river]")).toHaveText("Migrating…");
+  expect(await page.evaluate(() => (window as unknown as { migrateName?: string }).migrateName)).toBe("New Home");
+  await page.evaluate(() => (window as unknown as { finishMigrate: () => void }).finishMigrate());
+  await expect(page.locator("[data-migrate-river]")).toHaveText("Migrate");
 });

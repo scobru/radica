@@ -159,8 +159,8 @@ function resolve(
       ? (roomName ? `\u{1F4E2} ${roomName}` : "\u{1F4E2} Broadcast Channel")
       : (roomName ? `\u{1F4AC} ${roomName}` : "\u{1F4AC} Chat Room");
     const defaultTitle = isChannel
-      ? (roomName ? `Join "${roomName}" broadcast channel on Radica & River` : "Join broadcast channel on Radica & River")
-      : (roomName ? `Join "${roomName}" chat room on Radica & River` : "Join chat room on Radica & River");
+      ? (roomName ? `Join "${roomName}" broadcast channel on Radica` : "Join broadcast channel on Radica")
+      : (roomName ? `Join "${roomName}" chat room on Radica` : "Join chat room on Radica");
     return {
       href,
       label: customLabel ?? defaultLabel,
