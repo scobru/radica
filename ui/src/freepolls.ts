@@ -8,7 +8,7 @@ import { blake3 } from "@noble/hashes/blake3.js";
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
 import { bytesToHex, hexToBytes } from "./crypto.ts";
 import { appPath, getAppKeySecret, getStoredSession } from "./whoiam.ts";
-import { keyOf } from "./riverPointer.ts";
+import { keyOf } from "./contractKey.ts";
 import { ANTE_CODE_HASH, VOTE_BITS, challengeBytes, checkProof, grind, votePurpose } from "./ante.ts";
 import { asBytes, cborDecode, cborEncode, enumVariant, mapGet, type CborValue } from "./cbor.ts";
 import { escapeHtml as esc } from "./html.ts";

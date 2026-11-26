@@ -38,7 +38,6 @@ export function changeOf(u: Update | null | undefined): Change {
  *  waiting on. `dm/` is a conversation's own log (every DM and Secret Chat message), `devices/` the keys a DM is sealed to. */
 export const isInteractiveContract = (id: string): boolean =>
   id.startsWith("media:") ||
-  id.startsWith("river:") ||
   id.startsWith("mail:") ||
   id.startsWith("log:inbox/") ||
   id.startsWith("log:dm/") ||

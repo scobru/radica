@@ -1,4 +1,4 @@
-// Unified Private Rooms lifecycle manager (Native E2EE AES-GCM/X25519 + River MLS/group bridge):
+// Unified Private Rooms lifecycle manager (native E2EE AES-GCM/X25519; River rooms survive only as local archives):
 // creation, invite links, key decryption, moderator kicks + key rotation, The Gardener membership, and delegate backup/restore.
 
 import { hmac } from "@noble/hashes/hmac.js";
@@ -9,17 +9,16 @@ import {
   bytesToHex,
   decryptRoomKeyFromPeer,
   decryptWithSymmetricKey,
-  encryptDirectMessage,
   encryptRoomKeyForPeer,
   encryptWithSymmetricKey,
   formatChatMessageSignatureMessage,
   generateRoomKey,
   hexToBytes,
-  personaName,
 } from "./crypto.ts";
 import { foldChatHides, hasLeftRoom, roomJoiners, roomJoinProofs, type LogEntry } from "./logfold.ts";
 import { buildPrivateRoomInviteLink, createNativeRoomDescriptor, filterChannelMessages } from "./nativeRooms.ts";
-import { RiverRooms, roomOwnerSk, vkOf, type RiverJoin } from "./riverRooms.ts";
+import { blake3 } from "@noble/hashes/blake3.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import {
   AI_REPORTERS,
   RADICA_MAINTAINER,
@@ -30,7 +29,11 @@ import {
 } from "./types.ts";
 
 const ROOMS_STORAGE_KEY = "freenet_private_rooms";
-const RIVER_JOIN_GROUP_WINDOW_MS = 5 * 60 * 1000;
+const RIVER_RETIRED = "River rooms are retired: this one is a read-only archive. Its owner can migrate it to a native room.";
+
+/** The River owner key of room `roomId` made by the holder of `identitySk` (how River rooms were keyed). */
+const riverOwnerVk = (identitySk: Uint8Array, roomId: string): string =>
+  bytesToHex(ed25519.getPublicKey(blake3(new TextEncoder().encode(`radica/river-room-owner/v1:${roomId}`), { key: identitySk })));
 
 /**
  * The room list to back up on the node: rooms I am in here, plus every room the backup holds that this page
@@ -46,14 +49,6 @@ export function computeRoomJoinProof(roomKey: Uint8Array, roomId: string, pubkey
   return bytesToHex(hmac(sha256, roomKey, new TextEncoder().encode(roomJoinProofMessage(roomId, pubkey))));
 }
 
-export interface RiverRoomRoster {
-  members: string[];
-  creator: string;
-  moderators: string[];
-  deputyOf: Record<string, string[]>;
-  memberVks: Record<string, string>;
-}
-
 export interface PrivateRoomStorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -67,7 +62,6 @@ export interface PrivateRoomDeps {
   logAppend: (name: string, body: object, opts?: { flush?: boolean }) => Promise<void>;
   refreshLog: (name: string, force?: boolean, urgent?: boolean) => Promise<void>;
   logOfRoom: (roomId: string) => string;
-  rivers: () => Promise<RiverRooms>;
   nodeGet: (key: string) => Promise<string | null>;
   nodePut: (key: string, value: string) => Promise<void>;
   readKeysReady: () => Promise<void>;
@@ -80,8 +74,6 @@ export interface PrivateRoomDeps {
   broadcast: (data: unknown) => void;
   addNotification: (to: string, notif: Omit<NotificationItem, "id" | "timestamp" | "read">) => void;
   notifyListeners: () => void;
-  peerDisplayName: (pubkey: string) => string | undefined;
-  onPeerName: (pubkey: string, displayName: string) => void;
   now?: () => number;
 }
 
@@ -89,16 +81,12 @@ export class PrivateRoomManager {
   private readonly deps: PrivateRoomDeps;
   private readonly now: () => number;
 
-  public riverOnly = new Map<string, Record<string, string>>();
-  public riverOnlyReady: Promise<void> = Promise.resolve();
 
   private privateRoomKeyCache = new Map<string, Uint8Array>();
   private rememberedRooms = new Set<string>();
   private roomsReady: Promise<void> = Promise.resolve();
   private syncingAccess = false;
   private roomsSaveTimer: ReturnType<typeof setTimeout> | undefined;
-  private riverOnlySaveTimer: ReturnType<typeof setTimeout> | undefined;
-  private rosters = new Map<string, RiverRoomRoster>();
 
   constructor(deps: PrivateRoomDeps) {
     this.deps = deps;
@@ -107,14 +95,11 @@ export class PrivateRoomManager {
 
   public startRestore(): void {
     this.roomsReady = this.restoreRoomsFromNode();
-    this.riverOnlyReady = this.restoreRiverOnly();
   }
 
   public dispose(): void {
     clearTimeout(this.roomsSaveTimer);
     this.roomsSaveTimer = undefined;
-    clearTimeout(this.riverOnlySaveTimer);
-    this.riverOnlySaveTimer = undefined;
   }
 
   public readRooms(): PrivateRoom[] {
@@ -130,47 +115,10 @@ export class PrivateRoomManager {
     this.deps.storage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(list));
   }
 
-  public riverRoster(roomId: string): RiverRoomRoster | undefined {
-    return this.rosters.get(roomId);
-  }
-
+  /** Whether I own this room; for an archived River room, also when its River owner key derives from my identity. */
   public isRiverOwner(identity: UserIdentity, room: PrivateRoom): boolean {
-    if (!room.river?.owner) return room.creator === identity.pubkey;
-    const derived = vkOf(roomOwnerSk(identity.secretKey, room.id));
-    if (derived === room.river.owner) return true;
-    const given = this.deps.storage.getItem(`river_key_${room.id}`);
-    if (given && vkOf(hexToBytes(given)) === room.river.owner) return true;
-    return false;
-  }
-
-  public riverKey(identity: UserIdentity, room: PrivateRoom): Uint8Array {
-    if (room.river?.owner && vkOf(roomOwnerSk(identity.secretKey, room.id)) === room.river.owner) {
-      return roomOwnerSk(identity.secretKey, room.id);
-    }
-    const given = this.deps.storage.getItem(`river_key_${room.id}`);
-    if (given) return hexToBytes(given);
-    return room.creator === identity.pubkey ? roomOwnerSk(identity.secretKey, room.id) : identity.secretKey;
-  }
-
-  public riverOwnerKey(identity: UserIdentity, room: PrivateRoom): Uint8Array {
-    const key = this.riverKey(identity, room);
-    if (vkOf(key) === room.river?.owner) return key;
-    const derived = roomOwnerSk(identity.secretKey, room.id);
-    if (vkOf(derived) === room.river?.owner) return derived;
-    return key;
-  }
-
-  public riverJoin(roomId: string): RiverJoin | undefined {
-    try {
-      return JSON.parse(this.deps.storage.getItem(`river_join_${roomId}`) || "null") ?? undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private nickname(): string {
-    const me = this.deps.me();
-    return this.deps.peerDisplayName(me) || `Persona @${personaName(me).substring(0, 6)}`;
+    if (room.creator === identity.pubkey) return true;
+    return !!room.river?.owner && riverOwnerVk(identity.secretKey, room.id) === room.river.owner;
   }
 
   private movedToRiver(room: PrivateRoom): boolean {
@@ -273,30 +221,12 @@ export class PrivateRoomManager {
     name: string,
     memberPubkeys: string[],
     roomId = `privroom_${this.now()}_${bytesToHex(crypto.getRandomValues(new Uint8Array(16)))}`,
-    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string; public?: boolean; river?: boolean },
+    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string },
   ): Promise<PrivateRoom> {
-    let room: PrivateRoom;
-    if (opts?.river) {
-      const owner = await (await this.deps.rivers()).create(identity.secretKey, roomId, name, this.nickname(), !opts?.public);
-      room = {
-        id: roomId,
-        creator: identity.pubkey,
-        name_encrypted: "",
-        ...(opts?.avatar_url ? { avatar_url: opts.avatar_url.trim() } : {}),
-        members: [identity.pubkey],
-        encrypted_keys: {},
-        created_at: this.now(),
-        sig: "",
-        river: { owner },
-        ...(opts?.is_channel ? { is_channel: true } : {}),
-        ...(opts?.linked_room_id ? { linked_room_id: opts.linked_room_id } : {}),
-      };
-    } else {
-      const myEncPub = identity.encPub || (await this.deps.encPubOf(identity.pubkey));
-      const created = await createNativeRoomDescriptor(identity, name, roomId, myEncPub, opts);
-      this.privateRoomKeyCache.set(roomId, created.roomKey);
-      room = created.room;
-    }
+    const myEncPub = identity.encPub || (await this.deps.encPubOf(identity.pubkey));
+    const created = await createNativeRoomDescriptor(identity, name, roomId, myEncPub, opts);
+    this.privateRoomKeyCache.set(roomId, created.roomKey);
+    const room = created.room;
     this.mergeRemotePrivateRooms([room]);
     this.deps.broadcast({ type: "private_room", room });
     await this.deps.logAppend(`room/${roomId}`, { type: "private_room", room });
@@ -329,10 +259,7 @@ export class PrivateRoomManager {
   public async setRoomAvatar(identity: UserIdentity, roomId: string, avatarUrl?: string): Promise<PrivateRoom | null> {
     const room = this.readRooms().find((r) => r.id === roomId);
     if (!room) return null;
-    const roster = room.river ? this.riverRoster(room.id) : null;
-    const isOwnerOrMod =
-      (roster?.creator ?? room.creator) === identity.pubkey ||
-      (roster?.moderators ?? room.moderators ?? []).includes(identity.pubkey);
+    const isOwnerOrMod = room.creator === identity.pubkey || (room.moderators ?? []).includes(identity.pubkey);
     if (!isOwnerOrMod) {
       throw new Error("Only the room creator or administrators can change the group picture");
     }
@@ -359,10 +286,7 @@ export class PrivateRoomManager {
     if (roomId.startsWith("privroom_")) {
       const room = this.readRooms().find((r) => r.id === roomId);
       if (room) {
-        const roster = room.river ? this.riverRoster(room.id) : null;
-        const isOwnerOrMod =
-          (roster?.creator ?? room.creator) === identity.pubkey ||
-          (roster?.moderators ?? room.moderators ?? []).includes(identity.pubkey);
+        const isOwnerOrMod = room.creator === identity.pubkey || (room.moderators ?? []).includes(identity.pubkey);
         if (!isOwnerOrMod) {
           throw new Error("Only the room creator or administrators can pin messages");
         }
@@ -449,22 +373,6 @@ export class PrivateRoomManager {
           .catch(() => this.deps.storage.removeItem(mark));
         continue;
       }
-      if (!r.river) continue;
-      const access = JSON.stringify({
-        owner: r.river.owner,
-        creator: r.creator,
-        k: this.deps.storage.getItem(`river_key_${r.id}`) ?? "",
-        join: this.riverJoin(r.id) ?? null,
-        is_channel: !!r.is_channel,
-        linked_room_id: r.linked_room_id ?? null,
-      });
-      const mark = `river_access_sent_${r.id}`;
-      if (this.deps.storage.getItem(mark) === access) continue;
-      this.deps.storage.setItem(mark, access);
-      const sealed = await encryptDirectMessage(identity.secretKey, identity.encPub, access);
-      await this.deps
-        .logAppend(inbox, { type: "river_access", roomId: r.id, sealed })
-        .catch(() => this.deps.storage.removeItem(mark));
     }
   }
 
@@ -490,20 +398,8 @@ export class PrivateRoomManager {
   }
 
   public async getPrivateRoomDecryptedName(identity: UserIdentity, room: PrivateRoom): Promise<string> {
-    if (room.river) {
-      const rooms = await this.deps.rivers();
-      const state = rooms.cached(room.river.owner);
-      if (!state) void rooms.load(room.river.owner).then((s) => s && this.deps.notifyListeners());
-      try {
-        const name = state
-          ? rooms.read(state, room.river.owner, this.riverKey(identity, room), this.riverJoin(room.id)).name
-          : null;
-        if (name) return name;
-      } catch (e) {
-        console.warn("[River] Could not read room", room.id, e);
-      }
-      return `Private Room (${room.id.slice(9, 15)})`;
-    }
+    // River rooms kept no name of their own on this device: only River knew it
+    if (room.river) return `River archive (${room.id.slice(-6)})`;
     try {
       const key = await this.getPrivateRoomKey(identity, room);
       if (key && room.name_encrypted) {
@@ -527,27 +423,9 @@ export class PrivateRoomManager {
     const rooms = await this.getPrivateRooms(identity);
     const room = rooms.find((r) => r.id === roomId);
     if (!room) throw new Error("Private room not found or unauthorized");
+    if (room.river) throw new Error(RIVER_RETIRED);
     if (room.creator !== identity.pubkey) {
       throw new Error("Only the room creator can invite (others can share the invite link)");
-    }
-    if (room.river) {
-      const join = await (await this.deps.rivers()).invite(
-        this.riverOwnerKey(identity, room),
-        room.river.owner,
-        await this.deps.encPubOf(newMemberPubkey),
-      );
-      if (!room.members.includes(newMemberPubkey)) room.members.push(newMemberPubkey);
-      this.replacePrivateRoom(room);
-      await this.deps.logAppend(`room/${room.id}`, { type: "private_room", room });
-      await this.deps.logAppend(`inbox/${newMemberPubkey}`, { type: "room_invite", room, river_join: join });
-      this.deps.addNotification(newMemberPubkey, {
-        type: "chat",
-        from: identity.pubkey,
-        text: "invited you to an encrypted Private Room",
-        linkRoomId: room.id,
-      });
-      this.deps.notifyListeners();
-      return room;
     }
 
     const roomKey = await this.getPrivateRoomKey(identity, room);
@@ -596,13 +474,6 @@ export class PrivateRoomManager {
       saved = JSON.parse(raw);
     } catch {
       return;
-    }
-    for (const r of saved) {
-      if (r?.river && !this.deps.storage.getItem(`river_key_${r.id}`)) {
-        const [k, join] = [await this.deps.nodeGet(`river-key:${r.id}`), await this.deps.nodeGet(`river-join:${r.id}`)];
-        if (k) this.deps.storage.setItem(`river_key_${r.id}`, k);
-        if (join) this.deps.storage.setItem(`river_join_${r.id}`, join);
-      }
     }
     const localList = this.readRooms();
     const haveMap = new Map(localList.map((r) => [r.id, r]));
@@ -670,24 +541,7 @@ export class PrivateRoomManager {
     const rooms = await this.getPrivateRooms(identity);
     const room = rooms.find((r) => r.id === roomId);
     if (!room) throw new Error("Private room not found or unauthorized");
-    if (room.river) {
-      const byOwner = room.creator === identity.pubkey;
-      const mods = this.rosters.get(room.id)?.moderators ?? room.moderators ?? [];
-      if (!byOwner && !mods.includes(identity.pubkey)) throw new Error("Only the room owner or a moderator can remove members");
-      await (await this.deps.rivers()).kick(
-        this.riverKey(identity, room),
-        room.river.owner,
-        await this.deps.encPubOf(targetPubkey),
-      );
-      room.members = room.members.filter((m) => m !== targetPubkey);
-      if (byOwner) {
-        this.replacePrivateRoom(room);
-        await this.deps.logAppend(`room/${room.id}`, { type: "private_room", room });
-      }
-      await this.deps.logAppend(`room/${room.id}`, { type: "room_kick", roomId: room.id, target: targetPubkey });
-      this.deps.notifyListeners();
-      return room;
-    }
+    if (room.river) throw new Error(RIVER_RETIRED);
 
     const byCreator = room.creator === identity.pubkey;
     const mods = room.moderators ?? [];
@@ -795,155 +649,18 @@ export class PrivateRoomManager {
     await this.deps.refreshLog(`room/${roomId}`, true);
     const room = (await this.getPrivateRooms(identity)).find((r) => r.id === roomId);
     if (!room) throw new Error("Private room not found or unauthorized");
-    const isOwner = this.isRiverOwner(identity, room);
-    if (room.river) {
-      if (!isOwner) throw new Error("Only the room creator can name moderators");
-    } else if (room.creator !== identity.pubkey) {
-      throw new Error("Only the room creator can name moderators");
-    }
-    const roster = room.river ? this.rosters.get(room.id) : undefined;
-    const creator = roster?.creator ?? room.creator;
-    if (target === creator || !(roster?.members ?? room.members).includes(target)) {
+    if (room.river) throw new Error(RIVER_RETIRED);
+    if (room.creator !== identity.pubkey) throw new Error("Only the room creator can name moderators");
+    if (target === room.creator || !room.members.includes(target)) {
       throw new Error("Only a member other than the creator can be a moderator");
     }
-    const current = roster?.moderators ?? room.moderators ?? [];
+    const current = room.moderators ?? [];
     room.moderators = on ? [...new Set([...current, target])] : current.filter((m) => m !== target);
-    if (room.river) {
-      const resolveVk = async (m: string): Promise<string> => {
-        if (roster?.memberVks?.[m]) return roster.memberVks[m];
-        if (/^[0-9a-f]{64}$/i.test(m)) return m;
-        return this.deps.encPubOf(m);
-      };
-      const vks = await Promise.all(room.moderators.map(resolveVk));
-      await (await this.deps.rivers()).setDeputies(this.riverOwnerKey(identity, room), room.river.owner, vks);
-    }
     this.replacePrivateRoom(room);
     this.deps.broadcast({ type: "private_room", room });
     await this.deps.logAppend(`room/${room.id}`, { type: "private_room", room });
     this.deps.notifyListeners();
     return room;
-  }
-
-  private saveRiverOnly(): void {
-    clearTimeout(this.riverOnlySaveTimer);
-    this.riverOnlySaveTimer = setTimeout(async () => {
-      await this.deps.nodePut(`river-only:${this.deps.me()}`, JSON.stringify(Object.fromEntries(this.riverOnly)));
-    }, 500);
-  }
-
-  private async restoreRiverOnly(): Promise<void> {
-    try {
-      const raw = (await this.deps.nodeGet(`river-only:${this.deps.me()}`)) || "{}";
-      for (const [vk, rooms] of Object.entries(JSON.parse(raw))) {
-        if (!this.riverOnly.has(vk)) this.riverOnly.set(vk, rooms as Record<string, string>);
-      }
-    } catch {}
-    this.deps.notifyListeners();
-  }
-
-  public async riverState(rooms: RiverRooms, owner: string): Promise<string | null> {
-    const cached = rooms.cached(owner);
-    if (!cached) return rooms.load(owner);
-    void rooms.load(owner).then((s) => s !== cached && this.deps.notifyListeners());
-    return cached;
-  }
-
-  public async riverMessages(identity: UserIdentity, room: PrivateRoom): Promise<ChatMessage[]> {
-    const rooms = await this.deps.rivers();
-    const owner = room.river!.owner;
-    const state = await this.riverState(rooms, owner);
-    if (!state) return [];
-    const myKey = this.riverKey(identity, room);
-    const view = rooms.read(state, owner, myKey, this.riverJoin(room.id));
-    const isOwner = this.isRiverOwner(identity, room);
-    const who = new Map<string, string>();
-    if (isOwner) {
-      who.set(owner, identity.pubkey);
-    } else {
-      who.set(vkOf(myKey), identity.pubkey);
-      if (room.creator && room.creator !== identity.pubkey) {
-        who.set(owner, room.creator);
-      }
-    }
-    for (const p of room.members) {
-      if (p !== identity.pubkey && p !== room.creator) {
-        who.set(await this.deps.encPubOf(p), p);
-      }
-    }
-
-    const cleared = Number(this.deps.storage.getItem(`freenet_chat_cleared_${room.id}`) || 0);
-    const name = (vk: string | null) => (vk ? who.get(vk) ?? vk : "");
-    const here = new Set(view.members.map((m) => m.vk));
-    for (const [, rmap] of this.riverOnly) if (!here.has(vkOf(myKey))) void rmap; // keep unused check quiet
-    for (const [vk, rmap] of this.riverOnly) if (!here.has(vk)) delete rmap[room.id];
-    for (const m of view.members) {
-      if (!who.has(m.vk)) this.riverOnly.set(m.vk, { ...this.riverOnly.get(m.vk), [room.id]: view.name ?? "room" });
-    }
-    this.saveRiverOnly();
-    for (const m of view.members) {
-      if (m.nickname && (!who.has(m.vk) || !this.deps.peerDisplayName(name(m.vk)))) {
-        this.deps.onPeerName(name(m.vk), m.nickname);
-      }
-    }
-
-    const memberVks: Record<string, string> = {};
-    for (const m of view.members) memberVks[name(m.vk)] = m.vk;
-
-    const creator = isOwner ? identity.pubkey : name(owner) || owner;
-    const moderators = [...new Set(view.members.filter((m) => m.deputy).map((m) => name(m.vk)))];
-    let members = view.members.map((m) => name(m.vk));
-    void this.deps.refreshLog(`room/${room.id}`);
-    if (room.is_channel) {
-      members = [...members, ...roomJoiners(this.deps.logEntries(`room/${room.id}`), room.id, new Set([creator, ...moderators]))];
-    }
-    this.rosters.set(room.id, {
-      members: [...new Set(members)],
-      creator,
-      moderators,
-      deputyOf: Object.fromEntries(view.members.filter((m) => m.deputy).map((m) => [name(m.vk), m.deputy_of.map(name)])),
-      memberVks,
-    });
-    const messages: ChatMessage[] = view.messages
-      .map((m) => ({
-        id: m.id,
-        room_id: room.id,
-        private_room_id: room.id,
-        sender: name(m.author),
-        text: m.text,
-        timestamp: m.time_ms,
-        sig: "",
-        ...(m.reply_to ? { reply_to: m.reply_to } : {}),
-        reactions: Object.fromEntries(
-          Object.entries(m.reactions).map(([e, vks]) => [e, vks.filter((v): v is string => !!v).map(name)]),
-        ),
-      }))
-      .filter((m) => m.timestamp > cleared);
-    let activeMessages = messages;
-    if (room.is_channel) {
-      const roster = this.rosters.get(room.id);
-      const mods = new Set(roster?.moderators ?? room.moderators ?? []);
-      const channelOwner = roster?.creator ?? room.creator;
-      activeMessages = messages.filter(
-        (m) => m.sender === channelOwner || mods.has(m.sender) || (isOwner && m.sender === identity.pubkey),
-      );
-    }
-    const joinEvents = this.computeRiverJoins(
-      room.id,
-      [...new Set(view.members.map((m) => name(m.vk)))],
-      activeMessages,
-      isOwner ? identity.pubkey : name(owner) || owner,
-    );
-    const allMessages = [...activeMessages, ...joinEvents].sort((a, b) => a.timestamp - b.timestamp);
-    if (room.creator === identity.pubkey) {
-      void rooms.rotateIfDue(this.riverOwnerKey(identity, room), owner, state).catch((e) => console.warn("[River] rotate:", e));
-    }
-    this.deps.storage.setItem(
-      `freenet_chat_${room.id}`,
-      JSON.stringify(activeMessages.map((m) => ({ ...m, text: "" }))),
-    );
-    // the live view replaces the archive (deletions included); the archive is what stays once River is gone
-    if (activeMessages.length) this.deps.storage.setItem(`radica_river_archive_${room.id}`, JSON.stringify(activeMessages));
-    return allMessages;
   }
 
   /** This device's last readable copy of a River room's messages. */
@@ -969,127 +686,33 @@ export class PrivateRoomManager {
     return null;
   }
 
-  /** Owner only: move a River room to a native room with the same name and kind, invite its Radica members, keep its
-   *  moderators, and leave the native invite link as the last River message for everyone else. */
-  public async migrateRiverRoom(identity: UserIdentity, roomId: string, fallbackName?: string): Promise<PrivateRoom> {
+  /** Owner only: move an archived River room to a native room of the same kind, from what this device knows: its
+   *  Radica members and moderators, and a channel's subscribers from its room log. River held the name and history,
+   *  so the owner names the new room and the history stays in the archive. */
+  public async migrateRiverRoom(identity: UserIdentity, roomId: string, name: string): Promise<PrivateRoom> {
     const room = this.readRooms().find((r) => r.id === roomId);
     if (!room?.river) throw new Error("Not a River room");
     if (!this.isRiverOwner(identity, room)) throw new Error("Only the room owner can migrate it");
     const moved = this.riverMigratedTo(room);
     const done = moved && this.readRooms().find((r) => r.id === moved);
     if (done) return done;
-    await this.riverMessages(identity, room).catch((e) => console.warn("[River] migrate read:", e));
-    // a River room the node cannot read (e.g. after a contract change) still moves, from what this device knows:
-    // its Radica members and moderators, and a channel's subscribers from its room log; the name comes from the owner
-    const read = this.rosters.get(room.id);
-    if (!read && !fallbackName) throw new Error("Your node cannot read this River room right now: give the new room a name to migrate it anyway");
-    const moderators = read?.moderators ?? room.moderators ?? [];
-    const roster = read ?? {
-      members: [...room.members, ...(room.is_channel ? roomJoiners(this.deps.logEntries(`room/${room.id}`), room.id, new Set([room.creator, ...moderators])) : [])],
-      moderators,
-    };
-    const name = read ? await this.getPrivateRoomDecryptedName(identity, room) : fallbackName!;
-    // River-only members (no Radica identity) cannot get a native invite: they get the link below
-    const invitees = roster.members.filter((m) => m !== identity.pubkey && !this.riverOnly.has(m));
-    const native = await this.createPrivateRoom(identity, name, invitees, undefined, {
+    if (!name.trim()) throw new Error("Give the new room a name");
+    await this.deps.refreshLog(`room/${room.id}`, true).catch(() => {});
+    const moderators = room.moderators ?? [];
+    const joiners = room.is_channel ? roomJoiners(this.deps.logEntries(`room/${room.id}`), room.id, new Set([room.creator, ...moderators])) : [];
+    const invitees = [...new Set([...room.members, ...joiners])].filter((m) => m && m !== identity.pubkey);
+    const native = await this.createPrivateRoom(identity, name.trim(), invitees, undefined, {
       ...(room.is_channel ? { is_channel: true } : {}),
       ...(room.avatar_url ? { avatar_url: room.avatar_url } : {}),
     });
-    for (const m of roster.moderators) {
+    for (const m of moderators) {
       if (!native.members.includes(m)) continue;
-      await this.setPrivateRoomModerator(identity, native.id, m, true).catch((e) => console.warn("[River] migrate moderator:", e));
-    }
-    const key = await this.getPrivateRoomKey(identity, native);
-    if (key) {
-      const text = `This room moved to a native Radica room. Join here: ${buildPrivateRoomInviteLink(native, key, name)}`;
-      await (await this.deps.rivers())
-        .say(this.riverKey(identity, room), room.river.owner, text, this.riverJoin(room.id), this.nickname())
-        .catch((e) => console.warn("[River] migrate notice:", e));
+      await this.setPrivateRoomModerator(identity, native.id, m, true).catch((e) => console.warn("[PrivateRoom] migrate moderator:", e));
     }
     this.deps.storage.setItem(`river_migrated_${room.id}`, native.id);
     await this.deps.logAppend(`room/${room.id}`, { type: "room_migrated", to: native.id });
     this.deps.notifyListeners();
     return native;
-  }
-
-  private computeRiverJoins(roomId: string, members: string[], messages: ChatMessage[], creator?: string): ChatMessage[] {
-    const seenKey = `radica_seen_members_${roomId}`;
-    let seen: Record<string, number> = {};
-    try {
-      seen = JSON.parse(this.deps.storage.getItem(seenKey) || "{}");
-    } catch {}
-    let seenChanged = false;
-    const now = this.now();
-
-    const joinList: { member: string; ts: number }[] = [];
-    for (const m of members) {
-      if (!m || (creator && m === creator)) continue;
-      const firstMsg = messages.filter((msg) => msg.sender === m).sort((a, b) => a.timestamp - b.timestamp)[0];
-      let ts = firstMsg ? firstMsg.timestamp : seen[m];
-      if (!ts) {
-        ts = now;
-        seen[m] = ts;
-        seenChanged = true;
-      } else if (!seen[m]) {
-        seen[m] = ts;
-        seenChanged = true;
-      }
-      joinList.push({ member: m, ts });
-    }
-    if (seenChanged) {
-      try {
-        this.deps.storage.setItem(seenKey, JSON.stringify(seen));
-      } catch {}
-    }
-    if (!joinList.length) return [];
-    joinList.sort((a, b) => a.ts - b.ts);
-
-    const grouped: { authors: string[]; ts: number }[] = [];
-    for (const j of joinList) {
-      const last = grouped[grouped.length - 1];
-      if (last && j.ts - last.ts <= RIVER_JOIN_GROUP_WINDOW_MS) {
-        if (!last.authors.includes(j.member)) last.authors.push(j.member);
-      } else {
-        grouped.push({ authors: [j.member], ts: j.ts });
-      }
-    }
-    return grouped.map((g) => ({
-      id: `rvjoin_${g.authors[0]}_${g.ts}`,
-      room_id: roomId,
-      private_room_id: roomId,
-      sender: g.authors[0],
-      join_members: g.authors,
-      text: "",
-      timestamp: g.ts,
-      sig: "",
-      system_event: "join" as const,
-    }));
-  }
-
-  public async getRiverInviteLink(identity: UserIdentity, room: PrivateRoom, roomName?: string): Promise<string> {
-    if (room.creator !== identity.pubkey || !room.river) throw new Error("Only the room owner can make an invite link");
-    const code = await (await this.deps.rivers()).invitation(this.riverOwnerKey(identity, room), room.river.owner);
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
-    const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
-    const params = new URLSearchParams({ river_invite: code });
-    params.set("room_id", room.id);
-    if (roomName) params.set("name", roomName);
-    params.set("creator", room.creator);
-    if (room.is_channel) params.set("chan", "1");
-    if (room.linked_room_id) {
-      params.set("lr", room.linked_room_id);
-      const linked = (await this.getPrivateRooms(identity)).find((r) => r.id === room.linked_room_id);
-      if (linked?.river && linked.creator === identity.pubkey) {
-        await (await this.deps.rivers())
-          .invitation(this.riverOwnerKey(identity, linked), linked.river.owner)
-          .then(
-            (c) => params.set("lr_invite", c),
-            (e) => console.warn("[River] linked room invitation:", e),
-          );
-      }
-    }
-    const prefix = /^https?:\/\//i.test(origin) ? `${origin}${pathname}` : "";
-    return `${prefix}#${params.toString()}`;
   }
 
   private unhideRoom(identity: UserIdentity, roomId: string): void {
@@ -1104,116 +727,6 @@ export class PrivateRoomManager {
     void this.deps
       .logAppend(`inbox/${identity.pubkey}`, { type: "room_hide", roomId, on: false })
       .catch((e) => console.warn("[Freenet] room_hide:", e));
-  }
-
-  public async joinRiverInvitation(
-    identity: UserIdentity,
-    code: string,
-    meta?: {
-      roomId?: string;
-      creator?: string;
-      name?: string;
-      is_channel?: boolean;
-      linked_room_id?: string;
-      linked_invite?: string;
-    },
-  ): Promise<PrivateRoom> {
-    const rooms = await this.deps.rivers();
-    const { owner, sk, join } = rooms.accept(code);
-    const mine = await rooms
-      .inviteUnder(sk, join.member, owner, vkOf(identity.secretKey))
-      .catch((e) => (console.warn("[River] Could not join under the link key:", e), null));
-    const list = this.readRooms();
-    const known = list.find((r) => r.river?.owner === owner || (meta?.roomId && r.id === meta.roomId));
-    const roomId = meta?.roomId ?? known?.id ?? `privroom_river_${owner.slice(0, 16)}`;
-    this.unhideRoom(identity, roomId);
-    this.keepRiverAccess(roomId, mine ? null : sk, mine ?? join);
-    seedReadMark(this.deps.storage, roomId);
-    const creator = meta?.creator ?? known?.creator ?? owner;
-    const isChannel = meta?.is_channel ?? known?.is_channel ?? false;
-    const linkedRoomId = meta?.linked_room_id ?? known?.linked_room_id;
-    const room: PrivateRoom = known
-      ? {
-          ...known,
-          id: roomId,
-          creator,
-          members: [...new Set([...known.members, identity.pubkey])],
-          ...(isChannel ? { is_channel: true } : {}),
-          ...(linkedRoomId ? { linked_room_id: linkedRoomId } : {}),
-        }
-      : {
-          id: roomId,
-          creator,
-          name_encrypted: "",
-          members: [identity.pubkey],
-          encrypted_keys: {},
-          created_at: this.now(),
-          sig: "",
-          river: { owner },
-          ...(isChannel ? { is_channel: true } : {}),
-          ...(linkedRoomId ? { linked_room_id: linkedRoomId } : {}),
-        };
-    this.mergeRemotePrivateRooms([room]);
-    await this.deps.logAppend(`room/${roomId}`, { type: "room_join", roomId }).catch((e) => console.warn("[River] room_join log:", e));
-    await this.rememberRoom(roomId);
-
-    if (meta?.linked_invite && linkedRoomId) {
-      await this.joinRiverInvitation(identity, meta.linked_invite, {
-        roomId: linkedRoomId,
-        creator,
-        linked_room_id: roomId,
-      }).catch((e) => console.warn("[River] Could not join the linked room:", e));
-    }
-    this.deps.flushStorage();
-    void this.putRoomsToNode();
-    this.deps.notifyListeners();
-    return room;
-  }
-
-  public async importRiverIdentity(identity: UserIdentity, token: string): Promise<PrivateRoom> {
-    const { owner, sk, join } = (await this.deps.rivers()).importIdentity(token);
-    const known = this.readRooms().find((r) => r.river?.owner === owner);
-    const roomId = known?.id ?? `privroom_river_${owner.slice(0, 16)}`;
-    this.unhideRoom(identity, roomId);
-    this.keepRiverAccess(roomId, sk, join);
-    seedReadMark(this.deps.storage, roomId);
-    const creator = vkOf(hexToBytes(sk)) === owner ? identity.pubkey : known?.creator ?? owner;
-    const room: PrivateRoom = known
-      ? { ...known, creator, members: [...new Set([...known.members, identity.pubkey])] }
-      : {
-          id: roomId,
-          creator,
-          name_encrypted: "",
-          members: [identity.pubkey],
-          encrypted_keys: {},
-          created_at: this.now(),
-          sig: "",
-          river: { owner },
-        };
-    this.mergeRemotePrivateRooms([room]);
-    await this.rememberRoom(roomId);
-    this.deps.notifyListeners();
-    return room;
-  }
-
-  public async exportRiverIdentity(identity: UserIdentity, room: PrivateRoom): Promise<string> {
-    if (!room.river) throw new Error("Only River rooms have a River identity");
-    return (await this.deps.rivers()).exportIdentity(
-      this.riverKey(identity, room),
-      room.river.owner,
-      this.riverJoin(room.id),
-      this.nickname(),
-    );
-  }
-
-  private keepRiverAccess(roomId: string, k: string | null, join: RiverJoin): void {
-    if (k) this.deps.storage.setItem(`river_key_${roomId}`, k);
-    else this.deps.storage.removeItem(`river_key_${roomId}`);
-    this.deps.storage.setItem(`river_join_${roomId}`, JSON.stringify(join));
-    void (async () => {
-      await this.deps.nodePut(`river-key:${roomId}`, k ?? "");
-      await this.deps.nodePut(`river-join:${roomId}`, JSON.stringify(join));
-    })();
   }
 
   public getPrivateRoomInviteLink(
@@ -1240,29 +753,7 @@ export class PrivateRoomManager {
   ): Promise<PrivateRoom> {
     const { roomId, name, keyHex, creator, is_channel, linked_room_id, linked_key_hex } = inviteData;
     this.unhideRoom(identity, roomId);
-    if (inviteData.river) {
-      const { owner, k, member, secret } = inviteData.river;
-      if (!/^[0-9a-f]{64}$/.test(owner) || !/^[0-9a-f]{64}$/.test(k)) throw new Error("Invalid invite link");
-      this.keepRiverAccess(roomId, k, { member, secret: secret || undefined });
-      const room: PrivateRoom = {
-        id: roomId,
-        creator,
-        name_encrypted: "",
-        members: [creator, identity.pubkey],
-        encrypted_keys: {},
-        created_at: this.now(),
-        sig: "invite_join",
-        river: { owner },
-        ...(is_channel ? { is_channel: true } : {}),
-        ...(linked_room_id ? { linked_room_id } : {}),
-      };
-      this.mergeRemotePrivateRooms([room]);
-      await this.deps.logAppend(`room/${roomId}`, { type: "room_join", roomId });
-      await this.rememberRoom(roomId);
-      this.deps.flushStorage();
-      this.deps.notifyListeners();
-      return room;
-    }
+    if (inviteData.river) throw new Error("River invite links no longer work: River rooms are retired. Ask for the room's new Radica invite.");
     const roomKey = hexToBytes(keyHex);
     if (roomKey.length !== 32) {
       throw new Error("Invalid room key in invite link");
@@ -1321,34 +812,16 @@ export class PrivateRoomManager {
     text: string,
     replyTo?: string,
   ): Promise<ChatMessage> {
+    if (room.river) throw new Error(RIVER_RETIRED);
     if (room.is_channel) {
-      const roster = this.rosters.get(room.id);
-      const isOwner = identity.pubkey === (roster?.creator ?? room.creator);
-      const isModerator = (roster?.moderators ?? room.moderators ?? []).includes(identity.pubkey);
+      const isOwner = identity.pubkey === room.creator;
+      const isModerator = (room.moderators ?? []).includes(identity.pubkey);
       if (!isOwner && !isModerator) {
         throw new Error("This broadcast channel is read-only. Only the owner or administrators can post messages.");
       }
     }
     const notifMsg = room.is_channel ? "posted an update in a Broadcast Channel" : "sent a message in an encrypted Private Room";
 
-    if (room.river) {
-      if (this.riverMigratedTo(room)) throw new Error("This River room moved to a native Radica room: write there.");
-      await (await this.deps.rivers()).say(
-        this.riverKey(identity, room),
-        room.river.owner,
-        text,
-        this.riverJoin(room.id),
-        this.nickname(),
-        replyTo,
-      );
-      for (const member of room.members) {
-        if (member !== identity.pubkey) {
-          this.deps.addNotification(member, { type: "chat", from: identity.pubkey, text: notifMsg, linkRoomId: room.id });
-        }
-      }
-      const now = this.now();
-      return { id: `river_${now}`, room_id: room.id, private_room_id: room.id, sender: identity.pubkey, text, timestamp: now, sig: "" };
-    }
     const roomKey = await this.getPrivateRoomKey(identity, room);
     if (!roomKey) throw new Error("Unauthorized: no room key found to encrypt message");
 
@@ -1387,13 +860,7 @@ export class PrivateRoomManager {
   }
 
   public async getPrivateRoomChatMessages(identity: UserIdentity, room: PrivateRoom): Promise<ChatMessage[]> {
-    if (room.river) {
-      const live = await this.riverMessages(identity, room).catch((e) => {
-        console.warn("[River] read failed, showing the local archive:", e);
-        return [] as ChatMessage[];
-      });
-      return live.length ? live : this.riverArchive(room.id);
-    }
+    if (room.river) return this.riverArchive(room.id);
     void this.deps.refreshLog(`room/${room.id}`);
     const entries = this.deps.logEntries(`room/${room.id}`);
     const joins = this.deps.computeLogJoins(room.id, entries);

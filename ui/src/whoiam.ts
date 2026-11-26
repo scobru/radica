@@ -1,7 +1,6 @@
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { fromBase58, toBase58 } from "./base58.ts";
-import { roomOwnerSk } from "./riverRooms.ts";
 import { connectMessage as sharedConnectMessage } from "../../shared/protocol.js";
 
 // Ensure noble ed25519 uses sha512
@@ -146,23 +145,11 @@ export function getAppKeySecret(): Promise<Uint8Array> {
   })());
 }
 
-/** Make `skHex` (Viso's shared key) this device's app key; the key it replaces is kept for reading old messages, and
- *  each River room I am in keeps the key it knows me by (it was derived from the old app key). */
-async function useAppKey(skHex: string, persona: string): Promise<void> {
+/** Make `skHex` (Viso's shared key) this device's app key; the key it replaces is kept for reading old messages. */
+async function useAppKey(skHex: string): Promise<void> {
   const old = hex(await getAppKeySecret());
   if (old === skHex) return;
   const m = await import("./delegate.ts").catch(() => null);
-  const rooms: { id?: string; river?: unknown; creator?: string; members?: string[] }[] = [];
-  for (const raw of [safeStorage.getItem("freenet_private_rooms"), await m?.nodeGet(`privrooms:${persona}`)])
-    try {
-      rooms.push(...JSON.parse(raw || "[]"));
-    } catch {}
-  for (const r of rooms) {
-    if (!r?.river || typeof r.id !== "string" || !r.members?.includes(persona) || safeStorage.getItem(`river_key_${r.id}`) || (await m?.nodeGet(`river-key:${r.id}`))) continue;
-    const k = r.creator === persona ? hex(roomOwnerSk(unhex(old), r.id)) : old;
-    safeStorage.setItem(`river_key_${r.id}`, k);
-    await m?.nodePut(`river-key:${r.id}`, k);
-  }
   const kept: string[] = [
     ...JSON.parse(safeStorage.getItem("radica_read_keys") || "[]"),
     ...JSON.parse((await m?.nodeGet("read-keys")) || "[]"),
@@ -291,7 +278,7 @@ export async function finishSignIn(q: URLSearchParams): Promise<{ persona: strin
     throw new Error("Viso persona cryptographic signature failed to verify.");
   }
 
-  if (sharedKey) await useAppKey(sharedKey, persona);
+  if (sharedKey) await useAppKey(sharedKey);
   const session: StoredSession = { persona, type: "viso", cert };
   safeStorage.setItem("radica_session", JSON.stringify(session));
   void import("./delegate.ts").then((m) => m.nodePut("viso-session", JSON.stringify(session))); // like local-seed: survives cleared page storage (delegate keys take no '_')

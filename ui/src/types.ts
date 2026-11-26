@@ -162,7 +162,7 @@ export interface PrivateRoom {
   gardener_enc_pub?: string; // the key used to encrypt The Gardener's room key copy when added via room_gardener
   created_at: number;
   sig: string;
-  river?: { owner: string }; // the room lives on River's room contract under this owner key (riverRooms.ts)
+  river?: { owner: string }; // a retired River room (its River owner key): a read-only local archive, see privateRooms.ts
   is_channel?: boolean; // Telegram-style broadcast channel (only owner/moderators can post)
   linked_room_id?: string; // ID of the discussion / comments room linked to this channel
 }

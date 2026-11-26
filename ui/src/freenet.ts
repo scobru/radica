@@ -61,7 +61,6 @@ import { LogStore } from "./logStore.ts";
 import { FeedStore } from "./feedStore.ts";
 import { PrivateRoomManager } from "./privateRooms.ts";
 import { shouldFetch, LIVE_RECHECK_MS, REFRESH_EVERY_MS, type Change } from "./refresh.ts";
-import { river } from "./river.ts";
 import { lightFeedAsync } from "./feedlight.ts";
 import { parseSite, resolveSiteCode, siteKey, type DeltaSite } from "./delta.ts";
 import { computeLogJoins } from "./messengerLogic.ts";
@@ -102,8 +101,6 @@ import { MEDIA_PREFIX, dataUrlBytes, keepMedia, mediaHashOf, mediaUris } from ".
 import { revokeChatMediaInText, summarizeChatMediaText } from "./chatMedia.ts";
 import { mentionsIn, plainMentions } from "./caption.ts";
 import { repostRef } from "./repost.ts";
-import { knownAnchor, resolveRoomContract } from "./riverPointer.ts";
-import { RiverRooms, vkOf } from "./riverRooms.ts";
 import {
   getSecretRoomId,
   isSecretRoomId,
@@ -173,7 +170,7 @@ export class FreenetClient {
   private isConnected = false;
   public connectError = "";
   private net = new FreenetNetwork((id, change) =>
-    void (id.startsWith("mail:") ? this.mailChanged(id.slice(5), change) : id.startsWith("feed:") ? this.feedChanged(id.slice(5), change ?? {}) : id.startsWith("river:") ? this.rivers().then((r) => (r.changed(id.slice(6)), this.notifyListeners())) : this.logChanged(id.slice(4), change ?? {}))
+    void (id.startsWith("mail:") ? this.mailChanged(id.slice(5), change) : id.startsWith("feed:") ? this.feedChanged(id.slice(5), change ?? {}) : this.logChanged(id.slice(4), change ?? {}))
   );
   private mailWatch = new Map<string, () => void>();
 
@@ -195,33 +192,6 @@ export class FreenetClient {
     this.mailWatch.get(instance)?.();
   }
 
-  private riverP?: Promise<RiverRooms>;
-  /** Private rooms on River's contract, loaded on first use (river.wasm and River's pointer). */
-  private rivers(): Promise<RiverRooms> {
-    return (this.riverP ??= river().then((call) => {
-      // never wait on the network for the pointer: start from what this install knows, and resolve it once per session behind
-      let anchor = knownAnchor();
-      void resolveRoomContract((k) => this.net.getRaw(k), call).then((a) => (anchor = a));
-      const code = () => import("./wasm/river_room_contract.wasm?url").then(({ default: url }) => fetch(url)).then(async (r) => new Uint8Array(await r.arrayBuffer()));
-      return (this.riverRooms = new RiverRooms(call, this.net, async () => anchor, code));
-    }));
-  }
-  private riverRooms?: RiverRooms;
-
-  /** A River room whose state my node could not fetch: its name, members and messages cannot be shown until it does. */
-  public riverRoomUnreachable(roomId: string): boolean {
-    const owner = this.storedPrivateRooms().find((r) => r.id === roomId)?.river?.owner;
-    return !!owner && !!this.riverRooms?.isMissing(owner);
-  }
-
-  /** Ask the node for a River room again (and under River's earlier contracts), then redraw. */
-  public async retryRiverRoom(roomId: string): Promise<boolean> {
-    const owner = this.storedPrivateRooms().find((r) => r.id === roomId)?.river?.owner;
-    if (!owner) return false;
-    const ok = !!(await (await this.rivers()).retry(owner));
-    this.notifyListeners();
-    return ok;
-  }
   private identity: UserIdentity | null = null;
   private offlineMedia = new Map<string, Uint8Array>(); // in-session fallback when no local node is connected
   private me = "";
@@ -282,7 +252,6 @@ export class FreenetClient {
     logAppend: (name, body, opts) => this.logAppend(name, body, opts),
     refreshLog: (name, force, urgent) => this.refreshLog(name, force, urgent),
     logOfRoom: (roomId) => this.logOfRoom(roomId),
-    rivers: () => this.rivers(),
     nodeGet: (key) => import("./delegate.ts").then((m) => m.nodeGet(key)),
     nodePut: (key, val) => import("./delegate.ts").then((m) => m.nodePut(key, val)),
     readKeysReady: () => this.readKeysReady,
@@ -295,10 +264,6 @@ export class FreenetClient {
     broadcast: (data) => this.broadcast(data),
     addNotification: (to, notif) => this.addNotification(to, notif),
     notifyListeners: () => this.notifyListeners(),
-    peerDisplayName: (pk) => this.knownPeers[pk]?.display_name,
-    onPeerName: (pk, displayName) => {
-      this.knownPeers[pk] = { ...this.knownPeers[pk], display_name: displayName };
-    },
   });
   private static readonly MAX_PEER_CACHE = 400;
   public peerCache: Record<string, Post> = {};
@@ -1733,8 +1698,6 @@ export class FreenetClient {
         } else if (b.type === "room_invite" && b.room?.creator === e.author && typeof b.room.id === "string") {
           if (this.isBlocked(e.author)) continue;
           this.mergeRemotePrivateRooms([b.room]);
-          // my signed membership and sealed room secret for a River room: sent with my first message there
-          if (b.room.river && typeof b.river_join?.member === "string") localStorage.setItem(`river_join_${b.room.id}`, JSON.stringify(b.river_join));
           roomsToRefresh.add(b.room.id);
         } else if (b.type === "dm_ref" && typeof b.room === "string") {
           // a conversation of mine changed in its own log (the other side or my other device wrote there)
@@ -2423,36 +2386,6 @@ export class FreenetClient {
     return pkA < pkB ? `${pkA}:${pkB}` : `${pkB}:${pkA}`;
   }
 
-  // ---- DMs with River users: River keeps DMs inside a room both are in (direct_messages), not in Radica's inbox log ----
-
-  /** A River room that holds `peer` (their key there), with my key in it. */
-  private async sharedRiverRoom(identity: UserIdentity, peer: string): Promise<PrivateRoom> {
-    const rooms = await this.rivers();
-    const list = this.storedPrivateRooms();
-    for (const room of list) {
-      if (!room.river || !room.members?.includes(identity.pubkey)) continue;
-      const state = await rooms.load(room.river.owner);
-      if (state && rooms.read(state, room.river.owner, this.privateRooms.riverKey(identity, room), this.privateRooms.riverJoin(room.id)).members.some((m) => m.vk === peer)) return room;
-    }
-    throw new Error("You share no River room with this contact: a DM to a River user goes through a room you are both in.");
-  }
-
-  private async sendRiverDm(identity: UserIdentity, peer: string, text: string): Promise<ChatMessage> {
-    const room = await this.sharedRiverRoom(identity, peer);
-    await (await this.rivers()).dm(this.privateRooms.riverKey(identity, room), room.river!.owner, peer, text, this.privateRooms.riverJoin(room.id), this.nickname());
-    // what I sent is sealed to the other side, so my copy goes to my own inbox log, encrypted to myself: it survives a
-    // refresh (this page has no storage of its own) and reaches my other devices
-    const [roomId, id, timestamp] = [this.getRoomId(identity.pubkey, peer), `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`, Date.now()];
-    const sealed = await encryptDirectMessage(identity.secretKey, identity.encPub, text);
-    const sig = await identity.sign(formatChatMessageSignatureMessage(id, roomId, identity.pubkey, peer, sealed, timestamp));
-    const message: ChatMessage = { id, room_id: roomId, sender: identity.pubkey, recipient: peer, text: sealed, timestamp, sig, enc_pub: identity.encPub, to_enc_pub: identity.encPub };
-    const key = `freenet_chat_${roomId}`;
-    localStorage.setItem(key, JSON.stringify([...JSON.parse(localStorage.getItem(key) || "[]"), message]));
-    this.addChatPeer(identity.pubkey, peer);
-    await this.chatAppend(roomId, { type: "chat", message });
-    return { ...message, text };
-  }
-
   /** Posts where I left a comment: tracked so we can detect replies by others. */
   public trackCommentedPost(myPubkey: string, postId: string, postAuthor: string, timestamp = Date.now()): void {
     const key = `freenet_commented_posts_${myPubkey}`;
@@ -2518,31 +2451,19 @@ export class FreenetClient {
     return fresh;
   }
 
-  /** Sync group messages for all private rooms where I am a member:
-   *  refreshes native room logs and River room states, establishes a read baseline for
+  /** Sync group messages for all private rooms where I am a member (archived River rooms have none):
+   *  refreshes room logs, establishes a read baseline for
    *  newly discovered rooms, and stores chat notifications for incoming messages.
    *  True when new messages arrived. */
-  public async syncRiverRooms(identity: UserIdentity, activeRoomId?: string | null): Promise<boolean> {
-    const eligible = this.storedPrivateRooms().filter((r) => !!r.members?.includes(identity.pubkey));
+  public async syncPrivateRooms(identity: UserIdentity, activeRoomId?: string | null): Promise<boolean> {
+    const eligible = this.storedPrivateRooms().filter((r) => !r.river && !!r.members?.includes(identity.pubkey));
     if (!eligible.length) return false;
-    const hasRiver = eligible.some((r) => !!r.river?.owner);
-    const rooms = hasRiver ? await this.rivers() : null;
     let fresh = false;
     await Promise.allSettled(
       eligible.map(async (room) => {
         try {
-          let msgs: ChatMessage[];
-          let notifPrefix: string;
-          if (room.river?.owner) {
-            const state = await rooms!.load(room.river.owner); // at most one read of the network per room every 30 s
-            if (!state) return;
-            msgs = await this.privateRooms.riverMessages(identity, room);
-            notifPrefix = "rvmsg";
-          } else {
-            if (this.isConnected) await this.refreshLog(`room/${room.id}`);
-            msgs = await this.getPrivateRoomChatMessages(identity, room);
-            notifPrefix = "prmsg";
-          }
+          if (this.isConnected) await this.refreshLog(`room/${room.id}`);
+          const msgs = await this.getPrivateRoomChatMessages(identity, room);
           const lastSeen = localReadMarks(localStorage)[room.id];
           if (lastSeen === undefined) {
             // a room seen for the first time: its history is not news
@@ -2553,7 +2474,7 @@ export class FreenetClient {
               fresh = true;
               for (const m of newMsgs) {
                 this.storeNotification(identity.pubkey, {
-                  id: `${notifPrefix}_${m.id}`,
+                  id: `prmsg_${m.id}`,
                   type: "chat",
                   from: m.sender,
                   text: "sent a message in an encrypted Private Room",
@@ -2572,80 +2493,12 @@ export class FreenetClient {
     return fresh;
   }
 
-  /** DMs River users sent me: each sender joins my DM list (so the conversation shows up unopened), a stub with no text
-   *  lands in the chat's list for the unread count, and the bell gets a note. True when something new arrived. */
-  public async syncRiverDms(identity: UserIdentity): Promise<boolean> {
-    const riverRooms = this.storedPrivateRooms().filter((r) => !!r.river?.owner && r.members?.includes(identity.pubkey));
-    if (!riverRooms.length) return false;
-    const rooms = await this.rivers();
-    let fresh = false;
-    await Promise.allSettled(
-      riverRooms.map(async (room) => {
-        const owner = room.river!.owner;
-        const state = await rooms.load(owner); // at most one read of the network per room every 30 s
-        if (!state) return;
-        let dms;
-        try {
-          dms = rooms.read(state, owner, this.privateRooms.riverKey(identity, room), this.privateRooms.riverJoin(room.id)).dms;
-        } catch {
-          return;
-        }
-        // a sender not known as River-only yet: reading the room sorts the River members from the Radica ones
-        if (dms.some((d) => d.sender && !this.riverOnly.has(d.sender))) await this.privateRooms.riverMessages(identity, room).catch(() => []);
-        for (const d of dms) {
-          if (!d.sender || !this.riverOnly.has(d.sender)) continue;
-          const roomId = this.getRoomId(identity.pubkey, d.sender);
-          const id = `rvdm_${d.sig.slice(0, 16)}`;
-          const key = `freenet_chat_${roomId}`;
-          const stubs: ChatMessage[] = JSON.parse(localStorage.getItem(key) || "[]");
-          if (stubs.some((m) => m.id === id)) continue;
-          seedReadMark(localStorage, roomId, d.time_ms - 1); // the first one counts as unread
-          stubs.push({ id, room_id: roomId, sender: d.sender, recipient: identity.pubkey, text: "", timestamp: d.time_ms, sig: d.sig });
-          localStorage.setItem(key, JSON.stringify(stubs));
-          this.addChatPeer(identity.pubkey, d.sender, d.time_ms);
-          this.storeNotification(identity.pubkey, { id, type: "chat", from: d.sender, text: "sent you a direct message", timestamp: d.time_ms, read: false });
-          fresh = true;
-        }
-      }),
-    );
-    return fresh;
-  }
-
-  /** My sent DMs plus those River users sent me in the River rooms we share, oldest first. */
-  private async riverDmThread(identity: UserIdentity, peer: string): Promise<ChatMessage[]> {
-    void this.refreshLog(`inbox/${identity.pubkey}`);
-    const rooms = await this.rivers();
-    const roomId = this.getRoomId(identity.pubkey, peer);
-    const list = this.storedPrivateRooms();
-    const seen = new Set<string>();
-    const incoming: ChatMessage[] = [];
-    for (const room of list) {
-      if (!room.river || !room.members?.includes(identity.pubkey)) continue;
-      const state = await this.privateRooms.riverState(rooms, room.river.owner);
-      if (!state) continue;
-      for (const d of rooms.read(state, room.river.owner, this.privateRooms.riverKey(identity, room), this.privateRooms.riverJoin(room.id)).dms) {
-        if (d.sender !== peer || seen.has(d.sig)) continue;
-        seen.add(d.sig);
-        incoming.push({ id: `rvdm_${d.sig.slice(0, 16)}`, room_id: roomId, sender: peer, recipient: identity.pubkey, text: d.text, timestamp: d.time_ms, sig: d.sig });
-      }
-    }
-    const sent = await Promise.all(
-      this.visibleChat(roomId)
-        .filter((m) => m.sender === identity.pubkey && m.text.startsWith("e2e:"))
-        .map(async (m) => ({ ...m, text: await this.plain(`me|${identity.pubkey}|${m.text}`, () => decryptDirectMessage(identity.secretKey, identity.encPub, m.text)) }))
-    );
-    const cleared = Number(localStorage.getItem(`freenet_chat_cleared_${roomId}`) || 0);
-    return [...sent, ...incoming].filter((m) => m.timestamp > cleared).sort((a, b) => a.timestamp - b.timestamp);
-  }
-
   public async sendChatMessage(
     identity: UserIdentity,
     recipientPubkey: string,
     text: string,
     replyTo?: string
   ): Promise<ChatMessage> {
-    await this.privateRooms.riverOnlyReady;
-    if (this.riverOnly.has(recipientPubkey)) return this.sendRiverDm(identity, recipientPubkey, text);
     const roomId = this.getRoomId(identity.pubkey, recipientPubkey);
     const id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const timestamp = Date.now();
@@ -2714,8 +2567,7 @@ export class FreenetClient {
   }
 
   public async getChatMessages(identity: UserIdentity, peerPubkey: string): Promise<ChatMessage[]> {
-    await Promise.all([this.privateRooms.riverOnlyReady, this.readKeysReady]);
-    if (this.riverOnly.has(peerPubkey)) return this.riverDmThread(identity, peerPubkey);
+    await this.readKeysReady;
     void this.refreshLog(`inbox/${identity.pubkey}`);
     const roomId = this.getRoomId(identity.pubkey, peerPubkey);
     void this.refreshLog(`dm/${roomId}`);
@@ -2969,20 +2821,13 @@ export class FreenetClient {
     return visible;
   }
 
-  /** The River room behind a chat room id, if it is one I can act in. */
-  private riverRoomOf(roomId: string): PrivateRoom | undefined {
-    const list = this.storedPrivateRooms();
-    return this.identity ? list.find((r) => r.id === roomId && r.river) : undefined;
+  /** Archived River rooms are read-only: nothing to delete, edit or react to there. */
+  private refuseRiverArchive(roomId: string): void {
+    if (this.storedPrivateRooms().some((r) => r.id === roomId && r.river)) throw new Error("River rooms are retired: this one is a read-only archive.");
   }
 
   public async deleteChatMessage(roomId: string, messageId: string): Promise<void> {
-    const river = this.riverRoomOf(roomId);
-    if (river) {
-      // River deletes for everyone, and only the author's own messages (others' it ignores)
-      await (await this.rivers()).act(this.privateRooms.riverKey(this.identity!, river), river.river!.owner, "delete", messageId, {}, this.privateRooms.riverJoin(roomId), this.nickname());
-      this.notifyListeners();
-      return;
-    }
+    this.refuseRiverArchive(roomId);
     const roomKey = `freenet_chat_${roomId}`;
     const raw = localStorage.getItem(roomKey);
     if (raw) {
@@ -3006,13 +2851,7 @@ export class FreenetClient {
       this.notifyListeners();
       return;
     }
-    const river = this.riverRoomOf(roomId);
-    if (river) {
-      // River's own edit, sealed with the room's key
-      await (await this.rivers()).act(this.privateRooms.riverKey(identity, river), river.river!.owner, "edit", messageId, { text: newText }, this.privateRooms.riverJoin(roomId), this.nickname());
-      this.notifyListeners();
-      return;
-    }
+    this.refuseRiverArchive(roomId);
     let encryptedText = newText;
 
     if (roomId.startsWith("privroom_")) {
@@ -3059,16 +2898,7 @@ export class FreenetClient {
 
   /** Toggle my `emoji` on a message (a conversation's other side sees it in the conversation's own log). */
   public async reactToChatMessage(roomId: string, messageId: string, emoji: string, peer?: string): Promise<void> {
-    const river = this.riverRoomOf(roomId);
-    if (river) {
-      const rooms = await this.rivers();
-      const [owner, key, join] = [river.river!.owner, this.privateRooms.riverKey(this.identity!, river), this.privateRooms.riverJoin(roomId)];
-      const state = rooms.cached(owner);
-      const mine = !!state && !!rooms.read(state, owner, key, join).messages.find((m) => m.id === messageId)?.reactions[emoji]?.includes(vkOf(key));
-      await rooms.act(key, owner, mine ? "unreact" : "react", messageId, { emoji }, join, this.nickname());
-      this.notifyListeners();
-      return;
-    }
+    this.refuseRiverArchive(roomId);
     const key = `freenet_chat_${roomId}`;
     const list: ChatMessage[] = JSON.parse(localStorage.getItem(key) || "[]");
     const m = list.find((x) => x.id === messageId);
@@ -3110,7 +2940,6 @@ export class FreenetClient {
   public warmPeers(pubkeys: string[]): Promise<void> {
     const jobs: Promise<void>[] = [];
     for (const pk of pubkeys.slice(0, 30)) {
-      if (this.riverOnly.has(pk)) continue; // a River key has no Radica feed to fetch
       const k = this.knownPeers[pk];
       if (pk === this.me || (k?.avatar_url && !k.display_name.startsWith("Persona @"))) continue;
       jobs.push(this.nameFromStoredFeed(pk)); // what an earlier visit kept: no network needed
@@ -3218,7 +3047,7 @@ export class FreenetClient {
   private storeNotification(owner: string, item: NotificationItem): void {
     if (this.dismissedNotifications(owner).includes(item.id)) return; // the log would bring it back otherwise
     if (owner === this.me && item.timestamp <= (this.clearUpTo ??= this.foldInboxUpTo("notif_clear"))) return;
-    // a notification made after the inbox was read (River DMs) still honours "mark all read"
+    // a notification made after the inbox was read still honours "mark all read"
     if (owner === this.me && item.timestamp <= (this.readUpTo ??= this.foldReadUpTo())) item = { ...item, read: true };
     const key = `freenet_notifs_${owner}`;
     const list: NotificationItem[] = JSON.parse(localStorage.getItem(key) || "[]");
@@ -3502,22 +3331,12 @@ export class FreenetClient {
   // E2EE Private Rooms
   // -------------------------------------------------------------
 
-  // ---- Private rooms on River (riverRooms.ts); rooms without `river` are the older log-based ones ----
-
   private nickname(): string {
     return this.knownPeers[this.me]?.display_name || `Persona @${personaName(this.me).substring(0, 6)}`;
   }
 
-  public get riverOnly(): Map<string, Record<string, string>> {
-    return this.privateRooms.riverOnly;
-  }
-
   public isRiverOwner(identity: UserIdentity, room: PrivateRoom): boolean {
     return this.privateRooms.isRiverOwner(identity, room);
-  }
-
-  public riverRoster(roomId: string) {
-    return this.privateRooms.riverRoster(roomId);
   }
 
   public mergeRemotePrivateRooms(incoming: PrivateRoom[]): void {
@@ -3529,7 +3348,7 @@ export class FreenetClient {
     name: string,
     memberPubkeys: string[],
     roomId?: string,
-    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string; public?: boolean; river?: boolean }
+    opts?: { is_channel?: boolean; linked_room_id?: string; avatar_url?: string }
   ): Promise<PrivateRoom> {
     return this.privateRooms.createPrivateRoom(identity, name, memberPubkeys, roomId, opts);
   }
@@ -3582,32 +3401,12 @@ export class FreenetClient {
     return this.privateRooms.setPrivateRoomModerator(identity, roomId, target, on);
   }
 
-  public getRiverInviteLink(identity: UserIdentity, room: PrivateRoom, roomName?: string): Promise<string> {
-    return this.privateRooms.getRiverInviteLink(identity, room, roomName);
-  }
-
-  public joinRiverInvitation(
-    identity: UserIdentity,
-    code: string,
-    meta?: { roomId?: string; creator?: string; name?: string; is_channel?: boolean; linked_room_id?: string; linked_invite?: string }
-  ): Promise<PrivateRoom> {
-    return this.privateRooms.joinRiverInvitation(identity, code, meta);
-  }
-
-  public importRiverIdentity(identity: UserIdentity, token: string): Promise<PrivateRoom> {
-    return this.privateRooms.importRiverIdentity(identity, token);
-  }
-
-  public migrateRiverRoom(identity: UserIdentity, roomId: string, fallbackName?: string): Promise<PrivateRoom> {
-    return this.privateRooms.migrateRiverRoom(identity, roomId, fallbackName);
+  public migrateRiverRoom(identity: UserIdentity, roomId: string, name: string): Promise<PrivateRoom> {
+    return this.privateRooms.migrateRiverRoom(identity, roomId, name);
   }
 
   public riverMigratedTo(room: PrivateRoom): string | null {
     return this.privateRooms.riverMigratedTo(room);
-  }
-
-  public exportRiverIdentity(identity: UserIdentity, room: PrivateRoom): Promise<string> {
-    return this.privateRooms.exportRiverIdentity(identity, room);
   }
 
   public getPrivateRoomInviteLink(room: PrivateRoom, roomKey: Uint8Array, roomName: string, linkedRoomKey?: Uint8Array | null): string {

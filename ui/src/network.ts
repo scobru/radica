@@ -63,10 +63,10 @@ const bgGate = limiter(8);
 const withTimeout = <T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> =>
   Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Freenet request timeout")), ms))]);
 
-/** A contract on the network: the feed of a persona (`feed:<pubkey>`), a named log (`log:<name>`), or a River room
- *  (`river:<owner key>`, raw CBOR state, see riverRooms.ts). */
+/** A contract on the network: the feed of a persona (`feed:<pubkey>`), a named log (`log:<name>`), a media blob or a
+ *  Freenet Mail inbox. */
 /** `mail:<inbox instance>`: a Freenet Mail inbox, watched by instance id (its key is not derived from a name). */
-export type ContractId = `feed:${string}` | `log:${string}` | `river:${string}` | `media:${string}` | `mail:${string}`;
+export type ContractId = `feed:${string}` | `log:${string}` | `media:${string}` | `mail:${string}`;
 
 const codes = new Map<string, Promise<{ code: Uint8Array; hash: Uint8Array }>>();
 function contractCode(url: string) {
@@ -175,7 +175,7 @@ export class FreenetNetwork {
       case "dead": return this.drop(api, true);
       case "answered": this.probeAt = 0; return;
       case "probe": {
-        const id = [...this.live.keys()].find((i) => !i.startsWith("river:")); // nothing subscribed: silence proves nothing
+        const id = [...this.live.keys()][0]; // nothing subscribed: silence proves nothing
         if (!id) return;
         this.probeAt = now;
         contractKey(id).then((k) => api.get(new GetRequest(k, false, false))).then(this.seen, this.seen); // an error reply is a reply too
@@ -285,7 +285,7 @@ export class FreenetNetwork {
     return p;
   }
 
-  /** Raw state of any contract key (another app's, like River's), or null when it is not on the network. With `watch`,
+  /** Raw state of any contract key (another app's), or null when it is not on the network. With `watch`,
    *  subscribe to it: its changes come back through `onChange(watch)`. With `fetchCode`, also ask the node to fetch
    *  and cache the contract's WASM: required before an `updateRaw` on a contract this node never ran before
    *  (plain state reads don't need the code, but applying a delta does). */
@@ -319,7 +319,7 @@ export class FreenetNetwork {
     return this.getRaw(ContractKey.fromInstanceId(instance), watch, false);
   }
 
-  /** Publish a contract of another app with its first state (River rooms: the code is River's room contract). */
+  /** Publish a contract with its first state (code and params given: media blobs, Freenet Mail inboxes). */
   async putRaw(key: ContractKey, code: Uint8Array, params: Uint8Array, state: Uint8Array): Promise<void> {
     const api = await this.connect();
     const contract = new WasmContractV1(new ContractCodeT(asBytes(code), asBytes(key.codePart() ?? new Uint8Array())), asBytes(params), key);

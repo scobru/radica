@@ -1,6 +1,6 @@
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
 import { escapeHtml as esc } from "./html.ts";
-import { keyOf } from "./riverPointer.ts";
+import { keyOf } from "./contractKey.ts";
 import { hexToBytes, bytesToHex } from "./crypto.ts";
 import { fromBase58 } from "./whoiam.ts";
 import { defaultNodeOrigin } from "./orto.ts";

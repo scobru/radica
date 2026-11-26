@@ -11,7 +11,6 @@ import { FH_SITE, FH_REPO } from "./fh.ts";
 import { FREEHOLE_SITE, FREEHOLE_REPO, WORMHOLE_SITE, WORMHOLE_REPO } from "./wormhole.ts";
 import { FREETREE_SITE, FREETREE_REPO } from "./freetree.ts";
 import { FREENET_MAIL_CONTAINER_KEY } from "./freenetMail.ts";
-import { RIVER_SITE } from "./river.ts";
 import { escapeHtml as esc } from "./html.ts";
 
 export const SUPPORT_URL = "https://buymeacoffee.com/scobru";
@@ -59,7 +58,7 @@ export interface EcosystemApp {
 }
 
 export const ECOSYSTEM: EcosystemApp[] = [
-  { name: "River", launcherLabel: "Chat", what: "group chat; Radica's private rooms are River rooms", key: RIVER_SITE, repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
+  { name: "River", launcherLabel: "Chat", what: "group chat", key: "raAqMhMG7KUpXBU2SxgCQ3Vh4PYjttxdSWd9ftV7RLv", repo: "https://github.com/freenet/river", author: "Freenet core", category: "integrated", group: "communication", icon: "messageSquare", builtInBtn: "open-chat-btn" },
   { name: "Freenet Mail", launcherLabel: "Mail", what: "decentralized post-quantum encrypted email", key: FREENET_MAIL_CONTAINER_KEY, repo: "https://github.com/freenet/mail", author: "Freenet core", category: "integrated", group: "communication", icon: "messageCircle", builtInBtn: "open-mail-btn" },
   { name: "Viso", launcherLabel: "Identity", what: "identity and sign-in", key: VISO_KEY, repo: "https://github.com/scobru/viso", author: "by @scobru", category: "integrated", group: "identity", icon: "shield" },
   { name: "FreeTunes", launcherLabel: "Music", what: "music releases, played inside posts", key: FREETUNES_SITE, repo: "https://github.com/scobru/freetunes", author: "by @scobru", category: "integrated", group: "media", icon: "music", builtInBtn: "open-music-btn" },

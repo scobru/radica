@@ -1,9 +1,9 @@
 // A Delta blog (freenet/delta) shown on a Radica profile and embedded in posts. A Delta site is one contract keyed by
 // BLAKE3(code hash || CBOR{prefix}), prefix = the first 10 base58 chars of the owner key. Delta re-keys its site contract
-// on releases and names the current code hash in a signed pointer record (Delta's FREENET.md): it is resolved like River's.
+// on releases and names the current code hash in a signed pointer record (Delta's FREENET.md): it is resolved like River's used to be.
 import * as ed from "@noble/ed25519";
 import type { ContractKey } from "@freenetorg/freenet-stdlib";
-import { keyOf, nextFloor, type Floor } from "./riverPointer.ts";
+import { keyOf, nextFloor, type Floor } from "./contractKey.ts";
 import { bytesToHex, hexToBytes } from "./crypto.ts";
 import { safeStorage } from "./storage.ts";
 import { escapeHtml as escape } from "./html.ts";

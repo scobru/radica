@@ -66,6 +66,7 @@ import {
   type FreenetMailIdentity,
 } from "./freenetMail.ts";
 import "./chat.css";
+import { withBusy } from "./busy.ts";
 import "./messengerChat.css";
 import "./mail.css";
 import {
@@ -980,9 +981,6 @@ const privroomTypeGroupLabel = document.getElementById("privroom-type-group-labe
 const privroomTypeChannelLabel = document.getElementById("privroom-type-channel-label") as HTMLElement | null;
 const privroomChannelOptions = document.getElementById("privroom-channel-options") as HTMLElement | null;
 const privroomLinkDiscussionCheck = document.getElementById("privroom-link-discussion-check") as HTMLInputElement | null;
-const privroomPublicWrap = document.getElementById("privroom-public-wrap") as HTMLElement | null;
-const privroomPublicCheck = document.getElementById("privroom-public-check") as HTMLInputElement | null;
-const privroomRiverCheck = document.getElementById("privroom-river-check") as HTMLInputElement | null;
 const privroomMembersInput = document.getElementById("privroom-members-input") as HTMLTextAreaElement | null;
 const privroomQuickPick = document.getElementById("privroom-quick-pick") as HTMLElement | null;
 const privroomAvatarPreview = document.getElementById("privroom-avatar-preview") as HTMLElement | null;
@@ -1786,7 +1784,7 @@ function renderWelcomeSuggestions() {
   if (!me) return;
   const named = (pk: string) => !!freenet.knownPeers[pk]?.display_name && !freenet.knownPeers[pk].display_name.startsWith("Persona @");
   const people = [RADICA_MAINTAINER, ...freenet.getDiscoveredPeers(me).map((p) => p.pubkey)]
-    .filter((pk, i, all) => pk !== me && all.indexOf(pk) === i && !freenet.riverOnly.has(pk) && (pk === RADICA_MAINTAINER || named(pk)))
+    .filter((pk, i, all) => pk !== me && all.indexOf(pk) === i && (pk === RADICA_MAINTAINER || named(pk)))
     .slice(0, 8);
   const comms = [...allCommunities].sort((a, b) => b.members.length - a.members.length).slice(0, 5);
   const row = (label: string, sub: string, btn: string) => `<div class="welcome-row"><div><b>${label}</b><span>${sub}</span></div>${btn}</div>`;
@@ -2649,10 +2647,8 @@ function renderDiscoveredPeers() {
   // only people who chose a name: default "Persona @…" accounts are noise
   const discoveredAll = freenet.getDiscoveredPeers(currentIdentity.pubkey);
   freenet.warmPeers(discoveredAll.map((p) => p.pubkey));
-  // Exclude contacts that are only River room members and not native Radica personas with their own feed
   const peers = discoveredAll.filter(
     (p) =>
-      !freenet.riverOnly.has(p.pubkey) &&
       freenet.knownPeers[p.pubkey]?.display_name &&
       !freenet.knownPeers[p.pubkey].display_name.startsWith("Persona @")
   );
@@ -6410,7 +6406,7 @@ function renderProfileChannelCard(bio: string, authorPubkey: string, authorName:
   const isJoined = Boolean(existingRoom);
   const customName = params.get("name");
   const title = customName ? decodeURIComponent(customName) : (isChannel ? `${authorName}'s Broadcast Channel` : `${authorName}'s Chat Room`);
-  const hostLabel = isChannel ? "Broadcast Channel on River" : "Private Chat Room on River";
+  const hostLabel = isChannel ? "Broadcast Channel on Radica" : "Private Chat Room on Radica";
   const desc = isChannel ? "Follow updates and announcements directly in Chat" : "End-to-end encrypted chat room";
   const buttonLabel = isJoined ? "Open in Chat" : isChannel ? "Join Channel" : "Join Room";
   const icon = isChannel ? "\u{1F4E2}" : "\u{1F4AC}";
@@ -8377,11 +8373,7 @@ async function renderChatSidebar() {
   setHtmlIfChanged(chatPeersList, knownPeers
     .map((pk) => {
       const displayName = getAuthorDisplayName(pk);
-      const riverRooms = Object.values(freenet.riverOnly.get(pk) ?? {});
-      const fromRiver = freenet.riverOnly.has(pk);
-      const inRooms = riverRooms.length ? `<span class="peer-from" title="${escapeHtml(riverRooms.join(", "))}">in ${escapeHtml(riverRooms.join(", "))}</span>` : "";
       const dup = (nameCount.get(displayName) ?? 0) > 1 ? ` <span class="peer-key">${escapeHtml(pk.slice(0, 4))}</span>` : "";
-      const riverTag = fromRiver ? ` <span class="peer-origin" title="Contact from River">River</span>` : "";
       const isActive = activeChatPeer === pk && !activeChatPrivateRoom;
       const isPinned = pins.has(`dm:${pk}`);
       return `
@@ -8389,7 +8381,7 @@ async function renderChatSidebar() {
       <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; flex: 1;">
         <img src="${safeUrl(getAuthorAvatarUrl(pk))}" loading="lazy" decoding="async" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />
         <span style="overflow: hidden; min-width: 0;">
-          <span style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isPinned ? "📌 " : ""}${escapeHtml(displayName)}${dup}${riverTag}</span>${inRooms}
+          <span style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isPinned ? "📌 " : ""}${escapeHtml(displayName)}${dup}</span>
         </span>
       </div>
       ${unreadBadge(freenet.getRoomId(currentIdentity!.pubkey, pk), read)}
@@ -8476,10 +8468,8 @@ function renderChatParticipants() {
 
   if (activeChatPrivateRoom) {
     const room = activeChatPrivateRoom;
-    // a River room's members are the contract's (who joined from River too), once the room has been read
-    const roster = room.river ? freenet.riverRoster(room.id) : undefined;
-    const members = [...new Set(roster?.members ?? room.members)];
-    const creator = roster?.creator ?? room.creator;
+    const members = [...new Set(room.members)];
+    const creator = room.creator;
     chatParticipantsTitle.innerHTML = `<span class="btn-icon-text">${renderIcon("lock", { className: "icon-sm" })} <span>Room Members</span></span>`;
     chatParticipantsCount.textContent = members.length.toString();
     if (chatParticipantsHeaderCount) {
@@ -8487,16 +8477,9 @@ function renderChatParticipants() {
     }
 
     const isRoomCreator = currentIdentity.pubkey === creator;
-    const roomMods = roster?.moderators ?? room.moderators ?? [];
+    const roomMods = room.moderators ?? [];
     const iAmRoomMod = roomMods.includes(currentIdentity.pubkey);
 
-    // River's deputies: say who named them (the owner, you, or someone above you in the invite chain)
-    const modTitle = (pk: string) => {
-      const by = roster?.deputyOf[pk];
-      if (!by?.length) return "Moderator of this room";
-      const who = by.map((a) => (a === creator ? "the room owner" : a === currentIdentity!.pubkey ? "you" : freenet.knownPeers[a]?.display_name || personaName(a)));
-      return `Can remove members, named by ${who.join(", ")}`;
-    };
     const items = members.map((memberPk) => {
       const isCreator = memberPk === creator;
       const isYou = memberPk === currentIdentity!.pubkey;
@@ -8515,7 +8498,7 @@ function renderChatParticipants() {
             <div class="chat-participant-name">
               <span>${escapeHtml(displayName)}</span>
               ${isCreator ? `<span class="chat-participant-tag creator btn-icon-text">${renderIcon("crown", { className: "icon-xs" })} <span>Creator</span></span>` : ""}
-              ${isRoomMod ? `<span class="chat-participant-tag mod btn-icon-text" title="${escapeHtml(modTitle(memberPk))}"><span>🛡 Moderator</span></span>` : ""}
+              ${isRoomMod ? `<span class="chat-participant-tag mod btn-icon-text" title="Moderator of this room"><span>🛡 Moderator</span></span>` : ""}
               ${isYou ? `<span class="chat-participant-tag you">You</span>` : ""}
             </div>
             <div class="chat-participant-key">@${shortPk}</div>
@@ -8540,7 +8523,6 @@ function renderChatParticipants() {
           ${renderIcon("share2", { className: "icon-xs" })}
           <span>Share Invite Link</span>
         </button>
-        ${room.river ? `<button type="button" class="btn-secondary btn-sm btn-icon-text" id="part-export-id-btn" title="Your identity in this room, for River's UI or riverctl: the same member there" style="width: 100%; font-size: 0.75rem; justify-content: center;">${renderIcon("copy", { className: "icon-xs" })}<span>Export ID</span></button>` : ""}
         <button type="button" class="btn-secondary btn-sm btn-icon-text" id="part-leave-btn" style="width: 100%; font-size: 0.75rem; justify-content: center; color: var(--danger);">${renderIcon("userX", { className: "icon-xs" })}<span>${isRoomCreator ? "Remove Room" : "Leave Room"}</span></button>
       </div>
     `;
@@ -8619,15 +8601,6 @@ function renderChatParticipants() {
 
     chatParticipantsList.querySelector("#part-leave-btn")?.addEventListener("click", () => {
       if (activeChatPrivateRoom) void leaveActivePrivateRoom(activeChatPrivateRoom);
-    });
-
-    chatParticipantsList.querySelector("#part-export-id-btn")?.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(await freenet.exportRiverIdentity(currentIdentity!, room));
-        alert("Your River identity for this room is copied.\n\nImport it in River (Import ID) or riverctl to be the same member there.\n\nIt holds your private key in this room: treat it like a password, do not share it.");
-      } catch (e: any) {
-        alert(`Could not export: ${e.message || e}`);
-      }
     });
 
     const partCopyLinkBtn = chatParticipantsList.querySelector("#part-copy-link-btn");
@@ -8742,7 +8715,7 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
 
   const decryptedName = await freenet.getPrivateRoomDecryptedName(currentIdentity, room);
   const isChannel = !!room.is_channel;
-  const memberCount = () => (room.river ? freenet.riverRoster(room.id)?.members.length : undefined) ?? room.members.length;
+  const memberCount = () => room.members.length;
   const gardenerActive =
     !room.river &&
     !isChannel &&
@@ -8759,9 +8732,9 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   chatPeerInfo.innerHTML = `<strong>${escapeHtml(decryptedName)}</strong> (${memberCount()} ${isChannel ? "subscribers" : "members"}) ${badgeHtml}${linkedBtnHtml}`;
 
   const me = currentIdentity.pubkey;
-  const isOwner = me === (freenet.riverRoster(room.id)?.creator ?? room.creator);
-  const isMod = (freenet.riverRoster(room.id)?.moderators ?? room.moderators ?? []).includes(me);
-  const canPost = !isChannel || isOwner || isMod;
+  const isOwner = me === room.creator;
+  const isMod = (room.moderators ?? []).includes(me);
+  const canPost = !room.river && (!isChannel || isOwner || isMod);
   if (chatTtlBtn) chatTtlBtn.style.display = "none";
   chatMessageInput.disabled = !canPost;
   chatMessageInput.placeholder = canPost
@@ -8827,8 +8800,8 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
             roomId,
             isMine: msg.sender === currentIdentity!.pubkey,
             senderName: getAuthorDisplayName(msg.sender),
-            badge: msg.sender === (freenet.riverRoster(room.id)?.creator ?? room.creator) ? `<span class="rv-badge">${renderIcon("crown", { className: "icon-xs" })}</span>` : "",
-            canDelete: !room.river || msg.sender === currentIdentity!.pubkey, // River deletes only one's own messages, for everyone
+            badge: msg.sender === room.creator ? `<span class="rv-badge">${renderIcon("crown", { className: "icon-xs" })}</span>` : "",
+            canDelete: !room.river,
           })
         )
         .join(""));
@@ -9653,12 +9626,9 @@ chatSendForm.addEventListener("submit", async (e) => {
 // Event listeners for Private Rooms & Channels
 const updatePrivroomTypeUI = () => {
   const isChannel = !!privroomTypeChannel?.checked;
-  const useRiver = !!privroomRiverCheck?.checked;
   privroomTypeGroupLabel?.classList.toggle("active", !isChannel);
   privroomTypeChannelLabel?.classList.toggle("active", isChannel);
   if (privroomChannelOptions) privroomChannelOptions.style.display = isChannel ? "block" : "none";
-  if (privroomPublicWrap) privroomPublicWrap.style.display = isChannel && useRiver ? "block" : "none";
-  if (!useRiver && privroomPublicCheck) privroomPublicCheck.checked = false;
   if (privroomNameLabel) privroomNameLabel.textContent = isChannel ? "Channel Name" : "Room Name";
   if (privroomNameInput) privroomNameInput.placeholder = isChannel ? "e.g. Radica News, Daily Alpha..." : "e.g. Secret Council, Core Devs...";
   const submitText = createPrivroomSubmitBtn?.querySelector("span");
@@ -9666,7 +9636,6 @@ const updatePrivroomTypeUI = () => {
 };
 privroomTypeGroup?.addEventListener("change", updatePrivroomTypeUI);
 privroomTypeChannel?.addEventListener("change", updatePrivroomTypeUI);
-privroomRiverCheck?.addEventListener("change", updatePrivroomTypeUI);
 
 function resetPrivroomAvatarUI() {
   privroomAvatarData = null;
@@ -9712,8 +9681,6 @@ if (newPrivateRoomBtn && createPrivateRoomModal) {
     }
     resetPrivroomAvatarUI();
     if (privroomTypeGroup) privroomTypeGroup.checked = true;
-    if (privroomRiverCheck) privroomRiverCheck.checked = false;
-    if (privroomPublicCheck) privroomPublicCheck.checked = false;
     updatePrivroomTypeUI();
     if (privroomNameInput) privroomNameInput.value = "";
     if (privroomMembersInput) privroomMembersInput.value = "";
@@ -9760,8 +9727,6 @@ if (newChannelBtn && createPrivateRoomModal) {
     }
     resetPrivroomAvatarUI();
     if (privroomTypeChannel) privroomTypeChannel.checked = true;
-    if (privroomRiverCheck) privroomRiverCheck.checked = false;
-    if (privroomPublicCheck) privroomPublicCheck.checked = false;
     updatePrivroomTypeUI();
     if (privroomNameInput) privroomNameInput.value = "";
     if (privroomMembersInput) privroomMembersInput.value = "";
@@ -9799,33 +9764,26 @@ if (createPrivroomSubmitBtn && createPrivateRoomModal) {
 
     const isChannel = !!privroomTypeChannel?.checked;
     const linkDiscussion = isChannel && !!privroomLinkDiscussionCheck?.checked;
-    const useRiver = !!privroomRiverCheck?.checked;
-    const isPublic = isChannel && useRiver && !!privroomPublicCheck?.checked;
 
     try {
-      let discRoom: PrivateRoom | undefined;
-      if (linkDiscussion) {
-        discRoom = await freenet.createPrivateRoom(currentIdentity, `${name} · Comments`, memberKeys, undefined, { river: useRiver, public: isPublic });
-      }
-      const room = await freenet.createPrivateRoom(
-        currentIdentity,
-        name,
-        memberKeys,
-        undefined,
-        {
-          river: useRiver,
+      const identity = currentIdentity;
+      const room = await withBusy(createPrivroomSubmitBtn, linkDiscussion ? "Creating the comments room…" : isChannel ? "Creating channel…" : "Creating room…", async (say) => {
+        let discRoom: PrivateRoom | undefined;
+        if (linkDiscussion) {
+          discRoom = await freenet.createPrivateRoom(identity, `${name} · Comments`, memberKeys, undefined, {});
+          say(isChannel ? "Creating channel…" : "Creating room…");
+        }
+        const created = await freenet.createPrivateRoom(identity, name, memberKeys, undefined, {
           is_channel: isChannel,
-          public: isPublic,
           linked_room_id: discRoom?.id,
           avatar_url: privroomAvatarData || undefined,
+        });
+        if (discRoom) {
+          say("Linking the comments room…");
+          await freenet.setRoomLinkedDiscussion(identity, discRoom.id, created.id);
         }
-      );
-      if (discRoom) {
-        await freenet.setRoomLinkedDiscussion(currentIdentity, discRoom.id, room.id);
-      }
-      if (discRoom) {
-        await freenet.setRoomLinkedDiscussion(currentIdentity, discRoom.id, room.id);
-      }
+        return created;
+      });
       createPrivateRoomModal.style.display = "none";
       await selectPrivateRoom(room);
       alert(isChannel ? `Broadcast Channel "${name}" created!` : `Private Room "${name}" created with ${room.members.length} member(s)!`);
@@ -9933,34 +9891,8 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
     }
 
     try {
-      if (raw.includes("BEGIN RIVER IDENTITY")) {
-        // River's "Export ID": be the same member here as in River, not a second one
-        const room = await freenet.importRiverIdentity(currentIdentity, raw);
-        joinPrivroomModal.style.display = "none";
-        await selectPrivateRoom(room);
-        alert(`You are now the same member in "${await freenet.getPrivateRoomDecryptedName(currentIdentity, room)}" as in River.`);
-        return;
-      }
-      const code = riverCodeIn(raw); // a River invitation, from Radica, River's UI or riverctl
-      if (code) {
-        const frag = raw.includes("#") ? raw.split("#")[1] : (raw.includes("?") ? raw.split("?")[1] : "");
-        const params = new URLSearchParams(frag);
-        const isChannel = params.get("chan") === "1" || params.get("is_channel") === "true";
-        const linkedRoomId = params.get("lr") || params.get("linked_room_id") || undefined;
-        const roomIdParam = params.get("room_id") || undefined;
-        const creatorParam = params.get("creator") || undefined;
-        const nameParam = params.get("name") || undefined;
-        const room = await freenet.joinRiverInvitation(currentIdentity, code, {
-          roomId: roomIdParam,
-          creator: creatorParam,
-          name: nameParam,
-          is_channel: isChannel,
-          linked_room_id: linkedRoomId,
-          linked_invite: params.get("lr_invite") || undefined,
-        });
-        joinPrivroomModal.style.display = "none";
-        await selectPrivateRoom(room);
-        alert(`Joined "${await freenet.getPrivateRoomDecryptedName(currentIdentity, room)}"!`);
+      if (raw.includes("BEGIN RIVER IDENTITY") || riverCodeIn(raw)) {
+        alert("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.");
         return;
       }
       let fragment = raw;
@@ -9976,7 +9908,8 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
         return;
       }
       const { name } = invite;
-      const room = await freenet.joinPrivateRoomFromInvite(currentIdentity, invite);
+      const identity = currentIdentity;
+      const room = await withBusy(joinPrivroomSubmitBtn, "Joining…", () => freenet.joinPrivateRoomFromInvite(identity, invite));
 
       joinPrivroomModal.style.display = "none";
       await selectPrivateRoom(room);
@@ -10009,11 +9942,8 @@ if (invitePrivroomSubmitBtn && invitePrivroomModal) {
     }
 
     try {
-      const updated = await freenet.inviteMemberToPrivateRoom(
-        currentIdentity,
-        activeChatPrivateRoom.id,
-        key
-      );
+      const [identity, roomId] = [currentIdentity, activeChatPrivateRoom.id];
+      const updated = await withBusy(invitePrivroomSubmitBtn, "Inviting…", () => freenet.inviteMemberToPrivateRoom(identity, roomId, key));
       invitePrivroomModal.style.display = "none";
       await selectPrivateRoom(updated);
       alert(`Peer invited! The room key has been encrypted and shared with @${shortenKey(key)}.`);
@@ -14322,10 +14252,10 @@ initSupporterPanel({
   },
 });
 
-/** The invite link to a private room: a River room mints one (its owner only), a native room carries its key. */
+/** The invite link to a private room (its key in the fragment); archived River rooms have none. */
 async function inviteLinkOf(room: PrivateRoom): Promise<string | null> {
   const name = await freenet.getPrivateRoomDecryptedName(currentIdentity!, room);
-  if (room.river) return freenet.getRiverInviteLink(currentIdentity!, room, name).catch((e) => (alert(e.message || e), null));
+  if (room.river) return null;
   const key = await freenet.getPrivateRoomKey(currentIdentity!, room);
   if (!key) return null;
   let linkedKey: Uint8Array | null = null;
@@ -14363,20 +14293,15 @@ async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {
     const creatorParam = params.get("creator") || undefined;
     const nameParam = params.get("name") || undefined;
 
-    const invite = code ? null : inviteFromParams(params);
-    if (!code && !invite) return false;
+    if (code) {
+      alert("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.");
+      return false;
+    }
+    const invite = inviteFromParams(params);
+    if (!invite) return false;
 
-    const room = code
-      ? await freenet.joinRiverInvitation(currentIdentity, code, {
-          roomId: roomIdParam,
-          creator: creatorParam,
-          name: nameParam,
-          is_channel: isChannel,
-          linked_room_id: linkedRoomId,
-          linked_invite: params.get("lr_invite") || undefined,
-        })
-      : await freenet.joinPrivateRoomFromInvite(currentIdentity, invite!);
-    const name = invite?.name ?? (await freenet.getPrivateRoomDecryptedName(currentIdentity, room));
+    const room = await freenet.joinPrivateRoomFromInvite(currentIdentity, invite);
+    const name = invite.name;
 
     // Clear the invite fragment parameters from the URL while preserving auth_state if present
     const currentHash = window.location.hash ? window.location.hash.substring(1) : "";
@@ -14594,8 +14519,7 @@ async function init() {
       try {
         await freenet.syncCommentedPosts(currentIdentity!);
         const activeRoom = chatModal.style.display !== "none" ? openRoomId() : null;
-        await freenet.syncRiverRooms(currentIdentity!, activeRoom);
-        await freenet.syncRiverDms(currentIdentity!);
+        await freenet.syncPrivateRooms(currentIdentity!, activeRoom);
         await updateNotificationsBadge();
         updateChatBadge();
       } catch (e) {

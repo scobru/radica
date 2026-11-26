@@ -6,7 +6,8 @@ import { bytesToHex } from "../src/crypto.ts";
 import { parseRoomInviteParams } from "../src/nativeRooms.ts";
 import { PrivateRoomManager, computeRoomJoinProof, mergeRoomBackup } from "../src/privateRooms.ts";
 import { mergeRoomBackup as mergeFromShim } from "../src/roomBackup.ts";
-import { roomOwnerSk, vkOf } from "../src/riverRooms.ts";
+import { blake3 } from "@noble/hashes/blake3.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import type { LogEntry } from "../src/logfold.ts";
 import { AI_REPORTERS, RADICA_MAINTAINER, type UserIdentity } from "../src/types.ts";
 
@@ -23,7 +24,7 @@ function makeIdentity(seedByte: number): UserIdentity {
   };
 }
 
-function makeRoomHarness(initialIdentity: UserIdentity, rivers?: () => Promise<any>) {
+function makeRoomHarness(initialIdentity: UserIdentity) {
   let current = initialIdentity;
   const storageMap = new Map<string, string>();
   const logs = new Map<string, LogEntry[]>();
@@ -49,11 +50,6 @@ function makeRoomHarness(initialIdentity: UserIdentity, rivers?: () => Promise<a
     },
     refreshLog: async () => {},
     logOfRoom: (roomId) => `room/${roomId}`,
-    rivers:
-      rivers ??
-      (async () => {
-        throw new Error("River WASM not used in native room tests");
-      }),
     nodeGet: async (k) => nodeKV.get(k) ?? null,
     nodePut: async (k, v) => void nodeKV.set(k, v),
     readKeysReady: async () => {},
@@ -201,94 +197,41 @@ describe("PrivateRoomManager", () => {
     h.mgr.dispose();
   });
 
-  it("migrates a River room to a native room: invites Radica members, keeps moderators, posts the link, archives", async () => {
+  it("keeps a River room as a read-only archive and migrates it from local members when the owner names it", async () => {
     const alice = makeIdentity(2);
     const bob = makeIdentity(3);
-    const riverOnlyVk = "ee".repeat(32);
+    const carol = makeIdentity(4);
     const roomId = "privroom_river_1";
-    const owner = vkOf(roomOwnerSk(alice.secretKey, roomId));
-    const said: string[] = [];
-    const view = {
-      name: "River Crew",
-      private: true,
-      members: [
-        { vk: owner, nickname: "Alice", owner: true, deputy: false, deputy_of: [] },
-        { vk: bob.pubkey, nickname: "Bob", owner: false, deputy: true, deputy_of: [owner] },
-        { vk: riverOnlyVk, nickname: "Outsider", owner: false, deputy: false, deputy_of: [] },
-      ],
-      messages: [{ id: "m1", author: bob.pubkey, time_ms: 4000, text: "hi from river", reply_to: null, edited: false, reactions: {} }],
-      rotate_due: false,
-      dms: [],
-    };
-    let readable = true;
-    const fake = {
-      cached: () => (readable ? "state" : null),
-      load: async () => (readable ? "state" : null),
-      read: () => view,
-      rotateIfDue: async () => {},
-      say: async (_sk: Uint8Array, _owner: string, text: string) => void said.push(text),
-    };
-    const h = makeRoomHarness(alice, async () => fake);
+    // River rooms were owned by a key derived from the creator's identity
+    const owner = bytesToHex(ed25519.getPublicKey(blake3(new TextEncoder().encode(`radica/river-room-owner/v1:${roomId}`), { key: alice.secretKey })));
+    const h = makeRoomHarness(alice);
     h.storageMap.set(
       "freenet_private_rooms",
-      JSON.stringify([{ id: roomId, creator: alice.pubkey, name_encrypted: "", members: [alice.pubkey, bob.pubkey], encrypted_keys: {}, created_at: 1, sig: "", river: { owner } }]),
+      JSON.stringify([{ id: roomId, creator: alice.pubkey, name_encrypted: "", members: [alice.pubkey, bob.pubkey, carol.pubkey], moderators: [bob.pubkey], encrypted_keys: {}, created_at: 1, sig: "", river: { owner }, is_channel: true }]),
     );
-    const native = await h.mgr.migrateRiverRoom(alice, roomId);
-    assert.equal(native.river, undefined);
-    assert.equal(await h.mgr.getPrivateRoomDecryptedName(alice, native), "River Crew");
-    assert.deepEqual(native.members.sort(), [alice.pubkey, bob.pubkey].sort());
-    assert.equal(native.members.includes(riverOnlyVk), false);
-    const stored = h.mgr.readRooms().find((r) => r.id === native.id)!;
-    assert.deepEqual(stored.moderators, [bob.pubkey]);
-    assert.equal(said.length, 1);
-    assert.match(said[0], new RegExp(`join_room=${native.id}`));
+    h.storageMap.set(`radica_river_archive_${roomId}`, JSON.stringify([{ id: "m1", room_id: roomId, sender: bob.pubkey, text: "hi from river", timestamp: 4000, sig: "" }]));
     const river = h.mgr.readRooms().find((r) => r.id === roomId)!;
+    assert.equal(h.mgr.isRiverOwner(alice, { ...river, creator: "f".repeat(64) }), true); // from the River owner key alone
+    assert.equal(h.mgr.isRiverOwner(bob, river), false);
+
+    // the archive reads, nothing writes
+    assert.deepEqual((await h.mgr.getPrivateRoomChatMessages(alice, river)).map((m) => m.text), ["hi from river"]);
+    await assert.rejects(h.mgr.sendPrivateRoomChatMessage(alice, river, "late"), /retired/);
+    await assert.rejects(h.mgr.inviteMemberToPrivateRoom(alice, roomId, bob.pubkey), /retired/);
+
+    await assert.rejects(h.mgr.migrateRiverRoom(bob, roomId, "x"), /owner/);
+    await assert.rejects(h.mgr.migrateRiverRoom(alice, roomId, " "), /name/);
+    const native = await h.mgr.migrateRiverRoom(alice, roomId, "My Channel");
+    assert.equal(native.river, undefined);
+    assert.equal(native.is_channel, true);
+    assert.equal(await h.mgr.getPrivateRoomDecryptedName(alice, native), "My Channel");
+    assert.deepEqual([...native.members].sort(), [alice.pubkey, bob.pubkey, carol.pubkey].sort());
+    assert.deepEqual(h.mgr.readRooms().find((r) => r.id === native.id)!.moderators, [bob.pubkey]);
     assert.equal(h.mgr.riverMigratedTo(river), native.id);
-    // idempotent, and writes to the old room are refused
-    assert.equal((await h.mgr.migrateRiverRoom(alice, roomId)).id, native.id);
-    await assert.rejects(h.mgr.sendPrivateRoomChatMessage(alice, river, "late"), /moved/);
+    assert.equal((await h.mgr.migrateRiverRoom(alice, roomId, "again")).id, native.id); // idempotent
     // a member's device sees the move from the owner's log entry alone
     h.storageMap.delete(`river_migrated_${roomId}`);
     assert.equal(h.mgr.riverMigratedTo(river), native.id);
-    // once River cannot be read, the archive is what shows
-    readable = false;
-    const archived = await h.mgr.getPrivateRoomChatMessages(alice, river);
-    assert.equal(archived.some((m) => m.text === "hi from river"), true);
-    h.mgr.dispose();
-  });
-
-  it("migrates an unreadable River channel from local members when the owner names it", async () => {
-    const alice = makeIdentity(2);
-    const bob = makeIdentity(3);
-    const roomId = "privroom_river_3";
-    const owner = vkOf(roomOwnerSk(alice.secretKey, roomId));
-    const said: string[] = [];
-    const fake = { cached: () => null, load: async () => null, say: async (_s: Uint8Array, _o: string, t: string) => void said.push(t) };
-    const h = makeRoomHarness(alice, async () => fake);
-    h.storageMap.set(
-      "freenet_private_rooms",
-      JSON.stringify([{ id: roomId, creator: alice.pubkey, name_encrypted: "", members: [alice.pubkey, bob.pubkey], moderators: [bob.pubkey], encrypted_keys: {}, created_at: 1, sig: "", river: { owner }, is_channel: true }]),
-    );
-    await assert.rejects(h.mgr.migrateRiverRoom(alice, roomId), /name/);
-    const native = await h.mgr.migrateRiverRoom(alice, roomId, "My Channel");
-    assert.equal(native.is_channel, true);
-    assert.equal(await h.mgr.getPrivateRoomDecryptedName(alice, native), "My Channel");
-    assert.deepEqual(native.members.sort(), [alice.pubkey, bob.pubkey].sort());
-    assert.deepEqual(h.mgr.readRooms().find((r) => r.id === native.id)!.moderators, [bob.pubkey]);
-    assert.equal(h.mgr.riverMigratedTo(h.mgr.readRooms().find((r) => r.id === roomId)!), native.id);
-    h.mgr.dispose();
-  });
-
-  it("refuses migration by a non-owner", async () => {
-    const alice = makeIdentity(2);
-    const bob = makeIdentity(3);
-    const roomId = "privroom_river_2";
-    const h = makeRoomHarness(bob, async () => ({}));
-    h.storageMap.set(
-      "freenet_private_rooms",
-      JSON.stringify([{ id: roomId, creator: alice.pubkey, name_encrypted: "", members: [alice.pubkey, bob.pubkey], encrypted_keys: {}, created_at: 1, sig: "", river: { owner: vkOf(roomOwnerSk(alice.secretKey, roomId)) } }]),
-    );
-    await assert.rejects(h.mgr.migrateRiverRoom(bob, roomId), /owner/);
     h.mgr.dispose();
   });
 });
