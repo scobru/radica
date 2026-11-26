@@ -4,6 +4,7 @@ import * as ed from "@noble/ed25519";
 import type { ChatMessage, UserIdentity } from "../src/types.ts";
 import { getSecretRoomId } from "../src/secretChat.ts";
 import {
+  OTHER_DEVICE,
   addSecretChatPeer,
   removeSecretChatPeer,
   burnSecretMessage,
@@ -363,6 +364,22 @@ test("secretChatTransport: a message and its edit are sealed to each device of t
   }
   assert.deepEqual((await readSecretChat(tb1, bob1, alice.pubkey)).map((m) => m.text), ["ciao ciao"]);
   assert.deepEqual((await readSecretChat(tb2, bob2, alice.pubkey)).map((m) => m.text), ["ciao ciao"]);
+});
+
+test("secretChatTransport: a message sealed only for my other device says so, instead of 'unable to decrypt'", async () => {
+  const alice = await person();
+  const bob1 = await person(true);
+  const sk2 = crypto.getRandomValues(new Uint8Array(32));
+  const bob2: UserIdentity = { pubkey: bob1.pubkey, secretKey: sk2, encPub: ed.etc.bytesToHex(await ed.getPublicKeyAsync(sk2)), sign: async () => "sig" };
+  const network = new Map<string, SecretChatTransport>();
+  const wire: any[] = [];
+  const [ta, tb2] = [device(network, [], wire), device(network)];
+  network.set(alice.pubkey, ta);
+  // Alice knows only bob's first device (the chat was started there): no copy for the second one
+  await sendSecretChatMessage(ta, alice, bob1.pubkey, "solo desktop", 0);
+  const msg = wire.find((e) => e.type === "chat").message as ChatMessage;
+  tb2.store.setItem(`freenet_chat_${msg.room_id}`, JSON.stringify([msg]));
+  assert.deepEqual((await readSecretChat(tb2, bob2, alice.pubkey)).map((m) => m.text), [OTHER_DEVICE]);
 });
 
 test("secretChatTransport: what Alice sends from one device reads on her other device, as a message and as an edit", async () => {

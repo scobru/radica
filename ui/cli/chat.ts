@@ -12,7 +12,7 @@ import { fromBase58 } from "../src/base58.ts";
 import { maskProfanity, personalDataIn } from "../src/moderation.ts";
 import { buildModerationPolicy, resolveModerationCurators, setHiddenUser } from "../src/moderationPolicy.ts";
 import { solvePoW, POST_POW_BITS } from "../src/pow.ts";
-import { UNREADABLE } from "../src/secretChatTransport.ts";
+import { OTHER_DEVICE, UNREADABLE } from "../src/secretChatTransport.ts";
 import { type ChatMessage, type Post, type UserIdentity } from "../src/types.ts";
 import { startTui, type TuiMsg, type TuiState } from "./tui.ts";
 import { postDetail, postItem, postLine, visiblePosts, type FeedFilter } from "./feed.ts";
@@ -105,7 +105,8 @@ const toMsg = (m: ChatMessage): TuiMsg => ({
   note: m.via_lan ? "local network" : undefined,
 });
 
-const UNREAD_TEXT = "Secret Chat not readable here (opened on another device, or its key was already used)";
+const UNREAD_TEXT = "Secret Chat not readable here (its key was already used, or it is damaged)";
+const ELSEWHERE_TEXT = "Secret Chat sealed for another of your devices: it opens only there";
 
 /** The open conversation for the screen: a run of unreadable messages from one person becomes one row with a count. */
 function toMsgs(list: ChatMessage[]): TuiMsg[] {
@@ -113,15 +114,16 @@ function toMsgs(list: ChatMessage[]): TuiMsg[] {
   let run = 0;
   for (const m of list) {
     const t = toMsg(m);
-    if (m.text === UNREADABLE) {
+    if (m.text === UNREADABLE || m.text === OTHER_DEVICE) {
+      const label = m.text === OTHER_DEVICE ? ELSEWHERE_TEXT : UNREAD_TEXT;
       const prev = out[out.length - 1];
-      if (prev?.text.startsWith(UNREAD_TEXT) && prev.who === t.who) {
-        prev.text = `${UNREAD_TEXT} ×${++run}`;
+      if (prev?.text.startsWith(label) && prev.who === t.who) {
+        prev.text = `${label} ×${++run}`;
         prev.time = t.time;
         continue;
       }
       run = 1;
-      t.text = UNREAD_TEXT;
+      t.text = label;
     }
     out.push(t);
   }

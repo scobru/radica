@@ -29,6 +29,8 @@ export const MAX_SECRET_KEYS = 4;
 /** The scratchpad keeps the newest messages of a Secret Chat only. */
 const MAX_STORED = 25;
 export const UNREADABLE = "[Secret message - unable to decrypt or forward secrecy key expired]";
+/** Sealed for another of my devices only (its key, not this one): it opens there, never here. */
+export const OTHER_DEVICE = "[Secret message - sealed for another of your devices: it opens only there]";
 
 const peersKey = (me: string) => `radica_secret_peers_${me}`;
 const removedKey = (me: string, peer: string) => `radica_secret_removed_${me}_${peer}`;
@@ -301,6 +303,11 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
     return false;
   });
 
+  // no copy for this device's key: mine sent from another device of mine without one, or theirs sealed to another key of mine
+  const sealedElsewhere = (m: ChatMessage): boolean =>
+    m.sender === me
+      ? !ownCopyIds.has(m.id) && !!m.enc_pub && m.enc_pub !== identity.encPub
+      : !m.copies?.[identity.encPub] && !!m.to_enc_pub && m.to_enc_pub !== identity.encPub;
   const sessionEphem = getSecretChatSession(me, peer)?.ephemeralPub ?? "";
   const v1Anchors: { id: string; c: string; text: string; ttl: number; sentAt: number; burnAt: number }[] = [];
 
@@ -308,7 +315,7 @@ export async function readSecretChat(t: SecretChatTransport, identity: UserIdent
     kept.map(async (msg) => {
       if (msg.text?.startsWith(PREFIX_V2)) {
         const p = plain[msg.id];
-        if (!p || p.c !== tagOf(msg.text)) return { ...msg, text: UNREADABLE };
+        if (!p || p.c !== tagOf(msg.text)) return { ...msg, text: sealedElsewhere(msg) ? OTHER_DEVICE : UNREADABLE };
         const burnAt = p.ttl > 0 ? (p.burnAt ?? burnAtOf({ ...msg, ttl_seconds: p.ttl })) : undefined;
         const burnStarted = msg.sender !== me && !!burnAt;
         return {

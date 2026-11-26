@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **IMPROVED** Secret Chat messages sealed for another of my devices say so (`ui/src/{secretChatTransport,messengerChat}.ts`, `ui/cli/chat.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` returns `OTHER_DEVICE` instead of `UNREADABLE` when there is no copy for this device's key (theirs sealed to another `to_enc_pub` of mine, or mine sent from another device without a copy here); Messenger's Secret Chat banner counts them, and the terminal chat groups them under their own line.
+
   * **FIX** Expired Secret Chat messages flashed back on every visit (`ui/src/secretChatTransport.ts`, `ui/tests/secretChatTransport.test.ts`): `readSecretChat` hid an expired message and dropped its plain text but never added it to `radica_secret_burned_<me>`, and `sweepBurns` skips incoming sealed messages without `burn_started`. When the room came back from the network the sealed message reappeared, unopenable (key spent) with a past `burn_at`, and only the view's burn animation removed it. Expired messages are now marked burned when hidden or when their plain text is dropped, and a sealed message that cannot be opened and is past its timer is dropped and marked (cleans up devices already in the loop).
 
   * **PERF** Chat sending no longer waits on the network for known contacts (`ui/src/freenet.ts`): `sendChatMessage` and the Secret Chat transport awaited the peer's feed and both `devices/` logs before sealing. `keysFresh` now waits only when this device has no profile of the peer (first contact) and refreshes in the background otherwise; `encPubsOf` uses it.
