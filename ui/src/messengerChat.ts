@@ -3360,6 +3360,30 @@ export function createMessengerChat(deps: MessengerDeps) {
   messagesTrackEl.addEventListener("click", async (e) => {
     const t = e.target as HTMLElement;
 
+    const identity = deps.getIdentity();
+    const migrateBtn = t.closest<HTMLButtonElement>("[data-migrate-river]");
+    if (identity && migrateBtn?.dataset.migrateRiver) {
+      if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
+      migrateBtn.disabled = true;
+      migrateBtn.textContent = "Migrating…";
+      try {
+        const native = await freenet.migrateRiverRoom(identity, migrateBtn.dataset.migrateRiver);
+        deps.showToast("Room migrated: members got the new invite.", "info");
+        await deps.onSelectPrivateRoom(native);
+      } catch (err: any) {
+        deps.showToast(`Could not migrate: ${err.message || err}`, "error");
+        migrateBtn.disabled = false;
+        migrateBtn.textContent = "Migrate";
+      }
+      return;
+    }
+    const openMigrated = t.closest<HTMLElement>("[data-open-migrated]")?.dataset.openMigrated;
+    if (openMigrated) {
+      const target = deps.getAllPrivateRooms().find((r) => r.id === openMigrated);
+      if (target) await deps.onSelectPrivateRoom(target);
+      return;
+    }
+
     const loadOlderBtn = t.closest<HTMLElement>("#rm-btn-load-older");
     if (loadOlderBtn) {
       const prevHeight = messagesScrollerEl.scrollHeight;
@@ -3655,29 +3679,6 @@ export function createMessengerChat(deps: MessengerDeps) {
         await navigator.clipboard.writeText(link);
         deps.showToast("Zero-knowledge invite link copied to clipboard!", "info");
       }
-      return;
-    }
-
-    const migrateBtn = t.closest<HTMLButtonElement>("[data-migrate-river]");
-    if (migrateBtn?.dataset.migrateRiver) {
-      if (!confirm("Migrate this River room to a native Radica room?\n\nRadica members are invited to the new room, moderators stay moderators, and the invite link is posted here as the last message. This River room becomes a read-only archive.")) return;
-      migrateBtn.disabled = true;
-      migrateBtn.textContent = "Migrating…";
-      try {
-        const native = await freenet.migrateRiverRoom(identity, migrateBtn.dataset.migrateRiver);
-        deps.showToast("Room migrated: members got the new invite.", "info");
-        await deps.onSelectPrivateRoom(native);
-      } catch (err: any) {
-        deps.showToast(`Could not migrate: ${err.message || err}`, "error");
-        migrateBtn.disabled = false;
-        migrateBtn.textContent = "Migrate";
-      }
-      return;
-    }
-    const openMigrated = t.closest<HTMLElement>("[data-open-migrated]")?.dataset.openMigrated;
-    if (openMigrated) {
-      const target = deps.getAllPrivateRooms().find((r) => r.id === openMigrated);
-      if (target) await deps.onSelectPrivateRoom(target);
       return;
     }
 
