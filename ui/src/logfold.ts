@@ -681,6 +681,24 @@ export function foldPostDislikes(entries: LogEntry[]): Map<string, string[]> {
   return result;
 }
 
+export type RsvpStatus = "going" | "interested" | "not_going";
+const RSVP_STATUSES = new Set<string>(["going", "interested", "not_going"]);
+
+/** RSVPs per event post, from a host's `reactions/<host>` log: the newest per (attendee, post), the attendee being
+ *  the entry's signer. Unknown statuses are dropped. */
+export function foldEventRsvps(entries: LogEntry[]): Map<string, Map<string, { status: RsvpStatus; ts: number }>> {
+  const out = new Map<string, Map<string, { status: RsvpStatus; ts: number }>>();
+  for (const { e, b } of bodies(entries)) {
+    if (b?.type !== "event_rsvp" || typeof b.postId !== "string" || !RSVP_STATUSES.has(b.status)) continue;
+    const ts = typeof b.ts === "number" ? b.ts : e.ts;
+    const per = out.get(b.postId) ?? new Map<string, { status: RsvpStatus; ts: number }>();
+    out.set(b.postId, per);
+    const prev = per.get(e.author);
+    if (!prev || ts >= prev.ts) per.set(e.author, { status: b.status, ts });
+  }
+  return out;
+}
+
 /** The newest edit of each post, keyed `<author>:<post id>`. The key's author is the entry's signer, so only a post's
  *  own author can change what it says; readers look an edit up by the post's author. Captions over `max` are ignored. */
 export function foldPostEdits(entries: LogEntry[], max = 4000): Map<string, { caption: string; ts: number }> {
@@ -700,6 +718,7 @@ const STATE_SUBJECT: Record<string, (b: any) => unknown> = {
   dm_ref: (b) => b.room, // "a conversation of mine changed": one per conversation and author
   handle_claim: () => "",
   handle_release: () => "",
+  event_rsvp: (b) => b.postId,
 };
 
 export { foldHandles, normalizeHandle, formatHandle, isValidHandle, RESERVED_HANDLES } from "./handles.ts";

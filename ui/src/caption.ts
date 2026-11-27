@@ -4,6 +4,7 @@ import { escapeHtml as escape } from "./html.ts";
 import { heavyUrl } from "./heavyAssets.ts";
 import { maskProfanity } from "./moderation.ts";
 import { parseFreenameUri, getResolvedFreename, nameHref } from "./freenames.ts";
+import { parseEventLine } from "./events.ts";
 
 // hashtags are found in the raw text: after escaping, "&#60;" would look like the tag "#60"
 const TAG_RE = /#([a-zA-Z0-9_\u00C0-\u017F]+)/g;
@@ -337,6 +338,7 @@ export const renderChatText = (text: string, nameOf: NameOf = keyName): string =
 
 /** A post: its caption, and a card for its first web link, whose URL then leaves the text (the card stands for it). */
 export function renderPost(caption: string, nameOf: NameOf = keyName): { html: string; card: string } {
+  caption = parseEventLine(caption).text; // the event line is data (end, zone, capacity), shown by the event card
   const card = linkCard(caption);
   if (!card) return { html: renderCaption(caption, nameOf), card };
   const url = /href="([^"]+)"/.exec(card)![1].replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
@@ -350,7 +352,7 @@ const RAW_URL_RE_G = new RegExp(RAW_URL_RE.source, "g");
 /** A card for the first web link of a post (site and a call to open it): Freenet's CSP allows no embeds or previews. */
 export function linkCard(caption: string): string {
   // Markdown links are inline links with explicit labels; only standalone raw web links get an external card preview.
-  const withoutMd = caption.replace(MD_LINK_RE_G, "");
+  const withoutMd = parseEventLine(caption).text.replace(MD_LINK_RE_G, "");
   for (const m of withoutMd.matchAll(RAW_URL_RE_G)) {
     const url = m[0].replace(TRAILING_PUNCT, "");
     if (CONTRACT_RE.test(url) || !/^https?:\/\//.test(url)) continue;
