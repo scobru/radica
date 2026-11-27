@@ -86,10 +86,11 @@ export function zonedToUtc(local: string, tz: string): Date {
   const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0));
   if (isNaN(guess)) return new Date(NaN);
   const o1 = offsetAt(guess, tz);
-  const t = guess - o1;
-  // near a DST change the first offset can be the other side's: re-check once with the offset at the found instant
-  const o2 = offsetAt(t, tz);
-  return new Date(o2 === o1 ? t : guess - o2);
+  const o2 = offsetAt(guess - o1, tz);
+  // an offset is right if the instant it gives has that offset; two right ones = DST fold, take the earlier instant
+  const ok = [o1, o2].filter((o) => offsetAt(guess - o, tz) === o);
+  // none right = DST gap: read the time with the pre-change (smaller) offset, so it moves forward
+  return new Date(guess - (ok.length ? Math.max(...ok) : Math.min(o1, o2)));
 }
 
 /** When `post` happens: null if it has no valid `event_date`. A bare date is an all-day event in the reader's zone.
