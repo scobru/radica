@@ -15,5 +15,12 @@ Extend `r/slug` Communities (`communitiesPage.ts` and `nativeRooms.ts`) from a s
    - Add unit tests for channel descriptor derivation, permissions, and unread tracking.
    - Update `ui/src/updates.ts`, `CHANGELOG.md`, `CONTEXT.md`, and `README.md` upon implementation.
 
+## Reality check (2026-11-27)
+Not implemented, but the spec rests on things that are gone:
+- Public community chatrooms (`comm_...`) were retired from Chat on 2026-11-20: communities live only in Feed and Communities (`g r`), and founders link a native Private Group or Broadcast Channel in the description instead.
+- River was removed on 2026-11-26; every group/channel is a native room (`nativeRooms.ts`).
+- Already there: one linked Broadcast Channel = a read-only announcement channel (requirement 2, partly); link pills in the description (requirement 3, partly).
+Open product decision before planning: several named native rooms per community (a list in the community record), or topic channels as forum sub-sections (flairs/tabs) inside `r/slug`.
+
 ## Status
 ⚪ **TODO** (2026-11-14)
