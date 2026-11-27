@@ -4225,3 +4225,75 @@ progress.cm-vnote-ring {
 
 /* a message still being sealed: a small clock instead of ✓ */
 #chat-modal .rm-checks.sending { display: inline-flex; vertical-align: -1px; opacity: 0.7; }
+
+/* Phones: WhatsApp-like rhythm — bigger avatars and type, more air between rows, a header name that is not squeezed out */
+@media (max-width: 768px) {
+  #chat-modal .rm-inbox-header {
+    padding: 18px 16px 12px;
+  }
+  #chat-modal .rm-inbox-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+  #chat-modal .rm-search-box {
+    padding: 2px 16px 12px;
+  }
+  #chat-modal .rm-search-input {
+    min-height: 44px;
+    border-radius: 999px;
+    font-size: 1rem;
+  }
+  #chat-modal .rm-filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+  #chat-modal .rm-filter-chip {
+    font-size: 0.88rem;
+    padding: 6px 14px;
+    flex-shrink: 0;
+  }
+  #chat-modal .rm-conv-item {
+    gap: 14px;
+    padding: 11px 16px;
+    border-radius: 0;
+  }
+  #chat-modal .rm-conv-avatar-wrap,
+  #chat-modal .rm-conv-avatar {
+    width: 52px;
+    height: 52px;
+  }
+  #chat-modal .rm-conv-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  #chat-modal .rm-conv-preview {
+    font-size: 0.94rem;
+  }
+  #chat-modal .rm-conv-time {
+    font-size: 0.8rem;
+  }
+  #chat-modal .rm-chat-header {
+    padding: 8px 10px 8px 4px;
+  }
+  #chat-modal .rm-header-name {
+    font-size: 1.05rem;
+  }
+  #chat-modal .rm-header-sub {
+    font-size: 0.8rem;
+  }
+  /* the badge keeps only its icon; its words stay for screen readers */
+  #chat-modal .rm-chat-header .rm-trust-pill {
+    padding: 3px 5px;
+  }
+  #chat-modal .rm-chat-header .rm-trust-pill > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}

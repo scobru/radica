@@ -3499,6 +3499,18 @@ body {
   background: rgba(0, 0, 0, 0.92);
   cursor: zoom-out;
 }
+/* an open picture holds the page still: the grid behind it must not scroll under the finger */
+html:has(body > .lightbox),
+body:has(> .lightbox) {
+  overflow: hidden;
+}
+.lightbox {
+  touch-action: pinch-zoom; /* no pan of the page behind; pinch still zooms the picture */
+  overscroll-behavior: contain;
+}
+.lightbox .carousel-track {
+  touch-action: pan-x;
+}
 .lightbox .lightbox-caption {
   margin-top: 14px;
   font-size: 0.85rem;
