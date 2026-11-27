@@ -690,6 +690,7 @@
     height: calc(100vh / var(--ui-zoom, 1)) !important;
     height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
     max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+    min-height: 0 !important;
     z-index: 500 !important;
     margin: 0 !important;
     padding: 0 !important;

@@ -820,6 +820,7 @@
   width: calc(100dvw / var(--ui-zoom, 1)) !important;
   height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
   max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  min-height: 0 !important;
 }
 #chat-modal.fullscreen .chat-modal-card {
   height: 100% !important;
