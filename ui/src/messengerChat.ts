@@ -696,6 +696,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-scan-qr">${renderIcon("camera", { size: 14, className: "icon-xs" })} Scan a QR</button>
           <input type="file" id="rm-scan-qr-input" accept="image/*" capture="environment" hidden />
         </div>
+        <p style="margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--rm-text-muted);"><b>Contact card / My QR</b>: give them to someone so they can write to you, even with no internet or Freenet (for example two phones on the same Wi-Fi). They paste the card in the box below, or scan your QR. It holds only your public keys and name.</p>
         <div id="rm-my-qr" class="rm-my-qr" hidden></div>
         <div id="rm-nearby" class="rm-nearby" hidden>
           <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Nearby (same Wi-Fi or hotspot)</label>
