@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AI_REPORTERS, RADICA_MAINTAINER } from "../src/types.ts";
-import { deviceKeyTimes, revokedDeviceKeys, foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
+import { deviceKeyTimes, revokedDeviceKeys, foldHiddenCommunities, directoryWeights, laneSample, foldBlocklist, foldReports, foldReportedMedia, foldReportQueue, foldHandledReports, foldDismissed, foldAiHolds, foldChatRead, foldChat, foldCommunities, canEditCommunity, foldRoom, hasLeftRoom, isPostDeletedInCommunity, roomJoiners, roomJoinProofs, keepNewest, foldChatHides, foldCommentLikes, foldPostDislikes, foldPostEdits, foldEventRsvps, compactLog, stateSlot, stateSlotFor, type LogEntry } from "../src/logfold.ts";
 
 let n = 0;
 const entry = (author: string, ts: number, body: object): LogEntry => ({ author, id: `e${n++}`, ts, body: JSON.stringify(body), sig: "" });
@@ -831,4 +831,29 @@ test("logfold: a revoked device key stays revoked even when it is announced agai
   ];
   assert.deepEqual([...revokedDeviceKeys(log, user)], [k1]);
   assert.deepEqual([...deviceKeyTimes(log, user)], [[k2, 20]]);
+});
+
+test("logfold: foldEventRsvps keeps the newest RSVP per attendee and event, drops unknown status", () => {
+  const rsvp = (author: string, ts: number, postId: unknown, status: unknown) => entry(author, ts, { type: "event_rsvp", postId, status, ts });
+  const m = foldEventRsvps([
+    rsvp(user, 3, "p1", "not_going"),
+    rsvp(user, 1, "p1", "going"), // older, arrives later
+    rsvp(user, 2, "p2", "interested"),
+    rsvp(mallory, 5, "p1", "maybe"), // unknown status
+    rsvp(mallory, 4, "p1", "going"),
+    rsvp(mod, 6, 42, "going"), // bad postId
+    entry(owner, 7, { type: "post_dislike", postId: "p1" }),
+  ]);
+  assert.deepEqual([...m.keys()].sort(), ["p1", "p2"]);
+  assert.deepEqual(m.get("p1")!.get(user), { status: "not_going", ts: 3 });
+  assert.deepEqual(m.get("p1")!.get(mallory), { status: "going", ts: 4 });
+  assert.deepEqual(m.get("p2")!.get(user), { status: "interested", ts: 2 });
+  assert.equal(m.get("p1")!.size, 2);
+});
+
+test("logfold: an event RSVP has one state slot per event post", () => {
+  const a = stateSlotFor({ type: "event_rsvp", postId: "p1", status: "going", ts: 1 });
+  assert.equal(a, stateSlot("event_rsvp", "p1"));
+  assert.equal(stateSlotFor({ type: "event_rsvp", postId: "p1", status: "not_going", ts: 9 }), a);
+  assert.notEqual(stateSlotFor({ type: "event_rsvp", postId: "p2", status: "going", ts: 1 }), a);
 });

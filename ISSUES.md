@@ -17,7 +17,7 @@ Each non-trivial task or bug has a dedicated specification file in the `tasks/` 
 | `TASK-006` | Short-Form Vertical Video & Video Channels (TikTok / YouTube) | 🟢 DONE | Medium | [`tasks/006-video-reels-and-channels.md`](tasks/006-video-reels-and-channels.md) |
 | `TASK-007` | Curated Boards & Collections (Pinterest / Are.na) | 🟢 DONE | Medium | [`tasks/007-curated-boards-collections.md`](tasks/007-curated-boards-collections.md) |
 | `TASK-008` | Social Audio, Podcasts & Persistent Player (Spotify / FreeTunes) | 🟢 DONE | Low | [`tasks/008-social-audio-and-freetunes.md`](tasks/008-social-audio-and-freetunes.md) |
-| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | ⚪ TODO | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
+| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | 🟡 IN_PROGRESS | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
 | `TASK-010` | Contract v2 (feed + log) migration | 🟡 IN_PROGRESS (done in code, pre-publish checks open) | High | [`tasks/010-contract-v2-migration.md`](tasks/010-contract-v2-migration.md) |
 
 ---

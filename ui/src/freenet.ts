@@ -56,7 +56,7 @@ import { FreenetNetwork, contractKey, type ContractId } from "./network.ts";
 import { cleanWallets, type Wallets } from "./wallets.ts";
 import { CURRENT } from "./legacy.ts";
 import { explorePeerKeys } from "./circleMode.ts";
-import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, isPostDeletedInCommunity, keepNewest, foldCommentLikes, foldPostDislikes, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, foldSupporterTokens, foldGhostkeyBundles, foldPohProofs, foldDelegationProofs, type LogEntry } from "./logfold.ts";
+import { dedupeChat, directoryWeights, laneSample, foldHiddenCommunities, foldBlocklist, foldReports, foldReportedMedia, foldDismissed, foldReportQueue, foldHandledReports, foldAiHolds, type ReportedItem, type HandledReportItem, foldChat, foldChatHides, foldChatRead, foldCommunities, canEditCommunity, foldRoom, isPostDeletedInCommunity, keepNewest, foldCommentLikes, foldPostDislikes, foldEventRsvps, type RsvpStatus, foldPostEdits, foldHandles, normalizeHandle, RESERVED_HANDLES, compactLog, isDmEntry, deviceKeyTimes, revokedDeviceKeys, DEVICE_HEARTBEAT_MS, SECRET_DEVICE_TTL_MS, foldSupporterTokens, foldGhostkeyBundles, foldPohProofs, foldDelegationProofs, type LogEntry } from "./logfold.ts";
 import { LogStore } from "./logStore.ts";
 import { FeedStore } from "./feedStore.ts";
 import { PrivateRoomManager } from "./privateRooms.ts";
@@ -1590,6 +1590,17 @@ export class FreenetClient {
   public postDislikers(postAuthor: string, postId: string): string[] {
     const map = this.logs.memo(`reactions/${postAuthor}`, `dislike:${postAuthor}`, foldPostDislikes);
     return map.get(postId) ?? [];
+  }
+
+  /** RSVPs to an event post (attendee pubkey -> newest status), from the host's `reactions/<host>` log. */
+  public eventRsvps(host: string, postId: string): Map<string, { status: RsvpStatus; ts: number }> {
+    return this.logs.memo(`reactions/${host}`, `rsvp:${host}`, foldEventRsvps).get(postId) ?? new Map();
+  }
+
+  /** RSVP to an event post: one signed `event_rsvp` entry per (attendee, post) in the host's reactions log, newest wins. */
+  public async setRsvp(identity: UserIdentity, host: string, postId: string, status: RsvpStatus): Promise<void> {
+    await this.logAppend(`reactions/${host}`, { type: "event_rsvp", postId, status, ts: Date.now() });
+    this.notifyListeners();
   }
 
   /** Dislike or undislike a post on Freenet via the post author's reactions log. */

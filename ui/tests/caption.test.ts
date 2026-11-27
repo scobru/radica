@@ -320,3 +320,14 @@ test("insertMention: a swiped mention goes out as the person's key, like one pic
   assert.equal(box.value, "hi @Ann Lee ");
   assert.equal(withMentionKeys(box, box.value.trim()), `hi @${"a".repeat(64)}`);
 });
+
+test("caption: the event line is data, not rendered or used for a link card", () => {
+  const cap = "Meetup https://x.org/a\nradica-event:end=2026-12-05T20:00:00.000Z&tz=Europe%2FRome&cap=40";
+  const { html, card } = renderPost(cap);
+  assert.ok(!html.includes("radica-event"));
+  assert.match(card, /x\.org/);
+  assert.equal(linkCard("hi\nradica-event:end=2026-12-05T20:00:00.000Z"), "");
+  assert.ok(!renderPost("plain\nradica-event:cap=3").html.includes("cap=3"));
+  // not at the end: ordinary text
+  assert.match(renderPost("radica-event:cap=3\nmore").html, /radica-event/);
+});

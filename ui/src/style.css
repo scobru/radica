@@ -5834,6 +5834,42 @@ html[data-fullwidth="true"] #width-toggle-btn {
 .poll-fields { display: flex; flex-direction: column; gap: 6px; }
 .poll-fields[hidden] { display: none; }
 .poll-fields label { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+/* TASK-009 events: composer fields + Upcoming panel */
+.event-fields { flex-wrap: wrap; }
+.event-fields > input { flex: 1 1 100%; }
+.event-field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 180px; min-width: 0; font-size: 0.75rem; color: var(--text-muted); }
+.event-field-wide { flex-basis: 100%; }
+.event-field select { border: 1px solid var(--border); background: var(--input-bg); color: var(--input-text); border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; outline: none; width: 100%; }
+.event-field input:focus, .event-field select:focus { border-color: var(--primary); }
+.events-upcoming { margin: 12px 0; }
+.events-upcoming[hidden], .events-month[hidden], .events-upcoming-empty[hidden] { display: none; }
+.events-upcoming-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.events-upcoming-head h3 { margin: 0; font-size: 1rem; }
+.events-upcoming-list { display: flex; flex-direction: column; gap: 6px; }
+.events-day-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 6px; }
+.events-row { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text-main); cursor: pointer; font: inherit; }
+.events-row:hover, .events-row:focus-visible { border-color: var(--primary); }
+.events-row-when { flex: 0 0 auto; font-size: 0.78rem; font-weight: 600; color: var(--primary); }
+.events-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
+.events-row-meta { flex: 0 0 auto; font-size: 0.75rem; color: var(--text-muted); }
+.events-upcoming-empty { margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted); }
+.events-month { margin-bottom: 10px; }
+.events-month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.events-month-label { font-weight: 600; font-size: 0.9rem; }
+.events-month-weekdays, .events-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.events-month-weekdays span { text-align: center; font-size: 0.7rem; color: var(--text-muted); }
+.events-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text-main); font: inherit; font-size: 0.8rem; cursor: pointer; padding: 0; }
+.events-day.is-other-month { color: var(--text-muted); opacity: 0.5; }
+.events-day.is-today { border-color: var(--border); font-weight: 700; }
+.events-day.has-events::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+.events-day.is-selected { background: var(--primary); color: #fff; }
+.events-day.is-selected::after { background: #fff; }
+.events-day:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+@media (max-width: 480px) {
+  .events-row { flex-wrap: wrap; }
+  .events-row-title { flex-basis: 100%; order: 2; white-space: normal; }
+}
 #poll-toggle-btn.active { border-color: var(--accent, currentColor); }
 .fp-bar { position: absolute; inset: 0 auto 0 0; background: var(--border); }
 .fp-best .fp-bar { background: rgba(74, 222, 128, 0.35); }

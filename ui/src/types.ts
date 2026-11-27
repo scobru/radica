@@ -175,7 +175,7 @@ export interface RoomState {
 
 export interface NotificationItem {
   id: string;
-  type: "like" | "comment" | "follow" | "chat" | "mention" | "report" | "mail";
+  type: "like" | "comment" | "follow" | "chat" | "mention" | "report" | "mail" | "event";
   from: string;
   text: string;
   timestamp: number;
