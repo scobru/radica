@@ -655,8 +655,8 @@ export function createMessengerChat(deps: MessengerDeps) {
       <!-- SLIDE-OVER INFO & MEMBERS DRAWER -->
       <aside class="rm-drawer" id="rm-info-drawer" aria-label="Conversation Details">
         <div class="rm-drawer-top">
+          <button type="button" class="rm-icon-btn" id="rm-btn-drawer-close" title="Back to the conversation" aria-label="Back to the conversation"><svg viewBox="0 0 24 24" class="svg-icon icon-md"><polyline points="15 18 9 12 15 6"/></svg></button>
           <span id="rm-drawer-header-label">Details</span>
-          <button type="button" class="rm-icon-btn" id="rm-btn-drawer-close" title="Close panel">${renderIcon("x", { className: "icon-sm" })}</button>
         </div>
         <div id="rm-drawer-content"></div>
       </aside>

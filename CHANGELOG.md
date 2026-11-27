@@ -1,6 +1,10 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Keyboard still covered the chat composer on phones (`ui/src/{messengerChat,chat,mail,style}.css`): the full-screen chat kept the desktop `min-height: 460px`, taller than the space above the keyboard. Every full-screen layout sized by `--rm-vvh` now resets `min-height` to 0.
+
+  * **IMPROVED** Chat Info opens as a page on narrow screens (`ui/src/messengerChat.{ts,css}`): full width (content up to 640px), Back arrow on the left instead of a close cross.
+
   * **FIX** Android app: the keyboard covered half of the chat composer (`ui/src/main.ts`): the page set `navigator.virtualKeyboard.overlaysContent` while the app already shrinks the WebView above the keyboard, so the keyboard counted twice. The page now only resizes (`interactive-widget=resizes-content`).
 
   * **IMPROVED** Messages on phones (`ui/src/messengerChat.css`): WhatsApp-like spacing and type in the inbox and chat header, filters on one scrolling row, header trust badge reduced to its icon.

@@ -283,6 +283,7 @@ html:not([data-theme="dark"]) #chat-modal .rm-messenger-card[data-palette="signa
   height: calc(100vh / var(--ui-zoom, 1)) !important;
   height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
   max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  min-height: 0 !important;
   z-index: 500 !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -1877,11 +1878,11 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 
 #chat-modal .rm-drawer-top {
   min-height: 64px;
-  padding: 0 16px;
+  padding: 0 16px 0 6px;
   border-bottom: 1px solid var(--rm-border-subtle);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   font-weight: 700;
   font-size: 0.9rem;
   flex-shrink: 0;
@@ -2260,11 +2261,17 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
     background: var(--rm-bg-subtle);
   }
 
+  /* not enough room for a side panel: Info opens as a page over the chat, Back returns to it */
   #chat-modal .rm-drawer.open {
     position: absolute;
-    inset: 0 0 0 auto;
-    width: min(320px, 92%);
-    box-shadow: var(--rm-shadow-lg);
+    inset: 0;
+    width: 100%;
+    z-index: 60; /* above the chat header */
+  }
+  #chat-modal .rm-drawer.open > * {
+    width: 100%;
+    max-width: 640px;
+    margin-inline: auto;
   }
 
   #chat-modal .rm-messages-scroller {
@@ -2337,11 +2344,17 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
     background: var(--rm-bg-subtle);
   }
 
+  /* not enough room for a side panel: Info opens as a page over the chat, Back returns to it */
   #chat-modal .rm-drawer.open {
     position: absolute;
-    inset: 0 0 0 auto;
-    width: min(320px, calc(92vw / var(--ui-zoom, 1)));
-    box-shadow: var(--rm-shadow-lg);
+    inset: 0;
+    width: 100%;
+    z-index: 60; /* above the chat header */
+  }
+  #chat-modal .rm-drawer.open > * {
+    width: 100%;
+    max-width: 640px;
+    margin-inline: auto;
   }
 
   #chat-modal .rm-messages-scroller {
@@ -2397,6 +2410,7 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
     height: calc(100vh / var(--ui-zoom, 1)) !important;
     height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
     max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+    min-height: 0 !important;
     z-index: 500 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -3630,6 +3644,7 @@ html[data-app-mode="messenger"] #chat-modal {
   height: calc(100vh / var(--ui-zoom, 1)) !important;
   height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
   max-height: min(var(--rm-vvh, calc(100dvh / var(--ui-zoom, 1))), calc(100dvh / var(--ui-zoom, 1))) !important;
+  min-height: 0 !important;
   z-index: 500 !important;
   margin: 0 !important;
   padding: 0 !important;
