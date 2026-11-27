@@ -17,7 +17,7 @@ Each non-trivial task or bug has a dedicated specification file in the `tasks/` 
 | `TASK-006` | Short-Form Vertical Video & Video Channels (TikTok / YouTube) | 🟢 DONE | Medium | [`tasks/006-video-reels-and-channels.md`](tasks/006-video-reels-and-channels.md) |
 | `TASK-007` | Curated Boards & Collections (Pinterest / Are.na) | 🟢 DONE | Medium | [`tasks/007-curated-boards-collections.md`](tasks/007-curated-boards-collections.md) |
 | `TASK-008` | Social Audio, Podcasts & Persistent Player (Spotify / FreeTunes) | 🟢 DONE | Low | [`tasks/008-social-audio-and-freetunes.md`](tasks/008-social-audio-and-freetunes.md) |
-| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | 🟡 IN_PROGRESS | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
+| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | 🟢 DONE | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
 | `TASK-010` | Contract v2 (feed + log) migration | 🟡 IN_PROGRESS (done in code, pre-publish checks open) | High | [`tasks/010-contract-v2-migration.md`](tasks/010-contract-v2-migration.md) |
 
 ---
@@ -31,6 +31,7 @@ Radica's core vision is to serve as a **single decentralized Hub on Freenet** th
 - **Instagram → Moments (`#media-modal`)**: Visual card gallery for photos and short videos with client-side compression and unified composer.
 - **Reddit → Communities (`#communities-modal`, `r/slug`)**: Forum threads with upvote/downvote net scoring, `Hot`/`New`/`Top` ranking, flairs, and community moderation.
 - **Telegram / Signal → P2P Chat**: DMs, E2EE Private Rooms & Broadcast Channels, Community Chats, and Secret Chats (TTL / burn).
+- **Luma / Meetup → Events (`TASK-009`)**: Start/end with timezone, capacity and cover, signed RSVPs (`Going` / `Interested` / `Not going`), Upcoming list / month calendar, and reminders in notifications.
 - **Email → Radica Mail**: Post-quantum encrypted email client (`ML-KEM-768` + `ML-DSA-65`) interoperable with native Freenet Mail.
 
 ### Planned (`TODO`)
@@ -39,7 +40,6 @@ Radica's core vision is to serve as a **single decentralized Hub on Freenet** th
 3. **TikTok / YouTube (`TASK-006`)**: Vertical short-video player in Moments plus `freenet-blob`-backed long-form video channels and playlists.
 4. **Pinterest / Are.na (`TASK-007`)**: Public and private curated *Boards* displayed on User Walls with shareable `#board=...` permalinks.
 5. **Spotify / FreeTunes (`TASK-008`)**: Persistent global audio mini-player, podcasts/audio posts, and FreeTunes companion integration.
-6. **Luma / Meetup (`TASK-009`)**: Structured event scheduling, signed RSVPs (`Going` / `Interested`), calendar view, and activity reminders.
 
 ---
 

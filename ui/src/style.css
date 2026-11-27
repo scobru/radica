@@ -10625,3 +10625,14 @@ body.page-loading::before {
 .comment-edit-input { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-color, #ccc); background: var(--input-bg, transparent); color: inherit; }
 .comment-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .comment-edit-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; }
+
+/* Event cards (TASK-009): capacity, RSVP bar, trusted attendee avatars */
+.event-details { display: flex; flex-direction: column; gap: 6px; }
+.event-cap { font-size: 0.78rem; font-weight: 600; }
+.event-cap.is-full { color: var(--danger, #ef4444); }
+.event-rsvp { display: flex; flex-wrap: wrap; gap: 6px; }
+.event-rsvp-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.event-rsvp-btn .action-count { opacity: 0.8; margin-left: 2px; }
+.event-rsvp-avatars { display: flex; }
+.event-rsvp-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card-bg, var(--bg)); margin-left: -6px; cursor: pointer; }
+.event-rsvp-avatar:first-child { margin-left: 0; }
