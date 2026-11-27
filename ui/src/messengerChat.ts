@@ -687,7 +687,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <h3>New Conversation</h3>
           <button type="button" class="rm-icon-btn" id="rm-new-chat-close">${renderIcon("x", { className: "icon-sm" })}</button>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <div class="rm-new-chat-actions">
           <button type="button" class="rm-link-btn" id="rm-modal-create-room">+ New E2EE Group</button>
           <button type="button" class="rm-link-btn" id="rm-modal-join-room">${renderIcon("key", { size: 14, className: "icon-xs" })} Join with Invite Code</button>
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
@@ -696,7 +696,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-scan-qr">${renderIcon("camera", { size: 14, className: "icon-xs" })} Scan a QR</button>
           <input type="file" id="rm-scan-qr-input" accept="image/*" capture="environment" hidden />
         </div>
-        <p style="margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--rm-text-muted);"><b>Contact card / My QR</b>: give them to someone so they can write to you, even with no internet or Freenet (for example two phones on the same Wi-Fi). They paste the card in the box below, or scan your QR. It holds only your public keys and name.</p>
+        <p style="margin: 0; font-size: 0.74rem; line-height: 1.35; color: var(--rm-text-muted);">Contact card and QR let someone write to you even offline: they paste the card below or scan the QR. Public keys and name only.</p>
         <div id="rm-my-qr" class="rm-my-qr" hidden></div>
         <div id="rm-nearby" class="rm-nearby" hidden>
           <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Nearby (same Wi-Fi or hotspot)</label>
@@ -704,11 +704,11 @@ export function createMessengerChat(deps: MessengerDeps) {
           <div id="rm-nearby-list"></div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start DM or Secret Chat (@handle, persona, 64-hex key, or contact card)</label>
-          <div style="display: flex; gap: 6px;">
-            <input type="text" id="rm-new-chat-input" class="rm-field-input" placeholder="Type @handle, persona key, 64-hex, or filter contacts…" autocomplete="off" />
-            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go" style="margin-top: 0; white-space: nowrap;">Open DM</button>
-            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-secret-go" style="margin-top: 0; white-space: nowrap; background: #059669; border-color: #10b981;">${renderIcon("lock", { size: 14, className: "icon-xs" })} Secret</button>
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start a chat (@handle, key or contact card)</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <input type="text" id="rm-new-chat-input" class="rm-field-input" style="flex: 1 1 100%;" placeholder="Type @handle, persona key, 64-hex, or filter contacts…" autocomplete="off" />
+            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go" style="margin-top: 0; white-space: nowrap; flex: 1;">Open DM</button>
+            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-secret-go" style="margin-top: 0; white-space: nowrap; flex: 1; background: #059669; border-color: #10b981;">${renderIcon("lock", { size: 14, className: "icon-xs" })} Secret</button>
           </div>
         </div>
         <div class="rm-contact-picker-list" id="rm-contact-picker-list"></div>
