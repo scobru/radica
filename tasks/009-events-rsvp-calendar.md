@@ -87,7 +87,7 @@ Local, like mail: `syncEventReminders()` called from `updateNotificationsBadge()
 
 Note: ui-2..ui-5 all edit `main.ts`: one `[ui]` agent does them in order. No `[core]` task touches `main.ts`, `index.html`, `style.css` or `updates.ts`.
 
-## Open questions
+## Decisions (2026-11-27, maintainer: plan defaults accepted)
 1. Capacity: display only ("Full", Going still allowed) or disable Going when full / show overflow as waitlist (ordered by RSVP time)? Plan assumes display only; it cannot be enforced anyway.
 2. Counts: total of all non-hidden attendees (Sybil-inflatable) or only Web-of-Trust attendees? Plan assumes total + WoT avatars.
 3. Reminder lead time: 1 h only, or also 24 h? For Interested too, or Going only? Plan assumes 1 h, both.
