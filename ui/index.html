@@ -318,9 +318,30 @@
           </div>
 
           <!-- Event Inputs -->
-          <div class="composer-extra" id="event-fields" style="display: none;">
-            <input type="text" id="post-location" placeholder="Location / Virtual Room..." />
-            <input type="date" id="post-event-date" />
+          <div class="composer-extra event-fields" id="event-fields" style="display: none;">
+            <input type="text" id="post-location" placeholder="Location / Virtual Room..." aria-label="Location" />
+            <label class="event-field">
+              <span>Starts</span>
+              <input type="datetime-local" id="post-event-date" required />
+            </label>
+            <label class="event-field">
+              <span>Ends (optional)</span>
+              <input type="datetime-local" id="post-event-end" />
+            </label>
+            <label class="event-field">
+              <span>Timezone</span>
+              <select id="post-event-tz"></select>
+            </label>
+            <label class="event-field">
+              <span>Capacity (optional)</span>
+              <input type="number" id="post-event-cap" min="1" max="100000" step="1" inputmode="numeric" placeholder="No limit" />
+            </label>
+            <label class="event-field event-field-wide">
+              <span>Linked room (optional)</span>
+              <select id="post-event-room">
+                <option value="">None (no linked room)</option>
+              </select>
+            </label>
           </div>
 
           <!-- Poll: the post text is the question (freepolls.ts) -->
@@ -335,6 +356,30 @@
             <button class="btn-primary" id="publish-btn">Plant post</button>
           </div>
         </div>
+
+        <!-- Upcoming events: shown by setCategory("event") -->
+        <section id="events-upcoming" class="events-upcoming composer-card" aria-labelledby="events-upcoming-title" hidden>
+          <div class="events-upcoming-head">
+            <h3 id="events-upcoming-title">Upcoming events</h3>
+            <div class="articles-filter-tabs" id="events-view-tabs" role="tablist" aria-label="Events view">
+              <button type="button" class="articles-filter-btn active" data-view="list" role="tab" aria-selected="true" aria-controls="events-upcoming-list">List</button>
+              <button type="button" class="articles-filter-btn" data-view="month" role="tab" aria-selected="false" aria-controls="events-month">Month</button>
+            </div>
+          </div>
+          <div id="events-month" class="events-month" hidden>
+            <div class="events-month-nav">
+              <button type="button" class="btn-secondary btn-sm" id="events-month-prev" aria-label="Previous month">‹</button>
+              <span id="events-month-label" class="events-month-label" aria-live="polite"></span>
+              <button type="button" class="btn-secondary btn-sm" id="events-month-next" aria-label="Next month">›</button>
+            </div>
+            <div class="events-month-weekdays" aria-hidden="true">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div id="events-month-grid" class="events-month-grid" role="grid" aria-label="Days with events"></div>
+          </div>
+          <div id="events-upcoming-list" class="events-upcoming-list" role="list"></div>
+          <p id="events-upcoming-empty" class="events-upcoming-empty" hidden>No upcoming events.</p>
+        </section>
 
         <!-- Post Cards Container -->
         <div id="posts-container">
