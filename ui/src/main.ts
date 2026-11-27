@@ -7689,8 +7689,11 @@ const railPages: [HTMLElement, string][] = [
   [userProfileModal, ""], // someone's profile: no rail button
 ];
 const isOpen = (el: HTMLElement) => el.style.display !== "none" && el.style.display !== "";
+// Radica Messenger: the chat is the base layer under every other page, never closed by one and never closing one
+// (a background showChat() — sync, notification, resume — used to close Identity or Settings while they were read)
+const isBaseLayer = (el: HTMLElement) => isMessengerApp && el === chatModal;
 function closeRailPages(except?: HTMLElement) {
-  for (const [el] of railPages) if (el !== except && isOpen(el)) el.style.display = "none";
+  for (const [el] of railPages) if (el !== except && isOpen(el) && !isBaseLayer(el)) el.style.display = "none";
 }
 
 // ---- Living Tree (Albero di Radica): Interactive Botanical Network Graph ----
@@ -7872,7 +7875,7 @@ for (const [page, btnId] of railPages) {
         feedScrollY = window.scrollY;
         if (!(isMessengerApp && page === chatModal)) pushBackStep("page"); // Back (Android gesture) closes the page instead of leaving Radica
       }
-      closeRailPages(page);
+      if (!isBaseLayer(page)) closeRailPages(page);
       window.scrollTo({ top: 0 });
     }
     const open = railPages.some(([el]) => isOpen(el));

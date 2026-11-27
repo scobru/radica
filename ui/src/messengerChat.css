@@ -4312,3 +4312,17 @@ progress.cm-vnote-ring {
     white-space: nowrap;
   }
 }
+
+/* New Conversation: actions in an even two-column grid instead of ragged wrapped pills */
+#chat-modal .rm-new-chat-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+#chat-modal .rm-new-chat-actions .rm-link-btn {
+  justify-content: center;
+  text-align: center;
+}
+#chat-modal .rm-contact-picker-list:empty {
+  display: none;
+}

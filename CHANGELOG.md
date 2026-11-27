@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Radica Messenger: Identity & keys / Settings closed by themselves now and then (`ui/src/main.ts`): a background `showChat()` re-showed the chat, and the rail-page observer closed every other page when a page opened. In the Messenger app the chat is now a base layer, never closed by another page and never closing one.
+
   * **FIX** Keyboard still covered the chat composer on phones (`ui/src/{messengerChat,chat,mail,style}.css`): the full-screen chat kept the desktop `min-height: 460px`, taller than the space above the keyboard. Every full-screen layout sized by `--rm-vvh` now resets `min-height` to 0.
 
   * **IMPROVED** Chat Info opens as a page on narrow screens (`ui/src/messengerChat.{ts,css}`): full width (content up to 640px), Back arrow on the left instead of a close cross.
