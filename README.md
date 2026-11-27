@@ -138,6 +138,11 @@ This repository is an architectural rewrite. The legacy Node.js/Express and Mong
 
 ---
 
+### 16. 📅 Events, RSVP & Calendar
+- **Structured events**: start/end with timezone, capacity, cover image and a linked private group or channel, carried in the signed post (no contract change).
+- **Signed RSVPs**: `Going` / `Interested` / `Not going` as entries in the host's reactions log; counts skip hidden authors, avatars show only your Web of Trust.
+- **Upcoming panel & reminders**: sidebar **Events** shows upcoming events as a list or month calendar, and a local reminder arrives one hour before the events you said you would attend.
+
 ## 🏗️ Architecture
 
 ```

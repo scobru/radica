@@ -4120,7 +4120,6 @@ function cacheCard(id: string, entry: { sig: unknown[]; html: string }): void {
   cardCache.set(id, entry);
 }
 
-/** Draw one card again from scratch (the feed otherwise reuses an unchanged card's DOM, editor included). */
 // ---- Events (TASK-009): formatted time, capacity and the RSVP bar on feed and Communities cards ----
 
 const RSVP_LABELS: [RsvpStatus, string][] = [["going", "Going"], ["interested", "Interested"], ["not_going", "Not going"]];
@@ -4191,6 +4190,7 @@ document.addEventListener("click", (e) => {
   });
 });
 
+/** Draw one card again from scratch (the feed otherwise reuses an unchanged card's DOM, editor included). */
 function redrawCard(postId: string) {
   cardCache.delete(postId);
   document.getElementById(`card-${postId}`)?.remove(); // an identical html would keep the old node, editor and all
@@ -5860,7 +5860,8 @@ publishBtn.addEventListener("click", async () => {
   }
 
   // 5. Personal data (email, phone…) is asked about; bad words are masked by each reader, if they choose
-  if (!okToPublish(ownWords)) return; // not the repost link: its keys look like phone numbers to the check
+  // the event location is public too
+  if (!okToPublish(activeComposerType === "event" ? `${ownWords}\n${postLocation.value.trim()}` : ownWords)) return; // not the repost link: its keys look like phone numbers to the check
   const finalCaption = withMentionKeys(postCaption, caption); // after the check: a key looks like a phone number to it
 
   // Event: start in the chosen zone becomes a UTC instant (passes isCanonicalPost); end/tz/cap ride in the event line

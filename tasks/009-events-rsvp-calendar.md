@@ -84,7 +84,7 @@ Local, like mail: `syncEventReminders()` called from `updateNotificationsBadge()
 - [x] [ui] ui-6 (after: ui-3, ui-4, ui-5): `updates.ts` entry (2026-11-27 or ship date) and an Events `<details>` in `#guide-modal`.
 - [x] [test] test-1 (after: core-1, core-3): `ui/tests/events.test.ts`: event line round-trip and rejection of bad end/tz/cap, `zonedToUtc` across a DST change, date-only legacy as all-day, `upcomingEvents` order and past exclusion, `rsvpSummary` hidden/WoT/full, `dueReminders` window and status.
 - [x] [test] test-2 (after: core-2, core-5): `ui/tests/logfold.test.ts` `foldEventRsvps` newest wins / bad status / `stateSlotFor` same slot per post; `ui/tests/caption.test.ts` event line not rendered.
-- [ ] [test] test-3 (after: all): `npm test`, `npm run build`, `graphify update .`, check the 3 moderation layers by reading ui-3/ui-4/ui-5, `CHANGELOG.md` + `README.md` Key Features, close the spec and `ISSUES.md` row.
+- [x] [test] test-3 (after: all): `npm test`, `npm run build`, `graphify update .`, check the 3 moderation layers by reading ui-3/ui-4/ui-5, `CHANGELOG.md` + `README.md` Key Features, close the spec and `ISSUES.md` row.
 
 Note: ui-2..ui-5 all edit `main.ts`: one `[ui]` agent does them in order. No `[core]` task touches `main.ts`, `index.html`, `style.css` or `updates.ts`.
 
@@ -97,4 +97,4 @@ Note: ui-2..ui-5 all edit `main.ts`: one `[ui]` agent does them in order. No `[c
 6. Communities inline composer: upgrade `#reddit-event-date` to the full fields too, or keep date-only there? Plan keeps it date-only.
 
 ## Status
-🟡 **IN_PROGRESS** (2026-11-27)
+🟢 **DONE** (2026-11-27)
