@@ -144,6 +144,7 @@ import { linfaPanel } from "./plant.ts";
 import { repostBody, repostCaption, repostCard, repostLink, repostRef, repostText, repostCountsOf, hasUserReposted, type RepostRef } from "./repost.ts";
 import { durable } from "./durable.ts";
 import { normalizeHandle } from "./handles.ts";
+import { dayKey, dueReminders, eventReminderId, eventsByDay, eventWindow, formatEventWhen, parseEventLine, rsvpSummary, upcomingEvents, withEventLine, zonedToUtc, type RsvpStatus, type UpcomingEvent } from "./events.ts";
 import { CHAT_REACTIONS, canEditCommunity, isPostDeletedInCommunity } from "./logfold";
 import { renderAnteBadgeHtml, renderPohProviderBadgesHtml, renderPostSubMetaHtml, renderTrustBadgeHtml } from "./badges.ts";
 import { analyzeImageFile, analyzeTextContent, maskProfanity, personalDataIn, type ImageModerationResult } from "./moderation";
@@ -532,6 +533,18 @@ const moderationBadgeText = document.getElementById("moderation-badge-text") as 
 const nsfwManualToggle = document.getElementById("nsfw-manual-toggle") as HTMLInputElement | null;
 const postLocation = document.getElementById("post-location") as HTMLInputElement;
 const postEventDate = document.getElementById("post-event-date") as HTMLInputElement;
+const postEventEnd = document.getElementById("post-event-end") as HTMLInputElement;
+const postEventTz = document.getElementById("post-event-tz") as HTMLSelectElement;
+const postEventCap = document.getElementById("post-event-cap") as HTMLInputElement;
+const postEventRoom = document.getElementById("post-event-room") as HTMLSelectElement;
+const readerTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+{
+  // ES2022 lib has no typing for supportedValuesOf; older runtimes lack it: then only my own zone (and UTC)
+  const zones: string[] = (Intl as any).supportedValuesOf?.("timeZone") ?? [];
+  const all = [...new Set([readerTz, "UTC", ...zones])].filter(Boolean).sort();
+  postEventTz.innerHTML = all.map((z) => `<option value="${escapeHtml(z)}">${escapeHtml(z.replace(/_/g, " "))}</option>`).join("");
+  postEventTz.value = readerTz;
+}
 const publishBtn = document.getElementById("publish-btn") as HTMLButtonElement;
 
 // Category counter badges
@@ -3093,7 +3106,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
 
   let sig: unknown[] | undefined;
   if (!singleView) {
-    const cheap = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author), editingCommentsOf(post.id)];
+    const cheap = [postSig, likesSig, isLiked, isDisliked, dislikeCount, isWotShielded, isModOrOwner, authorIsMod, authorDisplayName, authorAvatar, timeAgo, authorTrust.tier, authorTrust.label, githubPohKeys.has(post.author), edit?.ts ?? 0, postTranslations.get(`${post.author}:${post.id}`), saved, shownComments.length, mod.globalMod, unproven.length, repostCount, isReposted, anteBitsByKey.get(post.author) ?? 0, googlePohKeys.has(post.author), editingCommentsOf(post.id), eventCardSig(post)];
     const costly = [getCommSig, getMentionSig];
     const hit = cardCache.get(post.id);
     if (hit && cardSigMatches(hit.sig, cheap, costly)) {
@@ -3226,16 +3239,7 @@ function buildPostCardHtml(post: Post, opts: BuildPostCardOptions): string {
             return (html ? `<p class="gram-caption">${html}</p>` : "") + translate + card + freetunesCard(caption) + freepollsCard(caption) + freenamesCard(caption) + deltaCard(caption) + ortoCard(caption) + asocialCard(caption) + fhCard(caption, nodeOrigin()) + wormholeCard(caption, nodeOrigin()) + freetreeCard(caption, nodeOrigin()) + sporeRadioCard(caption) + repostCard(caption);
           })()}
 
-          ${
-            post.category === "event" && (post.location || post.event_date)
-              ? `
-            <div class="gram-event-details">
-              ${post.event_date ? `<div class="btn-icon-text">${renderIcon("calendar", { className: "icon-xs" })} <span>Date: ${escapeHtml(post.event_date)}</span></div>` : ""}
-              ${post.location ? `<div class="btn-icon-text">${renderIcon("mapPin", { className: "icon-xs" })} <span>Location: ${escapeHtml(post.location)}</span></div>` : ""}
-            </div>
-          `
-              : ""
-          }
+          ${eventDetailsHtml(post, caption, "gram-event-details")}
         </div>
 
         <div class="gram-actions">
@@ -3500,6 +3504,113 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && singlePostModal && isOpen(singlePostModal)) closeSinglePostModal();
 });
 
+// ---- Upcoming events panel (Events category): list grouped by day, or a month grid that filters the list ----
+
+const eventsUpcoming = document.getElementById("events-upcoming") as HTMLElement;
+const eventsMonth = document.getElementById("events-month") as HTMLElement;
+const eventsMonthGrid = document.getElementById("events-month-grid") as HTMLElement;
+const eventsMonthLabel = document.getElementById("events-month-label") as HTMLElement;
+const eventsUpcomingList = document.getElementById("events-upcoming-list") as HTMLElement;
+const eventsUpcomingEmpty = document.getElementById("events-upcoming-empty") as HTMLElement;
+let eventsView: "list" | "month" = "list";
+let eventsMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let eventsSelectedDay: string | null = null;
+let lastEventsPolicy: ReturnType<typeof buildModerationSets>["policy"] | null = null;
+
+/** Upcoming and ongoing events I may see (moderation layer 2: hidden, reported, AI-held posts are out; mine always in). */
+function visibleUpcomingEvents(policy: ReturnType<typeof buildModerationSets>["policy"]): UpcomingEvent<Post>[] {
+  const now = Date.now();
+  const posts = timelinePosts.filter((p) => p.category === "event" && policy.isPostHidden(p) === null);
+  return upcomingEvents(posts, (p) => freenet.postEdit(p.author, p.id)?.caption ?? p.caption, now);
+}
+
+function renderEventsUpcoming(policy: ReturnType<typeof buildModerationSets>["policy"]): void {
+  lastEventsPolicy = policy;
+  eventsUpcoming.hidden = currentCategory !== "event" || !!activeCommunity;
+  if (eventsUpcoming.hidden) return;
+  const list = visibleUpcomingEvents(policy);
+  const byDay = eventsByDay(list, readerTz);
+  const today = dayKey(new Date(), readerTz);
+  const maskOn = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
+  const mask = (t: string) => (maskOn ? maskProfanity(t) : t);
+  const dayDate = (k: string) => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10));
+  const plural = (n: number) => `${n} event${n === 1 ? "" : "s"}`;
+
+  eventsMonth.hidden = eventsView !== "month";
+  if (eventsView === "month") {
+    const y = eventsMonthStart.getFullYear();
+    const m = eventsMonthStart.getMonth();
+    eventsMonthLabel.textContent = eventsMonthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const first = new Date(y, m, 1 - ((eventsMonthStart.getDay() + 6) % 7)); // weeks start on Monday
+    const cells: string[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(first.getFullYear(), first.getMonth(), first.getDate() + i);
+      if (i % 7 === 0 && i > 0 && d.getMonth() !== m) break;
+      const k = dayKey(d);
+      const n = byDay.get(k)?.length ?? 0;
+      const cls = ["events-day", d.getMonth() !== m && "is-other-month", k === today && "is-today", n && "has-events", k === eventsSelectedDay && "is-selected"].filter(Boolean).join(" ");
+      const label = `${d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}: ${n ? plural(n) : "no events"}`;
+      cells.push(`<button type="button" class="${cls}" data-day="${k}" aria-label="${escapeHtml(label)}" aria-pressed="${k === eventsSelectedDay}">${d.getDate()}</button>`);
+    }
+    eventsMonthGrid.innerHTML = cells.join("");
+  }
+
+  const days = [...byDay.entries()].filter(([k]) => eventsView === "list" || !eventsSelectedDay || k === eventsSelectedDay);
+  const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZone: readerTz });
+  eventsUpcomingList.innerHTML = days
+    .map(([k, evs]) => {
+      const head = k === today ? "Today" : dayDate(k).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+      const rows = evs.map(({ post, window: w }) => {
+        const caption = freenet.postEdit(post.author, post.id)?.caption ?? post.caption;
+        const title = mask(parseEventLine(caption).text.split("\n")[0].trim()) || "Untitled event";
+        const going = eventRsvpSummary(post, w.cap).going;
+        const meta = [post.location ? mask(post.location) : "", going ? `${going} going` : ""].filter(Boolean).join(" · ");
+        const when = w.allDay ? "All day" : w.start.getTime() < Date.now() ? "Now" : time.format(w.start);
+        return `<button type="button" class="events-row" role="listitem" data-post-id="${escapeHtml(post.id)}" data-author="${escapeHtml(post.author)}" aria-label="${escapeHtml(`${head} ${when}: ${title}. Open event`)}">
+          <span class="events-row-when">${escapeHtml(when)}</span>
+          <span class="events-row-title">${escapeHtml(title)}</span>
+          ${meta ? `<span class="events-row-meta">${escapeHtml(meta)}</span>` : ""}
+        </button>`;
+      });
+      return `<div class="events-day-label" role="presentation">${escapeHtml(head)}</div>${rows.join("")}`;
+    })
+    .join("");
+  eventsUpcomingEmpty.hidden = days.length > 0;
+  eventsUpcomingEmpty.textContent = eventsSelectedDay && eventsView === "month" ? "No events on this day." : "No upcoming events.";
+}
+
+const rerenderEvents = () => lastEventsPolicy && renderEventsUpcoming(lastEventsPolicy);
+document.getElementById("events-view-tabs")?.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-view]");
+  if (!btn) return;
+  eventsView = btn.dataset.view === "month" ? "month" : "list";
+  if (eventsView === "list") eventsSelectedDay = null;
+  btn.parentElement!.querySelectorAll<HTMLElement>("[data-view]").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+    b.setAttribute("aria-selected", String(b === btn));
+  });
+  rerenderEvents();
+});
+document.getElementById("events-month-prev")?.addEventListener("click", () => {
+  eventsMonthStart = new Date(eventsMonthStart.getFullYear(), eventsMonthStart.getMonth() - 1, 1);
+  rerenderEvents();
+});
+document.getElementById("events-month-next")?.addEventListener("click", () => {
+  eventsMonthStart = new Date(eventsMonthStart.getFullYear(), eventsMonthStart.getMonth() + 1, 1);
+  rerenderEvents();
+});
+eventsMonthGrid.addEventListener("click", (e) => {
+  const day = (e.target as HTMLElement).closest<HTMLElement>("[data-day]")?.dataset.day;
+  if (!day) return;
+  eventsSelectedDay = eventsSelectedDay === day ? null : day;
+  rerenderEvents();
+});
+// Single Post View: its card has Report and Hide Author (moderation layer 3)
+eventsUpcomingList.addEventListener("click", (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLElement>(".events-row");
+  if (row?.dataset.postId && row.dataset.author) void openSinglePostModal(row.dataset.postId, row.dataset.author);
+});
+
 function renderTimeline() {
   deferredTimelineRender = false;
   if (timelineRenderRaf) {
@@ -3515,6 +3626,7 @@ function renderTimeline() {
   const mod = buildModerationSets(me);
   const { policy, commByRef } = mod;
   const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
+  renderEventsUpcoming(policy);
 
   const tagLower = activeTagFilter ? "#" + activeTagFilter.toLowerCase() : null;
   const qLower = searchQuery ? searchQuery.toLowerCase() : null;
@@ -4009,6 +4121,76 @@ function cacheCard(id: string, entry: { sig: unknown[]; html: string }): void {
 }
 
 /** Draw one card again from scratch (the feed otherwise reuses an unchanged card's DOM, editor included). */
+// ---- Events (TASK-009): formatted time, capacity and the RSVP bar on feed and Communities cards ----
+
+const RSVP_LABELS: [RsvpStatus, string][] = [["going", "Going"], ["interested", "Interested"], ["not_going", "Not going"]];
+
+function eventRsvpSummary(post: Post, cap?: number) {
+  return rsvpSummary(freenet.eventRsvps(post.author, post.id), {
+    me: currentIdentity?.pubkey,
+    isHidden: isHiddenAuthor,
+    isTrusted: (pk) => getWebOfTrust().isTrusted(pk),
+    cap,
+  });
+}
+
+/** What makes an event card's RSVP part look different: in the card cache signature. */
+function eventCardSig(post: Post): string {
+  if (post.category !== "event") return "";
+  const s = eventRsvpSummary(post);
+  return `${s.going}|${s.interested}|${s.notGoing}|${s.mine}|${s.avatars.join(",")}`;
+}
+
+/** When, where (masked if the reader wants), capacity and RSVP buttons of an event post. `cls` is the card's box class. */
+function eventDetailsHtml(post: Post, caption: string, cls: string): string {
+  if (post.category !== "event" || (!post.event_date && !post.location)) return "";
+  const w = eventWindow(post, caption);
+  const s = eventRsvpSummary(post, w?.cap);
+  const when = w ? formatEventWhen(w, w.tz, readerTz) : post.event_date ?? "";
+  const maskOn = safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0";
+  const location = post.location ? (maskOn ? maskProfanity(post.location) : post.location) : "";
+  const pid = escapeHtml(post.id);
+  const author = escapeHtml(post.author);
+  const avatars = s.avatars
+    .slice(0, 6)
+    .map((pk) => `<img src="${safeUrl(getAuthorAvatarUrl(pk))}" alt="${escapeHtml(getAuthorDisplayName(pk))}" title="${escapeHtml(getAuthorDisplayName(pk))}" class="event-rsvp-avatar author-clickable" data-author="${escapeHtml(pk)}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='${generateDefaultAvatar(pk)}'" />`)
+    .join("");
+  const counts = { going: s.going, interested: s.interested, not_going: s.notGoing };
+  const ended = !!w && (w.end?.getTime() ?? w.start.getTime()) < Date.now();
+  return `
+    <div class="${cls} event-details">
+      ${when ? `<div class="btn-icon-text">${renderIcon("calendar", { className: "icon-xs" })} <span>${escapeHtml(when)}</span></div>` : ""}
+      ${location ? `<div class="btn-icon-text">${renderIcon("mapPin", { className: "icon-xs" })} <span>${escapeHtml(location)}</span></div>` : ""}
+      ${w?.cap ? `<div class="event-cap${s.full ? " is-full" : ""}">${s.full ? "Full" : "Capacity"}: ${s.going} / ${w.cap} going</div>` : ""}
+      ${
+        currentIdentity && !ended
+          ? `<div class="event-rsvp" role="group" aria-label="RSVP">${RSVP_LABELS.map(
+              ([st, label]) =>
+                `<button type="button" class="btn-secondary btn-sm event-rsvp-btn${s.mine === st ? " active" : ""}" data-status="${st}" data-post-id="${pid}" data-author="${author}" aria-pressed="${s.mine === st}">${label} <span class="action-count">${counts[st]}</span></button>`,
+            ).join("")}</div>`
+          : ""
+      }
+      ${avatars ? `<div class="event-rsvp-avatars" aria-label="Attendees you trust">${avatars}</div>` : ""}
+    </div>`;
+}
+
+// one listener for every card (feed, single post view, Communities): the RSVP is a signed entry in the host's reactions log
+document.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".event-rsvp-btn");
+  if (!btn || !currentIdentity) return;
+  const { postId, author, status } = btn.dataset;
+  if (!postId || !author || !status || btn.classList.contains("active")) return;
+  void withBusy(btn, "Saving…", async () => {
+    try {
+      await freenet.setRsvp(currentIdentity!, author, postId, status as RsvpStatus);
+      redrawCard(postId);
+      renderCommunitiesPage(); // no-op when Communities is closed
+    } catch (err: any) {
+      showToast("Could not save your RSVP: " + (err?.message || String(err)), "error");
+    }
+  });
+});
+
 function redrawCard(postId: string) {
   cardCache.delete(postId);
   document.getElementById(`card-${postId}`)?.remove(); // an identical html would keep the old node, editor and all
@@ -5487,8 +5669,14 @@ document.querySelectorAll(".composer-tab").forEach((tab) => {
     btn.classList.add("active");
     activeComposerType = btn.dataset.type as PostCategory;
 
-    momentFields.style.display = activeComposerType === "moment" ? "flex" : "none";
-    eventFields.style.display = activeComposerType === "event" ? "flex" : "none";
+    const isEvent = activeComposerType === "event";
+    // the Event tab reuses the Moment picker for one cover image (no video, no carousel)
+    momentFields.style.display = activeComposerType === "moment" || isEvent ? "flex" : "none";
+    eventFields.style.display = isEvent ? "flex" : "none";
+    postFilePicker.accept = isEvent ? "image/*" : "image/*,video/*";
+    postFilePicker.multiple = !isEvent;
+    if (isEvent && (stagedVideo || extraMedia.length)) clearImageBtn.click();
+    if (isEvent) void populateEventRoomPicker();
   });
 });
 
@@ -5675,7 +5863,47 @@ publishBtn.addEventListener("click", async () => {
   if (!okToPublish(ownWords)) return; // not the repost link: its keys look like phone numbers to the check
   const finalCaption = withMentionKeys(postCaption, caption); // after the check: a key looks like a phone number to it
 
-  let mediaUri = activeComposerType === "moment" ? [postMediaUrl.value.trim(), ...extraMedia].filter(Boolean).join(" ") : undefined;
+  // Event: start in the chosen zone becomes a UTC instant (passes isCanonicalPost); end/tz/cap ride in the event line
+  let eventDate: string | undefined;
+  let eventCaption = finalCaption;
+  if (activeComposerType === "event") {
+    const tz = postEventTz.value || readerTz;
+    const start = zonedToUtc(postEventDate.value, tz);
+    if (isNaN(start.getTime())) {
+      showToast("Please set when the event starts.", "warning");
+      return;
+    }
+    let end: Date | undefined;
+    if (postEventEnd.value) {
+      end = zonedToUtc(postEventEnd.value, tz);
+      if (isNaN(end.getTime()) || end <= start) {
+        showToast("The event must end after it starts.", "warning");
+        return;
+      }
+      if (end.getTime() - start.getTime() > 31 * 86_400_000) {
+        showToast("An event can last at most 31 days.", "warning");
+        return;
+      }
+    }
+    const capRaw = postEventCap.value.trim();
+    const cap = capRaw ? Number(capRaw) : undefined;
+    if (cap !== undefined && !(Number.isInteger(cap) && cap >= 1 && cap <= 100_000)) {
+      showToast("Capacity must be a whole number from 1 to 100000.", "warning");
+      return;
+    }
+    const room = allPrivateRooms.find((r) => r.id === postEventRoom.value);
+    const invite = room && !extractLinkedRoomIds(eventCaption).includes(room.id) ? await inviteLinkOf(room) : null;
+    if (invite) eventCaption = `${eventCaption}\n${invite}`;
+    eventCaption = withEventLine(eventCaption, { end: end?.toISOString(), tz, cap });
+    eventDate = start.toISOString();
+  }
+
+  let mediaUri =
+    activeComposerType === "moment"
+      ? [postMediaUrl.value.trim(), ...extraMedia].filter(Boolean).join(" ")
+      : activeComposerType === "event"
+        ? postMediaUrl.value.trim() // cover: one image, scanned by the same picker (NSFW guard above)
+        : undefined;
   if (activeComposerType === "moment" && stagedVideo) {
     // Published before the post: the post must name a video the network already has.
     const label = publishBtn.textContent;
@@ -5691,7 +5919,6 @@ publishBtn.addEventListener("click", async () => {
     }
   }
   const location = activeComposerType === "event" ? postLocation.value.trim() : undefined;
-  const eventDate = activeComposerType === "event" ? postEventDate.value : undefined;
 
   // Proof-of-Work computation for Tier 0 (newcomer) personas to protect against Sybil flood
   let powProof: PoWProof | undefined;
@@ -5720,7 +5947,7 @@ publishBtn.addEventListener("click", async () => {
     id: tempId,
     author: currentIdentity.pubkey,
     category: activeComposerType,
-    caption: finalCaption,
+    caption: eventCaption,
     community_id: commId,
     media_uri: mediaUri || undefined,
     location: location || undefined,
@@ -5752,6 +5979,7 @@ publishBtn.addEventListener("click", async () => {
   stagedVideoPoster = null;
   revokePosterUrl();
   postLocation.value = "";
+  postEventDate.value = postEventEnd.value = postEventCap.value = postEventRoom.value = "";
   imagePreview.src = "";
   imagePreviewContainer.style.display = "none";
   if (moderationStatus) moderationStatus.style.display = "none";
@@ -5767,7 +5995,7 @@ publishBtn.addEventListener("click", async () => {
   freenet.publishPost(
     currentIdentity,
     activeComposerType,
-    finalCaption,
+    eventCaption,
     mediaUri || undefined,
     location || undefined,
     eventDate || undefined,
@@ -10069,6 +10297,12 @@ async function notifCounts(): Promise<(n: NotificationItem) => boolean> {
   const mine = (await freenet.getFeed(currentIdentity!.pubkey)).posts;
   const wot = getWebOfTrust();
   return (n) => {
+    // an event reminder is written on this device only: one claimed by an inbox entry, or for an event I did not RSVP to, is not
+    if (n.type === "event") {
+      if (!n.linkPostId || n.id !== eventReminderId(n.from, n.linkPostId)) return false;
+      const mine = freenet.eventRsvps(n.from, n.linkPostId).get(currentIdentity!.pubkey)?.status;
+      return mine === "going" || mine === "interested";
+    }
     if (isKnownSender(n.from)) return true;
     if (n.type === "report") return true;
     if (n.type === "mail") return true;
@@ -10112,6 +10346,7 @@ async function renderNotifs(notifs: NotificationItem[]) {
   const row = (n: NotificationItem) => `
       <div class="notif-item ${n.read ? "" : "unread"}" data-notif-id="${escapeHtml(n.id)}">
         <div class="notif-text">
+          ${n.type === "event" ? renderIcon("calendar", { className: "icon-xs", ariaLabel: "Event reminder" }) : ""}
           <span style="font-weight: 700;" title="${escapeHtml(n.from)}">${escapeHtml(getAuthorDisplayName(n.from))}</span>
           <span>${escapeHtml(n.text)}</span>
           ${aboutPost(n.linkPostId)}
@@ -10604,11 +10839,21 @@ function syncMailNotifications() {
   }
 }
 
+/** Local reminders for visible events I am Going to or Interested in, starting within the lead time (once per event by id). */
+function syncEventReminders() {
+  if (!currentIdentity || isMessengerMode()) return;
+  const me = currentIdentity.pubkey;
+  const events = visibleUpcomingEvents(buildModerationSets(me).policy);
+  for (const n of dueReminders(events, (e) => freenet.eventRsvps(e.post.author, e.post.id).get(me)?.status))
+    freenet.recordLocalNotification(me, n);
+}
+
 async function updateNotificationsBadge() {
   updateChatBadge();
   updateBlocklistsBadge();
   updateMailBadges();
   syncMailNotifications();
+  syncEventReminders();
   if (!currentIdentity) return;
   const notifs = splitNotifs(await freenet.getNotifications(currentIdentity), await notifCounts()).main; // strangers' are under "Others"
   const unreadCount = notifs.filter((n) => !n.read).length;
@@ -11017,6 +11262,37 @@ let dialogSlug = "";
 let linkedPickerRoomId: string | null = null;
 let commRoomPickerSeq = 0;
 let commRoomLinkSeq = 0;
+/** My private groups and channels as picker options (name decrypted), for linking a room from a community or an event. */
+async function myRoomEntries(identity: UserIdentity): Promise<{ id: string; label: string }[]> {
+  if (allPrivateRooms.length === 0) {
+    allPrivateRooms = await freenet.getPrivateRooms(identity).catch(() => []);
+  }
+  const myRooms = allPrivateRooms.filter((r) =>
+    r.river ? r.creator === identity.pubkey : r.creator === identity.pubkey || r.members.includes(identity.pubkey)
+  );
+  return Promise.all(
+    myRooms.map(async (r) => {
+      const name = await freenet
+        .getPrivateRoomDecryptedName(identity, r)
+        .catch(() => (r.is_channel ? `Channel (${r.id.slice(9, 15)})` : `Group (${r.id.slice(9, 15)})`));
+      return { id: r.id, label: `${r.is_channel ? "📢" : "💬"} ${name}` };
+    }),
+  );
+}
+let eventRoomPickerSeq = 0;
+/** Fill the Event tab's linked-room select with my groups and channels (kept selection if still there). */
+async function populateEventRoomPicker() {
+  if (!currentIdentity) return;
+  const seq = ++eventRoomPickerSeq;
+  const entries = await myRoomEntries(currentIdentity);
+  if (seq !== eventRoomPickerSeq) return;
+  const keep = postEventRoom.value;
+  postEventRoom.innerHTML = `<option value="">${entries.length ? "None (no linked room)" : "No private groups or channels yet — create one in Chat"}</option>${entries
+    .map((e) => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.label)}</option>`)
+    .join("")}`;
+  postEventRoom.disabled = !entries.length;
+  postEventRoom.value = entries.some((e) => e.id === keep) ? keep : "";
+}
 async function populateCommunityRoomPicker(currentDesc = commDescInput.value) {
   if (!commLinkRoomBox || !commLinkRoomSelect || !commInsertRoomBtn) return;
   if (!currentIdentity) {
@@ -11027,29 +11303,15 @@ async function populateCommunityRoomPicker(currentDesc = commDescInput.value) {
   const seq = ++commRoomPickerSeq;
   commLinkRoomBox.style.display = "";
   const identity = currentIdentity;
-  if (allPrivateRooms.length === 0) {
-    allPrivateRooms = await freenet.getPrivateRooms(identity).catch(() => []);
-  }
-  const myRooms = allPrivateRooms.filter((r) =>
-    r.river ? r.creator === identity.pubkey : r.creator === identity.pubkey || r.members.includes(identity.pubkey)
-  );
+  const entries = await myRoomEntries(identity);
   if (seq !== commRoomPickerSeq || currentIdentity?.pubkey !== identity.pubkey) return;
-  if (myRooms.length === 0) {
+  if (entries.length === 0) {
     commLinkRoomSelect.innerHTML = `<option value="">No private groups or channels yet — create one in Chat</option>`;
     commLinkRoomSelect.disabled = true;
     commInsertRoomBtn.disabled = true;
     linkedPickerRoomId = null;
     return;
   }
-  const entries = await Promise.all(
-    myRooms.map(async (r) => {
-      const name = await freenet
-        .getPrivateRoomDecryptedName(identity, r)
-        .catch(() => (r.is_channel ? `Channel (${r.id.slice(9, 15)})` : `Group (${r.id.slice(9, 15)})`));
-      return { id: r.id, label: `${r.is_channel ? "📢" : "💬"} ${name}` };
-    }),
-  );
-  if (seq !== commRoomPickerSeq || currentIdentity?.pubkey !== identity.pubkey) return;
   commLinkRoomSelect.disabled = false;
   commInsertRoomBtn.disabled = false;
   commLinkRoomSelect.innerHTML = `<option value="">None (no linked chat)</option>${entries
@@ -11572,13 +11834,7 @@ function renderCommunitiesPage() {
             </div>`
           : "";
 
-        const eventMetaHtml =
-          post.category === "event" && (post.event_date || post.location)
-            ? `<div class="reddit-event-bar">
-                ${post.event_date ? `<span>${renderIcon("calendar", { className: "icon-xs" })} ${escapeHtml(post.event_date)}</span>` : ""}
-                ${post.location ? `<span>${renderIcon("mapPin", { className: "icon-xs" })} ${escapeHtml(post.location)}</span>` : ""}
-              </div>`
-            : "";
+        const eventMetaHtml = eventDetailsHtml(post, rawCaption, "reddit-event-bar");
 
         const showExpandedBody = redditViewMode === "card" || isExpanded;
 
