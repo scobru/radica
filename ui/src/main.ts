@@ -1962,10 +1962,43 @@ document.addEventListener("click", (e) => {
     box.remove();
     document.removeEventListener("keydown", onKey);
   };
+  // Moments: past the post's own photos, swipe or arrow keys open the next / previous picture of the grid
+  const ring = img.closest("#media-grid-container")
+    ? Array.from(document.querySelectorAll<HTMLImageElement>("#media-grid-container img.media-thumb")).filter(
+        (i) => i.style.display !== "none" && !i.closest(".nsfw-shielded:not(.revealed)"),
+      )
+    : [];
+  const atEdge = (dir: number) =>
+    !track || (dir > 0 ? track.scrollLeft + track.clientWidth >= track.scrollWidth - 2 : track.scrollLeft <= 2);
+  const go = (dir: number) => {
+    if (track && !atEdge(dir)) return step(dir);
+    const next = ring[ring.indexOf(img) + dir];
+    if (!next) return;
+    close();
+    next.click();
+  };
   const onKey = (ev: KeyboardEvent) => {
     if (ev.key === "Escape") close();
-    else if (track && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) step(ev.key === "ArrowLeft" ? -1 : 1);
+    else if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") go(ev.key === "ArrowLeft" ? -1 : 1);
   };
+  let touch: { x: number; y: number; edge: [boolean, boolean] } | null = null;
+  box.addEventListener("touchstart", (ev) => {
+    const t = ev.touches[0];
+    touch = ev.touches.length === 1 ? { x: t.clientX, y: t.clientY, edge: [atEdge(-1), atEdge(1)] } : null;
+  }, { passive: true });
+  box.addEventListener("touchend", (ev) => {
+    const t = ev.changedTouches[0];
+    if (!touch || !ring.length) return;
+    const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    const dir = dx < 0 ? 1 : -1;
+    // inside a multi-photo post the track scrolls by itself: only a swipe that started at its end leaves the post
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && touch.edge[dir > 0 ? 1 : 0]) {
+      ev.preventDefault(); // no click after the swipe: it would close the next lightbox
+      const next = ring[ring.indexOf(img) + dir];
+      if (next) { close(); next.click(); }
+    }
+    touch = null;
+  });
   box.addEventListener("click", (ev) => {
     const nav = (ev.target as HTMLElement).closest<HTMLElement>(".carousel-nav");
     if (nav) step(nav.classList.contains("prev") ? -1 : 1);
@@ -8373,12 +8406,9 @@ const virtualKb = (
     };
   }
 ).virtualKeyboard;
-if (virtualKb) {
-  try {
-    virtualKb.overlaysContent = true;
-  } catch {}
-  virtualKb.addEventListener?.("geometrychange", syncMobileViewport);
-}
+// no overlaysContent: interactive-widget=resizes-content (and the Android app's own IME padding) already shrink the page;
+// overlaying on top of that made the keyboard count twice in the Android app and hid half the composer
+virtualKb?.addEventListener?.("geometrychange", syncMobileViewport);
 
 let currentUiZoom = 1;
 let lastVvh: number | null = null;
