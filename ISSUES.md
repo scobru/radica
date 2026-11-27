@@ -9,15 +9,16 @@ Each non-trivial task or bug has a dedicated specification file in the `tasks/` 
 
 | ID | Title | Status | Priority | File |
 |---|---|---|---|---|
-| `TASK-001` | Responsive 13.3" Laptop Layout for Wall & Profile Modal | 🟢 DONE | High | [`tasks/001-laptop-responsive-profile-wall.md`](file:///d:/radica/tasks/001-laptop-responsive-profile-wall.md) |
-| `TASK-002` | Fix Native Freemail Reply: Use Inbox Contract Token as Sender `from` | 🟢 DONE | High | [`tasks/002-freenet-mail-native-reply-token.md`](file:///d:/radica/tasks/002-freenet-mail-native-reply-token.md) |
-| `TASK-003` | Mail Contacts Management: Add & Remove Contacts from Address Book | 🟢 DONE | High | [`tasks/003-mail-contacts-management.md`](file:///d:/radica/tasks/003-mail-contacts-management.md) |
-| `TASK-004` | Long-Form Articles & Decentralized Newsletters (Substack / Medium) | 🟢 DONE | High | [`tasks/004-long-form-articles-newsletter.md`](file:///d:/radica/tasks/004-long-form-articles-newsletter.md) |
-| `TASK-005` | Multi-Channel Community Spaces (Discord) | ⚪ TODO | High | [`tasks/005-multi-channel-communities.md`](file:///d:/radica/tasks/005-multi-channel-communities.md) |
-| `TASK-006` | Short-Form Vertical Video & Video Channels (TikTok / YouTube) | 🟢 DONE | Medium | [`tasks/006-video-reels-and-channels.md`](file:///d:/radica/tasks/006-video-reels-and-channels.md) |
-| `TASK-007` | Curated Boards & Collections (Pinterest / Are.na) | 🟢 DONE | Medium | [`tasks/007-curated-boards-collections.md`](file:///d:/radica/tasks/007-curated-boards-collections.md) |
-| `TASK-008` | Social Audio, Podcasts & Persistent Player (Spotify / FreeTunes) | 🟢 DONE | Low | [`tasks/008-social-audio-and-freetunes.md`](file:///d:/radica/tasks/008-social-audio-and-freetunes.md) |
-| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | ⚪ TODO | Low | [`tasks/009-events-rsvp-calendar.md`](file:///d:/radica/tasks/009-events-rsvp-calendar.md) |
+| `TASK-001` | Responsive 13.3" Laptop Layout for Wall & Profile Modal | 🟢 DONE | High | [`tasks/001-laptop-responsive-profile-wall.md`](tasks/001-laptop-responsive-profile-wall.md) |
+| `TASK-002` | Fix Native Freemail Reply: Use Inbox Contract Token as Sender `from` | 🟢 DONE | High | [`tasks/002-freenet-mail-native-reply-token.md`](tasks/002-freenet-mail-native-reply-token.md) |
+| `TASK-003` | Mail Contacts Management: Add & Remove Contacts from Address Book | 🟢 DONE | High | [`tasks/003-mail-contacts-management.md`](tasks/003-mail-contacts-management.md) |
+| `TASK-004` | Long-Form Articles & Decentralized Newsletters (Substack / Medium) | 🟢 DONE | High | [`tasks/004-long-form-articles-newsletter.md`](tasks/004-long-form-articles-newsletter.md) |
+| `TASK-005` | Multi-Channel Community Spaces (Discord) | ⚪ TODO (spec needs redesign) | High | [`tasks/005-multi-channel-communities.md`](tasks/005-multi-channel-communities.md) |
+| `TASK-006` | Short-Form Vertical Video & Video Channels (TikTok / YouTube) | 🟢 DONE | Medium | [`tasks/006-video-reels-and-channels.md`](tasks/006-video-reels-and-channels.md) |
+| `TASK-007` | Curated Boards & Collections (Pinterest / Are.na) | 🟢 DONE | Medium | [`tasks/007-curated-boards-collections.md`](tasks/007-curated-boards-collections.md) |
+| `TASK-008` | Social Audio, Podcasts & Persistent Player (Spotify / FreeTunes) | 🟢 DONE | Low | [`tasks/008-social-audio-and-freetunes.md`](tasks/008-social-audio-and-freetunes.md) |
+| `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | ⚪ TODO | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
+| `TASK-010` | Contract v2 (feed + log) migration | 🟡 IN_PROGRESS (done in code, pre-publish checks open) | High | [`tasks/010-contract-v2-migration.md`](tasks/010-contract-v2-migration.md) |
 
 ---
 

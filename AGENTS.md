@@ -18,3 +18,15 @@ Any feature that creates, publishes, or displays user-generated content (posts, 
 1. New module/utility → unit tests in `ui/tests/<feature>.test.ts`. Run `npm test` (or `node --experimental-strip-types --test tests/<feature>.test.ts`).
 2. Always: `npm run build` — TypeScript + Vite production bundle, zero errors.
 3. After modifying code files: `graphify update .` from repo root to keep `graphify-out/` current (AST-only, no LLM cost).
+
+## Multi-agent workflow (`.claude/agents/`)
+Features with a `tasks/NNN-*.md` spec go through 4 roles, in this order:
+1. `radica-architect`: checks the spec against the code (`## Reality check`), appends `## Plan` and `## Tasks` tagged `[core]` / `[ui]` / `[test]`. No code.
+2. `radica-builder` (`[core]`: logic, data, contracts) and `radica-ui` (`[ui]`: markup, CSS, page wiring, `updates.ts`, `#guide-modal`) in parallel: they own different files.
+3. `radica-tester` (`[test]`): `ui/tests/`, `npm test`, `npm run build`, `graphify update .`, checks rules above, `CHANGELOG.md`/`README.md`, closes the spec.
+
+Rules:
+- The spec is the shared state: `[ ]` open, `[~] <role>` taken, `[x]` done. Never take a `[~]` task.
+- Stay in your role's files. Need a change elsewhere: write a note under that role's task.
+- Parallel agents on the same branch: one worktree each (`isolation: worktree`), merge after tester passes.
+- A failing check reopens the task with a `> fail:` note; the tester does not fix production code.

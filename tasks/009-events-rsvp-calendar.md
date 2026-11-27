@@ -14,5 +14,9 @@ Upgrade the existing `Events` post category from a simple feed filter into a ful
    - Add unit tests for event date/timezone parsing, upcoming sorting, and RSVP state folding.
    - Update `ui/src/updates.ts`, `CHANGELOG.md`, `CONTEXT.md`, and `README.md` upon implementation.
 
+## Reality check (2026-11-27)
+Still TODO. Already there: the `event` category, a free-text `location` and `event_date` in the signed post (`radica/post/v3`), the Event tab in the composer and the `reddit-event-location` field in Communities, the Event flair.
+Missing: end time and timezone, capacity, cover, RSVP (no signed interaction exists), attendee list, calendar view, reminders in Activity.
+
 ## Status
 ⚪ **TODO** (2026-11-14)
