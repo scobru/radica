@@ -13,6 +13,8 @@ import {
   shouldDeferBackgroundRender,
   detectMentionTrigger,
   filterMentionCandidates,
+  filterContactPeers,
+  unreadSeparatorAt,
   type MessageSwipePhase,
   type PreviewItem,
   type RoomMeta,
@@ -663,11 +665,11 @@ export function createMessengerChat(deps: MessengerDeps) {
     </div>
 
     <!-- REAL SHA-256 SAFETY NUMBER MODAL -->
-    <div class="rm-modal-backdrop" id="rm-safety-modal">
+    <div class="rm-modal-backdrop rm-page" id="rm-safety-modal">
       <div class="rm-modal">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="rm-page-head" style="display: flex; justify-content: space-between; align-items: center;">
           <h3>E2EE Safety Number</h3>
-          <button type="button" class="rm-icon-btn" id="rm-safety-modal-close">${renderIcon("x", { className: "icon-sm" })}</button>
+          <button type="button" class="rm-icon-btn" id="rm-safety-modal-close" aria-label="Close">${renderIcon("x", { className: "icon-sm rm-wide-only" })}<svg viewBox="0 0 24 24" class="svg-icon icon-md rm-narrow-back" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
         </div>
         <p style="margin: 0; font-size: 0.82rem; color: var(--rm-text-secondary); line-height: 1.45;">
           Numeric blocks computed via <b>SHA-256</b> over your real cryptographic keys (<code id="rm-safety-me-name" style="font-weight:700;"></code>) and <b id="rm-safety-peer-name"></b>'s keys. If they match on both devices, this session is end-to-end authentic.
@@ -680,14 +682,20 @@ export function createMessengerChat(deps: MessengerDeps) {
       </div>
     </div>
 
-    <!-- NEW CONVERSATION / START REAL DM MODAL -->
-    <div class="rm-modal-backdrop" id="rm-new-chat-modal">
+    <!-- NEW CONVERSATION / START REAL DM MODAL (a page on phones) -->
+    <div class="rm-modal-backdrop rm-page" id="rm-new-chat-modal">
       <div class="rm-modal">
-        <div class="rm-new-chat-head" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="rm-new-chat-head rm-page-head" style="display: flex; justify-content: space-between; align-items: center;">
           <h3>New Conversation</h3>
-          <button type="button" class="rm-icon-btn" id="rm-new-chat-close" aria-label="Close">${renderIcon("x", { className: "icon-sm rm-wide-only" })}<svg viewBox="0 0 24 24" class="svg-icon icon-md rm-narrow-back"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <input type="search" id="rm-new-chat-input" class="rm-field-input rm-new-chat-search" placeholder="Search name, @handle, key or contact card" aria-label="Search contacts, or enter an @handle, key or contact card" autocomplete="off" hidden />
+          <button type="button" class="rm-icon-btn rm-new-chat-search-btn" id="rm-new-chat-search-btn" aria-label="Search contacts" title="Search">${renderIcon("search", { className: "icon-sm" })}</button>
+          <button type="button" class="rm-icon-btn" id="rm-new-chat-close" aria-label="Close">${renderIcon("x", { className: "icon-sm rm-wide-only" })}<svg viewBox="0 0 24 24" class="svg-icon icon-md rm-narrow-back" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
         </div>
-        <div class="rm-new-chat-actions">
+        <div class="rm-new-chat-go-row" id="rm-new-chat-go-row" hidden>
+          <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go">Open DM</button>
+          <button type="button" class="rm-icebreaker-btn secret" id="rm-new-chat-secret-go">${renderIcon("lock", { size: 14, className: "icon-xs" })} Secret</button>
+        </div>
+        <div class="rm-new-chat-actions rm-page-rows">
           <button type="button" class="rm-link-btn" id="rm-modal-create-room">${renderIcon("users", { size: 14, className: "icon-xs" })} New E2EE Group</button>
           <button type="button" class="rm-link-btn" id="rm-modal-join-room">${renderIcon("key", { size: 14, className: "icon-xs" })} Join with Invite Code</button>
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
@@ -696,31 +704,24 @@ export function createMessengerChat(deps: MessengerDeps) {
           <button type="button" class="rm-link-btn" id="rm-modal-scan-qr">${renderIcon("camera", { size: 14, className: "icon-xs" })} Scan a QR</button>
           <input type="file" id="rm-scan-qr-input" accept="image/*" capture="environment" hidden />
         </div>
-        <p style="margin: 0; font-size: 0.74rem; line-height: 1.35; color: var(--rm-text-muted);">Contact card and QR let someone write to you even offline: they paste the card below or scan the QR. Public keys and name only.</p>
+        <p style="margin: 0; font-size: 0.74rem; line-height: 1.35; color: var(--rm-text-muted);">Contact card and QR let someone write to you even offline: they paste the card in search or scan the QR. Public keys and name only.</p>
         <div id="rm-my-qr" class="rm-my-qr" hidden></div>
         <div id="rm-nearby" class="rm-nearby" hidden>
           <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Nearby (same Wi-Fi or hotspot)</label>
           <label class="rm-nearby-toggle"><input type="checkbox" id="rm-nearby-visible" /> Let people on this Wi-Fi find me</label>
           <div id="rm-nearby-list"></div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.75rem; font-weight: 700; color: var(--rm-text-muted); text-transform: uppercase;">Start a chat (@handle, key or contact card)</label>
-          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-            <input type="text" id="rm-new-chat-input" class="rm-field-input" style="flex: 1 1 100%;" placeholder="Type @handle, persona key, 64-hex, or filter contacts…" autocomplete="off" />
-            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-go" style="margin-top: 0; white-space: nowrap; flex: 1;">Open DM</button>
-            <button type="button" class="rm-icebreaker-btn" id="rm-new-chat-secret-go" style="margin-top: 0; white-space: nowrap; flex: 1; background: #059669; border-color: #10b981;">${renderIcon("lock", { size: 14, className: "icon-xs" })} Secret</button>
-          </div>
-        </div>
+        <h4 class="rm-contacts-title">Contacts on Radica</h4>
         <div class="rm-contact-picker-list" id="rm-contact-picker-list"></div>
       </div>
     </div>
 
     <!-- REAL FREEPOLLS IN-CHAT CREATOR MODAL -->
-    <div class="rm-modal-backdrop" id="rm-poll-modal">
+    <div class="rm-modal-backdrop rm-page" id="rm-poll-modal">
       <div class="rm-modal">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="rm-page-head" style="display: flex; justify-content: space-between; align-items: center;">
           <h3>New FreePolls Poll</h3>
-          <button type="button" class="rm-icon-btn" id="rm-poll-close">${renderIcon("x", { className: "icon-sm" })}</button>
+          <button type="button" class="rm-icon-btn" id="rm-poll-close" aria-label="Close">${renderIcon("x", { className: "icon-sm rm-wide-only" })}<svg viewBox="0 0 24 24" class="svg-icon icon-md rm-narrow-back" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
         </div>
         <p style="margin: 0; font-size: 0.8rem; color: var(--rm-text-secondary);">
           Publishes a live FreePolls contract on your Freenet node and sends an interactive poll to this conversation.
@@ -1864,6 +1865,11 @@ export function createMessengerChat(deps: MessengerDeps) {
     replyBannerEl.classList.add("open");
   }
 
+  // "N unread messages" pill: the read mark from before this open, frozen for the open. seenUnreadSince keeps the
+  // value each room last rendered with, so a reopen with nothing new (same value) shows no pill.
+  let sepSince: number | undefined;
+  const seenUnreadSince = new Map<string, number | undefined>();
+
   function renderThread(scrollToBottom = false) {
     if (!isVisible()) return;
     const identity = deps.getIdentity();
@@ -1965,6 +1971,10 @@ export function createMessengerChat(deps: MessengerDeps) {
             }</span></span>
             <button type="button" id="rm-inline-verify-btn">Verify safety number</button>
           </div>`;
+
+    const since = deps.conversation.unreadSince(openId);
+    if (switchedConv) sepSince = since !== undefined && seenUnreadSince.get(openId) !== since ? since : undefined;
+    seenUnreadSince.set(openId, since);
 
     const allMsgs = st.shownMessages;
     const q = threadQuery.trim().toLowerCase();
@@ -2093,6 +2103,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       });
     }
 
+    const unreadSep = q ? null : unreadSeparatorAt(msgs.slice(startIndex), me, sepSince);
     for (let i = startIndex; i < msgs.length; i++) {
       const m = msgs[i];
       const prev = msgs[i - 1];
@@ -2102,6 +2113,12 @@ export function createMessengerChat(deps: MessengerDeps) {
       if (dateLabel !== lastDateStr) {
         rowItems.push({ key: `sep:${dateLabel}:${i}`, html: `<div class="rm-date-sep">${escapeHtml(dateLabel)}</div>` });
         lastDateStr = dateLabel;
+      }
+      if (unreadSep && i === startIndex + unreadSep.index) {
+        rowItems.push({
+          key: `unread-sep:${openId}`,
+          html: `<div class="rm-unread-sep" role="separator">${unreadSep.count} unread message${unreadSep.count === 1 ? "" : "s"}</div>`,
+        });
       }
 
       // System join event (River style)
@@ -2260,7 +2277,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
       rowItems.push({
         key: `msg:${m.id}`,
-        html: `<div class="rm-msg-row ${isMine ? "mine" : "theirs"} ${groupedPrev ? "grouped-prev" : ""} ${groupedNext ? "grouped-next" : ""} ${hasReactions ? "has-reactions" : ""}" data-msg-id="${escapeHtml(m.id)}">
+        html: `<div class="rm-msg-row ${isMine ? "mine" : "theirs"} ${groupedPrev ? "grouped-prev" : "run-first"} ${groupedNext ? "grouped-next" : ""} ${hasReactions ? "has-reactions" : ""}" data-msg-id="${escapeHtml(m.id)}">
           ${isMine ? hoverBarHtml : avatarGutterHtml}
           <div class="rm-bubble-wrap">
             <div class="rm-bubble">
@@ -2321,6 +2338,9 @@ export function createMessengerChat(deps: MessengerDeps) {
     } else if (scrollAction === "preserve") {
       messagesScrollerEl.scrollTop = prevScrollTop;
     }
+    // first render of this open: start at the unread pill, not the bottom
+    const sepEl = switchedConv && unreadSep ? messagesTrackEl.querySelector<HTMLElement>(".rm-unread-sep") : null;
+    if (sepEl) messagesScrollerEl.scrollTop += sepEl.getBoundingClientRect().top - messagesScrollerEl.getBoundingClientRect().top - 12;
   }
 
   function renderSharedMediaDrawerSection(messages: ChatMessage[]): string {
@@ -2803,6 +2823,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const me = identity.pubkey;
     const q = newChatInputEl.value.trim().toLowerCase();
     const cleanQ = q.replace(/^@/, "");
+    const goRowEl = newChatModalEl.querySelector("#rm-new-chat-go-row") as HTMLElement;
 
     const isPeerBlocked = (pk: string) => (deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(me).has(pk));
     const allPeers = Array.from(
@@ -2820,21 +2841,21 @@ export function createMessengerChat(deps: MessengerDeps) {
       allPeers.unshift(resolvedHandlePk);
     }
 
-    const filtered = allPeers.filter((pk) => {
-      if (!q) return !isPeerBlocked(pk);
-      const name = deps.getAuthorDisplayName(pk).toLowerCase();
-      const h = freenet.handleOf(pk)?.toLowerCase() || "";
-      return name.includes(q) || pk.toLowerCase().includes(q) || personaName(pk).toLowerCase().includes(q) || h.includes(cleanQ);
-    });
+    const filtered = filterContactPeers(allPeers, q, (pk) => ({
+      name: deps.getAuthorDisplayName(pk),
+      handle: freenet.handleOf(pk) || undefined,
+      persona: personaName(pk),
+      blocked: isPeerBlocked(pk),
+    }));
 
+    // Open DM / Secret only for typed text no listed contact matches (a key, @handle or contact card to resolve)
+    goRowEl.hidden = !q || filtered.length > 0;
     if (filtered.length === 0) {
-      contactPickerListEl.innerHTML = `
-        <div style="padding: 16px; text-align: center; font-size: 0.8rem; color: var(--rm-text-muted);">
-          ${/^[0-9a-f]{64}$/i.test(q)
-            ? `Valid key detected! Click <b>Open DM</b> to start.`
-            : `No matching contacts. You can enter an @handle, Base58 persona, or paste a 64-hex key above.`}
-        </div>
-      `;
+      contactPickerListEl.innerHTML = `<p class="rm-contact-pick-empty">${
+        q
+          ? `Not in your contacts. If it is an @handle, key or contact card, choose <b>Open DM</b> or <b>Secret</b> above.`
+          : `No contacts yet. Search an @handle or key, or share your contact card.`
+      }</p>`;
       return;
     }
 
@@ -2849,21 +2870,21 @@ export function createMessengerChat(deps: MessengerDeps) {
         const h = freenet.handleOf(pk);
         const subDisplay = h ? `@${escapeHtml(h)} · ${escapeHtml(shortenKey(personaName(pk)))}` : `@${escapeHtml(shortenKey(personaName(pk)))}`;
         return `
-          <div class="rm-contact-pick-row" data-pick-peer="${escapeHtml(pk)}" style="display:flex;align-items:center;padding:8px 12px;gap:10px;border-radius:10px;background:var(--rm-bg-secondary);margin-bottom:6px;${blocked ? "opacity:0.85;" : ""}">
-            <img src="${safeUrl(avatar) || fallback}" alt="${escapeHtml(name)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.onerror=null;this.src='${fallback}'" />
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:0.86rem;font-weight:650;display:flex;align-items:center;gap:6px;">
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</span>
-                ${blocked ? `<span class="rm-origin-pill" style="background:var(--rm-danger, #e53e3e);color:#fff;">Blocked</span>` : ""}
+          <div class="rm-contact-pick-row ${blocked ? "blocked" : ""}" data-pick-peer="${escapeHtml(pk)}">
+            <img class="rm-contact-pick-avatar" src="${safeUrl(avatar) || fallback}" alt="" onerror="this.onerror=null;this.src='${fallback}'" />
+            <div class="rm-contact-pick-main">
+              <div class="rm-contact-pick-name">
+                <span>${escapeHtml(name)}</span>
+                ${blocked ? `<span class="rm-origin-pill blocked">Blocked</span>` : ""}
                 ${isFollowed ? `<span class="rm-origin-pill">Following</span>` : ""}
               </div>
-              <div style="font-family:var(--rm-font-mono);font-size:0.71rem;color:var(--rm-text-muted);">${subDisplay}</div>
+              <div class="rm-contact-pick-sub">${subDisplay}</div>
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0;">
+            <div class="rm-contact-pick-actions">
               ${blocked
-                ? `<button type="button" class="rm-contact-btn" data-action="unblock" data-pk="${escapeHtml(pk)}" style="color:var(--rm-danger);border-color:var(--rm-danger);">Unblock</button>`
-                : `<button type="button" class="rm-contact-btn" data-action="dm" data-pk="${escapeHtml(pk)}">DM</button>
-                   <button type="button" class="rm-contact-btn secret" data-action="secret" data-pk="${escapeHtml(pk)}" title="Start single-device ephemeral Secret Chat">${renderIcon("lock", { size: 12, className: "icon-xs" })} Secret</button>`
+                ? `<button type="button" class="rm-contact-btn danger" data-action="unblock" data-pk="${escapeHtml(pk)}" aria-label="Unblock ${escapeHtml(name)}">Unblock</button>`
+                : `<button type="button" class="rm-contact-btn" data-action="dm" data-pk="${escapeHtml(pk)}" aria-label="Message ${escapeHtml(name)}">DM</button>
+                   <button type="button" class="rm-contact-btn secret" data-action="secret" data-pk="${escapeHtml(pk)}" title="Start single-device ephemeral Secret Chat" aria-label="Secret Chat with ${escapeHtml(name)}">${renderIcon("lock", { size: 12, className: "icon-xs" })} Secret</button>`
               }
             </div>
           </div>
@@ -2895,12 +2916,24 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (newChatModalEl.classList.contains("open")) renderNearby();
   });
 
+  /** Header search: the title gives way to the field (its id keeps all the input wiring), Back clears it first. */
+  function setNewChatSearch(on: boolean) {
+    newChatModalEl.classList.toggle("searching", on);
+    newChatInputEl.hidden = !on;
+    if (on) {
+      setTimeout(() => newChatInputEl.focus(), 30);
+    } else if (newChatInputEl.value) {
+      newChatInputEl.value = "";
+      renderContactPickerList();
+    }
+  }
+
   function openNewChatModal() {
     newChatInputEl.value = "";
+    setNewChatSearch(false);
     renderContactPickerList();
     renderNearby();
     newChatModalEl.classList.add("open");
-    setTimeout(() => newChatInputEl.focus(), 30);
   }
 
   // ---- Wire Interactive Listeners ----
@@ -4328,7 +4361,11 @@ export function createMessengerChat(deps: MessengerDeps) {
   });
 
   // New Chat Modal listeners
-  inModals("#rm-new-chat-close")?.addEventListener("click", () => newChatModalEl.classList.remove("open"));
+  inModals("#rm-new-chat-close")?.addEventListener("click", () => {
+    if (newChatModalEl.classList.contains("searching")) setNewChatSearch(false);
+    else newChatModalEl.classList.remove("open");
+  });
+  inModals("#rm-new-chat-search-btn")?.addEventListener("click", () => setNewChatSearch(true));
   newChatModalEl.addEventListener("click", (e) => {
     if (e.target === newChatModalEl) newChatModalEl.classList.remove("open");
   });
@@ -4457,7 +4494,9 @@ export function createMessengerChat(deps: MessengerDeps) {
       deps.showToast("No Radica contact QR found in that photo. Try again closer, with the whole code in view.", "warning");
       return;
     }
+    setNewChatSearch(true);
     newChatInputEl.value = contactCardText(card);
+    renderContactPickerList();
     deps.showToast(`Contact ${card.name || "card"} read: choose Open DM or Secret.`, "info");
   });
   inModals("#rm-nearby-visible")?.addEventListener("change", (e) => {
@@ -4476,7 +4515,7 @@ export function createMessengerChat(deps: MessengerDeps) {
   inModals("#rm-new-chat-go")?.addEventListener("click", () => void startDmFromInput(false));
   inModals("#rm-new-chat-secret-go")?.addEventListener("click", () => void startDmFromInput(true));
   inModals("#rm-modal-new-secret")?.addEventListener("click", () => {
-    newChatInputEl.focus();
+    setNewChatSearch(true);
     deps.showToast("Select a contact or enter @handle/key to start a Secret Chat", "info");
   });
   newChatInputEl.addEventListener("keydown", (e) => {
@@ -4661,6 +4700,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     openSafetyModal: () => openSafetyModal(),
     openNewChatModal: (preferSecret = false) => {
       openNewChatModal();
+      if (preferSecret) setNewChatSearch(true);
       if (preferSecret) {
         const secretBtn = newChatModalEl.querySelector("#rm-new-chat-secret-go") as HTMLElement | null;
         if (secretBtn) secretBtn.style.boxShadow = "0 0 0 2px #10b981";

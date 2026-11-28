@@ -6184,6 +6184,8 @@ modalAvatarPreview.onerror = () => {
 modalCancelBtn.addEventListener("click", () => {
   profileModal.style.display = "none";
 });
+// phone page Back (index.html #profile-modal head) does what Cancel does
+document.getElementById("profile-modal-back-btn")?.addEventListener("click", () => modalCancelBtn.click());
 
 /** Show my newly saved profile everywhere, and tell the network. */
 /** Render a user's profile bio with full Markdown formatting, preserved newlines/spaces, and clickable links. */

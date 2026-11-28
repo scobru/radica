@@ -4337,18 +4337,17 @@ progress.cm-vnote-ring {
 }
 
 /* Phones: shared page pattern (WhatsApp-like): any overlay with .rm-page becomes a full-screen page with Back on the left.
-   :is(#chat-modal, body) lifts specificity over "#chat-modal .rm-modal-backdrop" and "#profile-modal .modal-card".
-   The #rm-new-chat-modal / .rm-new-chat-head / .rm-new-chat-actions aliases keep New Conversation as a page until
-   messengerChat.ts carries the classes (ui-6); drop them then. */
+   :is(#chat-modal, body) lifts specificity over "#chat-modal .rm-modal-backdrop", "#chat-modal .rm-new-chat-actions"
+   and "#profile-modal .modal-card". */
 @media (max-width: 768px) {
-  :is(#chat-modal, body) :is(.rm-page, #rm-new-chat-modal) {
+  :is(#chat-modal, body) .rm-page {
     padding: 0;
     place-items: stretch;
     align-items: stretch;
     backdrop-filter: none;
     background: var(--rm-bg-inbox, var(--bg));
   }
-  :is(#chat-modal, body) :is(.rm-page, #rm-new-chat-modal) > :is(.rm-modal, .modal-card) {
+  :is(#chat-modal, body) .rm-page > :is(.rm-modal, .modal-card) {
     max-width: none !important; /* index.html cards set max-width inline */
     width: 100%;
     max-height: none;
@@ -4361,7 +4360,7 @@ progress.cm-vnote-ring {
     gap: 10px;
     background: var(--rm-bg-inbox, var(--bg));
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) {
+  :is(#chat-modal, body) .rm-page-head {
     flex-direction: row-reverse;
     justify-content: flex-end !important;
     gap: 8px;
@@ -4374,11 +4373,11 @@ progress.cm-vnote-ring {
     z-index: 1;
     background: inherit;
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) h3 {
+  :is(#chat-modal, body) .rm-page-head h3 {
     margin: 0;
     font-size: 1.2rem !important; /* over the shared .modal-card h3 size */
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) > :is(button, label) {
+  :is(#chat-modal, body) .rm-page-head > :is(button, label) {
     border-color: transparent;
     background: transparent;
     box-shadow: none;
@@ -4386,23 +4385,23 @@ progress.cm-vnote-ring {
     cursor: pointer;
     color: inherit;
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) .rm-wide-only {
+  :is(#chat-modal, body) .rm-page-head .rm-wide-only {
     display: none;
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) .rm-narrow-back {
+  :is(#chat-modal, body) .rm-page-head .rm-narrow-back {
     display: block;
   }
-  :is(.rm-page-head, #chat-modal .rm-new-chat-head) :is(svg.rm-narrow-back, .rm-narrow-back svg) {
+  :is(#chat-modal, body) .rm-page-head :is(svg.rm-narrow-back, .rm-narrow-back svg) {
     width: 22px;
     height: 22px;
   }
-  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) {
+  :is(#chat-modal, body) .rm-page-rows {
     margin-inline: -16px;
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;
   }
-  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) > :is(button, .rm-link-btn) {
+  :is(#chat-modal, body) .rm-page-rows > :is(button, .rm-link-btn) {
     justify-content: flex-start;
     gap: 16px;
     padding: 9px 16px;
@@ -4412,7 +4411,7 @@ progress.cm-vnote-ring {
     font-size: 1.02rem;
     font-weight: 600;
   }
-  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) > :is(button, .rm-link-btn) svg {
+  :is(#chat-modal, body) .rm-page-rows > :is(button, .rm-link-btn) svg {
     width: 44px;
     height: 44px;
     padding: 11px;
@@ -4420,5 +4419,193 @@ progress.cm-vnote-ring {
     background: var(--rm-accent, var(--primary));
     color: var(--rm-bg-inbox, var(--bg));
     flex-shrink: 0;
+  }
+}
+
+/* New Conversation (TASK-011): search in the header, Open DM / Secret only for an unlisted key, "Contacts on Radica" */
+#chat-modal .rm-new-chat-head h3 {
+  flex: 1;
+  min-width: 0;
+}
+#chat-modal .rm-new-chat-search {
+  flex: 1;
+  min-width: 0;
+}
+#chat-modal .rm-new-chat-search[hidden],
+#chat-modal .rm-new-chat-go-row[hidden],
+#chat-modal #rm-new-chat-modal.searching .rm-new-chat-head h3,
+#chat-modal #rm-new-chat-modal.searching .rm-new-chat-search-btn {
+  display: none;
+}
+#chat-modal .rm-new-chat-go-row {
+  display: flex;
+  gap: 8px;
+}
+#chat-modal .rm-new-chat-go-row .rm-icebreaker-btn {
+  flex: 1;
+  margin-top: 0;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+#chat-modal .rm-new-chat-go-row .rm-icebreaker-btn.secret {
+  background: #059669;
+}
+#chat-modal .rm-contacts-title {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--rm-text-muted);
+}
+#chat-modal .rm-contact-pick-row.blocked {
+  opacity: 0.85;
+}
+#chat-modal .rm-contact-pick-main {
+  flex: 1;
+  min-width: 0;
+}
+#chat-modal .rm-contact-pick-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+#chat-modal .rm-contact-pick-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#chat-modal .rm-contact-pick-sub {
+  font-family: var(--rm-font-mono);
+  font-size: 0.71rem;
+  color: var(--rm-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#chat-modal .rm-contact-pick-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#chat-modal .rm-origin-pill.blocked {
+  background: var(--rm-danger, #e53e3e);
+  color: #fff;
+}
+#chat-modal .rm-contact-btn.danger {
+  color: var(--rm-danger, #e53e3e);
+  border-color: var(--rm-danger, #e53e3e);
+}
+#chat-modal .rm-contact-pick-empty {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--rm-text-muted);
+}
+
+/* Unread separator: centred pill above the first unread message, like the date pill but in the accent colour */
+#chat-modal .rm-unread-sep {
+  align-self: center;
+  margin: 12px 0 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--rm-bg-subtle);
+  border: 1px solid var(--rm-accent);
+  color: var(--rm-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* Phones: inbox-like contact rows, roomier header search, bubble tails and WhatsApp-like meta spacing */
+@media (max-width: 768px) {
+  /* the page head is row-reverse (Back first): order -1 puts the search icon at the far right */
+  #chat-modal .rm-new-chat-head .rm-new-chat-search-btn {
+    order: -1;
+  }
+  #chat-modal .rm-new-chat-search {
+    min-height: 40px;
+    font-size: 1rem;
+    border-radius: 999px;
+  }
+  #chat-modal .rm-contacts-title {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+  }
+  #chat-modal .rm-contact-picker-list {
+    max-height: none;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-inline: -16px;
+    background: transparent;
+    gap: 0;
+  }
+  #chat-modal .rm-contact-pick-row {
+    gap: 14px;
+    padding: 9px 16px;
+    border-radius: 0;
+  }
+  #chat-modal .rm-contact-pick-row img.rm-contact-pick-avatar {
+    width: 44px;
+    height: 44px;
+  }
+  #chat-modal .rm-contact-pick-name {
+    font-size: 1.02rem;
+    font-weight: 600;
+  }
+  #chat-modal .rm-contact-pick-sub {
+    font-size: 0.8rem;
+    margin-top: 2px;
+  }
+
+  /* tail on the first bubble of a run: sharp top corner plus a small triangle in the bubble colour; theirs draws its
+     border with ::before and fills with ::after (the #chat-modal *::before rule only sets box-sizing) */
+  #chat-modal .rm-msg-row.theirs.run-first .rm-bubble {
+    border-top-left-radius: 0;
+  }
+  #chat-modal .rm-msg-row.mine.run-first .rm-bubble {
+    border-top-right-radius: 0;
+  }
+  #chat-modal .rm-msg-row.run-first .rm-bubble::before,
+  #chat-modal .rm-msg-row.theirs.run-first .rm-bubble::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+  }
+  #chat-modal .rm-msg-row.theirs.run-first .rm-bubble::before {
+    top: -1px;
+    left: -9px;
+    width: 9px;
+    height: 14px;
+    background: var(--rm-bubble-theirs-border);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+  #chat-modal .rm-msg-row.theirs.run-first .rm-bubble::after {
+    top: 0;
+    left: -7px;
+    width: 8px;
+    height: 12px;
+    background: var(--rm-bubble-theirs);
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+  #chat-modal .rm-msg-row.mine.run-first .rm-bubble::before {
+    top: 0;
+    right: -8px;
+    width: 8px;
+    height: 13px;
+    background: var(--rm-bubble-mine);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+  #chat-modal .rm-meta-float {
+    margin-left: 12px;
+    margin-bottom: -3px;
+    font-size: 0.7rem;
   }
 }
