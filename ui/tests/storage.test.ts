@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { safeStorage } from "../src/storage.ts";
+import { NATIVE_BLOB_BUDGET, safeStorage } from "../src/storage.ts";
 
 test("safeStorage: stores and retrieves items without throwing", () => {
   safeStorage.setItem("test_key", "test_val");
@@ -209,6 +209,19 @@ test("safeStorage: syncs the whole store to window.__radicaNative, unbudgeted", 
     safeStorage.setItem("freenet_log_test", "noise");
     safeStorage.syncNativeBridge();
     assert.ok(!("freenet_log_test" in JSON.parse(blob!)));
+
+    // over the apps' size limit: feed caches go (biggest first) so pins and settings still get saved
+    const huge = "y".repeat(NATIVE_BLOB_BUDGET);
+    safeStorage.setItem("freenet_feed_native_huge", huge);
+    safeStorage.setItem("radica_pinned_chats_native_test", JSON.stringify(["dm:abc"]));
+    safeStorage.syncNativeBridge();
+    const fitted = JSON.parse(blob!);
+    assert.ok(blob!.length <= NATIVE_BLOB_BUDGET);
+    assert.ok(!("freenet_feed_native_huge" in fitted), "the biggest feed cache is dropped");
+    assert.equal(fitted["radica_pinned_chats_native_test"], JSON.stringify(["dm:abc"]));
+    assert.equal(fitted["freenet_feed_native_test"], bigFeed, "smaller caches stay when it already fits");
+    safeStorage.removeItem("freenet_feed_native_huge");
+    safeStorage.removeItem("radica_pinned_chats_native_test");
 
     safeStorage.removeItem("freenet_feed_native_test");
     safeStorage.removeItem("freenet_log_test");

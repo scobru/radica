@@ -18,6 +18,8 @@
 // 5. Maintains an in-memory Map fallback that never throws under any condition.
 
 import { getNativeBridge as nativeBridge } from "./platformBridge.ts";
+/** Under the 8 MB the Android and desktop apps accept for their storage file. */
+export const NATIVE_BLOB_BUDGET = 6 * 1024 * 1024;
 import {
   FORBIDDEN_PROTO_KEYS,
   HASH_SAFE_OPTIONAL_PREFIXES,
@@ -378,7 +380,20 @@ class SafeStorage {
         if (k.startsWith("freenet_log_") || k.startsWith("river_state_")) continue;
         allObj[k] = v;
       }
-      bridge.setAll(JSON.stringify(allObj));
+      let json = JSON.stringify(allObj);
+      // the apps refuse a blob over 8 MB (MAX_STORAGE_BYTES) and then keep NOTHING newer, pins and settings included:
+      // drop feed caches, biggest first, until it fits (the node gives feeds back; the margin covers UTF-8 bytes)
+      if (json.length > NATIVE_BLOB_BUDGET) {
+        const caches = Object.keys(allObj)
+          .filter((k) => k.startsWith("freenet_feed_"))
+          .sort((a, b) => allObj[b].length - allObj[a].length);
+        for (const k of caches) {
+          delete allObj[k];
+          json = JSON.stringify(allObj);
+          if (json.length <= NATIVE_BLOB_BUDGET) break;
+        }
+      }
+      bridge.setAll(json);
     } catch (err) {
       console.warn("[SafeStorage] Could not sync state to the native bridge:", err);
     }

@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **FIX** Desktop/Android: pins and other changes lost on restart (`ui/src/storage.ts`, `ui/tests/storage.test.ts`): `syncNativeBridge` sent the whole store unbudgeted; past the apps' 8 MB `MAX_STORAGE_BYTES` the native side refused the write and kept the previous file. Feed caches (`freenet_feed_*`) are now dropped, biggest first, until the blob fits 6 MB.
+
   * **FIX** Radica Messenger: Identity & keys / Settings closed by themselves now and then (`ui/src/main.ts`): a background `showChat()` re-showed the chat, and the rail-page observer closed every other page when a page opened. In the Messenger app the chat is now a base layer, never closed by another page and never closing one.
 
   * **FIX** Keyboard still covered the chat composer on phones (`ui/src/{messengerChat,chat,mail,style}.css`): the full-screen chat kept the desktop `min-height: 460px`, taller than the space above the keyboard. Every full-screen layout sized by `--rm-vvh` now resets `min-height` to 0.
