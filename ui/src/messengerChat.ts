@@ -683,12 +683,12 @@ export function createMessengerChat(deps: MessengerDeps) {
     <!-- NEW CONVERSATION / START REAL DM MODAL -->
     <div class="rm-modal-backdrop" id="rm-new-chat-modal">
       <div class="rm-modal">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="rm-new-chat-head" style="display: flex; justify-content: space-between; align-items: center;">
           <h3>New Conversation</h3>
-          <button type="button" class="rm-icon-btn" id="rm-new-chat-close">${renderIcon("x", { className: "icon-sm" })}</button>
+          <button type="button" class="rm-icon-btn" id="rm-new-chat-close" aria-label="Close">${renderIcon("x", { className: "icon-sm rm-wide-only" })}<svg viewBox="0 0 24 24" class="svg-icon icon-md rm-narrow-back"><polyline points="15 18 9 12 15 6"/></svg></button>
         </div>
         <div class="rm-new-chat-actions">
-          <button type="button" class="rm-link-btn" id="rm-modal-create-room">+ New E2EE Group</button>
+          <button type="button" class="rm-link-btn" id="rm-modal-create-room">${renderIcon("users", { size: 14, className: "icon-xs" })} New E2EE Group</button>
           <button type="button" class="rm-link-btn" id="rm-modal-join-room">${renderIcon("key", { size: 14, className: "icon-xs" })} Join with Invite Code</button>
           <button type="button" class="rm-link-btn" id="rm-modal-new-secret" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">${renderIcon("lock", { size: 14, className: "icon-xs" })} New Secret Chat</button>
           <button type="button" class="rm-link-btn" id="rm-modal-copy-card" title="Your key as one line of text: whoever pastes it here can write to you even with no network">${renderIcon("key", { size: 14, className: "icon-xs" })} Copy my contact card</button>
