@@ -19,8 +19,10 @@ Any feature that creates, publishes, or displays user-generated content (posts, 
 2. Always: `npm run build` — TypeScript + Vite production bundle, zero errors.
 3. After modifying code files: `graphify update .` from repo root to keep `graphify-out/` current (AST-only, no LLM cost).
 
-## Multi-agent workflow (`.claude/agents/`)
-Features with a `tasks/NNN-*.md` spec go through 4 roles, in this order:
+## Multi-agent workflow (`.claude/agents/`) — MUST for every change
+Every new feature, UI change and bug fix goes through this cycle, small ones included (maintainer decision, 2026-11-28).
+No spec yet: the orchestrator first writes a short `tasks/NNN-*.md` (Context & Goal, Requirements, Status) and its row in `ISSUES.md`.
+The 4 roles, in this order:
 1. `radica-architect`: checks the spec against the code (`## Reality check`), appends `## Plan` and `## Tasks` tagged `[core]` / `[ui]` / `[test]`. No code.
 2. `radica-builder` (`[core]`: logic, data, contracts) and `radica-ui` (`[ui]`: markup, CSS, page wiring, `updates.ts`, `#guide-modal`) in parallel: they own different files.
 3. `radica-tester` (`[test]`): `ui/tests/`, `npm test`, `npm run build`, `graphify update .`, checks rules above, `CHANGELOG.md`/`README.md`, closes the spec.
@@ -30,3 +32,5 @@ Rules:
 - Stay in your role's files. Need a change elsewhere: write a note under that role's task.
 - Parallel agents on the same branch: one worktree each (`isolation: worktree`), merge after tester passes.
 - A failing check reopens the task with a `> fail:` note; the tester does not fix production code.
+- A bug fix is still a spec: the architect's reality check reproduces it (steps or a failing test), the tester proves it fixed.
+- Open the PR only after the tester passes, so a half-built feature cannot be merged.
