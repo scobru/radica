@@ -65,7 +65,7 @@ New term: **In-app dialog** (added under Decisions).
 6. `#guide-modal`: no new section (no new capability, same actions). Default: none.
 
 ## Tasks
-- [ ] [core] core-1: `ui/src/dialogs.ts`: `confirmDialog`, `promptDialog` (incl. `readOnly`), moved `showToast`, pure `dialogKeyAction` + `createDialogQueue`, DOM renderer with focus trap/return, aria labels, no DOM at import.
+- [x] [core] core-1: `ui/src/dialogs.ts`: `confirmDialog`, `promptDialog` (incl. `readOnly`), moved `showToast`, pure `dialogKeyAction` + `createDialogQueue`, DOM renderer with focus trap/return, aria labels, no DOM at import.
 - [ ] [ui] ui-1: `ui/src/dialogs.css` (card desktop, bottom sheet ≤768px, dark/light, `.danger`) and `ui/src/updates.ts` entry. after: core-1 (class names).
 - [ ] [ui] ui-2: `ui/src/main.ts`, all 90 sites: import `confirmDialog`/`promptDialog`/`showToast` from `dialogs.ts` and delete the local `showToast`, `import "./dialogs.css"`, make `okToPublish` and `guardDuplicateModeration` async and await them at all callers. after: core-1.
 - [ ] [ui] ui-3: `ui/src/messengerChat.ts`, 10 sites (6 confirm, 3 alert -> `deps.showToast`, River migration prompt). after: core-1.
