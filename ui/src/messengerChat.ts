@@ -1229,6 +1229,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     const read = deps.conversation.readMarks();
     const openId = deps.openRoomId();
     const pins = pinnedSet();
+    const seenId = isThreadVisible() ? openId : null; // behind the inbox on phones the open room still counts unread
 
     // Update previewCache directly from currently open conversation if messages are loaded
     if (openId && st.shownMessages.length > 0) {
@@ -1258,7 +1259,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           .catch(() => roomNameCache.get(r.id) || `Private Room (${r.id.slice(9, 15)})`);
         roomNameCache.set(r.id, name);
 
-        const unread = openId === r.id ? 0 : deps.conversation.unread(r.id, read);
+        const unread = seenId === r.id ? 0 : deps.conversation.unread(r.id, read);
         const meta = storedRoomMeta(r.id);
         const cached = getCachedPreview(r.id);
         const lastTs = Math.max(cached?.timestamp ?? 0, meta.lastTs, r.created_at || 0);
@@ -1320,7 +1321,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     for (const pk of knownPeers) {
       const roomId = freenet.getRoomId(me, pk);
       const displayName = pk === me ? NOTES_NAME : deps.getAuthorDisplayName(pk);
-      const unread = openId === roomId ? 0 : deps.conversation.unread(roomId, read);
+      const unread = seenId === roomId ? 0 : deps.conversation.unread(roomId, read);
       const meta = storedRoomMeta(roomId);
       const cached = getCachedPreview(roomId);
       const lastTs = Math.max(cached?.timestamp ?? 0, meta.lastTs);
@@ -1361,7 +1362,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     for (const pk of secretPeers) {
       const roomId = freenet.getSecretRoomId(me, pk);
       const displayName = deps.getAuthorDisplayName(pk);
-      const unread = openId === roomId ? 0 : deps.conversation.unread(roomId, read);
+      const unread = seenId === roomId ? 0 : deps.conversation.unread(roomId, read);
       const meta = storedRoomMeta(roomId);
       const cached = getCachedPreview(roomId);
       const lastTs = Math.max(cached?.timestamp ?? 0, meta.lastTs);
@@ -1871,6 +1872,8 @@ export function createMessengerChat(deps: MessengerDeps) {
   const seenUnreadSince = new Map<string, number | undefined>();
   // set by an inbox-row tap while the thread pane is hidden: re-opening the same chat is a new open for the pill
   let reopenPending = false;
+  /** False on phones while the inbox covers the thread pane (desktop shows both); a pending row tap counts as shown. */
+  const isThreadVisible = () => reopenPending || getComputedStyle(workspaceEl.querySelector(".rm-stage")!).display !== "none";
 
   function renderThread(scrollToBottom = false) {
     if (!isVisible()) return;
@@ -4673,6 +4676,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       clearInboxRowFocus();
       syncMiniPlayerSlot();
     },
+    isThreadVisible,
     isThreadOpenOnMobile: () => workspaceEl.classList.contains("mobile-thread-open") && getComputedStyle(workspaceEl.querySelector(".rm-inbox")!).display === "none",
     /** Peel one mobile overlay/drawer/thread layer inside Messenger chat; returns true if handled. */
     stepBackOnMobile: (): boolean => {
