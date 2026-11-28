@@ -66,11 +66,12 @@ New term: **In-app dialog** (added under Decisions).
 
 ## Tasks
 - [x] [core] core-1: `ui/src/dialogs.ts`: `confirmDialog`, `promptDialog` (incl. `readOnly`), moved `showToast`, pure `dialogKeyAction` + `createDialogQueue`, DOM renderer with focus trap/return, aria labels, no DOM at import.
-- [ ] [ui] ui-1: `ui/src/dialogs.css` (card desktop, bottom sheet ≤768px, dark/light, `.danger`) and `ui/src/updates.ts` entry. after: core-1 (class names).
-- [ ] [ui] ui-2: `ui/src/main.ts`, all 90 sites: import `confirmDialog`/`promptDialog`/`showToast` from `dialogs.ts` and delete the local `showToast`, `import "./dialogs.css"`, make `okToPublish` and `guardDuplicateModeration` async and await them at all callers. after: core-1.
-- [ ] [ui] ui-3: `ui/src/messengerChat.ts`, 10 sites (6 confirm, 3 alert -> `deps.showToast`, River migration prompt). after: core-1.
-- [ ] [ui] ui-4: `ui/src/articlesPage.ts` (2), `ui/src/greenhousePage.ts` (7), `ui/src/supporterPanel.ts` (5, toast imported from `dialogs.ts`). after: core-1.
-- [ ] [test] test-1: `ui/tests/dialogs.test.ts`: queue (one at a time, FIFO, resolve true/false/null), `dialogKeyAction` (Enter, Escape, Enter on Cancel, Enter in prompt), import has no DOM side effect. after: core-1.
+- [x] [ui] ui-1: `ui/src/dialogs.css` (card desktop, bottom sheet ≤768px, dark/light, `.danger`) and `ui/src/updates.ts` entry. after: core-1 (class names).
+- [x] [ui] ui-2: `ui/src/main.ts`, all 90 sites: import `confirmDialog`/`promptDialog`/`showToast` from `dialogs.ts` and delete the local `showToast`, `import "./dialogs.css"`, make `okToPublish` and `guardDuplicateModeration` async and await them at all callers. after: core-1.
+  > note (ui-1): `ui/src/dialogs.css` exists but is not imported anywhere yet: add `import "./dialogs.css";` in main.ts (next to the other CSS imports). Backdrop z-index 100000 (above versionCheck.ts 10001, below #toast-container 999999).
+- [x] [ui] ui-3: `ui/src/messengerChat.ts`, 10 sites (6 confirm, 3 alert -> `deps.showToast`, River migration prompt). after: core-1.
+- [x] [ui] ui-4: `ui/src/articlesPage.ts` (2), `ui/src/greenhousePage.ts` (7), `ui/src/supporterPanel.ts` (5, toast imported from `dialogs.ts`). after: core-1.
+- [x] [test] test-1: `ui/tests/dialogs.test.ts`: queue (one at a time, FIFO, resolve true/false/null), `dialogKeyAction` (Enter, Escape, Enter on Cancel, Enter in prompt), import has no DOM side effect. after: core-1.
 - [ ] [test] test-2: `ui/tests/noNativeDialogs.test.ts`: no `(?<![\w.$])(window\.)?(confirm|alert|prompt)\(` left in `ui/src/**/*.ts`; `cli.test.ts` still passes. after: ui-2, ui-3, ui-4.
 - [ ] [test] test-3: `ui/e2e/`: replace reliance on `page.on("dialog")` with clicking `[data-dialog-ok]` where flows confirm; new `e2e/dialogs.spec.ts` screenshots (Pixel 7 dark + light, desktop) of a confirm, a danger confirm and a prompt (via dynamic import of `/src/dialogs.ts` in the dev page). after: ui-1, ui-2.
 - [ ] [test] test-4: `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `CONTEXT.md` term, set spec and `ISSUES.md` to DONE. after: all.
