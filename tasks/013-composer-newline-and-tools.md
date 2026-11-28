@@ -57,7 +57,7 @@ No data, contract, signed message or wire change; nothing to keep readable (`leg
 - [ ] [test] test-2 (after: ui-1, ui-2, ui-3): `ui/e2e/mobile.spec.ts`: on Pixel 7, Enter in `#rm-composer-input` leaves "line one\n" in the box (no send), `#rm-btn-quick-emoji` absent, no `select.draft-translate` inside `.rm-input-pill`, placeholder not overflowing (`scrollWidth <= clientWidth` for the default placeholder at 412 px). Desktop `e2e/app.spec.ts` Enter-to-send tests (344, 399, 413) still pass. Screenshots Pixel 7 light + dark and desktop, + menu open and chip shown.
 - [ ] [test] test-3 (after: all): `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `updates.ts` / guide, close the spec and the `ISSUES.md` row.
 
-## Open questions (defaults used by the plan)
+## Open questions (2026-11-28: maintainer accepted all defaults)
 1. Translation entry point: default **+ attach menu row** with a "Translated to X · Undo" chip while undoable. Alternatives: header ⋮ menu, long-press on send.
 2. Classic chat (`#chat-message-input`) and post comment boxes have the same Enter = send on phones in separate copies of the handler. Default: **out of scope** here; a follow-up could reuse `enterSends` (one line each in `main.ts`).
 3. No Ctrl/Cmd+Enter shortcut for phones with a hardware keyboard (iPad + keyboard gets newline, sends with the button). Default: skip unless asked.
