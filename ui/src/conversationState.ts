@@ -162,6 +162,7 @@ export function createConversationState(deps: ConversationDeps) {
   const typing = new Map<string, Map<string, number>>(); // room -> sender -> shown until
   const typingListeners = new Set<(roomId: string) => void>();
   const typingChanged = (roomId: string) => typingListeners.forEach((cb) => cb(roomId));
+  const unreadFrom = new Map<string, number>(); // room -> read mark replaced by the last markRead that cleared unread (memory only)
 
   /** My read marks: this device's and my other devices', the later of the two for each conversation. */
   const readMarks = (): Record<string, number> => {
@@ -187,10 +188,18 @@ export function createConversationState(deps: ConversationDeps) {
     /** I am looking at `roomId`: read as of now. My other devices and the peer hear of it only when it changes
      *  something (there was something unread), so a conversation left open does not write on every redraw. */
     markRead(roomId: string): void {
-      const hadUnread = unread(roomId) > 0;
+      const marks = readMarks();
+      const hadUnread = unread(roomId, marks) > 0;
+      if (hadUnread) unreadFrom.set(roomId, marks[roomId] ?? 0); // unread > 0 without a mark only happens for a DM: 0
       const upto = now();
       deps.readStore.setItem(READ_MARKS_KEY, JSON.stringify({ ...localReadMarks(deps.readStore), [roomId]: upto }));
       if (hadUnread) deps.publishRead(roomId, upto);
+    },
+
+    /** The read mark `roomId` had before the last `markRead` that found something unread, for the "N unread
+     *  messages" separator; undefined if nothing was unread since this page loaded. */
+    unreadSince(roomId: string): number | undefined {
+      return unreadFrom.get(roomId);
     },
 
     /** Schedule every stored message with a TTL to burn at its time; those already past burn now. Safe to call
