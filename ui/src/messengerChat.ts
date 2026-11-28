@@ -1729,7 +1729,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         headerTrustBadgeEl.style.color = "var(--rm-danger)";
         headerTrustBadgeEl.innerHTML = `${renderIcon("ban", { size: 11 })} <span>Blocked</span>`;
         headerSubtitleEl.textContent = "Blocked contact · Feed & direct messages disabled";
-        composerInputEl.placeholder = "Contact is blocked";
+        composerInputEl.placeholder = "Blocked";
         composerInputEl.disabled = true;
         sendBtnEl.disabled = true;
         attachBtnEl.disabled = true;
@@ -1746,7 +1746,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.className = "rm-trust-pill secret";
           headerTrustBadgeEl.innerHTML = `${renderIcon("lock", { size: 11 })} <span>Secret Chat · Device Only</span>`;
           setSecretSubtitle(st.peer, ttlLabel);
-          composerInputEl.placeholder = `Secret message to ${name} (ephemeral)…`;
+          composerInputEl.placeholder = "Secret message";
           if (ttlBtn) {
             ttlBtn.style.display = "inline-flex";
             ttlBtn.innerHTML = `${renderIcon("clock", { size: 12 })} <span>${escapeHtml(ttlLabel)}</span>`;
@@ -1758,7 +1758,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.innerHTML = isVerified ? `${renderIcon("shield", { size: 11 })} <span>E2EE · Verified</span>` : `${renderIcon("lock", { size: 11 })} <span>E2EE Private</span>`;
           headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · ${peerHandleOrPersona(pk)} · X25519 + AES-256-GCM`;
           headerSubtitleEl.title = "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
-          composerInputEl.placeholder = `Encrypted message to ${name}…`;
+          composerInputEl.placeholder = "Message";
           if (ttlBtn) ttlBtn.style.display = "none";
         }
         composerInputEl.disabled = false;
@@ -1817,7 +1817,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
       if (r.river || (isChannel && !isOwnerOrMod)) {
         composerOuterEl.style.display = "none";
-        composerInputEl.placeholder = r.river ? "This River room is a read-only archive…" : "This broadcast channel is read-only for subscribers…";
+        composerInputEl.placeholder = r.river ? "Read-only archive" : "Read-only channel";
         composerInputEl.disabled = true;
         sendBtnEl.disabled = true;
         attachBtnEl.disabled = true;
@@ -1825,7 +1825,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         replyBannerEl.classList.remove("open");
       } else {
         composerOuterEl.style.display = "";
-        composerInputEl.placeholder = isChannel ? `Broadcast a message to subscribers…` : `Message ${name} (E2EE)…`;
+        composerInputEl.placeholder = isChannel ? "Message subscribers" : "Message";
         composerInputEl.disabled = false;
         sendBtnEl.disabled = false;
         attachBtnEl.disabled = false;
@@ -1838,7 +1838,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       headerTitleEl.textContent = "Messages on Freenet";
       headerTrustBadgeEl.style.display = "none";
       headerSubtitleEl.textContent = "Select a contact, E2EE group, or channel";
-      composerInputEl.placeholder = "Select a conversation first…";
+      composerInputEl.placeholder = "Pick a chat";
       composerInputEl.disabled = true;
       sendBtnEl.disabled = true;
       inviteTopBtn.style.display = "none";
@@ -3193,7 +3193,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     row.querySelector(".rm-unread-pill")?.remove();
 
     composerInputEl.disabled = false;
-    composerInputEl.placeholder = "Type a message…";
+    composerInputEl.placeholder = "Message";
     composerInputEl.blur(); // no focus on open: on phones it would pop the keyboard over the last messages
 
     // Load & render the selected conversation before switching panes on mobile so the previous chat never flashes.
