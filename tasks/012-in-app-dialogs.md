@@ -56,7 +56,7 @@ No data, contract or signed-message change; `legacy.ts` untouched. Moderation: n
 ### CONTEXT.md
 New term: **In-app dialog** (added under Decisions).
 
-## Open questions (defaults apply unless the maintainer says otherwise)
+## Open questions (2026-11-28: maintainer accepted all defaults)
 1. Danger confirms focus **Cancel** first, so a stray Enter does not delete (native focuses OK). Default: Cancel.
 2. Backdrop tap cancels (resolves false/null). Default: yes, for all kinds.
 3. Every `alert` becomes a toast; no acknowledged alert dialog. Default: yes (failure toasts 6 s).
