@@ -353,3 +353,104 @@ test("safeStorage: excludes radica_profile_extras_ from #auth_state= and rejects
     safeStorage.clear();
   }
 });
+
+test("safeStorage.flush: skips bridge.setAll when clean, flushes once per mutation, and ignores identical values", () => {
+  const origBridge = (globalThis as any).__radicaNative;
+  let blob: string | null = null;
+  let setAllCalls = 0;
+  try {
+    safeStorage.clear();
+    safeStorage.flush();
+
+    (globalThis as any).__radicaNative = {
+      getAll: () => blob,
+      setAll: (json: string) => {
+        setAllCalls++;
+        blob = json;
+      },
+    };
+
+    // Nothing changed since flush -> skipped
+    safeStorage.flush();
+    assert.equal(setAllCalls, 0);
+
+    // Mutation marks dirty and flushes once
+    safeStorage.setItem("dirty_test_key", "v1");
+    safeStorage.flush();
+    assert.equal(setAllCalls, 1);
+    assert.equal(JSON.parse(blob!)["dirty_test_key"], "v1");
+
+    // Second flush with no new changes -> skipped
+    safeStorage.flush();
+    assert.equal(setAllCalls, 1);
+
+    // Setting an identical value does not mark dirty
+    safeStorage.setItem("dirty_test_key", "v1");
+    safeStorage.flush();
+    assert.equal(setAllCalls, 1);
+
+    // Removing an existing key marks dirty and flushes once
+    safeStorage.removeItem("dirty_test_key");
+    safeStorage.flush();
+    assert.equal(setAllCalls, 2);
+    assert.equal("dirty_test_key" in JSON.parse(blob!), false);
+
+    // Subsequent flush -> skipped again
+    safeStorage.flush();
+    assert.equal(setAllCalls, 2);
+  } finally {
+    safeStorage.clear();
+    safeStorage.flush();
+    (globalThis as any).__radicaNative = origBridge;
+  }
+});
+
+test("safeStorage.syncNativeBridge: prunes largest freenet_feed_* entries under NATIVE_BLOB_BUDGET while keeping non-feed keys", () => {
+  const origBridge = (globalThis as any).__radicaNative;
+  let blob: string | null = null;
+  try {
+    safeStorage.clear();
+    safeStorage.flush();
+    (globalThis as any).__radicaNative = {
+      getAll: () => blob,
+      setAll: (json: string) => {
+        blob = json;
+      },
+    };
+
+    const pinnedVal = JSON.stringify(["dm:peer1", "priv:room1"]);
+    const settingsVal = JSON.stringify({ theme: "dark", maskBadWords: true });
+    safeStorage.setItem("radica_pinned_chats_prune_test", pinnedVal);
+    safeStorage.setItem("radica_settings_prune_test", settingsVal);
+    safeStorage.setItem("freenet_feed_small", "s".repeat(1024));
+    safeStorage.setItem("freenet_feed_medium", "m".repeat(3_500_000));
+    safeStorage.setItem("freenet_feed_largest", "L".repeat(4_000_000));
+
+    safeStorage.syncNativeBridge();
+    assert.ok(blob !== null, "setAll should be called");
+    assert.ok(blob!.length <= NATIVE_BLOB_BUDGET, `blob length ${blob!.length} must be <= ${NATIVE_BLOB_BUDGET}`);
+
+    const parsed = JSON.parse(blob!);
+    assert.equal("freenet_feed_largest" in parsed, false, "largest feed cache should be pruned");
+    assert.equal("freenet_feed_medium" in parsed, true, "medium feed cache should remain when it fits budget");
+    assert.equal("freenet_feed_small" in parsed, true, "small feed cache should remain");
+    assert.equal(parsed["radica_pinned_chats_prune_test"], pinnedVal);
+    assert.equal(parsed["radica_settings_prune_test"], settingsVal);
+
+    // Adding another huge feed drops both huge feeds while still preserving small feed & non-feed keys
+    safeStorage.setItem("freenet_feed_huge_2", "H".repeat(3_600_000));
+    safeStorage.syncNativeBridge();
+    assert.ok(blob!.length <= NATIVE_BLOB_BUDGET);
+    const parsed2 = JSON.parse(blob!);
+    assert.equal("freenet_feed_largest" in parsed2, false);
+    assert.equal("freenet_feed_huge_2" in parsed2, false);
+    assert.equal("freenet_feed_medium" in parsed2, true);
+    assert.equal("freenet_feed_small" in parsed2, true);
+    assert.equal(parsed2["radica_pinned_chats_prune_test"], pinnedVal);
+    assert.equal(parsed2["radica_settings_prune_test"], settingsVal);
+  } finally {
+    safeStorage.clear();
+    safeStorage.flush();
+    (globalThis as any).__radicaNative = origBridge;
+  }
+});

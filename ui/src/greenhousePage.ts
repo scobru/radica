@@ -46,6 +46,7 @@ let isHidden: (author: string) => boolean = () => false;
 let isReported: (target: string) => boolean = () => false;
 let hideAuthor: ((author: string) => void) | undefined;
 let reportComment: ((author: string, id: string, reason: string) => Promise<void>) | undefined;
+let requireIdentity: ((action?: string) => boolean) | undefined;
 let shouldMaskBadWords: () => boolean = () => true;
 let targetSeedToFocus: string | null = null;
 let activeBucket: SeedBucket = "voting";
@@ -413,6 +414,7 @@ export function initGreenhouse(deps: {
   isReported?: (target: string) => boolean; // `${author}:${comment id}` reported by a curator or held by the AI helper
   hideAuthor?: (author: string) => void;
   report?: (author: string, id: string, reason: string) => Promise<void>;
+  requireIdentity?: (action?: string) => boolean;
   linfaForAuthors?: (authors: string[]) => Promise<GreenhouseLinfaInfo>;
   showToast?: (msg: string, type?: "info" | "warning" | "error") => void;
   shouldMaskBadWords?: () => boolean;
@@ -426,6 +428,7 @@ export function initGreenhouse(deps: {
   if (deps.shouldMaskBadWords) shouldMaskBadWords = deps.shouldMaskBadWords;
   hideAuthor = deps.hideAuthor;
   reportComment = deps.report;
+  requireIdentity = deps.requireIdentity;
   const days = document.getElementById("greenhouse-days") as HTMLSelectElement | null;
   if (days) days.innerHTML = SEED_DAYS.map((d) => `<option value="${d}"${d === 14 ? " selected" : ""}>${d} days</option>`).join("");
   const weights = document.getElementById("greenhouse-weights");
@@ -582,6 +585,7 @@ export function initGreenhouse(deps: {
     }
     const repSeedBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-report-seed]");
     if (repSeedBtn) {
+      if (requireIdentity && !requireIdentity("report content")) return;
       const author = repSeedBtn.dataset.ghAuthor!;
       const seedId = repSeedBtn.dataset.ghReportSeed!;
       const entryId = seedId.startsWith(`${author}:`) ? seedId.slice(author.length + 1) : seedId;
@@ -600,6 +604,7 @@ export function initGreenhouse(deps: {
     }
     const repBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-report]");
     if (repBtn) {
+      if (requireIdentity && !requireIdentity("report content")) return;
       const [author, target] = [repBtn.dataset.ghAuthor!, repBtn.dataset.ghReport!];
       void promptDialog(`Report this comment by ${displayName(author)}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; Radica's moderators are notified.`, { okLabel: "Report" }).then((reason) => {
         if (reason !== null) void reportComment?.(author, target, reason.trim()).then(renderGreenhouse, (err) => showToast(`Could not report it: ${err.message || err}`, "error"));

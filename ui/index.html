@@ -149,6 +149,10 @@
           <button type="button" class="head-avatar-btn" id="head-profile-btn" title="My profile" aria-label="My profile"><img class="avatar" id="head-avatar" alt="" /></button>
           <div class="user-badge" id="my-pubkey-badge" title="View My Posts" hidden></div>
         </div>
+        <div id="guest-banner" class="guest-banner" role="region" aria-label="Read-only mode" hidden>
+          <span class="guest-banner-text"><b>Read-only mode</b> — browsing public Freenet posts. Sign in or create a key to post, like, comment &amp; chat.</span>
+          <button type="button" class="btn-primary btn-sm" id="guest-signin-btn">Sign in / Create key</button>
+        </div>
         <!-- Feed Scope Switcher -->
         <div class="feed-scope-nav">
           <button class="scope-btn active btn-icon-text" id="scope-explore-btn" data-scope="explore">
@@ -1002,7 +1006,10 @@
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L9 14l-3-3a5.5 5.5 0 1 0 7.78 7.78l8.22-8.22V2h-3z"/></svg>
             <span>Identity & Key Management</span>
           </h3>
-          <button class="btn-secondary btn-sm" id="identity-close-btn">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-secondary btn-sm" id="id-browse-readonly-btn" hidden>Browse read-only</button>
+            <button class="btn-secondary btn-sm" id="identity-close-btn">✕</button>
+          </div>
         </div>
 
         <!-- Active Identity Card -->
@@ -1600,7 +1607,8 @@
         <p class="guide-intro">Radica has no company and no central moderators. Everything is signed by its author and stored on Freenet, and what you see is decided on your own device: by who you follow, whose blocklists you trust, and a few checks that run on your computer.</p>
 
         <details open><summary>🔑 Your identity</summary>
-          <p>You are a key, not an account: no email, no phone number, no password. Either Radica makes a key on this device, or you sign in with <b>Viso</b>, your Freenet identity for all its apps.</p>
+          <p>You can browse public posts, Communities, Moments, Articles, Music, Greenhouse, Living Tree, and profiles in <b>read-only mode</b> right away—no key needed until you want to post, react, follow, or chat.</p>
+          <p>When you are ready to join in, you are a key, not an account: no email, no phone number, no password. Either Radica makes a key on this device, or you sign in with <b>Viso</b>, your Freenet identity for all its apps.</p>
           <p><b>Back up your key</b> (Identity page). Nobody can reset it for you: lose it and that identity is gone.</p>
         </details>
 
@@ -1633,7 +1641,7 @@
         </details>
         <details><summary>@ Mentioning someone in chat</summary>
           <p>Type <code>@</code> in a chat message to open a popup of that conversation's people (the other person in a DM or everyone in a private group/channel), which narrows as you keep typing their name. Pick one with the mouse, the Arrow keys + Enter/Tab, or press Escape to close it.</p>
-          <p>On a phone, swipe someone's chat message to the right, or a post in the feed to the left, to mention its author: in the chat box or in that post's comment box.</p>
+          <p>On a phone, Enter adds a new line and the send button sends; on a computer, Enter sends and Shift+Enter adds a new line. Swipe someone's chat message to the right, or a post in the feed to the left, to mention its author: in the chat box or in that post's comment box.</p>
         </details>
 
         <details><summary>🧭 Customizing your main rail shortcuts</summary>
@@ -1718,7 +1726,7 @@
 
         <details><summary>🌐 Translation</summary>
           <p>Posts, comments and messages in another language show <b>Translate</b>: the text is translated on your computer, into the language you pick on the Identity page. Nothing leaves your device; the first time downloads the language model (about 22 MB).</p>
-          <p>You can also translate <b>what you write</b> before publishing it: the 🌐 menu next to the post, comment and chat boxes. Links, @mentions, #tags and code stay as you wrote them, and <b>↩ Undo</b> brings your words back.</p>
+          <p>You can also translate <b>what you write</b> before publishing it: in post and comment boxes use the 🌐 menu beside the box; in Messenger open <b>+ → Translate what I wrote</b> (a <b>"Translated to … · Undo"</b> indicator appears above the box while active). Links, @mentions, #tags and code stay as you wrote them, and <b>Undo</b> brings your words back.</p>
         </details>
 
         <details><summary>🔗 Other Freenet apps in Radica</summary>

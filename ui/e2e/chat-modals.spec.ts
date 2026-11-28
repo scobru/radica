@@ -3,10 +3,14 @@ import { test, expect, type Page } from "@playwright/test";
 async function signIn(page: Page) {
   page.on("dialog", (d) => d.accept());
   await page.goto("/");
-  await page.getByRole("button", { name: "Create New Keypair" }).click();
-  await expect(page.locator("#identity-modal")).toBeHidden();
+  const guestSignIn = page.locator("#guest-signin-btn");
+  const createKey = page.getByRole("button", { name: "Create New Keypair" });
+  await expect(guestSignIn.or(createKey)).toBeVisible();
+  if (await guestSignIn.isVisible()) await guestSignIn.click();
+  await createKey.click();
+  await expect(page.locator("#identity-modal")).toBeHidden({ timeout: 20_000 });
   await page.click("#welcome-skip-btn");
-  await expect(page.locator("#welcome-modal")).toBeHidden();
+  await expect(page.locator("#welcome-modal")).toBeHidden({ timeout: 15_000 });
 }
 
 test("the chat's safety-number and new-message windows close with their X", async ({ page }) => {

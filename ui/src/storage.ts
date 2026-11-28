@@ -122,6 +122,7 @@ class SafeStorage {
   // Done on each write it froze the page for seconds during a sync; now once per burst of writes.
   private static readonly SYNC_DELAY_MS = 1000;
   private syncTimer: ReturnType<typeof setTimeout> | undefined;
+  private dirty = false;
   private scheduleSync(): void {
     if (this.syncTimer !== undefined) return;
     this.syncTimer = setTimeout(() => this.flush(), SafeStorage.SYNC_DELAY_MS);
@@ -131,6 +132,7 @@ class SafeStorage {
   public flush(): void {
     clearTimeout(this.syncTimer);
     this.syncTimer = undefined;
+    if (!this.dirty) return;
     this.syncPersistence();
   }
 
@@ -387,10 +389,20 @@ class SafeStorage {
         const caches = Object.keys(allObj)
           .filter((k) => k.startsWith("freenet_feed_"))
           .sort((a, b) => allObj[b].length - allObj[a].length);
+        let est = json.length;
         for (const k of caches) {
+          if (est <= NATIVE_BLOB_BUDGET) break;
+          est -= k.length + allObj[k].length + 6;
           delete allObj[k];
-          json = JSON.stringify(allObj);
-          if (json.length <= NATIVE_BLOB_BUDGET) break;
+        }
+        json = JSON.stringify(allObj);
+        if (json.length > NATIVE_BLOB_BUDGET) {
+          for (const k of caches) {
+            if (!(k in allObj)) continue;
+            delete allObj[k];
+            json = JSON.stringify(allObj);
+            if (json.length <= NATIVE_BLOB_BUDGET) break;
+          }
         }
       }
       bridge.setAll(json);
@@ -400,6 +412,7 @@ class SafeStorage {
   }
 
   private syncPersistence(): void {
+    this.dirty = false;
     try {
       if (typeof window === "undefined") return this.syncNativeBridge(); // Node (the terminal chat): its only store
 
@@ -479,7 +492,10 @@ class SafeStorage {
 
   public setItem(key: string, value: string): void {
     if (this.getItem(key) === value) return;
-    this.mem.set(key, value);
+    if (this.mem.get(key) !== value) {
+      this.mem.set(key, value);
+      this.dirty = true;
+    }
     this.scheduleSync();
 
     if (this.isLocalStorageAvailable()) {
@@ -492,7 +508,10 @@ class SafeStorage {
 
   public removeItem(key: string): void {
     if (this.getItem(key) === null) return;
-    this.mem.delete(key);
+    if (this.mem.has(key)) {
+      this.mem.delete(key);
+      this.dirty = true;
+    }
     this.scheduleSync();
 
     if (this.isLocalStorageAvailable()) {
@@ -504,8 +523,9 @@ class SafeStorage {
   }
 
   public clear(): void {
+    if (this.mem.size > 0) this.dirty = true;
     this.mem.clear();
-    this.scheduleSync();
+    if (this.dirty) this.scheduleSync();
 
     if (this.isLocalStorageAvailable()) {
       try {

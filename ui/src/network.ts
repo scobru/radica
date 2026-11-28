@@ -30,7 +30,8 @@ import { limiter } from "./limit.ts";
 import { CURRENT, LEGACY, canHaveLegacy } from "./legacy.ts";
 import { compactLog, type LogEntry } from "./logfold.ts";
 import { safeStorage } from "./storage.ts"; // the sandboxed web container has no localStorage
-import { nextDelay, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
+import { nextDelay, resubscribeDelayMs, watchdog, STABLE_MS, WATCHDOG_TICK_MS } from "./reconnect.ts";
+export { resubscribeDelayMs };
 import { changeOf, isInteractiveContract, type Change } from "./refresh.ts";
 import { isProfileExtraLog } from "./profileExtras.ts";
 
@@ -116,7 +117,6 @@ export function contractKey(id: ContractId): Promise<ContractKey> {
   return p;
 }
 
-
 export class FreenetNetwork {
   private apiP?: Promise<FreenetWsApi>;
   private sock?: FreenetWsApi; // the socket `apiP` stands for
@@ -124,6 +124,7 @@ export class FreenetNetwork {
   private lastMsg = 0; // when the node last sent us anything
   private probeAt = 0; // when the outstanding liveness probe was sent, 0 if none
   private dog?: ReturnType<typeof setInterval>;
+  private resumeTickTimer?: ReturnType<typeof setTimeout>;
   private ids = new Map<string, ContractId>(); // encoded contract key -> id
   private known = new Set<ContractId>(); // contracts that exist on the network
   private probing = new Set<ContractId>(); // legacy lookups under way
@@ -146,8 +147,17 @@ export class FreenetNetwork {
   /** `onChange(id, change)` runs when a subscribed contract changes on the network; `change` is what the node sent
    *  (new state or delta), absent when we must fetch it again (after a reconnect). */
   constructor(private onChange: (id: ContractId, change?: Change) => void) {
-    // a sleeping tab or a network change can leave the socket half-open: check it as soon as we are back
-    globalThis.document?.addEventListener("visibilitychange", () => !document.hidden && this.tick(true));
+    // a sleeping tab or a network change can leave the socket half-open: check it shortly after we are back
+    globalThis.document?.addEventListener("visibilitychange", () => {
+      clearTimeout(this.resumeTickTimer);
+      this.resumeTickTimer = undefined;
+      if (!document.hidden) {
+        this.resumeTickTimer = setTimeout(() => {
+          this.resumeTickTimer = undefined;
+          if (!document.hidden) this.tick(true);
+        }, 250);
+      }
+    });
     globalThis.addEventListener?.("online", () => this.tick(true));
   }
 
@@ -237,7 +247,9 @@ export class FreenetNetwork {
         this.connect().then(
           () => {
             const all = [...new Set(this.ids.values())].sort((a, b) => Number(isInteractiveContract(b)) - Number(isInteractiveContract(a)));
-            all.forEach((id, i) => setTimeout(() => this.onChange(id), Math.floor(i / 8) * 50));
+            let interactiveCount = 0;
+            while (interactiveCount < all.length && isInteractiveContract(all[interactiveCount])) interactiveCount++;
+            all.forEach((id, i) => setTimeout(() => this.onChange(id), resubscribeDelayMs(i, interactiveCount)));
           },
           () => this.resubscribe()
         ),

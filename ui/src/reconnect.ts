@@ -13,3 +13,13 @@ export function watchdog(now: number, lastMsg: number, probeAt: number, force: b
   if (probeAt) return lastMsg >= probeAt ? "answered" : now - probeAt > PROBE_TIMEOUT_MS ? "dead" : "wait";
   return force || now - lastMsg >= IDLE_PROBE_MS ? "probe" : "wait";
 }
+
+/** Paces contract resubscribes after reconnect: interactive contracts in small 4-wide / 80ms bursts first,
+ *  then background contracts in 3-wide / 150ms bursts so resume never saturates the JS main thread. */
+export function resubscribeDelayMs(index: number, interactiveCount: number): number {
+  const idx = Math.max(0, index);
+  const ic = Math.max(0, interactiveCount);
+  if (idx < ic) return Math.floor(idx / 4) * 80;
+  const interactiveTail = Math.ceil(ic / 4) * 80;
+  return interactiveTail + Math.floor((idx - ic) / 3) * 150;
+}

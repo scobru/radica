@@ -8,10 +8,14 @@ const chat = (p: Page) => p.locator("#chat-modal");
 async function signIn(page: Page) {
   page.on("dialog", (d) => d.accept());
   await page.goto("/");
-  await page.getByRole("button", { name: "Create New Keypair" }).click();
-  await expect(page.locator("#identity-modal")).toBeHidden();
+  const guestSignIn = page.locator("#guest-signin-btn");
+  const createKey = page.getByRole("button", { name: "Create New Keypair" });
+  await expect(guestSignIn.or(createKey)).toBeVisible();
+  if (await guestSignIn.isVisible()) await guestSignIn.click();
+  await createKey.click();
+  await expect(page.locator("#identity-modal")).toBeHidden({ timeout: 20_000 });
   await page.click("#welcome-skip-btn"); // a new identity is welcomed first
-  await expect(page.locator("#welcome-modal")).toBeHidden();
+  await expect(page.locator("#welcome-modal")).toBeHidden({ timeout: 15_000 });
 }
 
 test("signing in with a new key leaves the identity page", async ({ page }) => {
@@ -164,9 +168,13 @@ test("a saved post shows under Saved, and unsaving removes it", async ({ page })
 test("a new identity is welcomed: name, people, first post, and not again", async ({ page }) => {
   page.on("dialog", (d) => d.accept());
   await page.goto("/");
-  await page.getByRole("button", { name: "Create New Keypair" }).click();
+  const guestSignIn = page.locator("#guest-signin-btn");
+  const createKey = page.getByRole("button", { name: "Create New Keypair" });
+  await expect(guestSignIn.or(createKey)).toBeVisible();
+  if (await guestSignIn.isVisible()) await guestSignIn.click();
+  await createKey.click();
   const welcome = page.locator("#welcome-modal");
-  await expect(welcome).toBeVisible();
+  await expect(welcome).toBeVisible({ timeout: 20_000 });
   await page.fill("#welcome-name-input", "Ada");
   await page.click("#welcome-name-btn");
   await expect(page.locator("#welcome-suggestions")).toBeVisible();
@@ -442,4 +450,125 @@ test("my comment can be edited in place, and keeps its place", async ({ page }) 
   const again = page.locator(".gram-card", { hasText: tag }).first();
   await expect(again.locator(".comment-item", { hasText: "first comment" })).toBeVisible({ timeout: 30_000 });
   await expect(again.locator(".comment-item", { hasText: "frist comment" })).toHaveCount(0);
+});
+
+test("read-only guest mode browses public posts, gates write actions, hides authors locally, and signs in", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#guest-banner")).toBeVisible();
+  await expect(page.locator("#identity-modal")).toBeHidden();
+  await expect(page.locator("body")).toHaveClass(/\bguest-mode\b/);
+  await expect(page.locator("#post-caption")).toBeHidden();
+  await expect(page.locator("#scope-following-btn")).toBeHidden();
+
+  const tag = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+  const commTag = Math.random().toString(36).slice(2, 8).replace(/\d/g, "x");
+  await page.evaluate(
+    async ({ tag, commTag }) => {
+      const { freenet } = await import("/src/freenet.ts");
+      const { solvePoW, postIdWithPow, POST_POW_BITS } = await import("/src/pow.ts");
+      const f = freenet as unknown as { handlePeerEvent(d: unknown): void };
+      const hex = (c: string) => c.repeat(64);
+      const ts = Date.now() - 10_000;
+      const authorA = hex("a");
+      const authorB = hex("b");
+      const pubId = postIdWithPow(ts, await solvePoW(authorA, ts, POST_POW_BITS));
+      const commId = postIdWithPow(ts + 1, await solvePoW(authorB, ts + 1, POST_POW_BITS));
+      f.handlePeerEvent({
+        type: "post",
+        post: {
+          id: pubId,
+          author: authorA,
+          category: "thought",
+          caption: `guest public post ${tag}`,
+          timestamp: ts,
+          sig: "",
+          is_nsfw: false,
+          likes: {},
+          comments: {},
+        },
+      });
+      f.handlePeerEvent({
+        type: "post",
+        post: {
+          id: commId,
+          author: authorB,
+          category: "thought",
+          caption: `guest community post ${commTag}`,
+          community_id: "c_radica",
+          timestamp: ts + 1,
+          sig: "",
+          is_nsfw: false,
+          likes: {},
+          comments: {},
+        },
+      });
+    },
+    { tag, commTag },
+  );
+
+  const pubCard = page.locator("#posts-container .gram-card", { hasText: `guest public post ${tag}` }).first();
+  const commCard = page.locator("#posts-container .gram-card", { hasText: `guest community post ${commTag}` }).first();
+  await expect(pubCard).toBeVisible({ timeout: 20_000 });
+  await expect(commCard).toBeVisible({ timeout: 20_000 });
+
+  // Clicking a private/write entry point opens #identity-modal, and #id-browse-readonly-btn returns to guest mode
+  await page.click("#open-chat-btn");
+  await expect(page.locator("#identity-modal")).toBeVisible();
+  await expect(page.locator("#id-browse-readonly-btn")).toBeVisible();
+  await page.click("#id-browse-readonly-btn");
+  await expect(page.locator("#identity-modal")).toBeHidden();
+  await expect(page.locator("#guest-banner")).toBeVisible();
+
+  // Clicking a write button on a card (.like-btn) also gates to #identity-modal
+  await pubCard.locator(".like-btn").click();
+  await expect(page.locator("#identity-modal")).toBeVisible();
+  await page.click("#id-browse-readonly-btn");
+  await expect(page.locator("#identity-modal")).toBeHidden();
+
+  // Local Hide author works in guest mode without requiring an identity
+  await pubCard.locator(".post-more summary").click();
+  await pubCard.locator(".hide-user-btn").click();
+  await page.locator("[data-dialog-ok]").click();
+  await expect(page.locator("#posts-container .gram-card", { hasText: `guest public post ${tag}` })).toHaveCount(0);
+  await expect(commCard).toBeVisible();
+
+  // Signing in from #guest-banner transitions out of guest mode
+  await page.click("#guest-signin-btn");
+  await expect(page.locator("#identity-modal")).toBeVisible();
+  await page.getByRole("button", { name: "Create New Keypair" }).click();
+  await expect(page.locator("#identity-modal")).toBeHidden({ timeout: 20_000 });
+  await expect(page.locator("#welcome-modal")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("#guest-banner")).toBeHidden();
+  await expect(page.locator("body")).not.toHaveClass(/\bguest-mode\b/);
+});
+
+test("desktop sidebar (.rail) stays at the same coordinates across Feed, Chat, Mail, and Feed", async ({ page }) => {
+  await signIn(page);
+  const rail = page.locator(".rail");
+  await expect(rail).toBeVisible();
+  const rectOf = () => rail.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top };
+  });
+
+  const onFeed = await rectOf();
+
+  await page.click("#open-chat-btn");
+  await expect(chat(page)).toBeVisible();
+  const onChat = await rectOf();
+  expect(Math.abs(onChat.left - onFeed.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(onChat.top - onFeed.top)).toBeLessThanOrEqual(1);
+
+  await page.click("#open-mail-btn");
+  await expect(page.locator("#mail-modal")).toBeVisible();
+  const onMail = await rectOf();
+  expect(Math.abs(onMail.left - onFeed.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(onMail.top - onFeed.top)).toBeLessThanOrEqual(1);
+
+  await page.click(".rail-brand");
+  await expect(page.locator("#mail-modal")).toBeHidden();
+  await expect(page.locator("#post-caption")).toBeVisible();
+  const backOnFeed = await rectOf();
+  expect(Math.abs(backOnFeed.left - onFeed.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(backOnFeed.top - onFeed.top)).toBeLessThanOrEqual(1);
 });

@@ -613,7 +613,7 @@ export class FreenetClient {
   /** The social logs the feed needs and chat does not (the terminal chat loads them when a feed is opened). */
   public connectSocial(): Promise<unknown> {
     return Promise.allSettled(
-      ["communities", "directory", "supporters", "ghostkeys", "poh", "delegations", "supporter-receipts", "post-edits"].map((l) => this.refreshLog(l, true)) // directory: learn who else is on the network, and publish my own entry
+      ["communities", "directory", "supporters", "ghostkeys", "poh", "delegations", "supporter-receipts", "post-edits", "reports"].map((l) => this.refreshLog(l, true)) // directory: learn who else is on the network, and publish my own entry; reports: fetch AI holds & moderation reports even in guest mode
     );
   }
 
@@ -2410,20 +2410,23 @@ export class FreenetClient {
   /** "My circle only" (Settings): Explore fetches and shows only the people I follow. */
   public circleOnly = false;
 
-  public async getExploreTimeline(identity: UserIdentity, opts: { prefer?: string[]; skip?: (pubkey: string) => boolean } = {}): Promise<Post[]> {
-    const myFeed = await this.getFeed(identity.pubkey);
-    const postMap: Record<string, Post> = { ...this.peerCache, ...myFeed.posts }; // feed copies win: a live copy misses later comments
+  public async getExploreTimeline(identity: UserIdentity | null | undefined, opts: { prefer?: string[]; skip?: (pubkey: string) => boolean } = {}): Promise<Post[]> {
+    const myPubkey = identity?.pubkey ?? "";
+    const myFeed = identity ? await this.getFeed(identity.pubkey) : null;
+    const following = myFeed?.following ?? [];
+    const postMap: Record<string, Post> = { ...this.peerCache, ...(myFeed?.posts ?? {}) }; // feed copies win: a live copy misses later comments
+    const circleOnly = Boolean(identity) && this.circleOnly;
 
-    const core = new Set([...myFeed.following, ...(opts.prefer ?? []).slice(0, 40)]);
+    const core = new Set([...following, ...(opts.prefer ?? []).slice(0, 40)]);
     const lane = () => {
-      const pool = Object.keys(this.knownPeers).filter((k) => k !== identity.pubkey && !core.has(k) && /^[0-9a-f]{64}$/.test(k) && !opts.skip?.(k));
+      const pool = Object.keys(this.knownPeers).filter((k) => k !== myPubkey && !core.has(k) && /^[0-9a-f]{64}$/.test(k) && !opts.skip?.(k));
       return laneSample(pool, directoryWeights(this.logEntries("directory")), 30, this.laneSeed); // shortcut: no paging
     };
-    const keys = explorePeerKeys(myFeed.following, opts.prefer ?? [], lane, this.circleOnly);
+    const keys = explorePeerKeys(following, opts.prefer ?? [], lane, circleOnly);
     const peers = await Promise.all(keys.map((k) => this.peerPosts(k)));
     for (const posts of peers) for (const p of posts) postMap[p.id] = p;
-    const mine = new Set([identity.pubkey, ...myFeed.following]);
-    const shown = Object.values(postMap).filter((p) => !this.circleOnly || mine.has(p.author)); // a profile I opened leaves its posts in peerCache
+    const mine = new Set([...(myPubkey ? [myPubkey] : []), ...following]);
+    const shown = Object.values(postMap).filter((p) => !circleOnly || mine.has(p.author)); // a profile I opened leaves its posts in peerCache
 
     return shown.sort((a, b) => b.timestamp - a.timestamp);
   }

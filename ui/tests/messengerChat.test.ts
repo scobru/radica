@@ -4,6 +4,7 @@ import {
   canPostInRoom,
   computeSafetyBlocks,
   detectMentionTrigger,
+  enterSends,
   filterContactPeers,
   filterMentionCandidates,
   isStageBackSwipe,
@@ -470,4 +471,21 @@ test("messengerLogic: unreadSeparatorAt finds the first unread from others and c
   assert.deepEqual(unreadSeparatorAt(msgs, me, 10), { index: 4, count: 2 }); // mine at 20/40 and join at 30 skipped
   assert.deepEqual(unreadSeparatorAt(msgs, me, 50), { index: 6, count: 1 }); // strictly newer than since
   assert.equal(unreadSeparatorAt([{ sender: me, timestamp: 99 }], me, 0), null); // only mine
+});
+
+test("enterSends: desktop Enter sends; coarse pointer, Shift+Enter, IME composing, Safari 229, and non-Enter keys do not", () => {
+  assert.equal(enterSends({ key: "Enter", shiftKey: false, isComposing: false }, false), true);
+  assert.equal(enterSends({ key: "Enter", shiftKey: false, isComposing: false, keyCode: 13 }, false), true);
+  assert.equal(enterSends({ key: "Enter", shiftKey: false, isComposing: false }, true), false);
+
+  assert.equal(enterSends({ key: "Enter", shiftKey: true, isComposing: false }, false), false);
+  assert.equal(enterSends({ key: "Enter", shiftKey: true, isComposing: false }, true), false);
+
+  assert.equal(enterSends({ key: "Enter", shiftKey: false, isComposing: true }, false), false);
+  assert.equal(enterSends({ key: "Enter", shiftKey: false, isComposing: false, keyCode: 229 }, false), false);
+
+  for (const key of ["a", " ", "Tab", "NumpadEnter", "Escape"]) {
+    assert.equal(enterSends({ key, shiftKey: false, isComposing: false }, false), false);
+    assert.equal(enterSends({ key, shiftKey: false, isComposing: false }, true), false);
+  }
 });

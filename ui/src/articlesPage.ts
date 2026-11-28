@@ -30,6 +30,7 @@ import type { FreenetMailIdentity } from "./freenetMail.ts";
 
 export interface ArticlesPageDeps {
   getIdentity: () => UserIdentity | null;
+  requireIdentity?: (action?: string) => boolean;
   getAllPosts: () => Post[];
   /** One post straight from its author's feed (a permalink opens before the timeline is built). */
   getPostById?: (author: string, postId: string) => Promise<Post | null>;
@@ -411,7 +412,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
           `<button type="button" class="btn-secondary btn-sm ${likedByMe ? "is-liked" : ""}" id="article-reader-like-btn">♥ ${likeCount}</button>` +
           `<button type="button" class="btn-secondary btn-sm" id="article-reader-comments-btn">💬 Comments (${commentCount})</button>` +
           (deps.saveToBoard && post ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-board-btn">📌 Board</button>` : "") +
-          (target.author !== me && me
+          (target.author !== me
             ? `<button type="button" class="btn-secondary btn-sm" id="article-reader-report-btn" style="margin-left:auto;">🚩 Report</button>` +
               `<button type="button" class="btn-secondary btn-sm" id="article-reader-hide-btn">🚫 Hide Author</button>`
             : "") +
@@ -463,6 +464,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
     });
     document.getElementById("article-reader-report-btn")?.addEventListener("click", async () => {
       await deps.reportArticle?.(target.author, target.postId);
+      if (!deps.getIdentity()) return;
       showView("list");
       renderList();
     });
@@ -559,8 +561,8 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
   }
 
   function openComposer(draft?: ArticleDraft) {
-    if (!deps.getIdentity()) {
-      deps.showToast("Sign in first to write an article.", true);
+    if (deps.requireIdentity ? !deps.requireIdentity("write an article") : !deps.getIdentity()) {
+      if (!deps.requireIdentity) deps.showToast("Sign in first to write an article.", true);
       return;
     }
     editingPublished = null;

@@ -1730,6 +1730,60 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   background: var(--rm-bg-subtle);
 }
 
+#chat-modal .rm-attach-translate {
+  position: relative;
+}
+
+#chat-modal .rm-attach-translate select.draft-translate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#chat-modal .rm-attach-translate.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#chat-modal .rm-attach-translate.disabled select.draft-translate {
+  cursor: not-allowed;
+}
+
+#chat-modal .rm-translate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  background: var(--rm-bg-subtle);
+  border: 1px solid var(--rm-border);
+  color: var(--rm-text-secondary);
+  font-size: 0.76rem;
+  align-self: flex-start;
+}
+
+#chat-modal .rm-translate-chip[hidden] {
+  display: none;
+}
+
+#chat-modal .rm-translate-undo {
+  color: var(--rm-accent);
+  font-weight: 600;
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 #chat-modal .rm-composer-row {
   display: flex;
   align-items: flex-end;
@@ -1807,26 +1861,6 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 #chat-modal .rm-textarea:focus-visible {
   outline: none;
   box-shadow: none;
-}
-
-#chat-modal .rm-emoji-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--rm-text-muted);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  font-size: 1.05rem;
-  flex-shrink: 0;
-  padding: 0;
-}
-
-#chat-modal .rm-emoji-btn:hover {
-  background: var(--rm-bg-subtle);
-  color: var(--rm-text-main);
 }
 
 #chat-modal .rm-send-btn {

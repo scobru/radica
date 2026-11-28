@@ -249,8 +249,16 @@ import { draftTranslateHtml, initDraftTranslate } from "./composeTranslate.ts";
 import { yieldToMain } from "./limit.ts";
 import { playPopSound, isSoundEnabled, toggleSoundEnabled } from "./sound.ts";
 import { startVersionCheck, checkNativeAppUpdate, getAppVersion, GITHUB_RELEASES_PAGE } from "./versionCheck.ts";
+import { guestPreferKeys, resolveFeedScope, shouldHideUnjoinedCommunityPost, shouldStartInGuestMode } from "./guestMode.ts";
 
 let currentIdentity: UserIdentity | null = null;
+
+function requireIdentity(action?: string): boolean {
+  if (currentIdentity) return true;
+  showToast(action ? `Sign in or create a key to ${action}.` : "Sign in or create a key first.", "info");
+  openIdentityModal();
+  return false;
+}
 let currentProfile: ProfileInfo | null = null;
 let currentCategory: "all" | "poll" | PostCategory = "all"; // "poll" is a format, not a category: a post whose text links a poll
 let activeComposerType: PostCategory = "thought";
@@ -287,9 +295,12 @@ const widthToggleBtn = document.getElementById("width-toggle-btn") as HTMLButton
 const widthIcon = document.getElementById("width-icon") as HTMLElement | null;
 
 // Identity & Key Management Elements
+const guestBanner = document.getElementById("guest-banner") as HTMLElement | null;
+const guestSigninBtn = document.getElementById("guest-signin-btn") as HTMLButtonElement | null;
 const openIdentityBtn = document.getElementById("open-identity-btn") as HTMLButtonElement | null;
 const identityModal = document.getElementById("identity-modal") as HTMLElement;
 const identityCloseBtn = document.getElementById("identity-close-btn") as HTMLButtonElement;
+const idBrowseReadonlyBtn = document.getElementById("id-browse-readonly-btn") as HTMLButtonElement | null;
 const identityTypeBadge = document.getElementById("identity-type-badge") as HTMLElement;
 const identityPersonaName = document.getElementById("identity-persona-name") as HTMLElement;
 const identityPubkeyVal = document.getElementById("identity-pubkey-val") as HTMLElement;
@@ -1265,8 +1276,10 @@ document.getElementById("poll-toggle-btn")?.insertAdjacentHTML("beforebegin", dr
 const rail = document.querySelector<HTMLElement>(".rail");
 const railMoreBtn = document.getElementById("rail-more-btn");
 const setRailMore = (on: boolean) => {
+  const wasOpen = rail?.classList.contains("more-open");
   rail?.classList.toggle("more-open", on);
   railMoreBtn?.setAttribute("aria-expanded", String(on));
+  if (!on && wasOpen) flushDeferredTimelineRender();
 };
 railMoreBtn?.addEventListener("click", () => setRailMore(!rail?.classList.contains("more-open")));
 document.getElementById("rail-more-group")?.addEventListener("click", (e) => (e.target as HTMLElement).closest(".rail-btn") && setRailMore(false));
@@ -1452,6 +1465,14 @@ document.getElementById("guide-close-btn")!.addEventListener("click", () => (gui
 
 const mediaModal = document.getElementById("media-modal") as HTMLElement;
 let currentMomentsFilter: "all" | "photos" | "videos" | "reels" | "following" = "all";
+function exitReelsToMoments(rerender = false) {
+  reelsPlayer.hide();
+  currentMomentsFilter = "all";
+  document.querySelectorAll<HTMLButtonElement>("#moments-toolbar .moments-filter-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.mfilter === "all")
+  );
+  if (rerender) renderMediaGrid();
+}
 document.getElementById("moments-toolbar")?.addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".moments-filter-btn");
   if (!btn) return;
@@ -1469,7 +1490,7 @@ document.getElementById("open-media-btn")!.addEventListener("click", () => {
   renderMediaGrid();
 });
 document.getElementById("media-close-btn")!.addEventListener("click", () => {
-  reelsPlayer.hide();
+  exitReelsToMoments(false);
   mediaModal.style.display = "none";
 });
 
@@ -2034,7 +2055,7 @@ function renderBlocklists() {
   }
 }
 document.getElementById("blocklists-open-btn")!.addEventListener("click", () => {
-  if (!currentIdentity) return;
+  if (!requireIdentity("manage blocklists")) return;
   paintModButton();
   const hasReports = !isMessengerMode() && amGlobalMod() && freenet.reportQueue().length > 0;
   showBlocklistTab(hasReports ? "moderation" : "blocklists");
@@ -2673,9 +2694,10 @@ function renderFollowers() {
 }
 
 function renderDiscoveredPeers() {
-  if (!discoveredPeersList || !currentIdentity) return;
+  if (!discoveredPeersList) return;
+  const myPubkey = currentIdentity?.pubkey ?? "";
   // only people who chose a name: default "Persona @…" accounts are noise
-  const discoveredAll = freenet.getDiscoveredPeers(currentIdentity.pubkey);
+  const discoveredAll = freenet.getDiscoveredPeers(myPubkey);
   freenet.warmPeers(discoveredAll.map((p) => p.pubkey));
   const peers = discoveredAll.filter(
     (p) =>
@@ -2710,7 +2732,7 @@ function renderDiscoveredPeers() {
   if (painted) discoveredPeersList.querySelectorAll(".toggle-follow-peer-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       const targetPk = (e.currentTarget as HTMLElement).dataset.pubkey!;
-      if (!currentIdentity) return;
+      if (!requireIdentity("follow people") || !currentIdentity) return;
       const isNowFollowing = await freenet.toggleFollow(currentIdentity, targetPk);
       if (isNowFollowing) {
         if (!followingKeys.includes(targetPk)) followingKeys.push(targetPk);
@@ -2733,6 +2755,7 @@ function renderDiscoveredPeers() {
   if (painted) discoveredPeersList.querySelectorAll(".talk-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const pk = (e.currentTarget as HTMLElement).dataset.author!;
+      if (!requireIdentity("send a direct message")) return;
       openChatWithPeer(pk);
     });
   });
@@ -2795,16 +2818,23 @@ function refreshVisibleReactions(): void {
 }
 
 async function reloadPosts(opts?: { background?: boolean }) {
-  if (!currentIdentity) return;
+  const scope = resolveFeedScope(currentFeedScope, Boolean(currentIdentity), Boolean(feedAuthor));
+  if (scope !== currentFeedScope) {
+    currentFeedScope = scope;
+    updateScopeBtnActive(scopeExploreBtn);
+  }
   refreshTrustedBlocklists();
   refreshVisibleReactions();
-  if (currentFeedScope === "explore") {
+  const prefer = currentIdentity
+    ? [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])]
+    : guestPreferKeys(RADICA_MAINTAINER, supporterKeys, ghostkeyKeys);
+  if (scope === "explore") {
     timelinePosts = await freenet.getExploreTimeline(currentIdentity, {
-      prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+      prefer,
       skip: isHiddenAuthor,
     });
     void checkMilestones(timelinePosts);
-  } else if (currentFeedScope === "following") {
+  } else if (scope === "following" && currentIdentity) {
     timelinePosts = await freenet.getTimeline(currentIdentity);
     const wot = getWebOfTrust();
     // Include Tier 2 posts from known peerCache in the Radicato feed
@@ -2816,25 +2846,32 @@ async function reloadPosts(opts?: { background?: boolean }) {
       }
     }
     timelinePosts.sort((a, b) => b.timestamp - a.timestamp);
-  } else if (currentFeedScope === "myposts") {
-    const myFeed = await freenet.getFeed(feedAuthor ?? currentIdentity.pubkey);
-    timelinePosts = Object.values(myFeed.posts || {}).sort((a, b) => b.timestamp - a.timestamp);
-  } else if (currentFeedScope === "saved") {
+  } else if (scope === "myposts") {
+    const wallAuthor = feedAuthor ?? currentIdentity?.pubkey;
+    if (wallAuthor) {
+      const myFeed = await freenet.getFeed(wallAuthor);
+      timelinePosts = Object.values(myFeed.posts || {}).sort((a, b) => b.timestamp - a.timestamp);
+    } else {
+      timelinePosts = [];
+    }
+  } else if (scope === "saved" && currentIdentity) {
     timelinePosts = savedPosts(currentIdentity.pubkey);
-  } else if (currentFeedScope === "media") {
+  } else if (scope === "media") {
     // Instagram-style explore of only media (images/videos)
     timelinePosts = await freenet.getExploreTimeline(currentIdentity, {
-      prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+      prefer,
       skip: isHiddenAuthor,
     });
     void checkMilestones(timelinePosts);
+  } else {
+    timelinePosts = [];
   }
   await yieldToMain(); // gathering the posts and drawing them are separate tasks
   if (opts?.background) scheduleRenderTimeline();
   else renderTimeline();
   renderTrending();
-  updateMyPostsAndScopeCounts();
-  if (currentFeedScope === "explore") treeExplorePosts = timelinePosts;
+  if (currentIdentity) updateMyPostsAndScopeCounts();
+  if (scope === "explore") treeExplorePosts = timelinePosts;
   if (treePageModP) void treePageModP.then((m) => m.refreshTreePageIfOpen());
 }
 
@@ -2962,9 +2999,10 @@ let isFeedTouching = false;
 let isFeedScrolling = false;
 let feedScrollIdleTimer = 0;
 let deferredTimelineRender = false;
+const hasOpenInteractiveMenu = () => Boolean(document.querySelector("details.post-more[open], .rail.more-open"));
 
 function flushDeferredTimelineRender() {
-  if (deferredTimelineRender && !isFeedTouching && !isFeedScrolling) {
+  if (deferredTimelineRender && !isFeedTouching && !isFeedScrolling && !hasOpenInteractiveMenu()) {
     deferredTimelineRender = false;
     scheduleRenderTimeline();
   }
@@ -2979,6 +3017,15 @@ const endFeedTouch = () => {
 };
 window.addEventListener("touchend", endFeedTouch, { passive: true });
 window.addEventListener("touchcancel", endFeedTouch, { passive: true });
+window.addEventListener("blur", () => {
+  isFeedTouching = false;
+});
+document.addEventListener("visibilitychange", () => {
+  isFeedTouching = false;
+  if (!document.hidden && !isFeedScrolling && !hasOpenInteractiveMenu()) {
+    flushDeferredTimelineRender();
+  }
+});
 window.addEventListener(
   "scroll",
   () => {
@@ -3010,7 +3057,10 @@ function restoreScrollAnchor(anchor: { id: string; top: number }) {
 
 let timelineRenderRaf = 0;
 function scheduleRenderTimeline() {
-  if (shouldDeferBackgroundRender({ isTouching: isFeedTouching, isMomentum: isFeedScrolling, forceImmediate: false })) {
+  if (
+    shouldDeferBackgroundRender({ isTouching: isFeedTouching, isMomentum: isFeedScrolling, forceImmediate: false }) ||
+    hasOpenInteractiveMenu()
+  ) {
     deferredTimelineRender = true;
     return;
   }
@@ -3405,8 +3455,8 @@ function closeSinglePostModal(): void {
 }
 
 function renderSinglePostContent(post: Post): void {
-  if (!singlePostBody || !currentIdentity) return;
-  const me = currentIdentity.pubkey;
+  if (!singlePostBody) return;
+  const me = currentIdentity?.pubkey ?? "";
   const mod = buildModerationSets(me);
   const { allKnownPosts, repostCounts } = collectKnownPosts();
   const topWot = getWebOfTrust();
@@ -3634,11 +3684,11 @@ function renderTimeline() {
     timelineRenderRaf = 0;
   }
   postsContainer.classList.remove("media-grid");
-  if (!currentIdentity) return;
   if (communitiesModal && isOpen(communitiesModal)) renderCommunitiesPage();
   renderSinglePostIfOpen();
 
-  const me = currentIdentity.pubkey;
+  const signedIn = Boolean(currentIdentity);
+  const me = currentIdentity?.pubkey ?? "";
   const mod = buildModerationSets(me);
   const { policy, commByRef } = mod;
   const commOf = (p: Post) => (p.community_id ? commByRef.get(p.community_id) : undefined);
@@ -3665,7 +3715,7 @@ function renderTimeline() {
     if (currentFeedScope !== "myposts" && currentFeedScope !== "saved" && currentFeedScope !== "media") {
       const c = commOf(p);
       if (isPostDeletedInCommunity(c, p)) return false;
-      if (!activeCommunity && c && !isJoined(c) && p.author !== me) return false;
+      if (shouldHideUnjoinedCommunityPost(signedIn, Boolean(activeCommunity), Boolean(c), c ? isJoined(c) : false, p.author === me)) return false;
     }
 
     if (activeCommunity) {
@@ -4089,7 +4139,7 @@ function renderMediaGrid() {
 
 /** Toggle a like from the Moments grid without leaving the grid. */
 async function toggleLikeInGrid(btn: HTMLElement, post: Post) {
-  if (!currentIdentity) return;
+  if (!requireIdentity("like posts") || !currentIdentity) return;
   const identity = currentIdentity;
   const currentPost = timelinePosts.find((p) => p.id === post.id && p.author === post.author);
   const currentlyLiked = !!currentPost?.likes?.[identity.pubkey]?.liked;
@@ -4331,12 +4381,12 @@ function showMedia(root: ParentNode) {
 
 /** Draw `pubkey`'s plant in `box`: their own posts and everything else this node sees, weighed by my web of trust. */
 async function showLinfa(box: HTMLElement | null, pubkey: string) {
-  if (!box || !currentIdentity) return;
+  if (!box) return;
   const [seen, feed] = await Promise.all([freenet.getExploreTimeline(currentIdentity), freenet.getFeed(pubkey)]);
   const posts = new Map<string, Post>();
   for (const p of [...seen, ...Object.values(feed.posts)]) posts.set(`${p.author}:${p.id}`, p);
   const wot = getWebOfTrust();
-  const html = linfaPanel(pubkey, linfaOf([...posts.values()], pubkey, (k) => wot.trustTier(k)), pubkey === currentIdentity.pubkey);
+  const html = linfaPanel(pubkey, linfaOf([...posts.values()], pubkey, (k) => wot.trustTier(k)), pubkey === currentIdentity?.pubkey);
   if (box.dataset.linfa === html) return; // the same plant: it does not grow in again
   box.dataset.linfa = html;
   box.innerHTML = html;
@@ -4416,6 +4466,7 @@ const openRepost = (card: HTMLElement) => void checkUrlPostHash(`#post=${card.da
 let stagedRepost: RepostRef | null = null;
 const composerRepost = document.getElementById("composer-repost") as HTMLElement;
 function stageRepost(ref: RepostRef | null) {
+  if (ref && !requireIdentity("repost")) return;
   // reposting a plain repost shares the post itself, not the repost of it
   const inner = ref && timelinePosts.find((p) => p.id === ref.id && p.author === ref.author);
   const innerCaption = inner ? (freenet.postEdit(inner.author, inner.id)?.caption ?? inner.caption) : "";
@@ -4556,9 +4607,11 @@ document.addEventListener("keydown", (e) => e.key === "Escape" && closePostMenus
 document.addEventListener(
   "toggle",
   (e) => {
-    const d = e.target as HTMLDetailsElement;
-    if (d?.classList?.contains("post-more")) {
+    const target = e.target as HTMLElement | null;
+    if (target?.matches?.("details.post-more")) {
+      const d = target as HTMLDetailsElement;
       d.closest(".gram-card")?.classList.toggle("menu-open", d.open);
+      if (!d.open) flushDeferredTimelineRender();
     }
   },
   true
@@ -4667,6 +4720,7 @@ function bindPostCardListeners(container: HTMLElement) {
       // links in posts: open in a new tab; the sandboxed page may not be allowed to, so fall back to the shell
       openPostLink.call(el as HTMLAnchorElement, e);
     } else if ((el = hit(".talk-btn"))) {
+      if (!requireIdentity("send a direct message")) return;
       closeSinglePostModal();
       openChatWithPeer(el.dataset.author!);
     } else if ((el = hit(".hide-user-btn"))) {
@@ -4727,6 +4781,7 @@ function bindPostCardListeners(container: HTMLElement) {
         );
       }
     } else if ((el = hit(".save-post-btn"))) {
+      if (!requireIdentity("save posts")) return;
       const post = timelinePosts.find((p) => p.id === el!.dataset.postId && p.author === el!.dataset.author);
       if (post && currentIdentity) {
         showToast(toggleSaved(currentIdentity.pubkey, post) ? "Saved: find it under Saved." : "Removed from Saved.", "info");
@@ -4759,9 +4814,11 @@ function bindPostCardListeners(container: HTMLElement) {
     } else if ((el = hit(".author-clickable"))) {
       openUserProfile(el.dataset.author!);
     } else if ((el = hit(".comment-btn-file"))) {
+      if (!requireIdentity("comment on posts")) return;
       const fileInput = el.closest(".comment-form")?.querySelector<HTMLInputElement>(".comment-file-input");
       fileInput?.click();
     } else if ((el = hit(".comment-btn-gif"))) {
+      if (!requireIdentity("comment on posts")) return;
       const pid = el.dataset.postId;
       if (pid) {
         openGifPicker({
@@ -4791,6 +4848,10 @@ function bindPostCardListeners(container: HTMLElement) {
   container.addEventListener("change", (e) => {
     const input = (e.target as Element).closest<HTMLInputElement>(".comment-file-input");
     if (!input || !input.files?.[0]) return;
+    if (!requireIdentity("comment on posts")) {
+      input.value = "";
+      return;
+    }
     const form = input.closest<HTMLFormElement>(".comment-form");
     const postId = form?.dataset.postId;
     if (postId) {
@@ -4809,6 +4870,7 @@ function bindPostCardListeners(container: HTMLElement) {
     const files = e.clipboardData?.files;
     if (files && files.length > 0 && files[0].type.startsWith("image/")) {
       e.preventDefault();
+      if (!requireIdentity("comment on posts")) return;
       void stageCommentFile(postId, files[0]);
       return;
     }
@@ -4819,6 +4881,7 @@ function bindPostCardListeners(container: HTMLElement) {
         /^https?:\/\/(?:media\d*\.giphy\.com|media\.tenor\.com)\/.+/i.test(text))
     ) {
       e.preventDefault();
+      if (!requireIdentity("comment on posts")) return;
       stageCommentUrl(postId, text);
     }
   });
@@ -4851,6 +4914,7 @@ function bindPostCardListeners(container: HTMLElement) {
     const files = e.dataTransfer?.files;
     if (files && files.length > 0 && files[0].type.startsWith("image/")) {
       e.preventDefault();
+      if (!requireIdentity("comment on posts")) return;
       void stageCommentFile(postId, files[0]);
     }
   });
@@ -4873,8 +4937,8 @@ function paintCommentLikeButton(btn: HTMLElement, likers: string[], isLiked: boo
 }
 
 async function toggleCommentLikeFromButton(btn: HTMLElement) {
+  if (!requireIdentity("like comments") || !currentIdentity) return;
   const identity = currentIdentity;
-  if (!identity) return;
   const { postId, author, commentKey, commentAuthor } = btn.dataset as {
     postId: string;
     author: string;
@@ -5095,10 +5159,10 @@ function paintCardDislikeButtons(postId: string, count: number, isDisliked: bool
 }
 
 async function toggleLikeFromCard(target: HTMLElement) {
+  if (!requireIdentity("like posts") || !currentIdentity) return;
   const postId = target.dataset.postId!;
   const author = target.dataset.author!;
   const identity = currentIdentity;
-  if (!identity) return;
 
   const idx = timelinePosts.findIndex((p) => p.id === postId);
   if (idx === -1) return;
@@ -5136,10 +5200,10 @@ async function toggleLikeFromCard(target: HTMLElement) {
 }
 
 async function toggleDislikeFromCard(btn: HTMLElement) {
+  if (!requireIdentity("dislike posts") || !currentIdentity) return;
   const postId = btn.dataset.postId!;
   const author = btn.dataset.author!;
   const identity = currentIdentity;
-  if (!identity) return;
 
   const curDislikers = freenet.postDislikers(author, postId);
   const currentlyDisliked = curDislikers.includes(identity.pubkey);
@@ -5182,6 +5246,7 @@ function hideAuthorWithToast(pubkey: string): void {
 }
 
 async function reportContentTarget(author: string, postId: string, opts?: { label?: string }): Promise<void> {
+  if (!requireIdentity("report content")) return;
   const post = timelinePosts.find((p) => p.id === postId && p.author === author);
   const comm = post?.community_id ? allCommunities.find((c) => c.id === post.community_id || c.slug === post.community_id) : undefined;
   const targetDesc = opts?.label ? `"${opts.label}" by ${getAuthorDisplayName(author)}` : `this post by ${getAuthorDisplayName(author)}`;
@@ -5252,13 +5317,14 @@ function paintReactionsBy(post: Post): void {
 }
 
 async function submitCommentFromCard(target: HTMLFormElement) {
+  if (!requireIdentity("comment on posts") || !currentIdentity) return;
   const postId = target.dataset.postId!;
   const author = target.dataset.author!;
   const input = target.querySelector(".comment-input") as HTMLTextAreaElement;
   const text = input.value.trim();
   const identity = currentIdentity;
   const staged = stagedCommentMedia.get(postId);
-  if ((!text && !staged) || !identity) return;
+  if (!text && !staged) return;
   if (text && !(await okToPublish(text))) return;
 
   const now = Date.now();
@@ -6056,6 +6122,7 @@ modalWallets?.addEventListener("input", (e) => {
 });
 
 editProfileBtn.addEventListener("click", () => {
+  if (!requireIdentity("edit your profile")) return;
   modalDirtyFields.clear();
   const gen = ++modalOpenGen;
   freetunesAutoSuggested = false;
@@ -6885,7 +6952,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     paintModBtn();
     refreshTrustedBlocklists();
   };
-  const iBlock = () => freenet.blockedBy(currentIdentity!.pubkey).has(pubkey);
+  const iBlock = () => (currentIdentity ? freenet.blockedBy(currentIdentity.pubkey).has(pubkey) : false);
   const paintListBtns = () => {
     uviewBlockBtn.textContent = iBlock() ? "Remove from my blocklist" : "Add to my blocklist";
     uviewTrustBtn.textContent = trustedCurators().includes(pubkey) ? "Stop trusting their blocklist" : "Trust their blocklist";
@@ -6968,7 +7035,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
     ? `<span class="btn-icon-text">${renderIcon("userCheck", { className: "icon-xs" })} <span>Following</span></span>`
     : `<span class="btn-icon-text">${renderIcon("userPlus", { className: "icon-xs" })} <span>Follow</span></span>`;
   uviewFollowBtn.onclick = async () => {
-    if (!currentIdentity) return;
+    if (!requireIdentity("follow people") || !currentIdentity) return;
     const nowFollowing = await freenet.toggleFollow(currentIdentity, pubkey);
     if (nowFollowing) {
       followingKeys.push(pubkey);
@@ -6983,6 +7050,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   };
 
   uviewTalkBtn.onclick = () => {
+    if (!requireIdentity("send a direct message")) return;
     userProfileModal.style.display = "none";
     openChatWithPeer(pubkey);
   };
@@ -7029,8 +7097,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   let commentsLoading: Promise<void> | null = null;
   const loadComments = () =>
     (commentsLoading ??= (async () => {
-      const me = currentIdentity;
-      const seen = me ? await freenet.getExploreTimeline(me).catch(() => [] as Post[]) : [];
+      const seen = await freenet.getExploreTimeline(currentIdentity).catch(() => [] as Post[]);
       const wot = getWebOfTrust();
       const allPostsForComments = [...seen, ...timelinePosts, ...rawAuthorPosts];
       const commentPolicy = getModerationPolicy(allPostsForComments);
@@ -7404,10 +7471,7 @@ const boardCreateSaveBtn = document.getElementById("board-create-save-btn") as H
 let boardPickerTargetPost: Post | null = null;
 
 function openBoardPickerModal(post: Post | null) {
-  if (!currentIdentity) {
-    showToast("Sign in first to save to a Board.", "warning");
-    return;
-  }
+  if (!requireIdentity("save to a board") || !currentIdentity) return;
   if (!boardPickerModal || !boardPickerExisting) return;
   boardPickerTargetPost = post;
   if (boardNewTitle) boardNewTitle.value = "";
@@ -7573,6 +7637,7 @@ async function showChat(load: () => Promise<unknown>) {
 }
 
 function openChatWithPeer(peerPubkey?: string, focusThread = true, isSecret = false) {
+  if (!requireIdentity("use chat")) return;
   if (peerPubkey) {
     activeChatPeer = peerPubkey;
     activeChatPrivateRoom = null;
@@ -7596,6 +7661,7 @@ function openChatWithPeer(peerPubkey?: string, focusThread = true, isSecret = fa
 }
 
 openChatBtn.addEventListener("click", () => {
+  if (!requireIdentity("use chat")) return;
   if (activeChatPrivateRoom) {
     messengerChat.showInboxOnMobile(); // phones open on the conversations list, not on the last open room
     void showChat(async () => {
@@ -7792,9 +7858,10 @@ function loadTreePage() {
         getDisplayName: getAuthorDisplayName,
         refreshNetwork: async () => {
           treeReleases = await freenet.freetunesDirectory();
-          if (!currentIdentity) return;
           treeExplorePosts = await freenet.getExploreTimeline(currentIdentity, {
-            prefer: [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])],
+            prefer: currentIdentity
+              ? [...new Set([...getWebOfTrust().tier2, ...supporterKeys, ...ghostkeyKeys])]
+              : guestPreferKeys(RADICA_MAINTAINER, supporterKeys, ghostkeyKeys),
             skip: isHiddenAuthor,
           });
         },
@@ -7813,7 +7880,6 @@ function loadTreePage() {
           selectCommunity(comm);
         },
         onOpenMilestones: async () => {
-          if (!currentIdentity) return;
           renderMilestones(networkCounts(await freenet.getExploreTimeline(currentIdentity)));
           milestonesModal.style.display = "flex";
           growRoots();
@@ -7857,6 +7923,9 @@ document.querySelector(".rail")?.addEventListener(
 );
 for (const [page, btnId] of railPages) {
   new MutationObserver(() => {
+    if (!isOpen(mediaModal) && (document.body.classList.contains("reels-fullscreen-mobile") || currentMomentsFilter === "reels")) {
+      exitReelsToMoments(false);
+    }
     const wasOpen = document.body.classList.contains("page-open");
     if (isOpen(page)) {
       if (!wasOpen) {
@@ -8350,6 +8419,10 @@ function stepBackInRadica(): boolean {
     if (mailEmptyView) mailEmptyView.style.display = "flex";
     return true;
   }
+  if (isOpen(mediaModal) && currentMomentsFilter === "reels") {
+    exitReelsToMoments(true);
+    return true;
+  }
   if (railPages.some(([el]) => isOpen(el))) {
     closeRailPages();
     return true;
@@ -8779,7 +8852,7 @@ async function removePeerFromRecent(peer: string, secret = false) {
 }
 
 async function toggleBlockAuthor(peer: string): Promise<boolean> {
-  if (!currentIdentity) return false;
+  if (!requireIdentity("block users") || !currentIdentity) return false;
   const me = currentIdentity.pubkey;
   const isBlocked = freenet.blockedBy(me).has(peer);
   const willBlock = !isBlocked;
@@ -10336,7 +10409,7 @@ async function notifCounts(): Promise<(n: NotificationItem) => boolean> {
 }
 
 openNotifsBtn.addEventListener("click", async () => {
-  if (!currentIdentity) return;
+  if (!requireIdentity("view notifications") || !currentIdentity) return;
   // a click is the gesture the browser wants before it asks for permission to notify
   if (!toShell({ type: "notification_enable_prompt" })) {
     try {
@@ -11235,7 +11308,7 @@ commExitBtn.addEventListener("click", () => {
 
 // Join community button
 commJoinBtn.addEventListener("click", async () => {
-  if (!currentIdentity || !activeCommunity) return;
+  if (!requireIdentity("join communities") || !currentIdentity || !activeCommunity) return;
   await freenet.toggleJoinCommunity(currentIdentity, activeCommunity.id);
   allCommunities = await loadCommunities();
   activeCommunity = allCommunities.find((c) => c.id === activeCommunity!.id) || null;
@@ -11346,6 +11419,7 @@ async function populateCommunityRoomPicker(currentDesc = commDescInput.value) {
   linkedPickerRoomId = matched || null;
 }
 function openCreateCommunityDialog(name = "", slug = "", edit?: Community) {
+  if (!edit && !requireIdentity("create a community")) return;
   editingCommunityId = edit?.id ?? null;
   dialogSlug = edit ? edit.slug : slug;
   const initialDesc = edit ? edit.description : "";
@@ -11569,6 +11643,7 @@ function setRedditComposeFlair(flair: PostCategory) {
 }
 
 async function createCommunityFromPage(prefillName = "") {
+  if (!requireIdentity("create a community")) return;
   const candidate = prefillName.trim() || commPageSearch.value.trim();
   const candidateSlug = slugOf(candidate);
   const exactFromSearch = candidateSlug ? allCommunities.find((c) => c.slug === candidateSlug) : undefined;
@@ -12059,6 +12134,7 @@ function loadArticlesPage() {
     articlesPageP = withPageLoading(import("./articlesPage.ts")).then(({ createArticlesPage }) =>
       createArticlesPage({
         getIdentity: () => currentIdentity,
+        requireIdentity,
         getAllPosts: () => {
           const byKey = new Map<string, Post>();
           for (const p of timelinePosts) if (p) byKey.set(`${p.author}:${p.id}`, p);
@@ -12117,10 +12193,7 @@ function loadArticlesPage() {
         openPostInFeed: (postId, author) => void showMyPost(postId, author),
         saveToBoard: (post) => openBoardPickerModal(post),
         toggleLike: async (author, postId) => {
-          if (!currentIdentity) {
-            showToast("Sign in first to like.", "warning");
-            return;
-          }
+          if (!requireIdentity("like articles") || !currentIdentity) return;
           const me = currentIdentity.pubkey;
           const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
           const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
@@ -12183,8 +12256,7 @@ function loadMusicPage() {
         shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
         openUserWall: (pk) => void openUserProfile(pk),
         toggleFollow: async (pk) => {
-          if (!currentIdentity) {
-            showToast("Sign in first to follow artists.", "warning");
+          if (!requireIdentity("follow artists") || !currentIdentity) {
             return followingKeys.includes(pk);
           }
           const nowFollowing = await freenet.toggleFollow(currentIdentity, pk);
@@ -12195,6 +12267,7 @@ function loadMusicPage() {
           return nowFollowing;
         },
         shareReleaseToFeed: (item) => {
+          if (!requireIdentity("share releases to the feed")) return;
           musicModal.style.display = "none";
           const link = `#/r/${item.id}.${item.params}`;
           postCaption.value = `🎵 Listening to **${item.title}** by ${item.artist}\n\n${link}`;
@@ -12272,10 +12345,7 @@ const reelsPlayer = createReelsPlayer({
     };
   },
   toggleLike: async (author, postId) => {
-    if (!currentIdentity) {
-      showToast("Sign in first to like.", "warning");
-      return;
-    }
+    if (!requireIdentity("like videos") || !currentIdentity) return;
     const me = currentIdentity.pubkey;
     const idx = timelinePosts.findIndex((p) => p.id === postId && p.author === author);
     const prevPost = idx !== -1 ? timelinePosts[idx] : undefined;
@@ -12306,7 +12376,11 @@ const reelsPlayer = createReelsPlayer({
     mediaModal.style.display = "none";
     void showMyPost(postId, author);
   },
-  openUserWall: (pk) => void openUserProfile(pk),
+  openUserWall: (pk) => {
+    exitReelsToMoments(false);
+    mediaModal.style.display = "none";
+    void openUserProfile(pk);
+  },
   reportPost: async (author, postId) => {
     await reportContentTarget(author, postId);
   },
@@ -12389,7 +12463,7 @@ redditSubHero.addEventListener("click", async (e) => {
   if (!comm) return;
 
   if (action === "join") {
-    if (!currentIdentity) return;
+    if (!requireIdentity("join communities") || !currentIdentity) return;
     await freenet.toggleJoinCommunity(currentIdentity, comm.id);
     allCommunities = await loadCommunities();
     selectedRedditCommunity = allCommunities.find((c) => c.id === comm.id) ?? null;
@@ -12458,7 +12532,7 @@ redditPostFile.addEventListener("change", async () => {
 });
 
 redditPublishBtn.addEventListener("click", async () => {
-  if (!currentIdentity) return;
+  if (!requireIdentity("publish a thread") || !currentIdentity) return;
   const commId = redditPostCommSelect.value;
   if (!commId) {
     showToast("Create or choose a community first.", "warning");
@@ -12617,10 +12691,11 @@ redditThreadsContainer.addEventListener("click", async (e) => {
   } else if (raction === "share" && postId && author) {
     await openSharePostModal(postId, author);
   } else if (raction === "repost" && postId && author) {
+    if (!requireIdentity("repost")) return;
     stageRepost({ id: postId, author });
     communitiesModal.style.display = "none";
   } else if (raction === "save" && postId) {
-    if (!currentIdentity) return;
+    if (!requireIdentity("save posts") || !currentIdentity) return;
     const post = timelinePosts.find((p) => p.id === postId);
     if (!post) return;
     showToast(toggleSaved(currentIdentity.pubkey, post) ? "Saved: find it under Saved." : "Removed from Saved.", "info");
@@ -12678,7 +12753,7 @@ redditSidebarContent.addEventListener("click", async (e) => {
 
   const joinBtn = target.closest<HTMLElement>("[data-rside-join]");
   if (joinBtn?.dataset.rsideJoin) {
-    if (!currentIdentity) return;
+    if (!requireIdentity("join communities") || !currentIdentity) return;
     const commId = joinBtn.dataset.rsideJoin;
     await freenet.toggleJoinCommunity(currentIdentity, commId);
     allCommunities = await loadCommunities();
@@ -12776,7 +12851,10 @@ const showPanel = (open: boolean) => {
 document.getElementById("head-panel-btn")!.addEventListener("click", () => showPanel(true));
 document.getElementById("panel-back-btn")!.addEventListener("click", () => showPanel(false));
 document.getElementById("pp-back-btn")!.addEventListener("click", () => showProfilePage(false));
-document.getElementById("head-profile-btn")!.addEventListener("click", () => showProfilePage(true));
+document.getElementById("head-profile-btn")!.addEventListener("click", () => {
+  if (!requireIdentity("view your profile")) return;
+  showProfilePage(true);
+});
 const openMyPublicProfile = () => {
   if (currentIdentity?.pubkey) void openUserProfile(currentIdentity.pubkey);
 };
@@ -12810,12 +12888,14 @@ scopeExploreBtn.addEventListener("click", async () => {
 });
 
 scopeFollowingBtn.addEventListener("click", async () => {
+  if (!requireIdentity("view your following feed")) return;
   currentFeedScope = "following";
   updateScopeBtnActive(scopeFollowingBtn);
   await reloadPosts();
 });
 
 function switchToMyPostsScope() {
+  if (!feedAuthor && !requireIdentity("view your posts")) return;
   currentFeedScope = "myposts";
   updateScopeBtnActive(scopeMyPostsBtn);
   activeCommunity = null;
@@ -12828,6 +12908,7 @@ function switchToMyPostsScope() {
 scopeMyPostsBtn.addEventListener("click", switchToMyPostsScope);
 
 scopeSavedBtn.addEventListener("click", async () => {
+  if (!requireIdentity("view saved posts")) return;
   currentFeedScope = "saved";
   updateScopeBtnActive(scopeSavedBtn);
   await reloadPosts();
@@ -13144,7 +13225,9 @@ async function renderDevices(): Promise<void> {
 }
 
 function renderIdentityModal() {
-  identityCloseBtn.style.display = currentIdentity ? "" : "none"; // nothing to go back to before signing in
+  const canBrowseGuest = !currentIdentity && !isMessengerMode();
+  identityCloseBtn.style.display = currentIdentity || canBrowseGuest ? "" : "none"; // nothing to go back to before signing in in Messenger
+  if (idBrowseReadonlyBtn) idBrowseReadonlyBtn.hidden = !canBrowseGuest;
   if (!currentIdentity) {
     identityPersonaName.textContent = "Not signed in";
     identityPubkeyVal.textContent = "Choose how to sign in below.";
@@ -13274,6 +13357,11 @@ if (openIdentityBtn) {
 }
 
 identityCloseBtn.addEventListener("click", () => {
+  identityModal.style.display = "none";
+});
+
+guestSigninBtn?.addEventListener("click", openIdentityModal);
+idBrowseReadonlyBtn?.addEventListener("click", () => {
   identityModal.style.display = "none";
 });
 
@@ -13908,10 +13996,7 @@ function renderMailToSuggestions(filter = "") {
 }
 
 function openMailModal() {
-  if (!currentIdentity) {
-    showToast("Please sign in or create an identity first.", "info");
-    return;
-  }
+  if (!requireIdentity("use Freenet Mail") || !currentIdentity) return;
   mailModal.style.display = "flex";
   renderMailList();
   // fetch new mail, and publish this persona's inbox if the network has none (others cannot add or mail it before)
@@ -14604,10 +14689,13 @@ initGreenhouse({
   isHidden: isHiddenAuthor,
   isReported: (target) => getModerationPolicy().isTargetReported(target),
   hideAuthor: (pk) => hideAuthorWithToast(pk),
-  report: (author, id, reason) => freenet.reportPost(author, id, reason, null, true),
+  requireIdentity,
+  report: (author, id, reason) => {
+    if (!requireIdentity("report content")) return Promise.reject(new Error("Sign in first"));
+    return freenet.reportPost(author, id, reason, null, true);
+  },
   shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
   linfaForAuthors: async (authors) => {
-    if (!currentIdentity) return { weights: new Map() };
     const [seen, feeds] = await Promise.all([
       freenet.getExploreTimeline(currentIdentity).catch(() => [] as Post[]),
       Promise.all(authors.map((a) => freenet.getFeed(a).catch(() => null))),
@@ -14620,6 +14708,7 @@ initGreenhouse({
     const trust = (k: string) => wot.trustTier(k);
     const weights = new Map<string, number>();
     for (const a of authors) weights.set(a, linfaGreenhouseWeight(list, a, trust));
+    if (!currentIdentity) return { weights };
     const me = currentIdentity.pubkey;
     const myLinfa = linfaOf(list, me, trust);
     return { weights, myStage: stageOf(myLinfa.total).name, myTotal: myLinfa.total };
@@ -14721,9 +14810,9 @@ async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {
 
 // Check URL fragment for private room invite link
 async function checkUrlInviteHash() {
-  if (!currentIdentity) return;
   const hash = window.location.hash ? window.location.hash.substring(1) : "";
   if (!hash || !(hash.includes("join_room=") || hash.includes("river_invite="))) return;
+  if (!requireIdentity("accept an invite")) return;
   await handleJoinFromInviteUrl(window.location.href);
 }
 
@@ -14807,11 +14896,95 @@ async function init() {
     }
   }
   if (!identity) {
-    // first visit: let the visitor choose (Viso, new key, imported key) instead of making an identity for them
+    if (!shouldStartInGuestMode(false, isMessengerApp)) {
+      // Standalone Messenger is private E2EE chat only: require sign-in first
+      hideBoot();
+      openIdentityModal();
+      return;
+    }
+
+    document.body.classList.add("guest-mode");
+    if (guestBanner) guestBanner.hidden = false;
+    sidebarName.textContent = "Guest";
+    if (sidebarHandle) sidebarHandle.textContent = "@read-only";
+    setProfileBio(sidebarBio, "Browsing public Freenet posts in read-only mode.", "Browsing public Freenet posts in read-only mode.");
+    sidebarAvatar.src = composerAvatar.src = generateDefaultAvatar("radica-guest");
+    sidebarAvatar.onerror = composerAvatar.onerror = function (this: HTMLImageElement) {
+      this.src = generateDefaultAvatar("radica-guest");
+    };
+    const ecoFooter = document.getElementById("sidebar-ecosystem-footer");
+    if (ecoFooter) ecoFooter.innerHTML = ecosystemFooter(nodeOrigin());
+
+    await checkUrlInviteHash();
+    window.addEventListener("hashchange", () => checkUrlInviteHash());
+    const postLink = window.location.hash;
+
+    allCommunities = await loadCommunities();
+    renderCommunities();
+    renderDiscoveredPeers();
+    void refreshSupporters();
+
+    let guestSyncBusy = false;
+    let guestSyncAgain = false;
+    freenet.onSyncUpdate(async function guestSyncPass() {
+      if (currentIdentity) return;
+      if (guestSyncBusy) {
+        guestSyncAgain = true;
+        return;
+      }
+      guestSyncBusy = true;
+      try {
+        void refreshSupporters();
+        allCommunities = await loadCommunities();
+        if (activeCommunity) {
+          const refreshed = allCommunities.find((c) => c.id === activeCommunity!.id);
+          if (refreshed) {
+            activeCommunity = refreshed;
+            selectCommunity(activeCommunity, true);
+          }
+        }
+        renderCommunities();
+        renderDiscoveredPeers();
+        await reloadPosts({ background: true });
+      } finally {
+        guestSyncBusy = false;
+        if (guestSyncAgain) {
+          guestSyncAgain = false;
+          void guestSyncPass();
+        }
+      }
+    });
+
+    bootStep("Connecting to your Freenet node…");
+    const connected = await freenet.connect();
+    if (connected) {
+      refreshTrustedBlocklists();
+      void freenet.refreshLog("communities", true, true);
+      void freenet.refreshLog("directory", false, true);
+      void freenet.refreshLog("reports");
+      freenetDot.classList.add("online");
+      freenetStatusLabel.textContent = "Your node is online";
+      setChatStatus(true);
+    } else {
+      freenetDot.classList.remove("online");
+      setChatStatus(false);
+      freenetStatusLabel.textContent = "Local-First Storage";
+      freenetStatusLabel.title = `Freenet node unreachable: ${freenet.connectError}`;
+    }
+    if (postLink) void checkUrlPostHash(postLink);
+
+    bootStep("Loading posts…");
+    await reloadPosts();
+    if (!timelinePosts.length && connected) {
+      bootStep("Fetching new posts from the network…");
+      const t0 = Date.now();
+      while (!timelinePosts.length && Date.now() - t0 < 3500) await new Promise((r) => setTimeout(r, 150));
+    }
     hideBoot();
-    openIdentityModal();
     return;
   }
+  document.body.classList.remove("guest-mode");
+  if (guestBanner) guestBanner.hidden = true;
   currentIdentity = identity;
   if (currentIdentity.type === "local") {
     // Zero-loss backfill: ensure existing browser local-seed users have their seed backed up in the node delegate

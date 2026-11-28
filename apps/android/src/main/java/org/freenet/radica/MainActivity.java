@@ -63,6 +63,13 @@ public class MainActivity extends Activity {
     private static final String VISO_PREFIX_LOCALHOST = "http://localhost:7509/v1/contract/web/" + VISO_KEY + "/";
     private static final String RADICA = RADICA_PREFIX_LOOPBACK;
     private static final int MAX_STORAGE_BYTES = 8 * 1024 * 1024;
+    private static final String STORAGE_FILE = "radica_storage.json";
+    private final Object storageLock = new Object();
+    private final java.util.concurrent.ExecutorService storageExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final java.util.concurrent.atomic.AtomicLong storageWriteSeq =
+            new java.util.concurrent.atomic.AtomicLong(0L);
+    private volatile String cachedStorageBlob;
     /** Radica web shipped in the APK (build.gradle.kts copies ui/dist into assets/radica-ui), opened when no node
      *  answers so the chat still works over the local network. https: WebCrypto needs a secure context. */
     private static final String BUNDLED = "https://radica.local/";
@@ -187,6 +194,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         if (nativeRecorder != null) finishNativeVoiceRecording(true);
         stopMesh();
+        storageExecutor.shutdown();
         super.onDestroy();
     }
 
@@ -705,11 +713,57 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String readUtf8StorageFile(File file) {
+        if (!file.isFile() || file.length() > MAX_STORAGE_BYTES) return null;
+        try (FileInputStream in = new FileInputStream(file);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[16384];
+            int total = 0;
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                total += n;
+                if (total > MAX_STORAGE_BYTES) return null;
+                out.write(buf, 0, n);
+            }
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean writeStorageFileAtomic(String json) {
+        File dir = getFilesDir();
+        if (dir == null) return false;
+        File target = new File(dir, STORAGE_FILE);
+        File tmp = new File(dir, STORAGE_FILE + ".tmp");
+        try {
+            byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length > MAX_STORAGE_BYTES) return false;
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                out.write(bytes);
+                out.getFD().sync();
+            }
+            if (!tmp.renameTo(target)) {
+                if (target.exists() && target.delete() && tmp.renameTo(target)) {
+                    return true;
+                }
+                //noinspection ResultOfMethodCallIgnored
+                tmp.delete();
+                return false;
+            }
+            return true;
+        } catch (Exception ignored) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            return false;
+        }
+    }
+
     /** Radica runs in a sandboxed iframe the node's shell serves (no `allow-same-origin`): `window.localStorage`
      *  throws there, and storage.ts's fallback (`window.name` + URL hash) is lost whenever this app is closed and
      *  reopened (a new Activity means a new WebView, so a fresh, empty `window.name`). addJavascriptInterface
      *  objects are reachable from every frame of the WebView, sandboxed iframes included, so this gives
-     *  storage.ts a real, file-backed (SharedPreferences) alternative that survives that — strictly gated to Radica. */
+     *  storage.ts a real, file-backed (`radica_storage.json`) alternative that survives that — strictly gated to Radica. */
     public class NativeStorage {
         private final boolean isMessenger;
 
@@ -742,14 +796,56 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String getAll() {
             if (!isRadicaUrl(currentTopUrl)) return null;
-            return getSharedPreferences("radica_storage", MODE_PRIVATE).getString("blob", null);
+            String cached = cachedStorageBlob;
+            if (cached != null) return cached;
+            synchronized (storageLock) {
+                if (cachedStorageBlob != null) return cachedStorageBlob;
+                File file = new File(getFilesDir(), STORAGE_FILE);
+                if (file.exists()) {
+                    String fromFile = readUtf8StorageFile(file);
+                    if (fromFile != null) {
+                        cachedStorageBlob = fromFile;
+                        return fromFile;
+                    }
+                }
+                String legacy = getSharedPreferences("radica_storage", MODE_PRIVATE).getString("blob", null);
+                if (legacy != null) {
+                    cachedStorageBlob = legacy;
+                    final long seq = storageWriteSeq.incrementAndGet();
+                    try {
+                        storageExecutor.execute(() -> {
+                            if (seq == storageWriteSeq.get()) {
+                                String latest = cachedStorageBlob;
+                                if (latest != null && writeStorageFileAtomic(latest)) {
+                                    getSharedPreferences("radica_storage", MODE_PRIVATE).edit().remove("blob").apply();
+                                }
+                            } else {
+                                getSharedPreferences("radica_storage", MODE_PRIVATE).edit().remove("blob").apply();
+                            }
+                        });
+                    } catch (java.util.concurrent.RejectedExecutionException ignored) {}
+                }
+                return legacy;
+            }
         }
 
         @JavascriptInterface
         public void setAll(String json) {
             if (!isRadicaUrl(currentTopUrl)) return;
             if (json == null || json.length() > MAX_STORAGE_BYTES) return;
-            getSharedPreferences("radica_storage", MODE_PRIVATE).edit().putString("blob", json).apply();
+            final long seq;
+            synchronized (storageLock) {
+                cachedStorageBlob = json;
+                seq = storageWriteSeq.incrementAndGet();
+            }
+            try {
+                storageExecutor.execute(() -> {
+                    if (seq != storageWriteSeq.get()) return;
+                    String latest = cachedStorageBlob;
+                    if (latest == null) return;
+                    writeStorageFileAtomic(latest);
+                });
+            } catch (java.util.concurrent.RejectedExecutionException ignored) {}
         }
 
         @JavascriptInterface

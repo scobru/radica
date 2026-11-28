@@ -16,6 +16,7 @@ import {
   filterMentionCandidates,
   filterContactPeers,
   unreadSeparatorAt,
+  enterSends,
   type MessageSwipePhase,
   type PreviewItem,
   type RoomMeta,
@@ -74,7 +75,7 @@ import { burnAtOf, checksHtml, deliveryOf, nextTtl, tickBurnCountdowns, triggerR
 import { AI_REPORTERS, RADICA_MAINTAINER, type ChatMessage, type Community, type PrivateRoom, type UserIdentity } from "./types.ts";
 import { renderIcon, type IconName } from "./icons.ts";
 import { LANGS, readerLang, translatableFrom, translateText } from "./translate.ts";
-import { draftTranslateHtml } from "./composeTranslate.ts";
+import { draftTranslateHtml, draftTranslatedTo, undoDraftTranslate } from "./composeTranslate.ts";
 
 /** Chat messages translated on this device this session, by message id; "" while in progress. */
 const chatTranslations = new Map<string, string>();
@@ -590,6 +591,11 @@ export function createMessengerChat(deps: MessengerDeps) {
               <button type="button" class="rm-attach-item" data-attach="poll">${renderIcon("barChart2", { className: "icon-sm" })}<span>Create FreePolls Poll</span></button>
               <button type="button" class="rm-attach-item" data-attach="room-link" id="rm-attach-room-link">${renderIcon("link", { className: "icon-sm" })}<span>Insert Room Invite Link</span></button>
               <button type="button" class="rm-attach-item" data-attach="my-key">${renderIcon("key", { className: "icon-sm" })}<span>Insert My Public Key</span></button>
+              <label class="rm-attach-item rm-attach-translate" id="rm-attach-translate">
+                ${renderIcon("globe", { className: "icon-sm" })}
+                <span>Translate what I wrote</span>
+                ${draftTranslateHtml("rm-composer-input")}
+              </label>
             </div>
 
             <div class="rm-typing-bar" id="rm-typing-bar" style="display: none;">
@@ -623,6 +629,11 @@ export function createMessengerChat(deps: MessengerDeps) {
               </div>
             </div>
 
+            <div class="rm-translate-chip" id="rm-translate-chip" hidden>
+              <span id="rm-translate-chip-text"></span>
+              <button type="button" class="rm-translate-undo" id="rm-translate-undo">Undo</button>
+            </div>
+
             <form class="rm-composer-row" id="rm-composer-form">
               <button type="button" class="rm-plus-btn" id="rm-btn-attach" title="Attachments & Freenet actions">
                 <svg viewBox="0 0 24 24" class="svg-icon icon-md"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -633,10 +644,10 @@ export function createMessengerChat(deps: MessengerDeps) {
                   class="rm-textarea"
                   rows="1"
                   autocomplete="off"
+                  enterkeyhint="enter"
+                  aria-label="Message"
                   placeholder="Write a message…"
                 ></textarea>
-                ${draftTranslateHtml("rm-composer-input")}
-                <button type="button" class="rm-emoji-btn" id="rm-btn-quick-emoji" hidden></button>
               </div>
               <button type="button" class="rm-quick-media-btn" id="rm-btn-vnote" title="Record circular video message (up to 60s)" aria-label="Record video message">
                 ${renderIcon("video", { className: "icon-sm" })}
@@ -886,6 +897,11 @@ export function createMessengerChat(deps: MessengerDeps) {
   const fileDocEl = rootEl.querySelector("#rm-file-doc") as HTMLInputElement;
   const attachMenuEl = rootEl.querySelector("#rm-attach-menu") as HTMLElement;
   const attachBtnEl = rootEl.querySelector("#rm-btn-attach") as HTMLButtonElement;
+  const attachTranslateEl = rootEl.querySelector("#rm-attach-translate") as HTMLElement | null;
+  const attachTranslateSel = attachTranslateEl?.querySelector<HTMLSelectElement>("select.draft-translate") ?? null;
+  const translateChipEl = rootEl.querySelector("#rm-translate-chip") as HTMLElement | null;
+  const translateChipTextEl = rootEl.querySelector("#rm-translate-chip-text") as HTMLElement | null;
+  const translateUndoBtn = rootEl.querySelector("#rm-translate-undo") as HTMLButtonElement | null;
   const composerOuterEl = rootEl.querySelector("#rm-composer-outer") as HTMLElement;
   const composerFormEl = rootEl.querySelector("#rm-composer-form") as HTMLFormElement;
   const composerInputEl = rootEl.querySelector("#rm-composer-input") as HTMLTextAreaElement;
@@ -1083,11 +1099,23 @@ export function createMessengerChat(deps: MessengerDeps) {
   // an optional call on null fails silently, which left their X, Cancel and Open DM buttons dead)
   const inModals = (sel: string) => rootEl.querySelector(sel) ?? safetyModalEl?.querySelector(sel) ?? newChatModalEl?.querySelector(sel) ?? pollModalEl?.querySelector(sel);
 
+  function syncTranslateChip() {
+    if (!translateChipEl || !translateChipTextEl) return;
+    const to = draftTranslatedTo(composerInputEl);
+    if (to) {
+      translateChipTextEl.textContent = `Translated to ${LANGS[to] ?? to} ·`;
+      translateChipEl.hidden = false;
+    } else {
+      translateChipEl.hidden = true;
+    }
+  }
+
   function fitInput() {
     if (!composerInputEl.value) {
       composerInputEl.style.height = "";
       composerInputEl.style.overflowY = "hidden";
       syncComposerButtons();
+      syncTranslateChip();
       return;
     }
     composerInputEl.style.height = "auto";
@@ -1095,6 +1123,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     composerInputEl.style.height = `${Math.min(132, sh)}px`;
     composerInputEl.style.overflowY = sh > 132 ? "auto" : "hidden";
     syncComposerButtons();
+    syncTranslateChip();
   }
 
   // @mention popup: typing "@" opens a list of the current conversation's members, which narrows as more is typed.
@@ -1734,7 +1763,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.className = "rm-trust-pill secret";
           headerTrustBadgeEl.innerHTML = `${renderIcon("lock", { size: 11 })} <span>Secret Chat · Device Only</span>`;
           setSecretSubtitle(st.peer, ttlLabel);
-          composerInputEl.placeholder = `Secret message to ${name} (ephemeral)…`;
+          composerInputEl.placeholder = "Secret message…";
           if (ttlBtn) {
             ttlBtn.style.display = "inline-flex";
             ttlBtn.innerHTML = `${renderIcon("clock", { size: 12 })} <span>${escapeHtml(ttlLabel)}</span>`;
@@ -1746,7 +1775,7 @@ export function createMessengerChat(deps: MessengerDeps) {
           headerTrustBadgeEl.innerHTML = isVerified ? `${renderIcon("shield", { size: 11 })} <span>E2EE · Verified</span>` : `${renderIcon("lock", { size: 11 })} <span>E2EE Private</span>`;
           headerSubtitleEl.textContent = `${st.online ? "Node online" : "Local"} · ${peerHandleOrPersona(pk)} · X25519 + AES-256-GCM`;
           headerSubtitleEl.title = "End-to-end encrypted with X25519 + AES-256-GCM on both identity keys: no forward secrecy (a stolen key opens past messages). Use a Secret Chat for the Double Ratchet.";
-          composerInputEl.placeholder = `Encrypted message to ${name}…`;
+          composerInputEl.placeholder = "Message…";
           if (ttlBtn) ttlBtn.style.display = "none";
         }
         composerInputEl.disabled = false;
@@ -1813,7 +1842,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         replyBannerEl.classList.remove("open");
       } else {
         composerOuterEl.style.display = "";
-        composerInputEl.placeholder = isChannel ? `Broadcast a message to subscribers…` : `Message ${name} (E2EE)…`;
+        composerInputEl.placeholder = isChannel ? "Broadcast…" : "Message…";
         composerInputEl.disabled = false;
         sendBtnEl.disabled = false;
         attachBtnEl.disabled = false;
@@ -1845,6 +1874,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       ? "Record circular video message (up to 60s)"
       : "Record camera video message (up to 60s)";
     syncComposerButtons();
+    syncTranslateChip();
     voiceCtrl.syncWalkieUi();
   }
 
@@ -3181,7 +3211,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     row.querySelector(".rm-unread-pill")?.remove();
 
     composerInputEl.disabled = false;
-    composerInputEl.placeholder = "Type a message… (Shift+Enter: new line)";
+    composerInputEl.placeholder = "Type a message…";
     composerInputEl.blur(); // no focus on open: on phones it would pop the keyboard over the last messages
 
     // Load & render the selected conversation before switching panes on mobile so the previous chat never flashes.
@@ -3875,6 +3905,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (editBannerEl) editBannerEl.style.display = "none";
     showEditMedia([]);
     syncComposerButtons();
+    syncTranslateChip();
   };
 
   editBannerCancelBtn?.addEventListener("click", () => {
@@ -3886,15 +3917,13 @@ export function createMessengerChat(deps: MessengerDeps) {
   // Composer input & submit
   composerInputEl.addEventListener("input", fitInput);
   composerInputEl.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+    if (!enterSends(e, window.matchMedia("(pointer: coarse)").matches)) return;
     e.preventDefault();
     composerFormEl.requestSubmit();
   });
 
-  rootEl.querySelector("#rm-btn-quick-emoji")?.addEventListener("click", () => {
-    if (composerInputEl.disabled) return;
-    composerInputEl.value += (composerInputEl.value ? " " : "") + "🌱";
-    fitInput();
+  translateUndoBtn?.addEventListener("click", () => {
+    undoDraftTranslate(composerInputEl);
     composerInputEl.focus();
   });
 
@@ -4278,7 +4307,17 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (voiceBtn) voiceBtn.style.display = canRecordVoice() ? "flex" : "none";
     const vnoteBtn = attachMenuEl.querySelector<HTMLElement>('[data-attach="vnote"]');
     if (vnoteBtn) vnoteBtn.style.display = canCaptureVideoNote() ? "flex" : "none";
+    if (attachTranslateEl) {
+      const hasText = composerInputEl.value.trim().length > 0;
+      attachTranslateEl.classList.toggle("disabled", !hasText);
+      attachTranslateEl.setAttribute("aria-disabled", String(!hasText));
+      if (attachTranslateSel) attachTranslateSel.disabled = !hasText;
+    }
     attachMenuEl.classList.toggle("open");
+  });
+
+  attachTranslateSel?.addEventListener("change", () => {
+    attachMenuEl.classList.remove("open");
   });
 
   document.addEventListener("click", () => attachMenuEl.classList.remove("open"));

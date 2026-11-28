@@ -12,7 +12,7 @@
 
 .mail-modal-card {
   width: 100%;
-  height: calc(calc(100dvh / var(--ui-zoom, 1)) - 60px);
+  height: calc(calc(100dvh / var(--ui-zoom, 1)) - 56px);
   min-height: 480px;
   border-radius: 12px;
   border: 1px solid var(--mail-border);

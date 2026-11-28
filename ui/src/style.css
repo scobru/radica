@@ -1537,9 +1537,15 @@ body.mail-open .container {
   margin-bottom: 0;
 }
 
-/* the chat card is calc(100dvh / var(--ui-zoom, 1)) - 56px tall: split the slack above and below it, or it sits glued to the top edge */
+/* the chat/mail card is calc(100dvh / var(--ui-zoom, 1)) - 56px tall: split the slack above and below it, and keep .rail at the exact same y as .container's 28px margin-top */
 @media (min-width: 769px) {
-  body.chat-open #chat-modal {
+  html {
+    scrollbar-gutter: stable;
+  }
+  body.chat-open .rail,
+  body.mail-open .rail,
+  body.chat-open #chat-modal,
+  body.mail-open #mail-modal {
     margin-top: 28px;
   }
 }
@@ -6957,7 +6963,6 @@ html[data-fullwidth="true"] #width-toggle-btn {
   color: var(--text);
   cursor: pointer;
 }
-.rm-input-pill .draft-translate,
 .comment-actions .draft-translate {
   width: 2.6rem;
   min-width: 0;
@@ -6969,7 +6974,6 @@ html[data-fullwidth="true"] #width-toggle-btn {
    arrow where the browser can; the open list still shows each language in full */
 @supports (field-sizing: content) {
   .draft-translate,
-  .rm-input-pill .draft-translate,
   .comment-actions .draft-translate {
     width: auto;
     field-sizing: content;
@@ -10960,3 +10964,49 @@ body.page-loading::before {
 .event-rsvp-avatars { display: flex; }
 .event-rsvp-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card-bg, var(--bg)); margin-left: -6px; cursor: pointer; }
 .event-rsvp-avatar:first-child { margin-left: 0; }
+
+/* Read-only guest browse mode (TASK-015) */
+.guest-banner[hidden],
+#id-browse-readonly-btn[hidden] {
+  display: none;
+}
+
+.guest-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+  background: var(--card-bg);
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--card-bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--text-main);
+}
+
+.guest-banner-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.guest-banner .btn-primary {
+  flex-shrink: 0;
+}
+
+body.guest-mode #head-profile-btn,
+body.guest-mode #scope-following-btn,
+body.guest-mode #scope-myposts-btn,
+body.guest-mode #scope-saved-btn,
+body.guest-mode #feed-view > .composer-card:not(#events-upcoming),
+body.guest-mode .sidebar .profile-preview,
+body.guest-mode .sidebar .roots-card,
+body.guest-mode #media-quick-post,
+body.guest-mode #reddit-create-box,
+body.guest-mode #articles-new-btn,
+body.guest-mode .gh-comment-form {
+  display: none !important;
+}

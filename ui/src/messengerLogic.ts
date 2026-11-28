@@ -266,3 +266,14 @@ export function unreadSeparatorAt(
   });
   return index < 0 ? null : { index, count };
 }
+
+/** Whether Enter in the composer sends. Shift+Enter is always a new line; Enter while an IME is composing (CJK, accents,
+ *  including Safari's out-of-order keyCode 229) only confirms the word. On a coarse primary pointer (phone, tablet)
+ *  Enter is a new line and only the send button sends, like WhatsApp/Telegram: soft keyboards have no Shift+Enter.
+ *  Touch laptops with a trackpad keep Enter = send. */
+export function enterSends(
+  e: { key: string; shiftKey: boolean; isComposing: boolean; keyCode?: number },
+  coarsePointer: boolean
+): boolean {
+  return e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229 && !coarsePointer;
+}
