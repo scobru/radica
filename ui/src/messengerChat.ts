@@ -1869,6 +1869,8 @@ export function createMessengerChat(deps: MessengerDeps) {
   // value each room last rendered with, so a reopen with nothing new (same value) shows no pill.
   let sepSince: number | undefined;
   const seenUnreadSince = new Map<string, number | undefined>();
+  // set by an inbox-row tap while the thread pane is hidden: re-opening the same chat is a new open for the pill
+  let reopenPending = false;
 
   function renderThread(scrollToBottom = false) {
     if (!isVisible()) return;
@@ -1878,12 +1880,16 @@ export function createMessengerChat(deps: MessengerDeps) {
     const st = deps.getActiveState();
     const curKey = activeConvKey() || "";
     const switchedConv = curKey !== lastRenderedConvKey;
-    if (shouldDeferBackgroundRender({ isTouching: isScrollerTouching, isMomentum: isScrollerMomentum, forceImmediate: scrollToBottom || switchedConv })) {
+    if (shouldDeferBackgroundRender({ isTouching: isScrollerTouching, isMomentum: isScrollerMomentum, forceImmediate: scrollToBottom || switchedConv || reopenPending })) {
       pendingThreadRender = true;
       return;
     }
     pendingThreadRender = false;
     hasRenderedBurnTags = false;
+    const newOpen = switchedConv || reopenPending;
+    // a render behind the inbox (phones, thread pane hidden) is not seen: it must not use up the pill
+    const shown = reopenPending || workspaceEl.classList.contains("mobile-thread-open");
+    reopenPending = false;
     if (switchedConv) {
       visibleMsgLimit = CHAT_PAGE_SIZE;
       setStagedMedia(null);
@@ -1973,8 +1979,8 @@ export function createMessengerChat(deps: MessengerDeps) {
           </div>`;
 
     const since = deps.conversation.unreadSince(openId);
-    if (switchedConv) sepSince = since !== undefined && seenUnreadSince.get(openId) !== since ? since : undefined;
-    seenUnreadSince.set(openId, since);
+    if (newOpen) sepSince = since !== undefined && seenUnreadSince.get(openId) !== since ? since : undefined;
+    if (shown) seenUnreadSince.set(openId, since);
 
     const allMsgs = st.shownMessages;
     const q = threadQuery.trim().toLowerCase();
@@ -2339,7 +2345,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       messagesScrollerEl.scrollTop = prevScrollTop;
     }
     // first render of this open: start at the unread pill, not the bottom
-    const sepEl = switchedConv && unreadSep ? messagesTrackEl.querySelector<HTMLElement>(".rm-unread-sep") : null;
+    const sepEl = newOpen && unreadSep ? messagesTrackEl.querySelector<HTMLElement>(".rm-unread-sep") : null;
     if (sepEl) messagesScrollerEl.scrollTop += sepEl.getBoundingClientRect().top - messagesScrollerEl.getBoundingClientRect().top - 12;
   }
 
@@ -3161,6 +3167,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     }
     const key = row.dataset.convKey!;
     const seq = ++convSelectSeq;
+    if (!workspaceEl.classList.contains("mobile-thread-open")) reopenPending = true;
 
     // Immediate visual feedback (<16ms) on the inbox row; the box gets focus only when I tap it
     convListEl.querySelectorAll(".rm-conv-item.active").forEach((el) => el.classList.remove("active"));
@@ -3186,7 +3193,10 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (seq !== convSelectSeq) return;
     mobileShowThread = true;
     workspaceEl.classList.add("mobile-thread-open");
-    messagesScrollerEl.scrollTop = messagesScrollerEl.scrollHeight;
+    // start at the unread pill when there is one; the render ran while the pane was hidden on phones, so scroll here
+    const sepEl = messagesTrackEl.querySelector<HTMLElement>(".rm-unread-sep");
+    if (sepEl) messagesScrollerEl.scrollTop += sepEl.getBoundingClientRect().top - messagesScrollerEl.getBoundingClientRect().top - 12;
+    else messagesScrollerEl.scrollTop = messagesScrollerEl.scrollHeight;
     syncMiniPlayerSlot();
   });
 
