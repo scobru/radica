@@ -19,6 +19,7 @@ Each non-trivial task or bug has a dedicated specification file in the `tasks/` 
 | `TASK-009` | Dedicated Events Calendar & RSVP System (Luma / Meetup) | 🟢 DONE | Low | [`tasks/009-events-rsvp-calendar.md`](tasks/009-events-rsvp-calendar.md) |
 | `TASK-010` | Contract v2 (feed + log) migration | 🟡 IN_PROGRESS (done in code, pre-publish checks open) | High | [`tasks/010-contract-v2-migration.md`](tasks/010-contract-v2-migration.md) |
 | `TASK-011` | Messenger UX on phones, WhatsApp-inspired | 🟢 DONE | Medium | [`tasks/011-messenger-whatsapp-ux.md`](tasks/011-messenger-whatsapp-ux.md) |
+| `TASK-012` | Replace native confirm / alert / prompt with in-app dialogs | ⚪ TODO | Medium | [`tasks/012-in-app-dialogs.md`](tasks/012-in-app-dialogs.md) |
 
 ---
 
