@@ -67,3 +67,34 @@ test("swiping a post to the left mentions its author in its comment box", async 
   }, { x, y });
   await expect(card.locator("textarea.comment-input")).toHaveValue(/^@\S.* $/);
 });
+
+test("on a phone, Enter in the Messenger box starts a new line and the box holds only the text", async ({ page }) => {
+  await signIn(page);
+  const sender = Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+  await page.evaluate(async (sender) => {
+    const { freenet } = await import("/src/freenet.ts");
+    const f = freenet as unknown as { me: string; getRoomId(a: string, b: string): string; handlePeerEvent(d: unknown): void };
+    f.handlePeerEvent({ type: "chat", message: { id: `m_${Date.now()}`, room_id: f.getRoomId(f.me, sender), sender, recipient: f.me, text: "hello there", timestamp: Date.now(), sig: "" } });
+  }, sender);
+  await page.click("#open-chat-btn");
+  await page.locator(".rm-conv-item", { hasText: "hello there" }).first().click();
+  await expect(page.locator(".rm-msg-row", { hasText: "hello there" }).first()).toBeVisible({ timeout: 20_000 });
+  const input = page.locator("#rm-composer-input");
+
+  // only the textarea in the pill, and the default placeholder fits on one line at 412 px
+  await expect(page.locator("#rm-btn-quick-emoji")).toHaveCount(0);
+  await expect(page.locator(".rm-input-pill select.draft-translate")).toHaveCount(0);
+  const fit = await input.evaluate((el: HTMLTextAreaElement) => {
+    const s = getComputedStyle(el);
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+    const room = el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+    return { text: el.placeholder, width: ctx.measureText(el.placeholder).width, room };
+  });
+  expect(fit.width, `"${fit.text}" fits`).toBeLessThanOrEqual(fit.room);
+
+  await input.fill("line one");
+  await input.press("Enter");
+  await expect(input).toHaveValue("line one\n");
+  await expect(page.locator(".rm-msg-row", { hasText: "line one" })).toHaveCount(0);
+});
