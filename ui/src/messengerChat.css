@@ -4296,6 +4296,11 @@ progress.cm-vnote-ring {
   #chat-modal .rm-header-name {
     font-size: 1.05rem;
   }
+  #chat-modal .rm-bubble {
+    font-size: 1rem;
+    line-height: 1.38;
+    padding: 7px 10px 6px;
+  }
   #chat-modal .rm-header-sub {
     font-size: 0.8rem;
   }
@@ -4325,4 +4330,72 @@ progress.cm-vnote-ring {
 }
 #chat-modal .rm-contact-picker-list:empty {
   display: none;
+}
+
+#chat-modal .rm-narrow-back {
+  display: none;
+}
+
+/* Phones: New Conversation is a page like WhatsApp's "Select contact": Back on the left, actions as rows with round icons */
+@media (max-width: 768px) {
+  #chat-modal #rm-new-chat-modal {
+    padding: 0;
+    place-items: stretch;
+    backdrop-filter: none;
+  }
+  #chat-modal #rm-new-chat-modal .rm-modal {
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0 0 20px;
+    gap: 10px;
+    background: var(--rm-bg-inbox);
+  }
+  #chat-modal #rm-new-chat-modal .rm-modal > :not(.rm-new-chat-head):not(.rm-new-chat-actions) {
+    margin-inline: 16px !important; /* the hint's inline margin: 0 */
+  }
+  #chat-modal .rm-new-chat-head {
+    flex-direction: row-reverse;
+    justify-content: flex-end !important;
+    gap: 8px;
+    min-height: 60px;
+    padding: 6px 12px 6px 4px;
+    border-bottom: 1px solid var(--rm-border);
+  }
+  #chat-modal .rm-new-chat-head h3 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+  #chat-modal .rm-new-chat-head .rm-wide-only {
+    display: none;
+  }
+  #chat-modal .rm-new-chat-head .rm-narrow-back {
+    display: block;
+  }
+  #chat-modal .rm-new-chat-actions {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  #chat-modal .rm-new-chat-actions .rm-link-btn {
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 9px 16px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 1.02rem;
+    font-weight: 600;
+  }
+  #chat-modal .rm-new-chat-actions .rm-link-btn svg {
+    width: 44px;
+    height: 44px;
+    padding: 11px;
+    border-radius: 50%;
+    background: var(--rm-accent);
+    color: var(--rm-bg-inbox);
+    flex-shrink: 0;
+  }
 }
