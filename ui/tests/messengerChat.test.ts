@@ -4,6 +4,7 @@ import {
   canPostInRoom,
   computeSafetyBlocks,
   detectMentionTrigger,
+  enterSends,
   filterContactPeers,
   filterMentionCandidates,
   isStageBackSwipe,
@@ -470,4 +471,14 @@ test("messengerLogic: unreadSeparatorAt finds the first unread from others and c
   assert.deepEqual(unreadSeparatorAt(msgs, me, 10), { index: 4, count: 2 }); // mine at 20/40 and join at 30 skipped
   assert.deepEqual(unreadSeparatorAt(msgs, me, 50), { index: 6, count: 1 }); // strictly newer than since
   assert.equal(unreadSeparatorAt([{ sender: me, timestamp: 99 }], me, 0), null); // only mine
+});
+
+test("enterSends: Enter sends only on a fine pointer, without Shift and outside IME composition", () => {
+  const k = (key: string, shiftKey = false, isComposing = false) => ({ key, shiftKey, isComposing });
+  assert.equal(enterSends(k("Enter"), false), true);
+  assert.equal(enterSends(k("Enter"), true), false);
+  assert.equal(enterSends(k("Enter", true), false), false);
+  assert.equal(enterSends(k("Enter", true), true), false);
+  assert.equal(enterSends(k("Enter", false, true), false), false);
+  for (const key of ["a", " ", "Tab", "NumpadEnter", "Escape"]) assert.equal(enterSends(k(key), false), false);
 });
