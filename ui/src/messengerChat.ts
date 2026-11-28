@@ -1,6 +1,7 @@
 import { insertMention } from "./mentionPicker.ts";
 import { OTHER_DEVICE } from "./secretChatTransport.ts";
 import { withBusy } from "./busy.ts";
+import { confirmDialog, promptDialog } from "./dialogs.ts";
 import {
   computeSafetyBlocks,
   shouldHydratePreview,
@@ -3046,7 +3047,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         deps.showToast(togglePinned(c.key) ? "Conversation pinned" : "Conversation unpinned", "info");
       } else if (act === "clear") {
         if (c.roomId === deps.openRoomId()) return void (await deps.onClearActiveChat());
-        if (!confirm(`Clear the messages with ${c.name} on this device?`)) return;
+        if (!(await confirmDialog(`Clear the messages with ${c.name} on this device?`, { okLabel: "Clear", danger: true }))) return;
         await freenet.clearChatRoom(c.roomId);
       } else if (act === "remove" && c.peerPk) {
         deps.onRemovePeer(c.peerPk, c.type === "secret");
@@ -3412,7 +3413,7 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (identity && migrateBtn?.dataset.migrateRiver) {
       const roomId = migrateBtn.dataset.migrateRiver;
       // River held the name and history: the owner names the new room, the history stays in this archive
-      const name = prompt("Migrate this River room to a native Radica room.\n\nIts Radica members and moderators are invited to the new room; this River room stays a read-only archive.\n\nName for the new room:", "")?.trim();
+      const name = (await promptDialog("Migrate this River room to a native Radica room.\n\nIts Radica members and moderators are invited to the new room; this River room stays a read-only archive.\n\nName for the new room:", { okLabel: "Migrate" }))?.trim();
       if (!name) return;
       try {
         const native = await withBusy(migrateBtn, "Migrating…", () => freenet.migrateRiverRoom(identity, roomId, name));
@@ -3726,7 +3727,7 @@ export function createMessengerChat(deps: MessengerDeps) {
 
     const wipeBtn = t.closest<HTMLElement>("[data-wipe-notes]");
     if (wipeBtn && st.peer === identity.pubkey) {
-      if (!confirm("Wipe all your notes?\n\nThey are deleted on every one of your devices. This cannot be undone.")) return;
+      if (!(await confirmDialog("Wipe all your notes?\n\nThey are deleted on every one of your devices. This cannot be undone.", { okLabel: "Wipe", danger: true }))) return;
       const roomId = freenet.getRoomId(identity.pubkey, identity.pubkey);
       try {
         await withBusy(wipeBtn, "Wiping…", async (say) => {
@@ -3788,7 +3789,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         const updated = await withBusy(modBtn, "Saving…", () => freenet.setPrivateRoomModerator(identity, roomId, target, on));
         await deps.onSelectPrivateRoom(updated);
       } catch (err: any) {
-        alert(`Could not update moderator: ${err.message || err}`);
+        deps.showToast(`Could not update moderator: ${err.message || err}`, "error");
       }
       return;
     }
@@ -3797,14 +3798,14 @@ export function createMessengerChat(deps: MessengerDeps) {
     if (kickBtn?.dataset.roomKick && st.privateRoom) {
       const pk = kickBtn.dataset.roomKick;
       const name = deps.getAuthorDisplayName(pk);
-      if (!confirm(`Kick ${name} from this private room?\n\nA new encryption key will be rotated for remaining members.`)) return;
+      if (!(await confirmDialog(`Kick ${name} from this private room?\n\nA new encryption key will be rotated for remaining members.`, { okLabel: "Kick", danger: true }))) return;
       try {
         const roomId = st.privateRoom.id;
         const updated = await withBusy(kickBtn, "Removing…", () => freenet.kickMemberFromPrivateRoom(identity, roomId, pk));
         await deps.onSelectPrivateRoom(updated);
         deps.showToast(`${name} removed from room.`, "info");
       } catch (err: any) {
-        alert(`Could not kick member: ${err.message || err}`);
+        deps.showToast(`Could not kick member: ${err.message || err}`, "error");
       }
       return;
     }
@@ -3821,7 +3822,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       !st.privateRoom.is_channel
     ) {
       const add = gardenerRoomBtn.dataset.roomGardener === "1";
-      if (!add && !confirm("Remove 🌱 The Gardener from this group and rotate the encryption key?")) return;
+      if (!add && !(await confirmDialog("Remove 🌱 The Gardener from this group and rotate the encryption key?", { okLabel: "Remove", danger: true }))) return;
       try {
         const roomId = st.privateRoom.id;
         const updated: PrivateRoom = await withBusy(gardenerRoomBtn, add ? "Adding…" : "Removing…", () =>
@@ -3835,7 +3836,7 @@ export function createMessengerChat(deps: MessengerDeps) {
         );
         await deps.onSelectPrivateRoom(updated);
       } catch (err: any) {
-        alert(`Could not update Gardener: ${err.message || err}`);
+        deps.showToast(`Could not update Gardener: ${err.message || err}`, "error");
       }
       return;
     }
@@ -4447,7 +4448,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const isBlocked = deps.isPeerBlocked ? deps.isPeerBlocked(targetPk) : freenet.blockedBy(identity.pubkey).has(targetPk);
       if (isBlocked) {
         const name = deps.getAuthorDisplayName(targetPk);
-        if (confirm(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`)) {
+        if (await confirmDialog(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`, { okLabel: "Unblock" })) {
           if (deps.onToggleBlockPeer) {
             await deps.onToggleBlockPeer(targetPk);
           }
@@ -4548,7 +4549,7 @@ export function createMessengerChat(deps: MessengerDeps) {
       const isBlocked = deps.isPeerBlocked ? deps.isPeerBlocked(pk) : freenet.blockedBy(identity.pubkey).has(pk);
       if (isBlocked) {
         const name = deps.getAuthorDisplayName(pk);
-        if (confirm(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`)) {
+        if (await confirmDialog(`@${name} is currently blocked.\n\nWould you like to unblock them and start the chat?`, { okLabel: "Unblock" })) {
           if (deps.onToggleBlockPeer) {
             await deps.onToggleBlockPeer(pk);
           }

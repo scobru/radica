@@ -70,6 +70,8 @@ import "./chat.css";
 import { withBusy } from "./busy.ts";
 import "./messengerChat.css";
 import "./mail.css";
+import "./dialogs.css";
+import { confirmDialog, promptDialog, showToast } from "./dialogs.ts";
 import {
   loadMailStore,
   filterMailMessages,
@@ -277,25 +279,6 @@ let currentMediaNsfwScore = 0;
 /** A moment video, scanned and encoded, waiting for "Plant post". */
 let stagedVideo: Uint8Array | null = null;
 let stagedVideoPoster: Blob | null = null;
-
-// Non-blocking toast notification helper
-function showToast(message: string, type: "info" | "warning" | "error" = "info", duration = 3500) {
-  let container = document.getElementById("toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "toast-container";
-    document.body.appendChild(container);
-  }
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.classList.add("toast-out");
-    setTimeout(() => toast.remove(), 200);
-  }, duration);
-}
 
 // Theme Elements
 const themeToggleBtn = document.getElementById("theme-toggle-btn") as HTMLButtonElement | null;
@@ -1656,7 +1639,7 @@ mediaPublishBtn.addEventListener("click", async () => {
     showToast("Publishing Prohibited: Media contains explicit or adult content.", "error");
     return;
   }
-  if (!okToPublish(ownWords)) return;
+  if (!(await okToPublish(ownWords))) return;
 
   // Anti-flood cooldown
   const isTrustedAuthor = amVouched();
@@ -2107,7 +2090,7 @@ blocklistsModal.addEventListener("click", async (e) => {
   if (act === "remove") await globalRemove(author, postId, media || null);
   else if (act === "dismiss") {
     await refreshAllGlobalModLogs();
-    if (!guardDuplicateModeration(target, "dismiss")) {
+    if (!(await guardDuplicateModeration(target, "dismiss"))) {
       renderModDashboard();
       renderTimeline();
       return;
@@ -2123,10 +2106,10 @@ blocklistsModal.addEventListener("click", async (e) => {
     showToast("Moderation decision undone.", "info");
   } else if (act === "ban") {
     if (author === currentIdentity!.pubkey || freenet.globalModerators().includes(author)) {
-      alert("Moderators and owners cannot be banned.");
+      showToast("Moderators and owners cannot be banned.", "warning");
       return;
     }
-    if (!confirm(`Ban ${getAuthorDisplayName(author)}? Everything they post is hidden for everyone who follows Radica's moderation.`)) return;
+    if (!(await confirmDialog(`Ban ${getAuthorDisplayName(author)}? Everything they post is hidden for everyone who follows Radica's moderation.`, { danger: true }))) return;
     await freenet.setBlocked(author, true);
     showToast("Banned.", "info");
     notifyOtherGlobalMods(author, postId, "banned");
@@ -2144,7 +2127,7 @@ document.getElementById("blocklists-add-form")!.addEventListener("submit", (e) =
   e.preventDefault();
   const input = document.getElementById("blocklists-add-input") as HTMLInputElement;
   const pk = input.value.trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(pk)) return alert("That is not a persona public key.");
+  if (!/^[0-9a-f]{64}$/.test(pk)) return showToast("That is not a persona public key.", "warning");
   setCuratorTrusted(pk, true);
   input.value = "";
   renderBlocklists();
@@ -2236,7 +2219,7 @@ function notifyOtherGlobalMods(author: string, postId: string, action: "removed"
 }
 
 /** Warn the current moderator if another global moderator already handled `target`; returns false to abort duplicate action. */
-function guardDuplicateModeration(target: string, desired: "remove" | "dismiss"): boolean {
+async function guardDuplicateModeration(target: string, desired: "remove" | "dismiss"): Promise<boolean> {
   const me = currentIdentity?.pubkey;
   const existing = freenet.modDecisionFor(target);
   if (!existing || existing.moderator === me) return true;
@@ -2249,7 +2232,7 @@ function guardDuplicateModeration(target: string, desired: "remove" | "dismiss")
     showToast(`Already ${existing.action} by @${who} (${when}).`, "info");
     return false;
   }
-  return confirm(`Already ${existing.action} by @${who} (${when}). Override and ${desired} anyway?`);
+  return await confirmDialog(`Already ${existing.action} by @${who} (${when}). Override and ${desired} anyway?`);
 }
 
 function showBlocklistTab(tab: "blocklists" | "moderation", refresh = true) {
@@ -2460,8 +2443,8 @@ async function hideCommunityForAll(id: string, reason = ""): Promise<void> {
 }
 commHideBtn.addEventListener("click", async () => {
   if (!activeCommunity) return;
-  if (!confirm(`Hide r/${activeCommunity.slug} for everyone who follows Radica's moderation? It leaves their lists and timelines (it stays on the network). You can undo it in Moderation.`)) return;
-  await hideCommunityForAll(activeCommunity.id, prompt("Why? (optional)") ?? "");
+  if (!(await confirmDialog(`Hide r/${activeCommunity.slug} for everyone who follows Radica's moderation? It leaves their lists and timelines (it stays on the network). You can undo it in Moderation.`, { danger: true }))) return;
+  await hideCommunityForAll(activeCommunity.id, (await promptDialog("Why? (optional)")) ?? "");
   showToast("Community hidden.", "info");
 });
 document.getElementById("mod-comm-form")!.addEventListener("submit", async (e) => {
@@ -2469,7 +2452,7 @@ document.getElementById("mod-comm-form")!.addEventListener("submit", async (e) =
   const input = document.getElementById("mod-comm-input") as HTMLInputElement;
   const reason = document.getElementById("mod-comm-reason") as HTMLInputElement;
   const slug = input.value.trim().toLowerCase().replace(/^r\//, "");
-  if (!/^[a-z0-9_]{1,40}$/.test(slug)) return alert("That is not a community name.");
+  if (!/^[a-z0-9_]{1,40}$/.test(slug)) return showToast("That is not a community name.", "warning");
   await hideCommunityForAll(`c_${slug}`, reason.value);
   input.value = reason.value = "";
 });
@@ -2478,9 +2461,9 @@ document.getElementById("mod-ban-form")!.addEventListener("submit", async (e) =>
   if (!amGlobalMod()) return;
   const input = document.getElementById("mod-ban-input") as HTMLInputElement;
   const pk = input.value.trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(pk)) return alert("That is not a persona public key.");
-  if (pk === currentIdentity!.pubkey || pk === DEFAULT_CURATOR || freenet.modsOf(DEFAULT_CURATOR).has(pk)) return alert("A moderator cannot be banned from here.");
-  if (!confirm(`Ban ${getAuthorDisplayName(pk)} (${shortenKey(pk)})? Everything they post is hidden for everyone who follows Radica's moderation.`)) return;
+  if (!/^[0-9a-f]{64}$/.test(pk)) return showToast("That is not a persona public key.", "warning");
+  if (pk === currentIdentity!.pubkey || pk === DEFAULT_CURATOR || freenet.modsOf(DEFAULT_CURATOR).has(pk)) return showToast("A moderator cannot be banned from here.", "warning");
+  if (!(await confirmDialog(`Ban ${getAuthorDisplayName(pk)} (${shortenKey(pk)})? Everything they post is hidden for everyone who follows Radica's moderation.`, { danger: true }))) return;
   await freenet.setBlocked(pk, true);
   input.value = "";
   showToast("Banned.", "info");
@@ -2776,7 +2759,7 @@ function renderFeedSize(posts: Post[]) {
     if (!currentIdentity) return;
     const ids = oldestToFree(posts, FEED_TARGET);
     if (!ids.length) return;
-    if (!confirm(`Delete your ${ids.length} oldest post(s) to bring the feed down to about ${formatBytes(FEED_TARGET)}?\n\nThis cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete your ${ids.length} oldest post(s) to bring the feed down to about ${formatBytes(FEED_TARGET)}?\n\nThis cannot be undone.`, { danger: true }))) return;
     for (const id of ids) await freenet.deletePost(currentIdentity, id);
     await reloadPosts();
     await updateMyPostsAndScopeCounts();
@@ -4256,9 +4239,9 @@ async function translatePostFromCard(btn: HTMLButtonElement) {
 }
 
 /** Personal data in what I am about to publish is asked about, not silently removed. False: I go back and edit. */
-function okToPublish(text: string): boolean {
+async function okToPublish(text: string): Promise<boolean> {
   const found = personalDataIn(text);
-  return !found.length || confirm(`This contains: ${found.join(", ")}.\n\nEveryone who can read it will see it. Publish it as written?`);
+  return !found.length || await confirmDialog(`This contains: ${found.join(", ")}.\n\nEveryone who can read it will see it. Publish it as written?`);
 }
 
 /** Turn my post's caption into an editor: what it says now (the newest edit, or the original). */
@@ -4292,7 +4275,7 @@ async function saveEditPost(postId: string, cardEl?: HTMLElement | null) {
   const input = (cardEl ?? document.getElementById(`card-${postId}`))?.querySelector<HTMLTextAreaElement>(".edit-post-input");
   const text = input?.value.trim();
   if (!input || !text) return showToast("A post cannot be empty: delete it instead.", "warning");
-  if (!okToPublish(text)) return;
+  if (!(await okToPublish(text))) return;
   input.disabled = true;
   try {
     await freenet.editPost(postId, text);
@@ -4604,7 +4587,7 @@ function bindPostCardListeners(container: HTMLElement) {
     },
     true
   );
-  container.addEventListener("click", (e) => {
+  container.addEventListener("click", async (e) => {
     const t = e.target as Element;
     const hit = <T extends HTMLElement = HTMLElement>(sel: string) => t.closest<T>(sel);
     let el: HTMLElement | null;
@@ -4688,7 +4671,7 @@ function bindPostCardListeners(container: HTMLElement) {
       openChatWithPeer(el.dataset.author!);
     } else if ((el = hit(".hide-user-btn"))) {
       const author = el.dataset.author!;
-      if (!confirm(`Hide all posts from ${getAuthorDisplayName(author)} on this device?\n\nYou can unhide them from Blocklists or from their profile.`)) return;
+      if (!(await confirmDialog(`Hide all posts from ${getAuthorDisplayName(author)} on this device?\n\nYou can unhide them from Blocklists or from their profile.`, { danger: true }))) return;
       setUserHidden(author, true);
       renderTimeline();
       if (blocklistsModal.style.display === "flex") renderBlocklists();
@@ -4713,10 +4696,10 @@ function bindPostCardListeners(container: HTMLElement) {
       void modDeleteFromCard(el);
     } else if ((el = hit(".global-remove-btn"))) {
       const post = timelinePosts.find((p) => p.id === el!.dataset.postId && p.author === el!.dataset.author);
-      if (post && confirm("Remove this post for everyone who follows Radica's moderation? Its picture or video is hidden wherever it is posted again. You can undo it in Blocklists."))
+      if (post && (await confirmDialog("Remove this post for everyone who follows Radica's moderation? Its picture or video is hidden wherever it is posted again. You can undo it in Blocklists.", { danger: true })))
         void globalRemove(post.author, post.id, postMediaHash(post));
     } else if ((el = hit(".comment-remove-btn"))) {
-      if (confirm("Remove this comment for everyone who follows Radica's moderation? You can undo it in Blocklists."))
+      if (await confirmDialog("Remove this comment for everyone who follows Radica's moderation? You can undo it in Blocklists.", { danger: true }))
         void globalRemove(el.dataset.commentAuthor!, el.dataset.commentId!);
     } else if ((el = hit(".btn-reveal-wot"))) {
       const pid = el.dataset.postId;
@@ -4990,7 +4973,7 @@ document.addEventListener("click", async (e) => {
   if (!ed || !box) return;
   const text = box.value.trim();
   if (!text) return void showToast("A comment cannot be empty: use ✕ to delete it.", "warning");
-  if (!okToPublish(text)) return;
+  if (!(await okToPublish(text))) return;
   const finalText = namesToKeys(withMentionKeys(box, text), ed.picks);
   try {
     const ok = await withBusy(btn, "Saving…", () => freenet.editComment(currentIdentity!, author, postId, key, finalText));
@@ -5005,7 +4988,7 @@ document.addEventListener("click", async (e) => {
 });
 
 async function deleteCommentFromCard(btn: HTMLElement) {
-  if (!currentIdentity || !confirm("Delete this comment?")) return;
+  if (!currentIdentity || !(await confirmDialog("Delete this comment?", { danger: true }))) return;
   const { postId, author, key } = btn.dataset as { postId: string; author: string; key: string };
   const idx = timelinePosts.findIndex((p) => p.id === postId);
   const post = idx !== -1 ? timelinePosts[idx] : undefined;
@@ -5031,7 +5014,7 @@ async function deleteCommentFromCard(btn: HTMLElement) {
 async function globalRemove(author: string, id: string, media?: string | null) {
   try {
     await refreshAllGlobalModLogs();
-    if (!guardDuplicateModeration(`${author}:${id}`, "remove")) {
+    if (!(await guardDuplicateModeration(`${author}:${id}`, "remove"))) {
       if (isOpen(blocklistsModal) && paneModeration?.style.display !== "none") renderModDashboard();
       renderTimeline();
       return;
@@ -5052,10 +5035,10 @@ async function modDeleteFromCard(btn: HTMLElement) {
   if (!currentIdentity || !targetComm) return;
   const postId = btn.dataset.postId!;
   const author = btn.dataset.author!;
-  if (!confirm(`Moderator Action: Remove this post from r/${targetComm.slug}?`)) return;
+  if (!(await confirmDialog(`Moderator Action: Remove this post from r/${targetComm.slug}?`, { danger: true }))) return;
 
   const res = await freenet.modDeletePost(currentIdentity, targetComm.id, postId, author);
-  alert(res.msg);
+  showToast(res.msg, res.success ? "info" : "error");
   if (res.success) {
     if (!targetComm.deleted_post_ids.includes(postId)) {
       targetComm.deleted_post_ids.push(postId);
@@ -5067,7 +5050,7 @@ async function modDeleteFromCard(btn: HTMLElement) {
 
 async function deletePostFromCard(btn: HTMLElement) {
   const postId = btn.dataset.postId!;
-  if (!confirm("Are you sure you want to delete this post from Freenet?")) return;
+  if (!(await confirmDialog("Are you sure you want to delete this post from Freenet?", { danger: true }))) return;
   if (!currentIdentity) return;
 
   const prev = [...timelinePosts];
@@ -5202,9 +5185,9 @@ async function reportContentTarget(author: string, postId: string, opts?: { labe
   const post = timelinePosts.find((p) => p.id === postId && p.author === author);
   const comm = post?.community_id ? allCommunities.find((c) => c.id === post.community_id || c.slug === post.community_id) : undefined;
   const targetDesc = opts?.label ? `"${opts.label}" by ${getAuthorDisplayName(author)}` : `this post by ${getAuthorDisplayName(author)}`;
-  const reason = prompt(
+  const reason = (await promptDialog(
     `Report ${targetDesc}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; ${comm ? `moderators of r/${comm.slug}` : "Radica's maintainer and moderators"} are notified.`
-  );
+  ));
   if (reason === null) return;
   try {
     await submitContentReport({
@@ -5222,7 +5205,7 @@ async function reportContentTarget(author: string, postId: string, opts?: { labe
     updateBlocklistsBadge();
     showToast(opts?.label ? "Content reported." : "Post reported.");
   } catch (err: any) {
-    alert(`Could not report: ${err?.message || err}`);
+    showToast(`Could not report: ${err?.message || err}`, "error");
   }
   renderTimeline();
   renderSinglePostIfOpen(postId);
@@ -5276,7 +5259,7 @@ async function submitCommentFromCard(target: HTMLFormElement) {
   const identity = currentIdentity;
   const staged = stagedCommentMedia.get(postId);
   if ((!text && !staged) || !identity) return;
-  if (text && !okToPublish(text)) return;
+  if (text && !(await okToPublish(text))) return;
 
   const now = Date.now();
   if (now - lastCommentTime < COMMENT_COOLDOWN_MS) {
@@ -5894,7 +5877,8 @@ publishBtn.addEventListener("click", async () => {
 
   // 5. Personal data (email, phone…) is asked about; bad words are masked by each reader, if they choose
   // the event location is public too
-  if (!okToPublish(activeComposerType === "event" ? `${ownWords}\n${postLocation.value.trim()}` : ownWords)) return; // not the repost link: its keys look like phone numbers to the check
+  const location = activeComposerType === "event" ? postLocation.value.trim() : undefined; // read before the dialog: what is checked is what is published
+  if (!(await okToPublish(location !== undefined ? `${ownWords}\n${location}` : ownWords))) return; // not the repost link: its keys look like phone numbers to the check
   const finalCaption = withMentionKeys(postCaption, caption); // after the check: a key looks like a phone number to it
 
   // Event: start in the chosen zone becomes a UTC instant (passes isCanonicalPost); end/tz/cap ride in the event line
@@ -5952,8 +5936,6 @@ publishBtn.addEventListener("click", async () => {
       publishBtn.textContent = label;
     }
   }
-  const location = activeComposerType === "event" ? postLocation.value.trim() : undefined;
-
   // Proof-of-Work computation for Tier 0 (newcomer) personas to protect against Sybil flood
   let powProof: PoWProof | undefined;
   // readers cover newcomers' posts without it, and only the wall and GhostKey make me no newcomer to every reader
@@ -6157,7 +6139,7 @@ modalAvatarFileInput.addEventListener("change", async () => {
     modalAvatarPreview.src = compressed;
   } catch (err) {
     console.error("Failed to compress avatar file:", err);
-    alert("Could not process avatar image.");
+    showToast("Could not process avatar image.", "error");
   }
 });
 
@@ -6299,10 +6281,10 @@ modalSaveBtn.addEventListener("click", async () => {
   if (!messengerOnly) {
     const deltaRaw = modalDeltaInput.value.trim();
     delta = deltaRaw ? deltaPrefixOf(deltaRaw) : null;
-    if (deltaRaw && !delta) return alert("That is not a Delta site address: paste the address of your site in Delta.");
+    if (deltaRaw && !delta) return showToast("That is not a Delta site address: paste the address of your site in Delta.", "warning");
     const asocialRaw = modalAsocialInput?.value.trim() || "";
     asocialKey = asocialRaw ? asocialPersonOf(asocialRaw) : null;
-    if (asocialRaw && !asocialKey) return alert("That is not a valid Asocial key or profile link.");
+    if (asocialRaw && !asocialKey) return showToast("That is not a valid Asocial key or profile link.", "warning");
     const existingSavedWallets = freenet.walletsOf(me);
     walletFields = walletInputs().map((i) => ({ kind: i.dataset.wallet as keyof Wallets, raw: i.value.trim() }));
     for (const f of walletFields) {
@@ -6310,7 +6292,7 @@ modalSaveBtn.addEventListener("click", async () => {
       // Allow keeping an untouched legacy Monero 4… address while rejecting any new or edited primary address on save
       if (f.kind === "xmr" && !modalDirtyFields.has("wallet:xmr") && f.raw === (existingSavedWallets.xmr ?? "")) continue;
       const err = validateWalletForSave(f.kind, f.raw);
-      if (err) return alert(err);
+      if (err) return showToast(err, "warning");
     }
   }
 
@@ -6442,7 +6424,7 @@ modalSaveBtn.addEventListener("click", async () => {
     );
   } catch (err) {
     console.error("Error updating profile:", err);
-    alert("Could not save profile.");
+    showToast("Could not save profile.", "error");
   } finally {
     modalSaveBtn.disabled = false;
     modalSaveBtn.textContent = "Save Profile";
@@ -6457,12 +6439,12 @@ followForm.addEventListener("submit", async (e) => {
   if (!targetKey) return;
 
   if (targetKey === currentIdentity.pubkey) {
-    alert("You cannot follow yourself.");
+    showToast("You cannot follow yourself.", "warning");
     return;
   }
 
   if (followingKeys.includes(targetKey)) {
-    alert("You are already following this persona.");
+    showToast("You are already following this persona.", "warning");
     return;
   }
 
@@ -6898,7 +6880,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
   paintModBtn();
   uviewModBtn.onclick = async () => {
     const on = !isMod();
-    if (on && !confirm(`Make ${getAuthorDisplayName(pubkey)} a Radica moderator? What they remove or block is hidden for everyone who follows your blocklist.`)) return;
+    if (on && !(await confirmDialog(`Make ${getAuthorDisplayName(pubkey)} a Radica moderator? What they remove or block is hidden for everyone who follows your blocklist.`))) return;
     await freenet.setGlobalMod(pubkey, on);
     paintModBtn();
     refreshTrustedBlocklists();
@@ -7253,7 +7235,7 @@ async function openUserProfile(pubkey: string, initialTab: "posts" | "reposts" |
           btn.addEventListener("click", async (ev) => {
             ev.stopPropagation();
             const bid = btn.dataset.boardId;
-            if (!bid || !confirm("Delete this board? (Saved posts themselves are not deleted.)")) return;
+            if (!bid || !(await confirmDialog("Delete this board? (Saved posts themselves are not deleted.)", { danger: true }))) return;
             const local = loadLocalBoards(me.pubkey).filter((b) => b.id !== bid);
             saveLocalBoards(me.pubkey, local);
             const snapshotPosts = authorPosts.filter((p) => parseBoardPostCaption(captionOf(p))?.id === bid);
@@ -7922,11 +7904,11 @@ if (chatParticipantsToggleBtn && chatBody) {
 async function clearActiveChat() {
   if (!currentIdentity) return;
   if (activeChatPrivateRoom) {
-    if (!confirm("Clear all messages in this private encrypted room?")) return;
+    if (!(await confirmDialog("Clear all messages in this private encrypted room?", { danger: true }))) return;
     await freenet.clearChatRoom(activeChatPrivateRoom.id);
     await selectPrivateRoom(activeChatPrivateRoom);
   } else if (activeChatPeer) {
-    if (!confirm("Clear this conversation history?")) return;
+    if (!(await confirmDialog("Clear this conversation history?", { danger: true }))) return;
     const roomId = activeChatSecret
       ? freenet.getSecretRoomId(currentIdentity.pubkey, activeChatPeer)
       : freenet.getRoomId(currentIdentity.pubkey, activeChatPeer);
@@ -8119,7 +8101,7 @@ function openClassicReactPicker(msgId: string, roomId: string, anchorEl: HTMLEle
         activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined
       );
     } catch (err: any) {
-      alert(`Could not react: ${err.message || err}`);
+      showToast(`Could not react: ${err.message || err}`, "error");
     }
     await rerenderChat();
   });
@@ -8150,7 +8132,7 @@ chatMessagesList.addEventListener("click", async (e) => {
     try {
       await freenet.reactToChatMessage(react.dataset.roomId!, react.dataset.msgId!, react.dataset.react!, activeChatPrivateRoom ? undefined : activeChatPeer ?? undefined);
     } catch (err: any) {
-      alert(`Could not react: ${err.message || err}`);
+      showToast(`Could not react: ${err.message || err}`, "error");
     }
     await rerenderChat();
     return;
@@ -8160,7 +8142,7 @@ chatMessagesList.addEventListener("click", async (e) => {
     e.stopPropagation();
     const roomId = delBtn.dataset.roomId!;
     const msgId = delBtn.dataset.msgId!;
-    if (confirm("Delete this message?")) {
+    if (await confirmDialog("Delete this message?", { danger: true })) {
       shownMessages = shownMessages.filter((m) => m.id !== msgId);
       const bubble = chatMessagesList.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`);
       bubble?.remove();
@@ -8275,7 +8257,7 @@ const messengerChat = createMessengerChat({
     await rerenderChat();
   },
   onDeleteMessage: async (roomId, msgId) => {
-    if (!confirm("Delete this message?")) return;
+    if (!(await confirmDialog("Delete this message?", { danger: true }))) return;
     shownMessages = shownMessages.filter((m) => m.id !== msgId);
     chatMessagesList.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`)?.remove();
     messengerChat.renderThread();
@@ -8779,8 +8761,8 @@ async function renderChatSidebar() {
   void messengerChat.refreshInbox();
 }
 
-function removePeerFromRecent(peer: string, secret = false) {
-  if (!currentIdentity || !confirm(`Remove ${secret ? "the Secret Chat with " : ""}@${shortenKey(peer)} from recent chats list?`)) return;
+async function removePeerFromRecent(peer: string, secret = false) {
+  if (!currentIdentity || !(await confirmDialog(`Remove ${secret ? "the Secret Chat with " : ""}@${shortenKey(peer)} from recent chats list?`, { danger: true }))) return;
   if (secret) freenet.removeSecretChatPeer(currentIdentity.pubkey, peer);
   else freenet.removeChatPeer(currentIdentity.pubkey, peer);
   if (activeChatPeer === peer) {
@@ -8803,7 +8785,7 @@ async function toggleBlockAuthor(peer: string): Promise<boolean> {
   const willBlock = !isBlocked;
   if (willBlock) {
     const name = getAuthorDisplayName(peer);
-    if (!confirm(`Block @${name} (${shortenKey(peer)})?\n\nThey will be added to your blocklist: their feed posts and comments will be hidden, and direct messages & notifications will be blocked.`)) return false;
+    if (!(await confirmDialog(`Block @${name} (${shortenKey(peer)})?\n\nThey will be added to your blocklist: their feed posts and comments will be hidden, and direct messages & notifications will be blocked.`, { danger: true }))) return false;
   }
   await freenet.setBlocked(peer, willBlock);
   if (willBlock) {
@@ -8915,7 +8897,7 @@ function renderChatParticipants() {
         const pk = (btn as HTMLElement).dataset.pubkey;
         if (pk) {
           navigator.clipboard.writeText(pk);
-          alert(`Public key for member copied to clipboard:\n${pk}`);
+          showToast(`Public key for member copied to clipboard:\n${pk}`, "info");
         }
       });
     });
@@ -8930,7 +8912,7 @@ function renderChatParticipants() {
           const updated = await freenet.setPrivateRoomModerator(currentIdentity, activeChatPrivateRoom.id, pk, el.dataset.on === "1");
           await selectPrivateRoom(updated);
         } catch (err: any) {
-          alert(`Could not change moderators: ${err.message || err}`);
+          showToast(`Could not change moderators: ${err.message || err}`, "error");
         }
       });
     });
@@ -8943,9 +8925,9 @@ function renderChatParticipants() {
         const p = freenet.knownPeers[pk];
         const name = p?.display_name || `@${shortenKey(pk)}`;
         if (
-          !confirm(
-            `Are you sure you want to kick ${name} from this private room?\n\nThey will be removed, the room encryption key will be rotated for remaining members, and they will lose access.`
-          )
+          !(await confirmDialog(
+            `Are you sure you want to kick ${name} from this private room?\n\nThey will be removed, the room encryption key will be rotated for remaining members, and they will lose access.`, { danger: true }
+          ))
         ) {
           return;
         }
@@ -8956,9 +8938,9 @@ function renderChatParticipants() {
             pk
           );
           await selectPrivateRoom(updated);
-          alert(`User ${name} was kicked from the private room.`);
+          showToast(`User ${name} was kicked from the private room.`, "info");
         } catch (err: any) {
-          alert(`Could not kick member: ${err.message || err}`);
+          showToast(`Could not kick member: ${err.message || err}`, "error");
         }
       });
     });
@@ -8981,7 +8963,7 @@ function renderChatParticipants() {
         const link = await inviteLinkOf(room);
         if (link) {
           await navigator.clipboard.writeText(link);
-          alert(`Zero-knowledge invite link copied to clipboard!\n\nAnyone opening this link can decrypt and join "${roomName}".`);
+          showToast(`Zero-knowledge invite link copied to clipboard!\n\nAnyone opening this link can decrypt and join "${roomName}".`, "info", 6000);
         }
       });
     }
@@ -9027,7 +9009,7 @@ function renderChatParticipants() {
         const pk = (btn as HTMLElement).dataset.pubkey;
         if (pk) {
           navigator.clipboard.writeText(pk);
-          alert(`Public key copied to clipboard:\n${pk}`);
+          showToast(`Public key copied to clipboard:\n${pk}`, "info");
         }
       });
     });
@@ -9048,11 +9030,11 @@ async function leaveActivePrivateRoom(room: PrivateRoom) {
   const text = mine
     ? `Remove "${roomName}" from your list?\n\nYou made it, so it cannot be deleted from the network: its members keep it and can still chat, but nobody can invite new people. It disappears from your list on all your devices. An invite link brings it back.`
     : `Leave "${roomName}"?\n\nIt disappears from your list. You can join again with an invite link. Messages you already read stay readable on this device.`;
-  if (!confirm(text)) return;
+  if (!(await confirmDialog(text, { danger: true }))) return;
   try {
     await freenet.leavePrivateRoom(currentIdentity, room.id);
   } catch (err: any) {
-    alert(`Could not leave the room: ${err.message || err}`);
+    showToast(`Could not leave the room: ${err.message || err}`, "error");
     return;
   }
   activeChatPrivateRoom = null;
@@ -9457,7 +9439,7 @@ async function sendActiveChatText(rawText: string, sourceBox?: HTMLElement): Pro
   }
 
   // Attachment tokens and 64-hex persona keys are left out of the check: their digit runs look like phone numbers
-  if (!okToPublish(maskChatMediaTokens(text).masked.replace(/\b@?[0-9a-f]{64}\b/gi, ""))) return false;
+  if (!(await okToPublish(maskChatMediaTokens(text).masked.replace(/\b@?[0-9a-f]{64}\b/gi, "")))) return false;
 
   const now = Date.now();
   if (now - lastChatMessageTime < CHAT_COOLDOWN_MS) {
@@ -10031,7 +10013,7 @@ if (privroomAvatarPreview && privroomAvatarInput) {
       privroomAvatarPreview.style.border = "2px solid var(--primary)";
       if (privroomAvatarRemoveBtn) privroomAvatarRemoveBtn.style.display = "inline-block";
     } catch (err: any) {
-      alert(`Could not process image: ${err.message || err}`);
+      showToast(`Could not process image: ${err.message || err}`, "error");
     }
   });
 }
@@ -10045,7 +10027,7 @@ if (privroomAvatarRemoveBtn) {
 if (newPrivateRoomBtn && createPrivateRoomModal) {
   newPrivateRoomBtn.addEventListener("click", () => {
     if (!currentIdentity) {
-      alert("Please sign in or create an identity first.");
+      showToast("Please sign in or create an identity first.", "warning");
       return;
     }
     resetPrivroomAvatarUI();
@@ -10091,7 +10073,7 @@ if (newPrivateRoomBtn && createPrivateRoomModal) {
 if (newChannelBtn && createPrivateRoomModal) {
   newChannelBtn.addEventListener("click", () => {
     if (!currentIdentity) {
-      alert("Please sign in or create an identity first.");
+      showToast("Please sign in or create an identity first.", "warning");
       return;
     }
     resetPrivroomAvatarUI();
@@ -10121,7 +10103,7 @@ if (createPrivroomSubmitBtn && createPrivateRoomModal) {
     if (!currentIdentity) return;
     const name = privroomNameInput ? privroomNameInput.value.trim() : "";
     if (!name) {
-      alert("Please enter a room name.");
+      showToast("Please enter a room name.", "warning");
       return;
     }
 
@@ -10155,13 +10137,13 @@ if (createPrivroomSubmitBtn && createPrivateRoomModal) {
       });
       createPrivateRoomModal.style.display = "none";
       await selectPrivateRoom(room);
-      alert(isChannel ? `Broadcast Channel "${name}" created!` : `Private Room "${name}" created with ${room.members.length} member(s)!`);
+      showToast(isChannel ? `Broadcast Channel "${name}" created!` : `Private Room "${name}" created with ${room.members.length} member(s)!`, "info");
     } catch (err: any) {
       const what = isChannel ? "channel" : "room";
       // a slow node can still publish it after we stop waiting: trying again at once could make a twin
-      alert(/timeout/i.test(String(err?.message ?? err))
+      showToast(/timeout/i.test(String(err?.message ?? err))
         ? `Your Freenet node is slow to publish the new ${what} (few peers yet, or just started). Wait a minute and look for it in your chat list before trying again.`
-        : `Could not create ${what}: ${err.message || err}`);
+        : `Could not create ${what}: ${err.message || err}`, "error", 10000);
     }
   });
 }
@@ -10230,7 +10212,7 @@ if (sharePrivroomLinkBtn && invitePrivroomLinkInput) {
 if (joinPrivateRoomBtn && joinPrivroomModal) {
   joinPrivateRoomBtn.addEventListener("click", () => {
     if (!currentIdentity) {
-      alert("Please sign in or create an identity first.");
+      showToast("Please sign in or create an identity first.", "warning");
       return;
     }
     if (joinPrivroomInput) joinPrivroomInput.value = "";
@@ -10255,13 +10237,13 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
     if (!currentIdentity) return;
     const raw = joinPrivroomInput ? joinPrivroomInput.value.trim() : "";
     if (!raw) {
-      alert("Please paste a private room invite link or fragment.");
+      showToast("Please paste a private room invite link or fragment.", "warning");
       return;
     }
 
     try {
       if (raw.includes("BEGIN RIVER IDENTITY") || riverCodeIn(raw)) {
-        alert("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.");
+        showToast("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.", "warning", 6000);
         return;
       }
       let fragment = raw;
@@ -10273,7 +10255,7 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
 
       const invite = inviteFromParams(new URLSearchParams(fragment));
       if (!invite) {
-        alert("Invalid invite link format. Missing join_room or valid 64-hex encryption key.");
+        showToast("Invalid invite link format. Missing join_room or valid 64-hex encryption key.", "error");
         return;
       }
       const { name } = invite;
@@ -10282,9 +10264,9 @@ if (joinPrivroomSubmitBtn && joinPrivroomModal) {
 
       joinPrivroomModal.style.display = "none";
       await selectPrivateRoom(room);
-      alert(`Successfully joined private room "${name}"!`);
+      showToast(`Successfully joined private room "${name}"!`, "info");
     } catch (err: any) {
-      alert(`Could not join private room: ${err.message || err}`);
+      showToast(`Could not join private room: ${err.message || err}`, "error");
     }
   });
 }
@@ -10306,7 +10288,7 @@ if (invitePrivroomSubmitBtn && invitePrivroomModal) {
     if (!currentIdentity || !activeChatPrivateRoom) return;
     const key = invitePrivroomKeyInput ? invitePrivroomKeyInput.value.trim() : "";
     if (!key || key.length !== 64) {
-      alert("Please enter a valid 64-character hex public key.");
+      showToast("Please enter a valid 64-character hex public key.", "warning");
       return;
     }
 
@@ -10315,9 +10297,9 @@ if (invitePrivroomSubmitBtn && invitePrivroomModal) {
       const updated = await withBusy(invitePrivroomSubmitBtn, "Inviting…", () => freenet.inviteMemberToPrivateRoom(identity, roomId, key));
       invitePrivroomModal.style.display = "none";
       await selectPrivateRoom(updated);
-      alert(`Peer invited! The room key has been encrypted and shared with @${shortenKey(key)}.`);
+      showToast(`Peer invited! The room key has been encrypted and shared with @${shortenKey(key)}.`, "info");
     } catch (err: any) {
-      alert(`Could not invite member: ${err.message || err}`);
+      showToast(`Could not invite member: ${err.message || err}`, "error");
     }
   });
 }
@@ -10740,7 +10722,7 @@ notifsCloseBtn.addEventListener("click", () => {
 });
 
 document.getElementById("notifs-clear-btn")!.addEventListener("click", async () => {
-  if (!currentIdentity || !confirm("Remove all notifications? This holds on your other devices too.")) return;
+  if (!currentIdentity || !(await confirmDialog("Remove all notifications? This holds on your other devices too.", { danger: true }))) return;
   notifsModal.style.display = "none"; // close first: the log write below goes over the network
   await freenet.clearNotifications(currentIdentity);
   updateNotificationsBadge();
@@ -11187,9 +11169,9 @@ function openModerationPanel(comm: Community) {
   commModsList.querySelectorAll(".remove-mod-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       const modPk = (e.currentTarget as HTMLElement).dataset.mod!;
-      if (!confirm(`Remove @${shortenKey(modPk)} from moderators?`)) return;
+      if (!(await confirmDialog(`Remove @${shortenKey(modPk)} from moderators?`, { danger: true }))) return;
       const res = await freenet.removeCommunityModerator(currentIdentity!, comm.id, modPk);
-      alert(res.msg);
+      showToast(res.msg, res.success ? "info" : "error");
       if (res.success) {
         allCommunities = await loadCommunities();
         const updated = allCommunities.find((c) => c.id === comm.id)!;
@@ -11284,7 +11266,7 @@ addModForm.addEventListener("submit", async (e) => {
   if (!modPk) return;
 
   const res = await freenet.addCommunityModerator(currentIdentity, targetComm.id, modPk);
-  alert(res.msg);
+  showToast(res.msg, res.success ? "info" : "error");
   if (res.success) {
     addModPubkeyInput.value = "";
     allCommunities = await loadCommunities();
@@ -11451,7 +11433,7 @@ createCommSaveBtn.addEventListener("click", async () => {
   let desc = commDescInput.value.trim();
 
   if (!name) {
-    alert("Please provide a title.");
+    showToast("Please provide a title.", "warning");
     return;
   }
 
@@ -11476,7 +11458,7 @@ createCommSaveBtn.addEventListener("click", async () => {
     }
   }
 
-  if (!okToPublish(`${name}\n${desc}`)) {
+  if (!(await okToPublish(`${name}\n${desc}`))) {
     createCommSaveBtn.disabled = false;
     createCommSaveBtn.textContent = idle;
     return;
@@ -11509,7 +11491,7 @@ createCommSaveBtn.addEventListener("click", async () => {
     }
   } catch (err: any) {
     console.error("Error saving community:", err);
-    alert(err?.message || (editing ? "Could not save the community." : "Could not create community on Freenet."));
+    showToast(err?.message || (editing ? "Could not save the community." : "Could not create community on Freenet."), "error");
   } finally {
     createCommSaveBtn.disabled = false;
     createCommSaveBtn.textContent = idle;
@@ -11586,14 +11568,14 @@ function setRedditComposeFlair(flair: PostCategory) {
   redditEventFields.style.display = flair === "event" ? "grid" : "none";
 }
 
-function createCommunityFromPage(prefillName = "") {
+async function createCommunityFromPage(prefillName = "") {
   const candidate = prefillName.trim() || commPageSearch.value.trim();
   const candidateSlug = slugOf(candidate);
   const exactFromSearch = candidateSlug ? allCommunities.find((c) => c.slug === candidateSlug) : undefined;
   const raw =
     prefillName.trim() ||
     (candidate && candidateSlug && !exactFromSearch ? candidate.replace(/^r\//i, "") : "") ||
-    (prompt("Enter new community name (e.g. Freenet builders):") ?? "").trim();
+    ((await promptDialog("Enter new community name (e.g. Freenet builders):")) ?? "").trim();
   if (!raw) return;
   const slug = slugOf(raw);
   if (!slug) {
@@ -12424,7 +12406,7 @@ redditSubHero.addEventListener("click", async (e) => {
   } else if (action === "mod") {
     openModerationPanel(comm);
   } else if (action === "hide") {
-    const reason = prompt(`Hide r/${comm.slug} (${comm.name}) for everyone who follows your moderation?\n\nReason (optional):`, "") ?? null;
+    const reason = (await promptDialog(`Hide r/${comm.slug} (${comm.name}) for everyone who follows your moderation?\n\nReason (optional):`)) ?? null;
     if (reason === null) return;
     await hideCommunityForAll(comm.id, reason);
     if (selectedRedditCommunity?.id === comm.id) selectedRedditCommunity = null;
@@ -12494,7 +12476,7 @@ redditPublishBtn.addEventListener("click", async () => {
     showToast("Publishing prohibited: image flagged for adult content.", "error");
     return;
   }
-  if (rawCaption && !okToPublish(rawCaption)) return;
+  if (rawCaption && !(await okToPublish(rawCaption))) return;
 
   const isTrustedAuthor = amVouched();
   const requiredCooldownMs = isTrustedAuthor ? POST_COOLDOWN_MS : 15000;
@@ -13145,7 +13127,7 @@ async function renderDevices(): Promise<void> {
       btn.style.cssText = "color: var(--danger); margin-left: auto;";
       btn.textContent = "Revoke";
       btn.onclick = async () => {
-        if (!confirm(`Revoke ${d.key.slice(0, 12)}…? It stops receiving new messages, for good: it keeps what it already has and can only come back with a new key.`)) return;
+        if (!(await confirmDialog(`Revoke ${d.key.slice(0, 12)}…? It stops receiving new messages, for good: it keeps what it already has and can only come back with a new key.`, { danger: true }))) return;
         btn.disabled = true;
         try {
           await freenet.revokeDevice(d.key);
@@ -13363,9 +13345,9 @@ if (settingsCheckUpdateBtn) {
     try {
       await checkNativeAppUpdate({
         force: true,
-        onResult: (res) => {
+        onResult: async (res) => {
           if (res.unreachable) {
-            if (confirm("Radica could not reach GitHub to check for a new release.\n\nOpen the releases page instead?")) openExternalUrl(GITHUB_RELEASES_PAGE, { fallbackWindowOpen: true });
+            if (await confirmDialog("Radica could not reach GitHub to check for a new release.\n\nOpen the releases page instead?")) openExternalUrl(GITHUB_RELEASES_PAGE, { fallbackWindowOpen: true });
           } else if (!res.hasUpdate) {
             showToast(`You are on the latest version of Radica (v${res.current ?? getAppVersion()}).`);
           }
@@ -13413,7 +13395,7 @@ if (fmailCopyRecoveryBtn) {
       if (fmailStatusMsg) fmailStatusMsg.textContent = "✓ Recovery Key copied! Paste it in Freenet Mail -> Restore identity.";
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
     } catch {
-      prompt("Copy your Freenet Mail recovery key:", currentFmailIdentity.recoveryKey);
+      void promptDialog("Copy your Freenet Mail recovery key:", { defaultValue: currentFmailIdentity.recoveryKey, readOnly: true });
     }
   });
 }
@@ -13508,7 +13490,7 @@ if (fmailCopyInboxBtn) {
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
       showToast("✓ Copied native Freenet Mail inbox address!", "info");
     } catch {
-      prompt("Copy inbox address:", currentFmailIdentity.inboxAddress);
+      void promptDialog("Copy inbox address:", { defaultValue: currentFmailIdentity.inboxAddress, readOnly: true });
     }
   });
 }
@@ -13522,7 +13504,7 @@ if (fmailInboxVal) {
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
       showToast("✓ Copied native inbox address!", "info");
     } catch {
-      prompt("Copy inbox address:", currentFmailIdentity.inboxAddress);
+      void promptDialog("Copy inbox address:", { defaultValue: currentFmailIdentity.inboxAddress, readOnly: true });
     }
   });
 }
@@ -13536,7 +13518,7 @@ if (fmailCopyCardBtn) {
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
       showToast("✓ Copied contact card token!", "info");
     } catch {
-      prompt("Copy contact token:", currentFmailIdentity.contactCard);
+      void promptDialog("Copy contact token:", { defaultValue: currentFmailIdentity.contactCard, readOnly: true });
     }
   });
 }
@@ -13550,7 +13532,7 @@ if (fmailContactCardVal) {
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
       showToast("✓ Copied contact card token!", "info");
     } catch {
-      prompt("Copy contact token:", currentFmailIdentity.contactCard);
+      void promptDialog("Copy contact token:", { defaultValue: currentFmailIdentity.contactCard, readOnly: true });
     }
   });
 }
@@ -13564,7 +13546,7 @@ if (fmailAddressVal) {
       if (fmailStatusMsg) fmailStatusMsg.textContent = `✓ Mail address copied: ${full}`;
       setTimeout(() => { if (fmailStatusMsg) fmailStatusMsg.textContent = ""; }, 4000);
     } catch {
-      prompt("Copy mail address:", full);
+      void promptDialog("Copy mail address:", { defaultValue: full, readOnly: true });
     }
   });
 }
@@ -14212,7 +14194,7 @@ if (mailToggleReadBtn) {
 
 const mailBlockBtn = document.getElementById("mail-block-btn") as HTMLButtonElement | null;
 if (mailBlockBtn) {
-  mailBlockBtn.addEventListener("click", () => {
+  mailBlockBtn.addEventListener("click", async () => {
     if (!currentIdentity || !activeMailId) return;
     const fmail = getOrDeriveFmailIdentity();
     const msgs = loadMailStore(currentIdentity.pubkey, fmail).messages;
@@ -14220,7 +14202,7 @@ if (mailBlockBtn) {
     const key = msg ? mailSenderKey(msg.fromAddress) : "";
     if (!msg || !key) return void showToast("This sender cannot be blocked: no Freenet Mail address.", "warning");
     if (key === fmail?.inboxAddress) return void showToast("That is your own address.", "warning");
-    if (!confirm(`Block ${msg.fromAddress}? Their mail is hidden and no longer stored on this device. You can undo it in Contacts → Blocked senders.`)) return;
+    if (!(await confirmDialog(`Block ${msg.fromAddress}? Their mail is hidden and no longer stored on this device. You can undo it in Contacts → Blocked senders.`, { danger: true }))) return;
     for (const m of msgs) {
       if (m.folder === "inbox" && mailSenderKey(m.fromAddress) === key) freenet.dismissNotification(currentIdentity, `notif_mail_${m.id}`);
     }
@@ -14236,9 +14218,9 @@ if (mailBlockBtn) {
 }
 
 if (mailDeleteBtn) {
-  mailDeleteBtn.addEventListener("click", () => {
+  mailDeleteBtn.addEventListener("click", async () => {
     if (!currentIdentity || !activeMailId) return;
-    if (confirm("Delete this message?")) {
+    if (await confirmDialog("Delete this message?", { danger: true })) {
       freenet.dismissNotification(currentIdentity, `notif_mail_${activeMailId}`);
       deleteMailMessage(currentIdentity.pubkey, activeMailId);
       activeMailId = null;
@@ -14490,7 +14472,7 @@ if (modalCopyInboxBtn) {
       await navigator.clipboard.writeText(fmail.inboxAddress);
       showToast("✓ Copied native Freenet Mail inbox address!", "info");
     } catch {
-      prompt("Copy inbox address:", fmail.inboxAddress);
+      void promptDialog("Copy inbox address:", { defaultValue: fmail.inboxAddress, readOnly: true });
     }
   });
 }
@@ -14503,7 +14485,7 @@ if (modalCopyCardBtn) {
       await navigator.clipboard.writeText(fmail.contactCard);
       showToast("✓ Copied contact card token!", "info");
     } catch {
-      prompt("Copy contact token:", fmail.contactCard);
+      void promptDialog("Copy contact token:", { defaultValue: fmail.contactCard, readOnly: true });
     }
   });
 }
@@ -14516,7 +14498,7 @@ if (modalCopyFpBtn) {
       await navigator.clipboard.writeText(fmail.fingerprintFull);
       showToast("✓ Copied verification words!", "info");
     } catch {
-      prompt("Copy verification words:", fmail.fingerprintFull);
+      void promptDialog("Copy verification words:", { defaultValue: fmail.fingerprintFull, readOnly: true });
     }
   });
 }
@@ -14529,7 +14511,7 @@ if (modalFmailCopyRecoveryBtn) {
       await navigator.clipboard.writeText(fmail.recoveryKey);
       showToast("✓ Copied recovery key! Paste in Freenet Mail -> Restore identity.", "info");
     } catch {
-      prompt("Copy recovery key:", fmail.recoveryKey);
+      void promptDialog("Copy recovery key:", { defaultValue: fmail.recoveryKey, readOnly: true });
     }
   });
 }
@@ -14547,9 +14529,9 @@ const handleSignOut = async () => {
   const isLocal = currentIdentity?.type === "local";
   if (
     isLocal &&
-    !confirm(
-      "Signing out deletes this key from this browser. Without your backup file or key, this identity cannot be recovered. Are you sure you want to sign out?"
-    )
+    !(await confirmDialog(
+      "Signing out deletes this key from this browser. Without your backup file or key, this identity cannot be recovered. Are you sure you want to sign out?", { danger: true }
+    ))
   ) {
     return;
   }
@@ -14580,7 +14562,7 @@ createNewKeyBtn.addEventListener("click", async () => {
   try {
     if (
       currentIdentity?.type === "local" &&
-      !confirm("Generate a new identity keypair? Make sure your current key is backed up first.")
+      !(await confirmDialog("Generate a new identity keypair? Make sure your current key is backed up first.", { danger: true }))
     ) {
       return;
     }
@@ -14611,7 +14593,7 @@ importKeyBtn.addEventListener("click", async () => {
 identityPubkeyVal.addEventListener("click", () => {
   if (currentIdentity) {
     navigator.clipboard.writeText(currentIdentity.pubkey);
-    alert("Public key copied to clipboard!");
+    showToast("Public key copied to clipboard!", "info");
   }
 });
 
@@ -14695,7 +14677,7 @@ async function handleJoinFromInviteUrl(urlStr: string): Promise<boolean> {
     const nameParam = params.get("name") || undefined;
 
     if (code) {
-      alert("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.");
+      showToast("River invites no longer work: River rooms are retired. Ask the room owner for its new Radica invite link.", "warning", 6000);
       return false;
     }
     const invite = inviteFromParams(params);
@@ -14795,10 +14777,10 @@ async function init() {
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState(window.history.state, "", cleanUrl);
       } catch {}
-      if (!replayed) alert(`Successfully signed in with Viso persona: ${personaName(persona)}!`);
+      if (!replayed) showToast(`Successfully signed in with Viso persona: ${personaName(persona)}!`, "info");
     } catch (err) {
       console.error("Viso sign-in verification error:", err);
-      alert("Viso sign-in failed: " + ((err as Error).message || err));
+      showToast("Viso sign-in failed: " + ((err as Error).message || err), "error");
       try {
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState(window.history.state, "", cleanUrl);
