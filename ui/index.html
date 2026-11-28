@@ -1807,15 +1807,16 @@
         </details>
 
         <details><summary>🌱 Greenhouse</summary>
-          <p>Where the community suggests what Radica should do next. Anyone who has grown their <b>🌱 Linfa</b> to at least <b>Sapling</b> (12 points, with replies or likes from trusted peers in the reader's network), or holds a <b>Supporter badge</b> or <b>Freenet GhostKey</b>, can <b>plant a seed</b>: a 💡 feature or a 🐛 bug, open for 3 to 30 days. Everyone eligible votes until it closes; then it shows 🌱 Sprouted (more for than against) or 🥀 Withered.</p>
+          <p>Where the community suggests what Radica should do next. Anyone who has grown their <b>🌱 Linfa</b> to at least <b>Sapling</b> (12 points, with replies or likes from trusted peers in the reader's network), or holds a <b>Supporter badge</b> or <b>Freenet GhostKey</b>, can tap <b>+ Plant a seed</b> to submit a 💡 feature or 🐛 bug, open for 3 to 30 days. Everyone eligible votes until it closes; then it shows 🌱 Sprouted (more for than against) or 🥀 Withered.</p>
           <ul>
+            <li><b>Four clear tabs</b>: <b>🗳️ Voting</b> for open proposals, <b>🗓️ Planned</b> for roadmap items (<i>Planned</i> and <i>Considering</i>, even after voting closes), <b>✅ Done</b> for shipped work, and <b>📦 Archive</b> for <i>Not now</i> or expired untriaged proposals.</li>
+            <li><b>Filter, search &amp; sort</b>: switch between All, 💡 Features, and 🐛 Bugs, search titles/descriptions/authors live, or sort by Default, Top voted, Newest, Most discussed, or Ending soon.</li>
             <li><b>Votes weigh by supporter tier or Linfa age</b> (whichever is higher): 🌱 Sprout, Sapling and Young tree <b>1</b>; 🌿 Root and Tree <b>2</b>; 🌳 Oak, 👻 GhostKey and Elder tree <b>3</b>. You can change your vote, or take it back by pressing it again.</li>
             <li><b>Anti-spam without a paywall</b>: for Linfa participants, only activity backed by replies, likes or reposts from the reader's web of trust counts, and unilateral activity (liking or commenting without community response) is capped, so a bot farm of strangers cannot plant or vote.</li>
             <li>A <b>bug</b> takes only ▲ ("me too"): a bug is there or it is not.</li>
             <li>A supporter's seed or vote carries their receipt, so every reader checks it on their own device (your tier is visible to others); a Linfa seed or vote is verified by each reader from the author's signed posts and comments.</li>
-            <li>The maintainer marks what became of a seed: Considering, Planned, Done or Not now.</li>
-            <li><b>Comments</b>: tap <b>💬 comments</b> under a proposal to read the thread and write your own (same members who can vote). Use <b>Report</b> or <b>Hide author</b> on any comment you do not want to see.</li>
-            <li><b>Share proposals &amp; permalinks</b>: tap <b>Share</b> on any seed card to copy its direct permalink (<code>#greenhouse&amp;seed=&lt;author:id&gt;</code>) or share it via your device's native share sheet. Opening the link jumps directly into the Greenhouse and highlights the proposal with a smooth flash animation. Greenhouse links in chat, comments, or post captions automatically format as clean link pills.</li>
+            <li><b>Comments &amp; moderation</b>: tap <b>💬 comments</b> under a proposal to read the thread and write your own (same members who can vote). Use <b>Report</b> or <b>Hide author</b> on any proposal or comment you do not want to see.</li>
+            <li><b>Share proposals &amp; permalinks</b>: tap <b>Share</b> on any seed card to copy its direct permalink (<code>#greenhouse&amp;seed=&lt;author:id&gt;</code>) or share it via your device's native share sheet. Opening the link jumps directly to the proposal's tab and highlights it.</li>
           </ul>
           <p>Anyone can read the Greenhouse. The votes show what the community thinks: <b>they guide, they do not decide</b>.</p>
         </details>
@@ -1960,34 +1961,64 @@
     </div>
     <!-- Greenhouse: supporters' ideas and bugs, with votes -->
     <div id="greenhouse-modal" class="rail-page" style="display: none;">
-      <div class="modal-card" style="max-width: 600px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div class="modal-card gh-modal-card">
+        <div class="gh-header">
           <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
             <svg viewBox="0 0 24 24" class="svg-icon icon-md"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><path d="M12 21v-6"/><path d="M12 15c-2.5 0-3.5-1.5-3.5-3.5 2.5 0 3.5 1.5 3.5 3.5z"/><path d="M12 15c2.5 0 3.5-1.5 3.5-3.5-2.5 0-3.5 1.5-3.5 3.5z"/></svg>
             <span>Greenhouse</span>
           </h3>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <button type="button" class="btn-secondary btn-sm" id="greenhouse-export-ai-btn" title="Copy all open proposals formatted for an AI coding agent">🤖 Copy all for AI</button>
-            <button class="btn-secondary btn-sm" id="greenhouse-close-btn">✕</button>
+          <div class="gh-header-actions">
+            <button type="button" class="btn-primary btn-sm" id="greenhouse-plant-btn" style="display: none;" aria-expanded="false" aria-controls="greenhouse-form">+ Plant a seed</button>
+            <button type="button" class="btn-secondary btn-sm" id="greenhouse-export-ai-btn" title="Copy open and planned proposals formatted for an AI coding agent">🤖 Copy all for AI</button>
+            <button type="button" class="btn-secondary btn-sm" id="greenhouse-close-btn" aria-label="Close Greenhouse">✕</button>
           </div>
         </div>
-        <p style="font-size: 0.85rem; margin: 0 0 8px;">Community members (with <b>🌱 Sapling+ Linfa</b>) and supporters plant ideas and bugs here and vote on them until they close. The votes show what the community thinks: <b>they are a guide, not a promise</b> that something will be built.</p>
-        <p class="testnet-note">⚠️ <b>In testing.</b> The Greenhouse and supporter badges run on a test network for now: seeds and votes may be reset when Radica moves to Base mainnet.</p>
-        <p id="greenhouse-weights" style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 12px;"></p>
-        <p id="greenhouse-gate" style="font-size: 0.85rem; margin: 0 0 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network), or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).</p>
-        <form id="greenhouse-form" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-          <div style="display: flex; gap: 8px;">
+        <p class="gh-intro">Community members (<b>🌱 Sapling+ Linfa</b>) and supporters plant ideas and bugs here. Votes guide priority — they do not decide what gets built.</p>
+        <details class="gh-info-disclosure">
+          <summary>How voting, weights &amp; statuses work</summary>
+          <div class="gh-info-body">
+            <p id="greenhouse-weights" class="gh-weights"></p>
+            <p class="testnet-note">⚠️ <b>In testing.</b> The Greenhouse and supporter badges run on a test network for now: seeds and votes may be reset when Radica moves to Base mainnet.</p>
+          </div>
+        </details>
+        <p id="greenhouse-gate" class="gh-gate">Anyone can read. To plant and vote, grow your <b>🌱 Linfa</b> to <b>Sapling</b> (12+ pts with replies or likes from your network), or support Radica via <b>Identity → Support Radica</b> (Supporter badge or Freenet GhostKey).</p>
+        <form id="greenhouse-form" class="gh-composer-card" hidden>
+          <div class="gh-composer-row">
             <select name="kind" aria-label="Kind"><option value="feature">💡 Feature</option><option value="bug">🐛 Bug</option></select>
             <input name="title" class="comment-input" maxlength="120" placeholder="Title" required style="flex: 1;" />
           </div>
           <textarea name="text" class="composer-input" maxlength="2000" rows="3" placeholder="What and why (optional). **bold**, *italic*, `code`, links work"></textarea>
-          <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between;">
+          <div class="gh-composer-actions">
             <label style="font-size: 0.85rem;">Open for <select name="days" id="greenhouse-days"></select></label>
-            <button type="submit" class="btn-primary btn-sm">Plant</button>
+            <div class="gh-composer-btn-group">
+              <button type="button" class="btn-secondary btn-sm" id="greenhouse-form-cancel">Cancel</button>
+              <button type="submit" class="btn-primary btn-sm">Plant</button>
+            </div>
           </div>
           <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Supporters' seeds and votes carry their receipt so others can check their tier; otherwise each reader checks your Linfa from your signed activity.</p>
         </form>
-        <div id="greenhouse-list" style="display: flex; flex-direction: column; gap: 10px;"><div class="greenhouse-loader" role="status" aria-live="polite"><div class="boot-bar"><span></span></div><p>Loading Greenhouse proposals…</p></div></div>
+        <div class="gh-tabs" id="greenhouse-tabs" role="tablist" aria-label="Greenhouse sections">
+          <button type="button" role="tab" class="gh-tab" id="gh-tab-voting" data-gh-tab="voting" aria-selected="true" tabindex="0">🗳️ Voting <span class="gh-tab-count" data-gh-count="voting">0</span></button>
+          <button type="button" role="tab" class="gh-tab" id="gh-tab-planned" data-gh-tab="planned" aria-selected="false" tabindex="-1">🗓️ Planned <span class="gh-tab-count" data-gh-count="planned">0</span></button>
+          <button type="button" role="tab" class="gh-tab" id="gh-tab-done" data-gh-tab="done" aria-selected="false" tabindex="-1">✅ Done <span class="gh-tab-count" data-gh-count="done">0</span></button>
+          <button type="button" role="tab" class="gh-tab" id="gh-tab-archive" data-gh-tab="archive" aria-selected="false" tabindex="-1">📦 Archive <span class="gh-tab-count" data-gh-count="archive">0</span></button>
+        </div>
+        <div class="gh-toolbar">
+          <div id="greenhouse-kind-filters" class="gh-kind-chips" role="group" aria-label="Filter by kind">
+            <button type="button" class="btn-secondary btn-xs gh-kind-chip active" data-gh-kind="all" aria-pressed="true">All</button>
+            <button type="button" class="btn-secondary btn-xs gh-kind-chip" data-gh-kind="feature" aria-pressed="false">💡 Features</button>
+            <button type="button" class="btn-secondary btn-xs gh-kind-chip" data-gh-kind="bug" aria-pressed="false">🐛 Bugs</button>
+          </div>
+          <input type="search" id="greenhouse-search" class="gh-search-input" placeholder="Search proposals…" aria-label="Search Greenhouse proposals" autocomplete="off" />
+          <select id="greenhouse-sort" class="gh-sort-select" aria-label="Sort proposals">
+            <option value="">Default</option>
+            <option value="votes">Top voted</option>
+            <option value="newest">Newest</option>
+            <option value="discussed">Most discussed</option>
+            <option value="closing">Ending soon</option>
+          </select>
+        </div>
+        <div id="greenhouse-list"><div class="greenhouse-loader" role="status" aria-live="polite"><div class="boot-bar"><span></span></div><p>Loading Greenhouse proposals…</p></div></div>
       </div>
     </div>
 

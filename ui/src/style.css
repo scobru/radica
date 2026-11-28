@@ -47,6 +47,10 @@
   --focus-ring: 0 0 0 2px color-mix(in srgb, var(--primary) 42%, transparent);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 140ms;
+  --gh-planned: #1f6392;
+  --gh-considering: #a16207;
+  --gh-done: #2f7d22;
+  --gh-archive: #7c7265;
 }
 
 [data-theme="dark"] {
@@ -80,6 +84,10 @@
   --nav-bg: #100e0b;
   --shadow: none;
   --shadow-lg: 0 16px 32px -6px rgba(0, 0, 0, 0.65);
+  --gh-planned: #7cc0ee;
+  --gh-considering: #eab308;
+  --gh-done: #86d46b;
+  --gh-archive: #968d7e;
 }
 
 /* Accent themes: the action colour changes (and the surfaces are tinted below), in light and dark. No attribute = Radici green. */
@@ -6554,9 +6562,221 @@ html[data-fullwidth="true"] #width-toggle-btn {
 .md-h3 { font-size: 1.08em; }
 
 /* Greenhouse: supporters' seeds and their votes */
+.gh-modal-card {
+  max-width: 760px;
+}
+.gh-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.gh-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gh-intro {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+.gh-info-disclosure {
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+.gh-info-disclosure > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.gh-info-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gh-weights {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.gh-info-body .testnet-note {
+  margin: 0;
+}
+.gh-gate {
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.gh-composer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.gh-composer-card[hidden] {
+  display: none;
+}
+.gh-composer-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.gh-composer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.gh-composer-btn-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.gh-tabs {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: inline proximity;
+  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.gh-tabs::-webkit-scrollbar {
+  display: none;
+}
+.gh-tab {
+  flex: none;
+  position: relative;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.gh-tab:hover {
+  color: var(--text-main);
+  background: var(--primary-soft);
+}
+.gh-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.gh-tab[aria-selected="true"] {
+  color: var(--primary);
+}
+.gh-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 3px solid var(--primary);
+}
+.gh-tab-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
+}
+.gh-tab[aria-selected="true"] .gh-tab-count {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.gh-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.gh-kind-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.gh-kind-chip[aria-pressed="true"],
+.gh-kind-chip.active {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+.gh-search-input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.85rem;
+}
+.gh-sort-select {
+  width: auto;
+  flex: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 0.82rem;
+}
+/* [role="tabpanel"] must stay free of padding, border, margin, background so hidden="until-found" collapses cleanly */
+#greenhouse-list > [role="tabpanel"] {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: transparent;
+}
+.gh-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+}
+.gh-subhead {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gh-subhead:first-child {
+  margin-top: 0;
+}
 .gh-seed {
   padding: 12px 14px;
   border: 1px solid var(--border);
+  border-left: 3px solid transparent;
   border-radius: 10px;
   background: var(--bg);
   display: flex;
@@ -6564,13 +6784,58 @@ html[data-fullwidth="true"] #width-toggle-btn {
   gap: 6px;
 }
 .gh-seed.closed {
-  opacity: 0.75;
+  opacity: 0.82;
+}
+.gh-seed[data-status="planned"] {
+  border-left-color: var(--gh-planned);
+  opacity: 1;
+}
+.gh-seed[data-status="considering"] {
+  border-left-color: var(--gh-considering);
+  opacity: 1;
+}
+.gh-seed[data-status="done"],
+.gh-seed.gh-seed-done {
+  border-left-color: var(--gh-done);
+  opacity: 1;
+}
+.gh-seed[data-status="not-now"],
+.gh-seed.gh-archived {
+  border-left-color: var(--gh-archive);
+  opacity: 0.82;
 }
 .gh-seed-head {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+.gh-status-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.gh-status-pill[data-status="planned"] {
+  color: var(--gh-planned);
+  background: color-mix(in srgb, var(--gh-planned) 14%, transparent);
+}
+.gh-status-pill[data-status="considering"] {
+  color: var(--gh-considering);
+  background: color-mix(in srgb, var(--gh-considering) 14%, transparent);
+}
+.gh-status-pill[data-status="done"] {
+  color: var(--gh-done);
+  background: color-mix(in srgb, var(--gh-done) 14%, transparent);
+}
+.gh-status-pill[data-status="not-now"] {
+  color: var(--gh-archive);
+  background: color-mix(in srgb, var(--gh-archive) 14%, transparent);
 }
 .gh-seed-text {
   font-size: 0.9rem;
@@ -6608,7 +6873,7 @@ html[data-fullwidth="true"] #width-toggle-btn {
 }
 .gh-seed-votes .active {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   border-color: var(--primary);
 }
 .gh-seed-votes .gh-share-btn {
@@ -6616,6 +6881,52 @@ html[data-fullwidth="true"] #width-toggle-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+.gh-empty {
+  padding: 20px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.gh-empty p {
+  margin: 0;
+}
+.gh-empty-jumps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  .gh-modal-card {
+    padding: 14px;
+  }
+  .gh-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .gh-search-input {
+    flex: 1 1 auto;
+  }
+  .gh-tab {
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  .gh-kind-chip,
+  .gh-sort-select {
+    min-height: 36px;
+  }
+  .gh-composer-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 /* Supporters run on Base Sepolia for now. shortcut: remove every .testnet-note (index.html) and this rule at the mainnet switch */

@@ -80,6 +80,7 @@ Terms the code and its reviews use. Keep them exact.
 ## Greenhouse
 
 - **Greenhouse** (`ui/src/greenhouse.ts`, `ui/src/greenhousePage.ts`, `#greenhouse-modal`) — community idea and bug report voting board where supporters (Sprout, Root, Oak) and active Linfa members (Sapling+) plant seeds and cast weighted votes.
+- **Greenhouse buckets** (`SeedBucket`, `classifySeed` in `ui/src/greenhouse.ts`) — the 4 lifecycle tabs separating seeds without changing the `greenhouse` log wire format: `voting` (untriaged, `closes > now`), `planned` (`status` is `planned` or `considering`, regardless of voting window), `done` (`status` is `done`), and `archive` (`status` is `not-now` or untriaged `closes <= now`). `formatSeedsForAi(..., onlyOpen = true)` exports `voting` and `planned`.
 - **Greenhouse comment** (`{type:"comment", seed, text}` in the `greenhouse` log, `Seed.comments`) — a reply under a proposal. Same weight gate as voting; reported as `<author>:<entry id>` so the normal moderation queue handles it; the author always sees their own, others' are dropped when the author is hidden/blocked or the target is reported or AI-held (`hideComment` argument of `foldGreenhouse`).
 - **Greenhouse Permalink** (`#greenhouse&seed=<author:id>` / `#seed=<author:id>`) — shareable deep link to a specific proposal or voting, parsed by `parseGreenhouseHash`, formatted inline in captions as `↪ Greenhouse proposal`, and scrolled/flashed upon opening.
 
