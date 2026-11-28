@@ -33,7 +33,28 @@ export function draftTranslateHtml(forId: string): string {
   return `<select class="draft-translate" data-for="${forId}" title="Translate what you wrote" aria-label="Translate what you wrote"><option value="">🌐</option>${langs}<option value="undo">↩ Undo</option></select>`;
 }
 
-const before = new WeakMap<HTMLElement, { original: string; translated: string }>();
+type Box = { value: string; dispatchEvent?: (e: Event) => boolean };
+const before = new WeakMap<object, { original: string; translated: string; to: string }>();
+
+/** Remember a translation done in `box`, so Undo and `draftTranslatedTo` know about it. */
+export function noteDraftTranslate(box: Box, original: string, translated: string, to: string): void {
+  before.set(box, { original, translated, to });
+}
+
+/** The language the box's text was translated to, while it still holds that translation untouched; else null. */
+export function draftTranslatedTo(box: Box): string | null {
+  const b = before.get(box);
+  return b && box.value === b.translated ? b.to : null;
+}
+
+/** Bring back what I wrote before the last translation; false when there is nothing to undo (box edited since). */
+export function undoDraftTranslate(box: Box): boolean {
+  const b = before.get(box);
+  if (!b || box.value !== b.translated) return false;
+  box.value = b.original;
+  box.dispatchEvent?.(new Event("input", { bubbles: true })); // the box's own handlers: resize, draft, chip
+  return true;
+}
 
 /** One listener for every 🌐 menu on the page, wherever and whenever it is drawn. */
 export function initDraftTranslate(toast: (msg: string, type?: "info" | "warning" | "error") => void): void {
@@ -49,9 +70,7 @@ export function initDraftTranslate(toast: (msg: string, type?: "info" | "warning
       box.dispatchEvent(new Event("input", { bubbles: true })); // the box's own handlers: resize, draft
     };
     if (to === "undo") {
-      const b = before.get(box);
-      if (b && box.value === b.translated) set(b.original);
-      else toast("Nothing to undo.", "info");
+      if (!undoDraftTranslate(box)) toast("Nothing to undo.", "info");
       return;
     }
     const text = box.value;
@@ -64,7 +83,7 @@ export function initDraftTranslate(toast: (msg: string, type?: "info" | "warning
     try {
       const translated = await translateKeeping(text, from, to);
       if (box.value !== text) return; // I kept typing meanwhile: my words win
-      before.set(box, { original: text, translated });
+      noteDraftTranslate(box, text, translated, to);
       set(translated);
     } catch (err) {
       toast(`Could not translate: ${(err as Error)?.message || err}`, "error");
