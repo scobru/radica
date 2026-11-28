@@ -148,6 +148,40 @@ test("conversationState: unread counts from the later read mark; never read: DMs
   assert.deepEqual(published, [`${A}:${B}@1000`]);
 });
 
+test("conversationState: unreadSince keeps the mark markRead replaced, only when something was unread", () => {
+  const msgs: Record<string, number[]> = { [`${A}:${B}`]: [10, 20], comm_x: [10, 20], comm_y: [10] };
+  let t = 1000;
+  const kv = memKV();
+  kv.setItem(READ_MARKS_KEY, JSON.stringify({ comm_x: 15 }));
+  const state = createConversationState({
+    me: () => A,
+    secretRooms: () => [],
+    burn: async () => {},
+    sendTyping: () => {},
+    readStore: kv,
+    logReadMarks: () => ({}),
+    countSince: (room, since) => (msgs[room] ?? []).filter((ts) => ts > since).length,
+    publishRead: () => {},
+    now: () => t,
+  });
+  assert.equal(state.unreadSince("comm_x"), undefined); // not opened yet
+  state.markRead("comm_x");
+  assert.equal(state.unreadSince("comm_x"), 15);
+  t = 2000;
+  state.markRead("comm_x"); // nothing new: the separator mark survives
+  assert.equal(state.unreadSince("comm_x"), 15);
+  msgs.comm_x.push(2500);
+  state.markRead("comm_x"); // new unread: mark moves to the replaced one
+  assert.equal(state.unreadSince("comm_x"), 2000);
+
+  state.markRead(`${A}:${B}`);
+  assert.equal(state.unreadSince(`${A}:${B}`), 0); // never-read DM: from the start
+  state.markRead("comm_y");
+  assert.equal(state.unreadSince("comm_y"), undefined); // never-read room: nothing was unread
+  state.markRead("comm_z");
+  assert.equal(state.unreadSince("comm_z"), undefined); // empty room
+});
+
 test("conversationState: triggerRowBurnAnimation adds burning class and removes row after animation", async () => {
   let removed = false;
   const classes = new Set<string>(["rm-msg-row"]);

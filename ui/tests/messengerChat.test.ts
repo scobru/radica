@@ -4,6 +4,7 @@ import {
   canPostInRoom,
   computeSafetyBlocks,
   detectMentionTrigger,
+  filterContactPeers,
   filterMentionCandidates,
   isStageBackSwipe,
   resolveMessageSwipeStep,
@@ -13,6 +14,7 @@ import {
   shouldHydratePreview,
   shouldUpdateCachedPreview,
   STAGE_SWIPE_IGNORED_SELECTOR,
+  unreadSeparatorAt,
 } from "../src/messengerLogic.ts";
 
 test("detectMentionTrigger: finds an unterminated @name right before the caret", () => {
@@ -427,3 +429,45 @@ test("shouldDeferBackgroundRender: defers background redraws while touching or c
   assert.equal(shouldDeferBackgroundRender({ isTouching: true, isMomentum: true, forceImmediate: true }), false);
 });
 
+
+test("messengerLogic: filterContactPeers hides blocked by default, matches name/@handle/key/persona any case", () => {
+  const people: Record<string, { name: string; handle?: string; persona: string; blocked: boolean }> = {
+    ["a".repeat(64)]: { name: "Alice", handle: "alice", persona: "Main", blocked: false },
+    ["b".repeat(64)]: { name: "Bob", persona: "Work", blocked: true },
+    ["c".repeat(63) + "f"]: { name: "Carol", handle: "carol_x", persona: "Main", blocked: false },
+  };
+  const peers = Object.keys(people);
+  const info = (pk: string) => people[pk];
+  const [a, b, c] = peers;
+  assert.deepEqual(filterContactPeers(peers, "", info), [a, c]);
+  assert.deepEqual(filterContactPeers(peers, "   ", info), [a, c]);
+  assert.deepEqual(filterContactPeers(peers, "bob", info), [b]); // explicit search still finds a blocked contact
+  assert.deepEqual(filterContactPeers(peers, "ALI", info), [a]);
+  assert.deepEqual(filterContactPeers(peers, "@carol_", info), [c]);
+  assert.deepEqual(filterContactPeers(peers, "  @Carol_X ", info), [c]);
+  assert.deepEqual(filterContactPeers(peers, "CCCF", info), [c]); // key substring
+  assert.deepEqual(filterContactPeers(peers, "work", info), [b]);
+  assert.deepEqual(filterContactPeers(peers, "main", info), [a, c]);
+  assert.deepEqual(filterContactPeers(peers, "zzz", info), []);
+  assert.deepEqual(filterContactPeers([], "", info), []);
+});
+
+test("messengerLogic: unreadSeparatorAt finds the first unread from others and counts them", () => {
+  const me = "me";
+  const msgs = [
+    { sender: "x", timestamp: 10 },
+    { sender: me, timestamp: 20 },
+    { sender: "x", timestamp: 30, system_event: "join" },
+    { sender: me, timestamp: 40 },
+    { sender: "y", timestamp: 50 },
+    { sender: "x", timestamp: 60, system_event: "leave" },
+    { sender: "x", timestamp: 70 },
+  ];
+  assert.equal(unreadSeparatorAt(msgs, me, undefined), null);
+  assert.equal(unreadSeparatorAt(msgs, me, 70), null); // nothing newer
+  assert.equal(unreadSeparatorAt([], me, 0), null);
+  assert.deepEqual(unreadSeparatorAt(msgs, me, 0), { index: 0, count: 3 }); // all unread: mine and events skipped
+  assert.deepEqual(unreadSeparatorAt(msgs, me, 10), { index: 4, count: 2 }); // mine at 20/40 and join at 30 skipped
+  assert.deepEqual(unreadSeparatorAt(msgs, me, 50), { index: 6, count: 1 }); // strictly newer than since
+  assert.equal(unreadSeparatorAt([{ sender: me, timestamp: 99 }], me, 0), null); // only mine
+});
