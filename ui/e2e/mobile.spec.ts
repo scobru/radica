@@ -81,17 +81,18 @@ test("on a phone, Enter in the Messenger box starts a new line and the box holds
   await expect(page.locator(".rm-msg-row", { hasText: "hello there" }).first()).toBeVisible({ timeout: 20_000 });
   const input = page.locator("#rm-composer-input");
 
-  // only the textarea in the pill, and the default placeholder fits on one line at 412 px
+  // only the textarea in the pill; the DM placeholder and the longest others (Secret, channel admin) fit at 412 px
   await expect(page.locator("#rm-btn-quick-emoji")).toHaveCount(0);
   await expect(page.locator(".rm-input-pill select.draft-translate")).toHaveCount(0);
-  const fit = await input.evaluate((el: HTMLTextAreaElement) => {
+  const fits = await input.evaluate((el: HTMLTextAreaElement) => {
     const s = getComputedStyle(el);
     const ctx = document.createElement("canvas").getContext("2d")!;
     ctx.font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
     const room = el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-    return { text: el.placeholder, width: ctx.measureText(el.placeholder).width, room };
+    return [el.placeholder, "Secret message", "Message subscribers"].map((text) => ({ text, width: ctx.measureText(text).width, room }));
   });
-  expect(fit.width, `"${fit.text}" fits`).toBeLessThanOrEqual(fit.room);
+  expect(fits[0].text).toBe("Message");
+  for (const fit of fits) expect(fit.width, `"${fit.text}" fits in ${fit.room}`).toBeLessThanOrEqual(fit.room);
 
   await input.fill("line one");
   await input.press("Enter");

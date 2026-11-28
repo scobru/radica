@@ -23,7 +23,7 @@ Maintainer report (2026-11-28, phone screenshots of a group chat):
 6. `ui/src/updates.ts`, `CHANGELOG.md`; `#guide-modal` if the way to reach translation changes.
 
 ## Status
-🟡 **IN_PROGRESS** (2026-11-28): planned by the architect, tasks below.
+🟢 DONE (2026-11-28)
 
 ## Plan
 Reuse: `fitInput()` (auto-grow, unchanged), `isTouchMobileDevice()`-style `(pointer: coarse)` check, `composeTranslate.ts` (document-level listener and Undo map), the `+` attach menu rows.
@@ -58,7 +58,8 @@ No data, contract, signed message or wire change; nothing to keep readable (`leg
 - [x] [test] test-1 (after: core-1, core-2): `ui/tests/messengerChat.test.ts`: `enterSends` table (Enter/fine -> true; Enter/coarse -> false; Shift+Enter -> false both; isComposing -> false; other keys -> false). `ui/tests/composeTranslate.test.ts`: `draftTranslatedTo` null before, `to` after a translation (stub box object + injected translator, or test the map helpers directly), null after the box is edited; `undoDraftTranslate` restores the original and returns false the second time.
 - [x] [test] test-2 (after: ui-1, ui-2, ui-3): `ui/e2e/mobile.spec.ts`: on Pixel 7, Enter in `#rm-composer-input` leaves "line one\n" in the box (no send), `#rm-btn-quick-emoji` absent, no `select.draft-translate` inside `.rm-input-pill`, placeholder not overflowing (`scrollWidth <= clientWidth` for the default placeholder at 412 px). Desktop `e2e/app.spec.ts` Enter-to-send tests (344, 399, 413) still pass. Screenshots Pixel 7 light + dark and desktop, + menu open and chip shown.
   > 2026-11-28 tester: case added to `ui/e2e/mobile.spec.ts` (checks the placeholder the open DM shows, by text width vs textarea content box). Enter -> "line one\n", nothing sent, no emoji button, no select in the pill: pass. Placeholder: fails, see ui-1. Desktop project 42/42 pass (incl. Enter-to-send). UI agent screenshots reviewed: menu, chip, multiline fine.
-- [ ] [test] test-3 (after: all): `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `updates.ts` / guide, close the spec and the `ISSUES.md` row.
+- [x] [test] test-3 (after: all): `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `updates.ts` / guide, close the spec and the `ISSUES.md` row.
+  > 2026-11-28 tester: after ui-1 fix, placeholder states map to the right branches (blocked, secret, DM, River, subscriber, admin channel, group, none, my Notes "Write a note…" unchanged). Old strings remain only in classic chat `main.ts`/`index.html` `#chat-message-input` (out of scope, open question 2) and unrelated toasts. `mobile.spec.ts` now measures "Message", "Secret message", "Message subscribers" against the empty DM textarea at Pixel 7: fit. Playwright 46/46, `npm test` 623/625 (pre-existing roomCryptoInterop, sharedProtocol), build ok; `graphify` not installed here.
 
 ## Open questions (2026-11-28: maintainer accepted all defaults)
 1. Translation entry point: default **+ attach menu row** with a "Translated to X · Undo" chip while undoable. Alternatives: header ⋮ menu, long-press on send.
