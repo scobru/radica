@@ -1730,6 +1730,63 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
   background: var(--rm-bg-subtle);
 }
 
+/* "Translate what I wrote": the 🌐 select is stretched invisibly over the row, so a tap anywhere opens the language list */
+#chat-modal .rm-attach-translate {
+  position: relative;
+}
+#chat-modal .rm-attach-translate .draft-translate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+#chat-modal .rm-attach-translate:focus-within {
+  outline: 2px solid var(--rm-accent);
+  outline-offset: -2px;
+}
+#chat-modal .rm-attach-translate.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#chat-modal .rm-attach-translate.disabled .draft-translate {
+  cursor: default;
+}
+
+/* shown only while the draft still holds a translation Undo can reverse */
+#chat-modal .rm-translate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px 50px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--rm-border);
+  border-radius: 999px;
+  background: var(--rm-bg-subtle);
+  color: var(--rm-text-secondary);
+  font-size: 0.75rem;
+}
+#chat-modal .rm-translate-chip[hidden] {
+  display: none;
+}
+#chat-modal .rm-translate-chip svg {
+  color: var(--rm-accent);
+}
+#chat-modal .rm-translate-chip-undo {
+  border: none;
+  background: transparent;
+  color: var(--rm-accent);
+  font: inherit;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#chat-modal .rm-translate-chip-undo:hover {
+  background: var(--rm-bg-hover);
+}
+
 #chat-modal .rm-composer-row {
   display: flex;
   align-items: flex-end;
@@ -1807,26 +1864,6 @@ html[data-fullwidth="true"] #chat-modal #rm-btn-fullwidth {
 #chat-modal .rm-textarea:focus-visible {
   outline: none;
   box-shadow: none;
-}
-
-#chat-modal .rm-emoji-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--rm-text-muted);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  font-size: 1.05rem;
-  flex-shrink: 0;
-  padding: 0;
-}
-
-#chat-modal .rm-emoji-btn:hover {
-  background: var(--rm-bg-subtle);
-  color: var(--rm-text-main);
 }
 
 #chat-modal .rm-send-btn {
