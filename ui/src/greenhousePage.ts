@@ -3,6 +3,7 @@
 import { freenet } from "./freenet.ts";
 import { safeStorage } from "./storage";
 import { escapeHtml } from "./html.ts";
+import { confirmDialog, promptDialog, showToast } from "./dialogs.ts";
 import { renderChatText } from "./caption.ts";
 import { verifyReceipt, supporterStorageKey, type SupporterTier } from "./supporter.ts";
 import { analyzeTextContent } from "./moderation.ts";
@@ -192,7 +193,7 @@ async function copyTextWithFeedback(text: string, btn: HTMLButtonElement | null,
       if (err?.name === "AbortError") return;
     }
   }
-  prompt("Copy to clipboard:", text);
+  await promptDialog("Copy to clipboard:", { defaultValue: text, readOnly: true });
 }
 
 async function handleShareSeed(btn: HTMLButtonElement): Promise<void> {
@@ -260,7 +261,7 @@ export function initGreenhouse(deps: {
       form.reset();
       if (days) days.value = "14";
     } catch (err) {
-      alert(`Could not plant it: ${(err as Error).message || err}`);
+      showToast(`Could not plant it: ${(err as Error).message || err}`, "error");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -275,7 +276,7 @@ export function initGreenhouse(deps: {
     if (!text) return;
     // on-device check: personal data or abusive wording is worth a second look before it goes to everyone
     const check = analyzeTextContent(text);
-    if ((check.containsPII || check.isToxic) && !confirm(`${check.warnings.join("\n") || "This comment may contain personal data or abusive language."}\n\nPost it anyway?`)) return;
+    if ((check.containsPII || check.isToxic) && !(await confirmDialog(`${check.warnings.join("\n") || "This comment may contain personal data or abusive language."}\n\nPost it anyway?`, { okLabel: "Post anyway" }))) return;
     const btn = f.querySelector<HTMLButtonElement>("button[type=submit]");
     if (btn) btn.disabled = true;
     // emptied before sending: the redraw after it keeps whatever an open box still holds as a draft
@@ -285,7 +286,7 @@ export function initGreenhouse(deps: {
     } catch (err) {
       const box = f.querySelector<HTMLInputElement>("input[name=text]");
       if (box && !box.value) box.value = text;
-      alert(`Could not comment: ${(err as Error).message || err}`);
+      showToast(`Could not comment: ${(err as Error).message || err}`, "error");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -293,8 +294,10 @@ export function initGreenhouse(deps: {
   list?.addEventListener("click", (e) => {
     const repBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-report]");
     if (repBtn) {
-      const reason = prompt(`Report this comment by ${displayName(repBtn.dataset.ghAuthor!)}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; Radica's moderators are notified.`);
-      if (reason !== null) void reportComment?.(repBtn.dataset.ghAuthor!, repBtn.dataset.ghReport!, reason.trim()).then(renderGreenhouse, (err) => alert(`Could not report it: ${err.message || err}`));
+      const [author, target] = [repBtn.dataset.ghAuthor!, repBtn.dataset.ghReport!];
+      void promptDialog(`Report this comment by ${displayName(author)}?\n\nWhy (spam, abuse, illegal content…)? It is hidden for you and for whoever trusts your blocklist; Radica's moderators are notified.`, { okLabel: "Report" }).then((reason) => {
+        if (reason !== null) void reportComment?.(author, target, reason.trim()).then(renderGreenhouse, (err) => showToast(`Could not report it: ${err.message || err}`, "error"));
+      });
       return;
     }
     const hideBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-hide]");
@@ -307,7 +310,7 @@ export function initGreenhouse(deps: {
     if (voteBtn) {
       const v = Number(voteBtn.dataset.ghVote);
       // pressing my current vote again takes it back
-      void append({ type: "vote", seed: voteBtn.dataset.ghSeed, v: voteBtn.classList.contains("active") ? 0 : v }).catch((err) => alert(`Could not vote: ${err.message || err}`));
+      void append({ type: "vote", seed: voteBtn.dataset.ghSeed, v: voteBtn.classList.contains("active") ? 0 : v }).catch((err) => showToast(`Could not vote: ${err.message || err}`, "error"));
       return;
     }
     const shareBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-gh-share]");

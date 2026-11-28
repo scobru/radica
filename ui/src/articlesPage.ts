@@ -1,5 +1,6 @@
 // Dedicated Long-Form Articles & Decentralized Newsletters rail page (#articles-modal) — TASK-004.
 import { escapeHtml as esc } from "./html.ts";
+import { confirmDialog } from "./dialogs.ts";
 import {
   articleMissingNote,
   buildNewsletterEmail,
@@ -650,7 +651,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
   async function handleDeleteArticle(postId: string, author: string) {
     const me = deps.getIdentity()?.pubkey;
     if (!me || author !== me || !deps.deleteArticlePost) return;
-    if (!confirm("Delete this article from your Freenet feed?")) return;
+    if (!(await confirmDialog("Delete this article from your Freenet feed?", { okLabel: "Delete", danger: true }))) return;
     try {
       await deps.deleteArticlePost(postId);
       deps.showToast("Article deleted from Freenet.");
@@ -799,7 +800,7 @@ export function createArticlesPage(deps: ArticlesPageDeps) {
 
       const textMod = analyzeTextContent(`${title}\n${subtitle}\n${body}`);
       if (textMod.containsPII || textMod.isToxic) {
-        const proceed = confirm(`Local moderation warning: ${textMod.warnings.join(", ") || "flagged content"}. Publish anyway?`);
+        const proceed = await confirmDialog(`Local moderation warning: ${textMod.warnings.join(", ") || "flagged content"}. Publish anyway?`, { okLabel: "Publish anyway" });
         if (!proceed) return;
       }
 

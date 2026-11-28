@@ -1,6 +1,7 @@
 // The identity page's supporter section: the badge, redeeming a donation proof or a receipt (and following the
 // attester's answer), removing it, and the public supporters wall. main.ts calls initSupporterPanel once.
 import { freenet } from "./freenet.ts";
+import { confirmDialog, showToast } from "./dialogs.ts";
 import { safeStorage } from "./storage";
 import {
   verifyReceipt,
@@ -233,7 +234,7 @@ export function initSupporterPanel(deps: {
 
   document.getElementById("ghostkey-remove-btn")?.addEventListener("click", async () => {
     const pk = whoAmI();
-    if (!pk || !confirm("Remove your GhostKey badge? Its proof is taken back from the public list too.")) return;
+    if (!pk || !(await confirmDialog("Remove your GhostKey badge? Its proof is taken back from the public list too.", { okLabel: "Remove", danger: true }))) return;
     safeStorage.removeItem(ghostkeyKey(pk));
     await freenet.setGhostkey(null).catch(() => {});
     onBadgeChange();
@@ -269,7 +270,7 @@ export function initSupporterPanel(deps: {
 
   document.getElementById("poh-remove-btn")?.addEventListener("click", async () => {
     const pk = whoAmI();
-    if (!pk || !confirm("Remove your Verified Human badge from Radica? Your Viso identity slot stays unchanged.")) return;
+    if (!pk || !(await confirmDialog("Remove your Verified Human badge from Radica? Your Viso identity slot stays unchanged.", { okLabel: "Remove", danger: true }))) return;
     safeStorage.removeItem(pohKey(pk));
     await freenet.setPohProof(null).catch(() => {});
     onBadgeChange();
@@ -323,7 +324,7 @@ export function initSupporterPanel(deps: {
 
   document.getElementById("delegation-remove-btn")?.addEventListener("click", async () => {
     const pk = whoAmI();
-    if (!pk || !confirm("Unlink your delegated Viso persona from Radica?")) return;
+    if (!pk || !(await confirmDialog("Unlink your delegated Viso persona from Radica?", { okLabel: "Unlink", danger: true }))) return;
     safeStorage.removeItem(delegationKey(pk));
     await freenet.setDelegationProof(null).catch(() => {});
     const storedPoh = parseStoredPoh(safeStorage.getItem(pohKey(pk)));
@@ -347,7 +348,7 @@ export function initSupporterPanel(deps: {
       await renderSupporterWall();
     } catch (err) {
       toggle.checked = !toggle.checked;
-      alert((err as Error).message || "Could not update the supporters wall.");
+      showToast((err as Error).message || "Could not update the supporters wall.", "error");
     } finally {
       toggle.disabled = false;
     }
@@ -397,9 +398,9 @@ export function initSupporterPanel(deps: {
     }
   });
 
-  document.getElementById("supporter-clear-btn")?.addEventListener("click", () => {
+  document.getElementById("supporter-clear-btn")?.addEventListener("click", async () => {
     const pubkey = whoAmI();
-    if (pubkey && confirm("Remove this supporter receipt from this device?")) {
+    if (pubkey && (await confirmDialog("Remove this supporter receipt from this device?", { okLabel: "Remove", danger: true }))) {
       clearStoredReceipt(pubkey, freenet.supporterReceiptsFor(pubkey));
       if (freenet.supporterTokens().find((t) => t.author === pubkey)?.token) void freenet.setSupporterPublic(null);
       renderSupporterStatus();
