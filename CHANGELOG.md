@@ -1,6 +1,8 @@
 5.8.0 / 2026-11-23
 ==================
 
+  * **IMPROVED** Messenger, WhatsApp-like UX on phones, TASK-011 (`ui/src/{messengerChat,messengerLogic,conversationState,main,updates}.ts`, `ui/src/messengerChat.css`, `ui/index.html`, `ui/tests/{messengerChat,conversationState}.test.ts`, `CONTEXT.md`): New Conversation lists "Contacts on Radica" under the actions, with header search (`filterContactPeers`); Open DM / Secret show only for an unlisted key, @handle or card. A "N unread messages" pill sits above the first unread message (`unreadSeparatorAt`, in-memory `conversation.unreadSince`). Bubble tails on the first bubble of a run. Shared phone page pattern (`.rm-page`, `.rm-page-head`, `.rm-page-rows`): New Conversation, Safety number, New poll, New group/channel, Join, Invite and Edit profile are full pages with Back on the left on phones; desktop keeps the modals. No contract or storage change.
+
   * **FIX** Desktop/Android: pins and other changes lost on restart (`ui/src/storage.ts`, `ui/tests/storage.test.ts`): `syncNativeBridge` sent the whole store unbudgeted; past the apps' 8 MB `MAX_STORAGE_BYTES` the native side refused the write and kept the previous file. Feed caches (`freenet_feed_*`) are now dropped, biggest first, until the blob fits 6 MB.
 
   * **FIX** Radica Messenger: Identity & keys / Settings closed by themselves now and then (`ui/src/main.ts`): a background `showChat()` re-showed the chat, and the rail-page observer closed every other page when a page opened. In the Messenger app the chat is now a base layer, never closed by another page and never closing one.

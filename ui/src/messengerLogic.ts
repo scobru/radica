@@ -232,3 +232,37 @@ export function filterMentionCandidates<T extends { name: string; handle?: strin
   return candidates.filter((c) => c.name.toLowerCase().includes(q) || (c.handle && c.handle.toLowerCase().includes(q))).slice(0, limit);
 }
 
+
+/** The New Conversation contact list for query `q`: an empty query hides blocked / hidden peers (they show only on an
+ *  explicit search); otherwise a case-insensitive substring of name, key, persona, or handle (a leading "@" ignored). */
+export function filterContactPeers(
+  peers: string[],
+  q: string,
+  info: (pk: string) => { name: string; handle?: string; persona: string; blocked: boolean },
+): string[] {
+  const query = q.trim().toLowerCase();
+  const cleanQ = query.replace(/^@/, "");
+  return peers.filter((pk) => {
+    const i = info(pk);
+    if (!query) return !i.blocked;
+    return i.name.toLowerCase().includes(query) || pk.toLowerCase().includes(query) || i.persona.toLowerCase().includes(query) || (i.handle?.toLowerCase() || "").includes(cleanQ);
+  });
+}
+
+/** Where the "N unread messages" pill goes: before the first message from someone else newer than `since` (the rule
+ *  of `freenet.unreadCount`), with how many such messages follow; room events (join/leave) never count. */
+export function unreadSeparatorAt(
+  msgs: { sender: string; timestamp: number; system_event?: string }[],
+  me: string,
+  since: number | undefined,
+): { index: number; count: number } | null {
+  if (since === undefined) return null;
+  let index = -1;
+  let count = 0;
+  msgs.forEach((m, i) => {
+    if (m.sender === me || m.system_event || m.timestamp <= since) return;
+    if (index < 0) index = i;
+    count++;
+  });
+  return index < 0 ? null : { index, count };
+}

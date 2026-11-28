@@ -6184,6 +6184,8 @@ modalAvatarPreview.onerror = () => {
 modalCancelBtn.addEventListener("click", () => {
   profileModal.style.display = "none";
 });
+// phone page Back (index.html #profile-modal head) does what Cancel does
+document.getElementById("profile-modal-back-btn")?.addEventListener("click", () => modalCancelBtn.click());
 
 /** Show my newly saved profile everywhere, and tell the network. */
 /** Render a user's profile bio with full Markdown formatting, preserved newlines/spaces, and clickable links. */
@@ -7603,7 +7605,11 @@ function openChatWithPeer(peerPubkey?: string, focusThread = true, isSecret = fa
     else if (activeChatPeer) await selectChatPeer(activeChatPeer, activeChatSecret);
     else if (allPrivateRooms.length > 0) await selectPrivateRoom(allPrivateRooms[0]);
     else messengerChat.renderThread();
-    if (focusThread && peerPubkey) messengerChat.openThreadOnMobile();
+    if (focusThread && peerPubkey) {
+      messengerChat.openThreadOnMobile();
+      const open = openRoomId(); // the select above ran behind the inbox on phones
+      if (open) markOpenRead(open);
+    }
   });
 }
 
@@ -8539,15 +8545,18 @@ function unreadBadge(roomId: string, read: Record<string, number>): string {
   return n ? `<span class="chat-unread-badge" title="${n} unread">${n > 99 ? "99+" : n}</span>` : "";
 }
 
+/** Read as of now, unless it sits behind the inbox on phones: the inbox-row tap marks it read when shown. */
+function markOpenRead(roomId: string) {
+  if (currentChatLayout() !== "messenger" || messengerChat.isThreadVisible()) conversation.markRead(roomId);
+  updateChatBadge();
+}
+
 async function renderChatSidebar() {
   if (!currentIdentity) return;
 
   // the conversation on screen is read as of now
   const open = openRoomId();
-  if (open) {
-    conversation.markRead(open);
-    updateChatBadge();
-  }
+  if (open) markOpenRead(open);
   const read = conversation.readMarks();
 
   // 0. Render Private Rooms & Broadcast Channels
@@ -9133,8 +9142,7 @@ async function selectPrivateRoom(room: PrivateRoom, preserveScroll = false) {
   }
 
   const roomId = room.id;
-  conversation.markRead(roomId);
-  updateChatBadge();
+  markOpenRead(roomId);
 
   // River rooms are River's: Radica cannot drop a sender there, but hides what my blocks (and the blocklists I follow) cover
   const messages = (await freenet.getPrivateRoomChatMessages(currentIdentity, room)).filter((m) => m.sender === me || !isHiddenAuthor(m.sender));
@@ -9375,8 +9383,7 @@ async function selectChatPeer(peerPubkey: string, isSecret = false, preserveScro
     ? freenet.getSecretRoomId(currentIdentity.pubkey, peerPubkey)
     : freenet.getRoomId(currentIdentity.pubkey, peerPubkey);
 
-  conversation.markRead(roomId);
-  updateChatBadge();
+  markOpenRead(roomId);
 
   const messages = isSecret
     ? await freenet.getSecretChatMessages(currentIdentity, peerPubkey)
