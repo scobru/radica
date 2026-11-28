@@ -6646,7 +6646,6 @@ html[data-fullwidth="true"] #width-toggle-btn {
   color: var(--text);
   cursor: pointer;
 }
-.rm-input-pill .draft-translate,
 .comment-actions .draft-translate {
   width: 2.6rem;
   min-width: 0;
@@ -6658,7 +6657,6 @@ html[data-fullwidth="true"] #width-toggle-btn {
    arrow where the browser can; the open list still shows each language in full */
 @supports (field-sizing: content) {
   .draft-translate,
-  .rm-input-pill .draft-translate,
   .comment-actions .draft-translate {
     width: auto;
     field-sizing: content;
