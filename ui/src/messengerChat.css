@@ -4331,55 +4331,78 @@ progress.cm-vnote-ring {
 #chat-modal .rm-contact-picker-list:empty {
   display: none;
 }
-
-#chat-modal .rm-narrow-back {
+/* Close buttons carry both icons: ✕ on desktop, Back chevron on phone pages. Unscoped so index.html modals use it too. */
+.rm-narrow-back {
   display: none;
 }
 
-/* Phones: New Conversation is a page like WhatsApp's "Select contact": Back on the left, actions as rows with round icons */
+/* Phones: shared page pattern (WhatsApp-like): any overlay with .rm-page becomes a full-screen page with Back on the left.
+   :is(#chat-modal, body) lifts specificity over "#chat-modal .rm-modal-backdrop" and "#profile-modal .modal-card".
+   The #rm-new-chat-modal / .rm-new-chat-head / .rm-new-chat-actions aliases keep New Conversation as a page until
+   messengerChat.ts carries the classes (ui-6); drop them then. */
 @media (max-width: 768px) {
-  #chat-modal #rm-new-chat-modal {
+  :is(#chat-modal, body) :is(.rm-page, #rm-new-chat-modal) {
     padding: 0;
     place-items: stretch;
+    align-items: stretch;
     backdrop-filter: none;
+    background: var(--rm-bg-inbox, var(--bg));
   }
-  #chat-modal #rm-new-chat-modal .rm-modal {
-    max-width: none;
+  :is(#chat-modal, body) :is(.rm-page, #rm-new-chat-modal) > :is(.rm-modal, .modal-card) {
+    max-width: none !important; /* index.html cards set max-width inline */
+    width: 100%;
     max-height: none;
     height: 100%;
+    overflow-y: auto;
     border: none;
     border-radius: 0;
     box-shadow: none;
-    padding: 0 0 20px;
+    padding: 0 16px 20px; /* 16 px gutters; head and rows bleed back to the edges */
     gap: 10px;
-    background: var(--rm-bg-inbox);
+    background: var(--rm-bg-inbox, var(--bg));
   }
-  #chat-modal #rm-new-chat-modal .rm-modal > :not(.rm-new-chat-head):not(.rm-new-chat-actions) {
-    margin-inline: 16px !important; /* the hint's inline margin: 0 */
-  }
-  #chat-modal .rm-new-chat-head {
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) {
     flex-direction: row-reverse;
     justify-content: flex-end !important;
     gap: 8px;
     min-height: 60px;
     padding: 6px 12px 6px 4px;
-    border-bottom: 1px solid var(--rm-border);
+    border-bottom: 1px solid var(--rm-border, var(--border));
+    margin-inline: -16px;
+    position: sticky; /* Back stays reachable while a long form scrolls */
+    top: 0;
+    z-index: 1;
+    background: inherit;
   }
-  #chat-modal .rm-new-chat-head h3 {
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) h3 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.2rem !important; /* over the shared .modal-card h3 size */
   }
-  #chat-modal .rm-new-chat-head .rm-wide-only {
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) > :is(button, label) {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    padding: 8px;
+    cursor: pointer;
+    color: inherit;
+  }
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) .rm-wide-only {
     display: none;
   }
-  #chat-modal .rm-new-chat-head .rm-narrow-back {
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) .rm-narrow-back {
     display: block;
   }
-  #chat-modal .rm-new-chat-actions {
+  :is(.rm-page-head, #chat-modal .rm-new-chat-head) :is(svg.rm-narrow-back, .rm-narrow-back svg) {
+    width: 22px;
+    height: 22px;
+  }
+  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) {
+    margin-inline: -16px;
+    display: grid;
     grid-template-columns: 1fr;
     gap: 0;
   }
-  #chat-modal .rm-new-chat-actions .rm-link-btn {
+  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) > :is(button, .rm-link-btn) {
     justify-content: flex-start;
     gap: 16px;
     padding: 9px 16px;
@@ -4389,13 +4412,13 @@ progress.cm-vnote-ring {
     font-size: 1.02rem;
     font-weight: 600;
   }
-  #chat-modal .rm-new-chat-actions .rm-link-btn svg {
+  :is(.rm-page-rows, #chat-modal .rm-new-chat-actions) > :is(button, .rm-link-btn) svg {
     width: 44px;
     height: 44px;
     padding: 11px;
     border-radius: 50%;
-    background: var(--rm-accent);
-    color: var(--rm-bg-inbox);
+    background: var(--rm-accent, var(--primary));
+    color: var(--rm-bg-inbox, var(--bg));
     flex-shrink: 0;
   }
 }
