@@ -267,8 +267,14 @@
   "265": "package.json",
   "266": "challengeBytes",
   "267": "protocol.d.ts",
+  "268": "json",
   "269": "formatMediaDuration",
   "270": "visoSeal.ts",
   "271": "ghostkey.ts",
-  "272": "compactLog"
+  "272": "compactLog",
+  "273": "pathlib",
+  "274": "re",
+  "275": "subprocess",
+  "276": "tomllib",
+  "277": "urllib_request"
 }

@@ -1,4 +1,4 @@
-# TASK-013: Messenger composer — newline on phones, lighter input
+# TASK-014: Messenger composer — newline on phones, lighter input
 
 ## Reality check (2026-11-28)
 - **Bug reproduced.** Playwright, Pixel 7 device (touch, `pointer: coarse`), offline identity, a DM opened: type "line one" in `#rm-composer-input`, press Enter: the box empties and the send path runs (toast "Could not send message…" because the test peer key is fake); no newline. Cause: `messengerChat.ts` ~3888 `keydown`: `if (e.key !== "Enter" || e.shiftKey || e.isComposing) return; e.preventDefault(); composerFormEl.requestSubmit();` has no touch branch. Desktop Chrome: same, which is wanted there.

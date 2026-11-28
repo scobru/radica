@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { foldGreenhouse, formatSeedsForAi, greenhouseTokens, parseGreenhouseHash, greenhousePermalink } from "../src/greenhouse.ts";
+import {
+  classifySeed,
+  filterAndGroupSeeds,
+  foldGreenhouse,
+  formatSeedsForAi,
+  greenhousePermalink,
+  greenhouseTokens,
+  parseGreenhouseHash,
+  pickDefaultBucket,
+  SEED_BUCKETS,
+  sortSeeds,
+  type Seed,
+  type SeedSort,
+} from "../src/greenhouse.ts";
 import type { LogEntry } from "../src/logfold.ts";
 import type { SupporterTier } from "../src/supporter.ts";
 
@@ -159,4 +172,211 @@ test("comments: only members comment, newest last, hidden and reported ones drop
   const hide = (_a: string, target: string) => target === `carol:${bad.id}` || target === `bob:${mine.id}`;
   const out = foldGreenhouse(entries, tierOf, "bob", "boss", () => 0, [], hide)[0];
   assert.deepEqual(out.comments.map((c) => c.text), ["nice", "reported but mine"]);
+});
+
+const makeSeed = (overrides: Partial<Seed> = {}): Seed => ({
+  id: overrides.id ?? "alice:s1",
+  author: overrides.author ?? "alice",
+  kind: overrides.kind ?? "feature",
+  title: overrides.title ?? "Sample seed",
+  text: overrides.text ?? "",
+  ts: overrides.ts ?? t0,
+  closes: overrides.closes ?? t0 + 7 * DAY,
+  up: overrides.up ?? 0,
+  down: overrides.down ?? 0,
+  voters: overrides.voters ?? 0,
+  mine: overrides.mine ?? 0,
+  status: overrides.status,
+  comments: overrides.comments ?? [],
+});
+
+test("classifySeed routes open, triaged, and expired seeds into the right buckets", () => {
+  const now = 1_700_000_000_000;
+  assert.equal(classifySeed(makeSeed({ closes: now + DAY, status: undefined }), now), "voting");
+  assert.equal(classifySeed(makeSeed({ closes: now + DAY, status: "done" }), now), "done");
+  assert.equal(classifySeed(makeSeed({ closes: now - DAY, status: "done" }), now), "done");
+  assert.equal(classifySeed(makeSeed({ closes: now - DAY, status: "planned" }), now), "planned");
+  assert.equal(classifySeed(makeSeed({ closes: now + DAY, status: "planned" }), now), "planned");
+  assert.equal(classifySeed(makeSeed({ closes: now + DAY, status: "considering" }), now), "planned");
+  assert.equal(classifySeed(makeSeed({ closes: now - DAY, status: "considering" }), now), "planned");
+  assert.equal(classifySeed(makeSeed({ closes: now + DAY, status: "not-now" }), now), "archive");
+  assert.equal(classifySeed(makeSeed({ closes: now - DAY, status: "not-now" }), now), "archive");
+  assert.equal(classifySeed(makeSeed({ closes: now - DAY, status: undefined }), now), "archive");
+  assert.equal(classifySeed(makeSeed({ closes: now, status: undefined }), now), "archive");
+});
+
+test("filterAndGroupSeeds separates buckets, filters by kind and case-insensitive query, and keeps planned ahead of considering", () => {
+  const now = 1_700_000_000_000;
+  const seeds: Seed[] = [
+    makeSeed({ id: "a:1", author: "alice_key", kind: "feature", title: "Open voting", text: "Dark theme", closes: now + 5 * DAY, up: 4 }),
+    makeSeed({ id: "a:2", author: "bob_key", kind: "bug", title: "Open but done", text: "Fixed fast", closes: now + 5 * DAY, status: "done", ts: now - 1000 }),
+    makeSeed({ id: "a:3", author: "carol_key", kind: "feature", title: "Closed planned", text: "Roadmap item", closes: now - 2 * DAY, status: "planned", up: 1, ts: now - 5000 }),
+    makeSeed({ id: "a:4", author: "dan_key", kind: "bug", title: "High-vote considering", text: "Investigating", closes: now + DAY, status: "considering", up: 20, ts: now - 100 }),
+    makeSeed({ id: "a:5", author: "erin_key", kind: "feature", title: "Open not-now", text: "Deferred", closes: now + 5 * DAY, status: "not-now" }),
+    makeSeed({ id: "a:6", author: "frank_key", kind: "bug", title: "Expired untriaged", text: "Old bug", closes: now - DAY }),
+  ];
+
+  const all = filterAndGroupSeeds(seeds, { now });
+  assert.deepEqual(all.voting.map((s) => s.id), ["a:1"]);
+  assert.deepEqual(all.planned.map((s) => s.id), ["a:3", "a:4"]);
+  assert.deepEqual(all.done.map((s) => s.id), ["a:2"]);
+  assert.deepEqual(all.archive.map((s) => s.id), ["a:5", "a:6"]);
+
+  // Inside "planned", planned always stays before considering across every sort mode
+  for (const sort of ["votes", "newest", "discussed", "closing"] satisfies SeedSort[]) {
+    const grouped = filterAndGroupSeeds(seeds, { now, sort });
+    assert.deepEqual(grouped.planned.map((s) => s.id), ["a:3", "a:4"], `expected planned before considering for sort=${sort}`);
+  }
+
+  // Kind filters
+  const bugs = filterAndGroupSeeds(seeds, { now, kind: "bug" });
+  assert.deepEqual(bugs.voting, []);
+  assert.deepEqual(bugs.planned.map((s) => s.id), ["a:4"]);
+  assert.deepEqual(bugs.done.map((s) => s.id), ["a:2"]);
+  assert.deepEqual(bugs.archive.map((s) => s.id), ["a:6"]);
+
+  const features = filterAndGroupSeeds(seeds, { now, kind: "feature" });
+  assert.deepEqual(features.voting.map((s) => s.id), ["a:1"]);
+  assert.deepEqual(features.planned.map((s) => s.id), ["a:3"]);
+  assert.deepEqual(features.done, []);
+  assert.deepEqual(features.archive.map((s) => s.id), ["a:5"]);
+
+  const explicitAll = filterAndGroupSeeds(seeds, { now, kind: "all" });
+  assert.equal(SEED_BUCKETS.reduce((sum, b) => sum + explicitAll[b].length, 0), 6);
+
+  // Case-insensitive query across title, text, displayName, and raw author
+  const names: Record<string, string> = { alice_key: "Alice Wonder", carol_key: "Carol" };
+  const byTitle = filterAndGroupSeeds(seeds, { now, query: "  ROADMAP " });
+  assert.deepEqual(byTitle.planned.map((s) => s.id), ["a:3"]);
+
+  const byText = filterAndGroupSeeds(seeds, { now, query: "dArK tHeMe" });
+  assert.deepEqual(byText.voting.map((s) => s.id), ["a:1"]);
+
+  const byDisplayName = filterAndGroupSeeds(seeds, { now, query: "WONDER", displayName: (pk) => names[pk] ?? pk });
+  assert.deepEqual(byDisplayName.voting.map((s) => s.id), ["a:1"]);
+
+  const byAuthorKey = filterAndGroupSeeds(seeds, { now, query: "ERIN_KEY", displayName: (pk) => names[pk] ?? pk });
+  assert.deepEqual(byAuthorKey.archive.map((s) => s.id), ["a:5"]);
+});
+
+test("sortSeeds supports votes, newest, discussed, and closing without mutating input", () => {
+  const now = 1_700_000_000_000;
+  const s1 = makeSeed({ id: "s1", up: 2, down: 0, voters: 2, ts: now - 3000, closes: now + 5 * DAY, comments: [] });
+  const s2 = makeSeed({
+    id: "s2",
+    up: 10,
+    down: 1,
+    voters: 4,
+    ts: now - 2000,
+    closes: now + 10 * DAY,
+    comments: [{ id: "c1", author: "bob", text: "one", ts: now - 1000 }],
+  });
+  const s3 = makeSeed({
+    id: "s3",
+    up: 1,
+    down: 0,
+    voters: 1,
+    ts: now - 1000,
+    closes: now + 1 * DAY,
+    comments: [
+      { id: "c2", author: "bob", text: "a", ts: now - 900 },
+      { id: "c3", author: "carol", text: "b", ts: now - 800 },
+    ],
+  });
+  const sClosed = makeSeed({ id: "s4", up: 50, down: 0, voters: 10, ts: now - 500, closes: now - 2 * DAY, comments: [] });
+  const input = [s1, s2, s3, sClosed];
+  const snapshot = input.map((s) => s.id);
+
+  assert.deepEqual(sortSeeds(input, "votes", "voting", now).map((s) => s.id), ["s4", "s2", "s1", "s3"]);
+  assert.deepEqual(sortSeeds(input, "newest", "voting", now).map((s) => s.id), ["s4", "s3", "s2", "s1"]);
+  assert.deepEqual(sortSeeds(input, "discussed", "voting", now).map((s) => s.id), ["s3", "s2", "s4", "s1"]);
+  assert.deepEqual(sortSeeds(input, "closing", "voting", now).map((s) => s.id), ["s3", "s1", "s2", "s4"]);
+  assert.deepEqual(input.map((s) => s.id), snapshot);
+});
+
+test("pickDefaultBucket follows voting -> planned -> done -> archive and falls back to voting", () => {
+  const s = makeSeed();
+  assert.equal(pickDefaultBucket({ voting: [s], planned: [s], done: [s], archive: [s] }), "voting");
+  assert.equal(pickDefaultBucket({ voting: [], planned: [s], done: [s], archive: [s] }), "planned");
+  assert.equal(pickDefaultBucket({ voting: [], planned: [], done: [s], archive: [s] }), "done");
+  assert.equal(pickDefaultBucket({ voting: [], planned: [], done: [], archive: [s] }), "archive");
+  assert.equal(pickDefaultBucket({ voting: [], planned: [], done: [], archive: [] }), "voting");
+});
+
+test("formatSeedsForAi(..., true) includes open voting and closed-window planned/considering while excluding done, not-now, and expired untriaged", () => {
+  const openVoting = makeSeed({ id: "a:v", title: "Open Voting Seed", closes: Date.now() + 5 * DAY });
+  const closedPlanned = makeSeed({ id: "a:p", title: "Closed Planned Seed", closes: Date.now() - 2 * DAY, status: "planned" });
+  const closedConsidering = makeSeed({ id: "a:c", title: "Closed Considering Seed", closes: Date.now() - 2 * DAY, status: "considering" });
+  const openDone = makeSeed({ id: "a:d", title: "Open Done Seed", closes: Date.now() + 5 * DAY, status: "done" });
+  const openNotNow = makeSeed({ id: "a:n", title: "Open Not Now Seed", closes: Date.now() + 5 * DAY, status: "not-now" });
+  const expiredUntriaged = makeSeed({ id: "a:e", title: "Expired Untriaged Seed", closes: Date.now() - 2 * DAY });
+
+  const md = formatSeedsForAi(
+    [openVoting, closedPlanned, closedConsidering, openDone, openNotNow, expiredUntriaged],
+    (pk) => `@${pk}`,
+    true
+  );
+  assert.match(md, /Open Voting Seed/);
+  assert.match(md, /Closed Planned Seed/);
+  assert.match(md, /Closed Considering Seed/);
+  assert.doesNotMatch(md, /Open Done Seed/);
+  assert.doesNotMatch(md, /Open Not Now Seed/);
+  assert.doesNotMatch(md, /Expired Untriaged Seed/);
+});
+
+test("foldGreenhouse Layer 2 seed moderation drops hidden/reported/AI-held seeds for readers while authors keep their own", () => {
+  const hiddenAuthorSeed = entry("carol", t0, { type: "seed", kind: "feature", title: "Hidden Author Seed", days: 7 });
+  const reportedSeed = entry("alice", t0 + 1, { type: "seed", kind: "bug", title: "Reported Seed", days: 7 });
+  const aiHeldOwnSeed = entry("bob", t0 + 2, { type: "seed", kind: "feature", title: "My AI-Held Seed", days: 7 });
+  const visibleSeed = entry("alice", t0 + 3, { type: "seed", kind: "feature", title: "Visible Seed", days: 7 });
+
+  const hideAuthor = (author: string) => author === "carol";
+  const isReportedOrHeld = (target: string) => target === `alice:${reportedSeed.id}` || target === `bob:${aiHeldOwnSeed.id}`;
+  const entries = [hiddenAuthorSeed, reportedSeed, aiHeldOwnSeed, visibleSeed];
+
+  const bobView = foldGreenhouse(
+    entries,
+    tierOf,
+    "bob",
+    "boss",
+    () => 0,
+    [],
+    () => false,
+    (author, target) => hideAuthor(author) || isReportedOrHeld(target)
+  );
+  assert.deepEqual(
+    bobView.map((s) => s.title),
+    ["Visible Seed", "My AI-Held Seed"]
+  );
+
+  // Even when a reader's own author key is marked hidden, the author still sees their own seed
+  const carolView = foldGreenhouse(
+    entries,
+    tierOf,
+    "carol",
+    "boss",
+    () => 0,
+    [],
+    () => false,
+    (author, target) => hideAuthor(author) || isReportedOrHeld(target)
+  );
+  assert.deepEqual(
+    carolView.map((s) => s.title),
+    ["Visible Seed", "Hidden Author Seed"]
+  );
+
+  // 7-arg callers get Layer 2 seed filtering automatically via hideComment fallback
+  const sevenArgView = foldGreenhouse(
+    entries,
+    tierOf,
+    "bob",
+    "boss",
+    () => 0,
+    [],
+    (author, target) => hideAuthor(author) || isReportedOrHeld(target)
+  );
+  assert.deepEqual(
+    sevenArgView.map((s) => s.title),
+    ["Visible Seed", "My AI-Held Seed"]
+  );
 });

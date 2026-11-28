@@ -14605,6 +14605,7 @@ initGreenhouse({
   isReported: (target) => getModerationPolicy().isTargetReported(target),
   hideAuthor: (pk) => hideAuthorWithToast(pk),
   report: (author, id, reason) => freenet.reportPost(author, id, reason, null, true),
+  shouldMaskBadWords: () => safeStorage.getItem(MASK_BAD_WORDS_KEY) !== "0",
   linfaForAuthors: async (authors) => {
     if (!currentIdentity) return { weights: new Map() };
     const [seen, feeds] = await Promise.all([

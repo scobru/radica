@@ -8,6 +8,16 @@ import type { SupporterTier } from "./supporter.ts";
 export type SeedKind = "feature" | "bug";
 export const SEED_STATUSES = { considering: "🔍 Considering", planned: "🗓️ Planned", done: "✅ Done", "not-now": "💤 Not now" } as const;
 export type SeedStatus = keyof typeof SEED_STATUSES;
+export type SeedBucket = "voting" | "planned" | "done" | "archive";
+export const SEED_BUCKETS: readonly SeedBucket[] = ["voting", "planned", "done", "archive"];
+export type SeedSort = "votes" | "newest" | "discussed" | "closing";
+export interface SeedFilterOptions {
+  kind?: "all" | SeedKind;
+  query?: string;
+  sort?: SeedSort;
+  displayName?: (pubkey: string) => string;
+  now?: number;
+}
 export const TIER_WEIGHT: Record<SupporterTier, number> = { sprout: 1, root: 2, oak: 3 };
 export const SEED_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
@@ -68,7 +78,9 @@ export function foldGreenhouse(
   linfaWeightOf: (author: string) => number = () => 0,
   statusIssuers: readonly string[] = [],
   // a comment of someone hidden, or one reported/held (`target` = `${author}:${entry id}`): dropped, except my own
-  hideComment: (author: string, target: string) => boolean = () => false
+  hideComment: (author: string, target: string) => boolean = () => false,
+  // a seed of someone hidden, or one reported/held (`target` = `${author}:${entry id}`): dropped, except my own
+  hideSeed: (author: string, target: string) => boolean = hideComment
 ): Seed[] {
   const weightOf = (author: string): number => {
     const tier = tierOf(author);
@@ -86,6 +98,7 @@ export function foldGreenhouse(
     if (!title) continue;
     const days = SEED_DAYS.includes(b.days) ? b.days : 14;
     const id = `${e.author}:${e.id}`;
+    if (e.author !== me && hideSeed(e.author, id)) continue;
     seeds.set(id, { id, author: e.author, kind: b.kind, title, text: typeof b.text === "string" ? b.text.slice(0, 2000) : "", ts: e.ts, closes: e.ts + days * DAY_MS, up: 0, down: 0, voters: 0, mine: 0, comments: [] });
   }
   // each voter's newest vote before the seed closes
@@ -116,6 +129,76 @@ export function foldGreenhouse(
     if (ao !== bo) return ao ? -1 : 1;
     return ao ? b.up - b.down - (a.up - a.down) || b.ts - a.ts : b.closes - a.closes;
   });
+}
+
+/** Classify a seed into its Greenhouse lifecycle bucket. */
+export function classifySeed(seed: Seed, now = Date.now()): SeedBucket {
+  if (seed.status === "done") return "done";
+  if (seed.status === "not-now") return "archive";
+  if (seed.status === "planned" || seed.status === "considering") return "planned";
+  return seed.closes > now ? "voting" : "archive";
+}
+
+/** Return a new array of seeds sorted according to `sort` and `bucket` rules. */
+export function sortSeeds(seeds: readonly Seed[], sort: SeedSort, bucket: SeedBucket, now = Date.now()): Seed[] {
+  return [...seeds].sort((a, b) => {
+    if (bucket === "planned") {
+      const ra = a.status === "planned" ? 0 : 1;
+      const rb = b.status === "planned" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+    }
+    const netDiff = (b.up - b.down) - (a.up - a.down);
+    switch (sort) {
+      case "newest":
+        return b.ts - a.ts || netDiff;
+      case "discussed":
+        return b.comments.length - a.comments.length || netDiff || b.ts - a.ts;
+      case "closing": {
+        const ao = a.closes > now;
+        const bo = b.closes > now;
+        if (ao !== bo) return ao ? -1 : 1;
+        return (ao ? a.closes - b.closes : b.closes - a.closes) || netDiff || b.ts - a.ts;
+      }
+      case "votes":
+      default:
+        return netDiff || b.voters - a.voters || b.ts - a.ts;
+    }
+  });
+}
+
+/** Filter seeds by kind and query, classify into buckets, and sort each bucket. */
+export function filterAndGroupSeeds(seeds: readonly Seed[], opts: SeedFilterOptions = {}): Record<SeedBucket, Seed[]> {
+  const now = opts.now ?? Date.now();
+  const q = opts.query?.trim().toLowerCase() ?? "";
+  const grouped: Record<SeedBucket, Seed[]> = {
+    voting: [],
+    planned: [],
+    done: [],
+    archive: [],
+  };
+  for (const seed of seeds) {
+    if (opts.kind && opts.kind !== "all" && seed.kind !== opts.kind) continue;
+    if (q) {
+      const authorName = opts.displayName ? opts.displayName(seed.author) : "";
+      const matches =
+        seed.title.toLowerCase().includes(q) ||
+        seed.text.toLowerCase().includes(q) ||
+        authorName.toLowerCase().includes(q) ||
+        seed.author.toLowerCase().includes(q);
+      if (!matches) continue;
+    }
+    grouped[classifySeed(seed, now)].push(seed);
+  }
+  for (const bucket of SEED_BUCKETS) {
+    const sort = opts.sort ?? (bucket === "done" || bucket === "archive" ? "newest" : "votes");
+    grouped[bucket] = sortSeeds(grouped[bucket], sort, bucket, now);
+  }
+  return grouped;
+}
+
+/** Pick the first non-empty bucket in display order (`voting`, `planned`, `done`, `archive`), defaulting to `"voting"`. */
+export function pickDefaultBucket(grouped: Record<SeedBucket, readonly Seed[]>): SeedBucket {
+  return SEED_BUCKETS.find((b) => grouped[b].length > 0) ?? "voting";
 }
 
 /**
@@ -149,12 +232,17 @@ export function greenhousePermalink(seedId: string, baseUrl = ""): string {
 
 /** Format one or more Greenhouse seeds into compact Markdown for pasting into an AI coding agent. */
 export function formatSeedsForAi(
-  seeds: Seed[],
+  seeds: readonly Seed[],
   displayName: (pubkey: string) => string = (pk) => pk.slice(0, 8),
   onlyOpen = false
 ): string {
   const now = Date.now();
-  const list = onlyOpen ? seeds.filter((s) => s.status !== "done" && s.status !== "not-now" && s.closes > now) : seeds;
+  const list = onlyOpen
+    ? seeds.filter((s) => {
+        const bucket = classifySeed(s, now);
+        return bucket === "voting" || bucket === "planned";
+      })
+    : seeds;
   if (!list.length) return "No open Greenhouse proposals right now.";
   return list
     .map((s) => {
