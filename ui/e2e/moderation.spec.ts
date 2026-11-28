@@ -69,12 +69,14 @@ test("a Radica moderator removes a stranger's post and comment for everyone foll
 
   const spamCard = page.locator(".gram-card", { hasText: spam }).first();
   await spamCard.locator(".global-remove-btn").click({ timeout: 20_000 });
+  await page.locator("[data-dialog-ok]").click(); // in-app confirm (TASK-012)
   await expect(page.locator(".gram-card", { hasText: spam })).toHaveCount(0);
 
   const card = page.locator(".gram-card", { hasText: other }).first();
   const comment = card.locator(".comment-item", { hasText: keep });
   await expect(comment).toBeVisible();
   await comment.locator(".comment-remove-btn").click();
+  await page.locator("[data-dialog-ok]").click();
   await expect(card.locator(".comment-item", { hasText: keep })).toHaveCount(0);
   await expect(card).toBeVisible(); // the post itself stays
 });

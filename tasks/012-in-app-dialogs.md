@@ -26,7 +26,7 @@ Radica calls the browser's `confirm()`, `alert()` and `prompt()` about 114 times
 6. Update `ui/src/updates.ts`, `CHANGELOG.md`, `CONTEXT.md` (term: In-app dialog).
 
 ## Status
-🟡 **IN_PROGRESS** (2026-11-28): planned by radica-architect.
+🟢 DONE (2026-11-28)
 
 ## Plan
 
@@ -72,6 +72,7 @@ New term: **In-app dialog** (added under Decisions).
 - [x] [ui] ui-3: `ui/src/messengerChat.ts`, 10 sites (6 confirm, 3 alert -> `deps.showToast`, River migration prompt). after: core-1.
 - [x] [ui] ui-4: `ui/src/articlesPage.ts` (2), `ui/src/greenhousePage.ts` (7), `ui/src/supporterPanel.ts` (5, toast imported from `dialogs.ts`). after: core-1.
 - [x] [test] test-1: `ui/tests/dialogs.test.ts`: queue (one at a time, FIFO, resolve true/false/null), `dialogKeyAction` (Enter, Escape, Enter on Cancel, Enter in prompt), import has no DOM side effect. after: core-1.
-- [ ] [test] test-2: `ui/tests/noNativeDialogs.test.ts`: no `(?<![\w.$])(window\.)?(confirm|alert|prompt)\(` left in `ui/src/**/*.ts`; `cli.test.ts` still passes. after: ui-2, ui-3, ui-4.
-- [ ] [test] test-3: `ui/e2e/`: replace reliance on `page.on("dialog")` with clicking `[data-dialog-ok]` where flows confirm; new `e2e/dialogs.spec.ts` screenshots (Pixel 7 dark + light, desktop) of a confirm, a danger confirm and a prompt (via dynamic import of `/src/dialogs.ts` in the dev page). after: ui-1, ui-2.
-- [ ] [test] test-4: `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `CONTEXT.md` term, set spec and `ISSUES.md` to DONE. after: all.
+- [x] [test] test-2: `ui/tests/noNativeDialogs.test.ts`: no `(?<![\w.$])(window\.)?(confirm|alert|prompt)\(` left in `ui/src/**/*.ts`; `cli.test.ts` still passes. after: ui-2, ui-3, ui-4.
+- [x] [test] test-3: `ui/e2e/`: replace reliance on `page.on("dialog")` with clicking `[data-dialog-ok]` where flows confirm; new `e2e/dialogs.spec.ts` screenshots (Pixel 7 dark + light, desktop) of a confirm, a danger confirm and a prompt (via dynamic import of `/src/dialogs.ts` in the dev page). after: ui-1, ui-2.
+  > note (tester): screenshots and their script kept out of the repo (maintainer/orchestrator request); 4 viewports x 4 dialogs, 61 behaviour checks passed (danger sign-out triggered for real). e2e: 3 flows now click `[data-dialog-ok]`; full suite 45/45.
+- [x] [test] test-4: `npm test`, `npm run build`, `graphify update .`, `CHANGELOG.md` entry, check `CONTEXT.md` term, set spec and `ISSUES.md` to DONE. after: all.

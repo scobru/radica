@@ -374,9 +374,9 @@ test("an old River room opens as a read-only archive its owner can migrate", asy
     (freenet as unknown as { migrateRiverRoom(i: unknown, r: string, n: string): Promise<never> }).migrateRiverRoom = (_i, _r, n) =>
       new Promise((_, reject) => ((w.migrateName = n), (w.finishMigrate = () => reject(new Error("stopped by the test")))));
   });
-  page.removeAllListeners("dialog"); // signIn accepts every dialog empty
-  page.once("dialog", (d) => d.accept("New Home"));
   await page.locator("[data-migrate-river]").click();
+  await page.locator(".app-dialog-input").fill("New Home"); // the in-app prompt (TASK-012)
+  await page.locator("[data-dialog-ok]").click();
   await expect(page.locator("[data-migrate-river] .busy-spinner")).toBeVisible();
   await expect(page.locator("[data-migrate-river]")).toHaveText("Migrating…");
   expect(await page.evaluate(() => (window as unknown as { migrateName?: string }).migrateName)).toBe("New Home");
@@ -414,7 +414,8 @@ test("Notes: a conversation with myself, listed from the start, that wipes in on
   await expect(page.locator(".rm-msg-row", { hasText: "remember the milk" }).first()).toBeVisible({ timeout: 10_000 });
 
   await page.click("#rm-header-peer-trigger");
-  await page.locator("[data-wipe-notes]").click(); // signIn accepts the confirm
+  await page.locator("[data-wipe-notes]").click();
+  await page.locator("[data-dialog-ok]").click(); // the in-app danger confirm
   await expect(page.locator(".rm-msg-row", { hasText: "remember the milk" })).toHaveCount(0, { timeout: 15_000 });
 });
 
